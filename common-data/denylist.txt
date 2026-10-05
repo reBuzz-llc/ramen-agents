@@ -1,0 +1,35 @@
+# One entry per line. Lines starting with # are comments.
+# domain:<host>   blocks that host and all its subdomains
+# path:<segment>  blocks any URL whose path contains that segment (extension ignored, so path:login also blocks login.html)
+# Private networks, localhost, and non-http schemes are always blocked regardless of this file.
+
+# Sign-in and account pages
+domain:accounts.google.com
+domain:appleid.apple.com
+domain:login.microsoftonline.com
+domain:login.live.com
+domain:login.yahoo.com
+domain:auth0.com
+path:login
+path:log-in
+path:signin
+path:sign-in
+path:signup
+path:sign-up
+path:register
+path:account
+path:accounts
+path:oauth
+path:auth
+path:wp-admin
+path:wp-login
+
+# Money
+domain:paypal.com
+domain:checkout.stripe.com
+path:checkout
+path:cart
+path:payment
+path:payments
+path:billing
+path:subscribe

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The Validator's quick loop: every 10 minutes read its inbox (reports and blockers from the other bots), verify the cause,
+       answer, escalate to the owner after 2 hours. The 6-hourly sweep stays com.rebuzz.validator. -->
+  <key>Label</key><string>com.rebuzz.validator-inbox</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/validator/validator.py</string>
+    <string>--inbox</string>
+  </array>
+  <key>StartInterval</key><integer>600</integer>
+  <key>RunAtLoad</key><false/>
+  <key>ProcessType</key><string>Background</string>
+  <key>Nice</key><integer>10</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__HOME__/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/validator-inbox.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/validator-inbox.err</string>
+</dict>
+</plist>

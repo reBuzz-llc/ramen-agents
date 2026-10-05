@@ -1,0 +1,73 @@
+# Validator: checks what the family writes (Notion tasks, packages, leads, hand-overs) against the owner's rules in
+# validator/instructions/*.md. Not a browsing bot: a scheduled job (launchd) plus a write gate the engine calls.
+# NOTE (TOML): keep every plain setting ABOVE [validator.model] and its [[...]] entries.
+
+[agent]
+not_a_bot_run_agent = true
+name = "Validator"
+bio = "The fleet's format checker, run as an automated job by its owner. It reviews the Notion tasks and packages and the other bots' outputs against the owner's rules, and asks the responsible bot to fix what is missing or wrong."
+tags = ["validator", "notion_reader"]
+
+[dashboard]
+port = 8793
+
+[validator]
+task_data_source_id = ""        # FILL-ME: the task board's data source id (the same as the-ceo [notion] database_id)
+package_page_id = ""            # FILL-ME: the Packages page id
+leads_data_source_id = ""       # FILL-ME: the Leads board's data source id; "" = skip leads
+task_owner_bot = "the-ceo"
+lead_owner_bot = "lead-gen"
+provider_bot = "the-ceo"        # hears about deleted cells and assigns who fixes them
+upkeep_to_lead_bot = false      # empty cells go in the report, not to Lead Gen as a work list
+provider_gaps_every_days = 3
+silent_bots = []
+notion_api_version = "2025-09-03"
+full_sweep_every_hours = 24
+run_every_hours = 6
+notify = true
+max_messages_per_bot_per_day = 3
+max_flags_per_message = 3
+own_domains = []                # FILL-ME: your own site's domain(s)
+package_signoff = []            # e.g. ["Regards,", "-- Your Company"]; empty = the sign-off is not checked
+message_only_since = ""         # set a date (YYYY-MM-DD) to report, never message, anything made before it
+legacy_kinds = ["package_file", "provider", "task", "package"]
+lead_message_only_since = ""
+blocker_bot = ""                # the bot that receives blocker reports, if you run one
+blocker_escalate_hours = 2
+owner_reply_within_minutes = 60
+family_answer_hours = 6
+family_ceo_hours = 2
+family_grace_actions = 4
+
+[validator.model]
+# Model-judged rules (MJnn): a small daily budget on the family's free providers.
+enabled = true
+daily_token_budget = 40000
+max_items_per_run = 8
+rejudge_every_days = 7
+max_output_tokens = 1500
+
+[[validator.model.chain]]
+name = "groq"
+base_url = "https://api.groq.com/openai/v1"
+model = "openai/gpt-oss-120b"
+key_file = "~/bots/common-data/keys/groq.key"
+
+[[validator.model.chain]]
+name = "gemini"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+model = "gemini-3.6-flash"
+key_file = "~/bots/common-data/keys/gemini.key"
+
+[[validator.model.chain]]
+name = "zai"
+base_url = "https://api.z.ai/api/paas/v4"
+model = "glm-4.5-flash"
+key_file = "~/bots/common-data/keys/zai.key"
+
+[validator.offers]
+# PK14, one offer one toggle: the products you sell, as the words that name them (a name = a regular expression).
+# Two packages that name the same product are the same offer, whatever the headline or the price says.
+# FILL-ME, for example:
+# "website care" = "website (care|maintenance)|site care"
+# "online ordering" = "online ordering|ordering app"

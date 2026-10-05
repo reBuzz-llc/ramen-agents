@@ -1,0 +1,85 @@
+# Settings shared by the bots that read the clear web and write with remote models. Their config.toml says
+#   extends = "../common-data/configs/web-bots.toml"
+# A value set in the bot's own config wins.
+extends = "common.toml"
+
+[agent]
+# Budget-aware pacing may stretch a cycle up to this long (see model.fleet_token_budget).
+max_cycle_delay_seconds = 300
+# Goes into the user agent so site owners can reach the owner; some APIs refuse bots that give no contact.
+contact = "FILL-ME: https://your-site.example or an email address"
+
+[model]
+# fake = deterministic heuristic (no LLM), ollama = local model over HTTP, remote = provider_chain in order.
+provider = "remote"
+# THE FAMILY'S ONE CHAIN: every free key the family holds, in one order, for every web bot. No bot lists its own
+# providers: a key is nobody's own, each provider's calls_per_day is counted for the whole Mac in
+# ~/.config/explorer/model_calls.json, so whoever is running draws on it and a stopped bot holds nothing back.
+# A bot that wants a different ORDER sets model.provider_first. A provider that is rate-limited, capped or down is
+# benched and the next one answers; the local Ollama model is the last resort. A provider whose key file is missing
+# is skipped, so leave the list as it is and add keys as you get them (common-data/keys/<name>.key).
+# Free tiers only: a provider that needs a payment method stays out of the chain unless the owner decides otherwise.
+provider_chain = ["zai", "gemini", "groq", "speka", "mistral", "openrouter", "ollama-cloud"]
+gemini_model = "gemini-3.6-flash"
+gemini_fallback_models = ["gemini-flash-lite-latest"]
+gemini_api_key_file = "~/bots/common-data/keys/gemini.key"
+# "writing": the local model decides every step and only a note, task, post or message is written by the remote
+# chain. A bot that should think with the remote models sets remote_for = "all" in its own config.
+remote_for = "writing"
+# One pool of remote tokens for the day, shared by the bots that are running right now in proportion to their
+# budget_weight; a stopped bot's share flows to the rest at once. Set it to about what your free tiers carry in a day.
+budget_scope = "active"
+fleet_token_budget = 8000000
+budget_weight = 1.0
+daily_token_budget = 1000000   # the per-bot figure, used only if budget_scope is set back to "bot"
+
+[browser]
+# Each bot scores its search engines and drops one that never led to a note. Changing this value wipes those scores
+# once at the next start (do it after a search outage, or bots stay off the web).
+search_stats_epoch = "start"
+# A search engine that rate-limits or bot-checks one bot is paused for every bot.
+search_pause_file = "~/bots/common-data/search_pause.json"
+
+[model.providers.groq]
+# Free tier, no card. Small: about 8,000 tokens a request and 200,000 a day; fine for short calls.
+base_url = "https://api.groq.com/openai/v1"
+model = "openai/gpt-oss-120b"
+api_key_file = "~/bots/common-data/keys/groq.key"
+calls_per_day = 900
+
+[model.providers.speka]
+# $1 of usage included every month with no card; the daily cap spreads it over the month.
+base_url = "https://speka.me/v1"
+model = "openai/gpt-oss-20b"
+api_key_file = "~/bots/common-data/keys/speka.key"
+calls_per_day = 30
+
+[model.providers.zai]
+# The flash model is list-priced $0, no card. Our own cap only stops a runaway; a real 429 benches it.
+base_url = "https://api.z.ai/api/paas/v4"
+model = "glm-4.5-flash"
+api_key_file = "~/bots/common-data/keys/zai.key"
+calls_per_day = 3000
+
+[model.providers.ollama-cloud]
+# Free plan, no card, capped per MONTH: a 429 here is not worth a retry every 15 minutes.
+base_url = "https://ollama.com/v1"
+model = "gpt-oss:120b"
+api_key_file = "~/bots/common-data/keys/ollama-cloud.key"
+calls_per_day = 60
+cooldown_minutes = 720
+
+[model.providers.openrouter]
+# Only a ":free" model, no card, about 50 calls a day without credit.
+base_url = "https://openrouter.ai/api/v1"
+model = "google/gemma-4-31b-it:free"
+api_key_file = "~/bots/common-data/keys/openrouter.key"
+calls_per_day = 50
+cooldown_minutes = 60
+
+[model.providers.mistral]
+# Free plan must be activated in the provider's console before the key answers.
+base_url = "https://api.mistral.ai/v1"
+model = "mistral-small-latest"
+api_key_file = "~/bots/common-data/keys/mistral.key"
+cooldown_minutes = 60

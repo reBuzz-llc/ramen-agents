@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.rebuzz.search-check</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/scripts/search_check.py</string>
+    <string>--quiet</string>
+  </array>
+  <key>StartInterval</key><integer>10800</integer>
+  <key>RunAtLoad</key><true/>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/search-check.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/search-check.err</string>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>__HOME__</string><key>PATH</key><string>/usr/local/bin:/usr/bin:/bin</string></dict>
+</dict>
+</plist>

@@ -1,0 +1,44 @@
+# Settings every bot on this Mac shares. A bot's config.toml pulls them in with a top-level
+#   extends = "../common-data/configs/common.toml"
+# (or through web-bots.toml, which extends this file). A value set in the bot's own config wins.
+# Paths here start with "~/": the engine expands that to the home folder of whoever runs the bots.
+
+[agent]
+# fake = local HTML pages under browser.fake_web_dir, web = the real internet
+mode = "web"
+persona_file = "persona.md"
+# Bots may rewrite their own goal: the new goal is stored in workspace/self_goal.md, put in the prompt, and shown
+# to the owner to review or undo. The persona file is never touched; the code safety fence is not a goal a bot can move.
+self_goals = true
+# Bots may suggest a new bot the fleet is missing (propose_teammate) -> common-data/proposed-bots.md for the owner
+# to weigh. Reviewed, never auto-created; at most one a day per bot.
+propose_teammates = true
+
+[browser]
+# Offline test pages from the engine; only used in fake mode.
+fake_web_dir = "~/Projects/bot/workspace/fake_web"
+
+[policy]
+# The Validator's rules run BEFORE a lead, task or package is written (validator/gate.py); what breaks a hard rule
+# never reaches Notion. Fails open if the gate is missing or broken.
+write_gate = "~/bots/validator/gate.py"
+# The gate's model-judged questions (MGnn in validator/instructions/<bot>.md) are asked at write time by the local
+# model; one answer per content, cached in shared-state/write-gate-model.json. "" turns it off.
+write_gate_model = "local"
+# Sites no bot may open.
+denylist_file = "~/bots/common-data/denylist.txt"
+
+[messaging]
+# The fleet chatroom: one shared log (common-data/chatroom.jsonl) every bot posts to and reads. A bot posts with a
+# `message` addressed to "everyone". Direct-message peers are set per bot.
+enabled = true
+room = true
+# Messages (room posts + direct messages together) allowed per episode / per day.
+max_per_episode = 2
+max_per_day = 12
+
+[quiet]
+# Stay out of the owner's way while they use the Mac (details in each bot's [quiet] section).
+enabled = true
+# false = pause only while a listed game app is in front; true = pause whenever the owner is using the Mac.
+when_owner_active = false

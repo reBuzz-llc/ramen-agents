@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The bot's data server (bot dashboard): the owner's chat with the bot and the webapp's data. launchd keeps it up and restarts it on a crash. -->
+  <key>Label</key>
+  <string>com.rebuzz.data.__SLUG__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/bot</string>
+    <string>--config</string>
+    <string>__HOME__/bots/__SLUG__/config.toml</string>
+    <string>dashboard</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/Projects/bot</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/bots/__SLUG__/workspace/logs/data-server.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/bots/__SLUG__/workspace/logs/data-server.err.log</string>
+</dict>
+</plist>

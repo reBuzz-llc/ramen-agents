@@ -1,0 +1,53 @@
+# The fleet: configuration and operations for a family of bots. Runtime state and secrets stay out of git.
+
+# Secrets -- never. Keys live only on this Mac.
+common-data/keys/
+*.key
+**/dashboard.token
+**/*.token
+
+# Runtime state of every bot: databases, logs, browser profiles, pid/STOP files, inboxes, backups.
+*/workspace/
+common-data/logs/
+common-data/shared-state/
+common-data/downloads/
+common-data/chatroom.jsonl*
+common-data/search_pause.json
+*.sqlite3
+*.sqlite3-*
+
+# Bulk data and scratch
+*/raw/
+*/archive/
+graphify-out/
+*.bak*
+*.jsonl
+!validator/instructions/**
+
+# Build output
+webapp/node_modules/
+webapp/.next/
+webapp/.vercel/
+**/__pycache__/
+**/.pytest_cache/
+.DS_Store
+
+# Webapp runtime (logs, generated digests/alerts) and stray archives
+webapp/logs/
+webapp/data/
+webapp/*.zip
+
+webapp/brandkit-state.json
+webapp/applebrandkit.md
+
+# Per-bot chatroom reading positions (runtime)
+common-data/chatroom-seen.json
+
+# owner drop folder: contents are private, keep only the README
+common-data/botBox/*
+!common-data/botBox/README.md
+
+
+# Backups made before destructive steps: databases and state, local only.
+/backups/
+

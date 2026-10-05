@@ -1,0 +1,28 @@
+# Where Lead Gen's daily candidates come from, per market (scripts/candidates-feed.py). The market in use is the one
+# common-data/knowledge/target.toml names ("market"); a market with no feed here is skipped with a logged reason, and
+# Lead Gen then finds businesses by searching.
+#
+# Each feed is a Socrata open-data endpoint (free, keyless). `fields` maps our names to the dataset's columns;
+# `zip_field` + `areas` turn a ZIP prefix into a named area and keep only rows inside the market; `sector_field` +
+# `sector_order` put the trades that fit the packages first.
+#
+# FILL-ME: find an open business register for your market and describe it like this (remove the leading "# "):
+#
+# [feeds."Your Market"]
+# source = "Name of the open-data set"
+# url = "https://data.example.gov/resource/xxxx-xxxx.json"
+# id_field = "account_number"
+# website_field = "website"
+# zip_field = "zip"
+# sector_field = "sector"
+# name_fields = ["trade_name", "legal_name"]
+# industry_fields = ["industry", "sector"]
+# owner_fields = ["first_name", "last_name"]
+# rows_per_day = 150
+#
+# [feeds."Your Market".areas]
+# "100" = "District one"
+# "101" = "District two"
+#
+# [feeds."Your Market".sector_order]
+# order = ["Retail Trade", "Accommodation and Food Services"]

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Refuse a commit that adds anything shaped like an API key or token. Keys live in common-data/keys/ (ignored);
+# this is the belt to the .gitignore's braces.
+pattern='((^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{25,}|gsk_[A-Za-z0-9]{20,}|xai-[A-Za-z0-9]{20,}|r8_[A-Za-z0-9]{20,})'
+if git diff --cached -U0 | grep -E '^\+' | grep -Eq "$pattern"; then
+  echo "pre-commit: refusing -- a staged line looks like an API key or token:" >&2
+  git diff --cached -U0 | grep -E '^\+' | grep -Eo "$pattern" | sed 's/\(.\{10\}\).*/\1…/' | sort -u >&2
+  exit 1
+fi
+if git diff --cached --name-only | grep -Eq '(^|/)common-data/keys/|\.key$|(^|/)workspace/|\.sqlite3'; then
+  echo "pre-commit: refusing -- a key file, bot workspace or database is staged:" >&2
+  git diff --cached --name-only | grep -E '(^|/)common-data/keys/|\.key$|(^|/)workspace/|\.sqlite3' >&2
+  exit 1
+fi

@@ -1,0 +1,41 @@
+# Scout: finds free, card-free tools and data sources that unblock the others, and watches the terms of the providers
+# the family depends on (scripts/provider_watch.py, weekly).
+extends = "../common-data/configs/web-bots.toml"
+
+[agent]
+name = "Scout"
+bio = "The tooling desk of a bot fleet, run as an automated agent by its owner. It finds free, card-free tools and data sources that unblock the other bots, and it watches the terms of the providers the fleet already uses."
+cycle_delay_seconds = 600
+seed_interests = ["free web search and page reader apis with a card-free tier", "changes to free tiers of ai api providers"]
+
+[policy]
+refuse_repeated_searches = true
+max_pages_without_note = 0
+max_notes_per_episode = 1
+max_notes_per_day = 6
+disabled_actions = ["ask", "interest"]
+
+[browser]
+search_engines = ["searxng", "hn", "corpus"]
+corpus_dir = "raw"
+
+[dashboard]
+port = 8792
+
+[scout]
+enabled = true                  # finds are recorded in common-data/providers-found.md for the owner to review
+
+[messaging]
+enabled = true
+[[messaging.peers]]
+name = "The CEO"
+folder = "~/bots/the-ceo"
+[[messaging.peers]]
+name = "Lead Gen"
+folder = "~/bots/lead-gen"
+[[messaging.peers]]
+name = "Package Designer"
+folder = "~/bots/package-designer"
+[[messaging.peers]]
+name = "Validator"
+folder = "~/bots/validator"

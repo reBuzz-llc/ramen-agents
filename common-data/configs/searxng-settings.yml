@@ -1,0 +1,61 @@
+# SearXNG for the bots on this Mac (installed 2026-09-14 at the owner's request).
+# Local only: bound to 127.0.0.1, no public instance, no limiter (only the bots call it).
+# The bots use /search?format=json through the `searxng` engine in ~/Projects/bot/src/explorer/search.py.
+use_default_settings:
+  engines:
+    keep_only:
+      # 2026-10-02 ("fix search"): every source was bot-checking this Mac and searches returned nothing. SearXNG was
+      # updated (ef05645 -> 19ffbcd: Yahoo's parser fixed, Mojeek's proof-of-work solved, a second DuckDuckGo
+      # endpoint) and each engine tested one by one. Kept: the six that answer. Dropped: duckduckgo (the old
+      # endpoint: CAPTCHA), brave (429 on every request since install, 1,811 failures), qwant and startpage
+      # (CAPTCHA), presearch (no longer shipped), mwmbl and seznam (timeouts), bing (unrelated results, 2026-09-30).
+      # Re-test a dropped engine with /search?q=...&format=json&engines=<name> before putting it back.
+      - duckduckgo web
+      - google
+      - yahoo
+      - yandex
+      - mojeek
+      - yep
+      - wikipedia
+
+general:
+  instance_name: "bots-searxng"
+  enable_metrics: false
+
+server:
+  bind_address: "127.0.0.1"
+  port: 8888
+  secret_key: "FILL-ME-GENERATED-BY-SETUP"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 15.0
+
+engines:
+  # keep_only keeps these in the list but the defaults leave several DISABLED or inactive; switch them on here.
+  # Owner, 2026-09-30: "duckduckgo sounds perfect" -- its results lead the ranking; the others fill in when it is throttled.
+  - name: duckduckgo web
+    disabled: false
+    weight: 3
+  - name: google
+    disabled: false
+    weight: 2
+  - name: yahoo
+    disabled: false
+  - name: yandex
+    disabled: false
+  - name: mojeek          # inactive upstream (proof-of-work CAPTCHA, solved locally: a few seconds of CPU per search)
+    disabled: false
+    inactive: false
+  - name: yep             # a backstop: 20 loosely related results a query, so its weight keeps them at the bottom
+    disabled: false
+    weight: 0.3
