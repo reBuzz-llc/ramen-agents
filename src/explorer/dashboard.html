@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__NAME__ dashboard</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1f1f1f; --muted: #6b6b6b; --line: #e3e1dc;
+    --accent: #2f6df6; --ok: #2e7d32; --warn: #b26a00; --bad: #c62828; --chip: #eeece7;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161616; --panel: #1f1f1f; --ink: #ececec; --muted: #9a9a9a; --line: #2e2e2e; --chip: #2a2a2a; --accent: #6b9cff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 17px; margin: 0 6px 0 0; }
+  .pill { padding: 2px 10px; border-radius: 999px; background: var(--chip); font-weight: 600; font-size: 12px; }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+  .stat { color: var(--muted); font-size: 13px; } .stat b { color: var(--ink); font-weight: 600; }
+  .spacer { flex: 1; }
+  button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--accent); } button:disabled { opacity: .5; cursor: default; }
+  button.danger { color: var(--bad); }
+  #banner { display: none; background: var(--bad); color: #fff; padding: 6px 20px; font-size: 13px; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 20px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  #shot { width: 100%; aspect-ratio: 1280 / 900; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 6px; background: var(--chip); display: block; }
+  #shot-empty { color: var(--muted); font-size: 13px; padding: 40px 0; text-align: center; border: 1px dashed var(--line); border-radius: 6px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 13px; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+  .feed { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow: auto; font-size: 13px; }
+  .feed li { padding: 6px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 62px 1fr; gap: 8px; }
+  .feed li:first-child { border-top: 0; }
+  .feed time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .feed .kind { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--chip); font-size: 11px; font-weight: 600; margin-right: 6px; text-transform: uppercase; }
+  .feed li.bad .kind { background: var(--bad); color: #fff; } .feed li.warn .kind { background: var(--warn); color: #fff; }
+  .feed .thought { color: var(--muted); font-style: italic; display: block; }
+  .feed .lat { color: var(--muted); font-size: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs button.active { border-color: var(--accent); color: var(--accent); }
+  #memory-body { max-height: 520px; overflow: auto; font-size: 13px; }
+  .note { padding: 8px 0; border-top: 1px solid var(--line); } .note:first-child { border-top: 0; }
+  .note b { display: block; } .note a { color: var(--accent); font-size: 12px; overflow-wrap: anywhere; }
+  .note small { color: var(--muted); }
+  pre.journal { white-space: pre-wrap; font: inherit; margin: 0; }
+  #chat-log { max-height: 420px; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+  .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.owner { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--chip); border-bottom-left-radius: 4px; }
+  .msg.system { align-self: center; color: var(--muted); font-size: 12px; background: transparent; }
+  .msg time { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+  #chat-form { display: flex; gap: 8px; margin-top: 10px; }
+  #chat-input { flex: 1; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; min-height: 40px; }
+  #chat-hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>__NAME__</h1>
+  <span id="status" class="pill">connecting</span>
+  <span class="stat">cycle <b id="cycle">–</b></span>
+  <span class="stat">episode <b id="episode">–</b></span>
+  <span class="stat">pages this hour <b id="pages">–</b></span>
+  <span class="stat">model failures <b id="failures">–</b></span>
+  <span class="stat" id="model"></span>
+  <span class="spacer"></span>
+  <button id="btn-pause">Pause</button>
+  <button id="btn-resume">Resume</button>
+  <button id="btn-stop" class="danger">Stop</button>
+</header>
+<div id="banner"></div>
+<main>
+  <section id="screen">
+    <h2>What it sees</h2>
+    <img id="shot" alt="current page" hidden>
+    <div id="shot-empty">No picture yet. The agent saves one after each page it opens in web mode.</div>
+    <dl>
+      <dt>Page</dt><dd id="url">–</dd>
+      <dt>Question</dt><dd id="question">–</dd>
+      <dt>Last action</dt><dd id="last">–</dd>
+      <dt>Heartbeat</dt><dd id="hb">–</dd>
+    </dl>
+  </section>
+  <section id="chat">
+    <h2>Chat</h2>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+      <textarea id="chat-input" rows="2" placeholder="Say something to __NAME__ (or /help)"></textarea>
+      <button id="chat-send" type="submit">Send</button>
+    </form>
+    <div id="chat-hint">Replies take 10 to 40 seconds while the agent is busy. Plain messages are also shown to the running agent on its next cycle.</div>
+  </section>
+  <section id="feed-section">
+    <h2>Live feed</h2>
+    <ul id="feed" class="feed"></ul>
+  </section>
+  <section id="memory">
+    <h2>Memory</h2>
+    <div class="tabs">
+      <button data-tab="notes" class="active">Notes</button>
+      <button data-tab="questions">Questions</button>
+      <button data-tab="interests">Interests</button>
+      <button data-tab="journal">Journal</button>
+    </div>
+    <div id="memory-body"></div>
+  </section>
+</main>
+<script>
+(function () {
+  const TOKEN = "__TOKEN__";
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const hhmmss = (ts) => (ts || "").slice(11, 19);
+  let lastShot = null, tab = "notes", chatCount = -1;
+
+  async function getJSON(path) {
+    const r = await fetch(path, { cache: "no-store" });
+    if (!r.ok) throw new Error(path + " -> " + r.status);
+    return r.json();
+  }
+  async function postJSON(path, body) {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Token": TOKEN }, body: JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || (path + " -> " + r.status));
+    return data;
+  }
+  function banner(text) { const b = $("banner"); b.textContent = text || ""; b.style.display = text ? "block" : "none"; }
+
+  function renderState(s) {
+    const pill = $("status");
+    let label, cls;
+    if (!s.running) { label = "not running"; cls = "bad"; }
+    else if (s.flags.includes("STOP")) { label = "stopping"; cls = "warn"; }
+    else if (s.flags.includes("PAUSE")) { label = "paused"; cls = "warn"; }
+    else if (s.stale) { label = "running, heartbeat stale"; cls = "warn"; }
+    else { label = "running" + (s.pid ? " · pid " + s.pid : ""); cls = "ok"; }
+    pill.textContent = label; pill.className = "pill " + cls;
+    const hb = s.heartbeat || {};
+    $("cycle").textContent = hb.cycle != null ? hb.cycle : "–";
+    $("episode").textContent = s.episode ? ("#" + s.episode.id + " · " + s.episode.actions + " / " + s.budget) : "none";
+    $("pages").textContent = s.pages_last_hour + " / " + s.pages_per_hour;
+    $("failures").textContent = hb.model_failures != null ? hb.model_failures : "–";
+    $("model").textContent = s.agent.mode + " · " + s.agent.model;
+    $("url").textContent = hb.current_url || "–";
+    $("question").textContent = hb.current_question || "none, exploring freely";
+    $("last").textContent = hb.last_action || "–";
+    $("hb").textContent = hb.ts ? (hb.status + " at " + hhmmss(hb.ts) + " (" + s.heartbeat_age + "s ago)") : "none yet";
+    $("btn-pause").disabled = !s.running || s.flags.includes("PAUSE");
+    $("btn-resume").disabled = !s.flags.length;
+    $("btn-stop").disabled = !s.running || s.flags.includes("STOP");
+    if (s.screenshot_at && s.screenshot_at !== lastShot) {
+      lastShot = s.screenshot_at;
+      $("shot").src = "/screenshot.png?t=" + encodeURIComponent(s.screenshot_at);
+      $("shot").hidden = false; $("shot-empty").hidden = true;
+    }
+  }
+
+  function renderEvents(events) {
+    const ul = $("feed"); ul.replaceChildren();
+    events.slice().reverse().forEach((e) => {
+      const li = el("li");
+      const kind = e.kind || e.level || "log";
+      if (kind === "rejected" || e.level === "ERROR" || e.level === "WARNING") li.classList.add("bad");
+      else if (e.ok === false || kind === "watchdog" || kind === "model_failure") li.classList.add("warn");
+      li.appendChild(el("time", null, hhmmss(e.ts)));
+      const body = el("div");
+      body.appendChild(el("span", "kind", kind));
+      let text;
+      if (kind === "action") text = e.action + " · " + (e.result || "");
+      else if (kind === "rejected") text = e.action + " refused: " + (e.reason || "");
+      else if (kind === "journal") text = "journal entry written (" + e.chars + " chars, " + e.notes + " notes) for episode " + e.episode;
+      else if (kind === "episode") text = "episode " + e.episode + " started" + (e.question ? ": " + e.question : " (free exploration)");
+      else text = e.msg || JSON.stringify(e);
+      body.appendChild(document.createTextNode(text));
+      if (e.latency != null) body.appendChild(el("span", "lat", "  " + e.latency + "s" + (e.attempts > 1 ? " · " + e.attempts + " tries" : "")));
+      if (e.thought) body.appendChild(el("span", "thought", "“" + e.thought + "”"));
+      li.appendChild(body); ul.appendChild(li);
+    });
+  }
+
+  function renderChat(rows) {
+    const log = $("chat-log");
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    log.replaceChildren();
+    rows.forEach((m) => {
+      const d = el("div", "msg " + m.role, m.text);
+      d.appendChild(el("time", null, hhmmss(m.ts) + (m.role === "bot" ? " · " + "__NAME__" : m.role === "owner" ? " · you" : "")));
+      log.appendChild(d);
+    });
+    if (atBottom || chatCount !== rows.length) log.scrollTop = log.scrollHeight;
+    chatCount = rows.length;
+  }
+
+  async function renderMemory() {
+    const body = $("memory-body"); body.replaceChildren();
+    if (tab === "notes") {
+      const notes = await getJSON("/api/notes");
+      if (!notes.length) body.appendChild(el("div", "note", "No notes yet."));
+      notes.forEach((n) => {
+        const d = el("div", "note"); d.appendChild(el("b", null, "#" + n.id + " " + n.title));
+        d.appendChild(document.createTextNode(n.body)); d.appendChild(el("br"));
+        if (n.source_url) { const a = el("a", null, n.source_url); a.href = n.source_url; a.target = "_blank"; a.rel = "noopener noreferrer"; d.appendChild(a); }
+        d.appendChild(el("small", null, " " + hhmmss(n.created_at) + (n.tags ? " · " + n.tags : "")));
+        body.appendChild(d);
+      });
+    } else if (tab === "questions") {
+      const q = await getJSON("/api/questions");
+      body.appendChild(el("b", null, "Open (" + q.open.length + ")"));
+      q.open.forEach((x) => body.appendChild(el("div", "note", "#" + x.id + " " + x.question + " · pursued " + x.times_pursued + "×")));
+      body.appendChild(el("b", null, "Answered (" + q.answered.length + ")"));
+      q.answered.forEach((x) => body.appendChild(el("div", "note", "#" + x.id + " " + x.question + " · note #" + x.answer_note_id)));
+    } else if (tab === "interests") {
+      const items = await getJSON("/api/interests");
+      items.forEach((x) => body.appendChild(el("div", "note", x.topic + " · " + x.weight.toFixed(2))));
+    } else {
+      const j = await getJSON("/api/journal");
+      body.appendChild(el("pre", "journal", j.text || "No journal entry today yet."));
+    }
+  }
+
+  async function tick() {
+    try {
+      const [s, ev] = await Promise.all([getJSON("/api/state"), getJSON("/api/events?n=80")]);
+      renderState(s); renderEvents(ev); banner("");
+    } catch (e) { banner("Dashboard cannot reach its server: " + e.message); }
+  }
+  async function tickChat() { try { renderChat(await getJSON("/api/chat")); } catch (e) {} }
+
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("active", x === b));
+    tab = b.dataset.tab; renderMemory().catch(() => {});
+  }));
+  async function control(op) {
+    try { const r = await postJSON("/api/control", { op }); banner(""); await tick(); const d = el("div", "msg system", r.note); $("chat-log").appendChild(d); }
+    catch (e) { banner("Control failed: " + e.message); }
+  }
+  $("btn-pause").addEventListener("click", () => control("pause"));
+  $("btn-resume").addEventListener("click", () => control("resume"));
+  $("btn-stop").addEventListener("click", () => { if (confirm("Stop the agent? It stays down until you resume.")) control("stop"); });
+
+  $("chat-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const input = $("chat-input"); const text = input.value.trim(); if (!text) return;
+    input.value = ""; $("chat-send").disabled = true; input.disabled = true;
+    const pending = el("div", "msg owner", text); $("chat-log").appendChild(pending);
+    const thinking = el("div", "msg system", "__NAME__ is thinking…"); $("chat-log").appendChild(thinking);
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;
+    try { await postJSON("/api/chat", { text }); } catch (e) { banner("Chat failed: " + e.message); }
+    $("chat-send").disabled = false; input.disabled = false; input.focus();
+    await tickChat();
+  });
+  $("chat-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); $("chat-form").requestSubmit(); } });
+
+  tick(); tickChat(); renderMemory().catch(() => {});
+  setInterval(tick, 3000); setInterval(tickChat, 5000); setInterval(() => renderMemory().catch(() => {}), 15000);
+})();
+</script>
+</body>
+</html>
