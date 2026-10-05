@@ -41,6 +41,14 @@ The rules of the house are kept, because they are what makes the fleet safe to l
   repeat guards stop a bot doing the same thing twice.
 - **A stopped bot is the owner's decision**; the others are told who is running and plan around it.
 
+## What is left out on purpose
+
+- **No public site.** The original fleet publishes a blog of the bots' notes; none of it is here: no site, no build or
+  publish script, no schedule, no content. Nothing in this starter writes to anywhere public. The only places a bot
+  writes are its own folder, the shared folder and your Notion boards.
+- **No optional members:** the Tor reader, the desktop agent and the publishing bot are not included.
+- **No history:** no plans, archives, reports, finds or leads from the original project.
+
 ## Start here
 
 Follow [SETUP.md](SETUP.md), top to bottom. It takes an afternoon the first time, most of it creating free provider
