@@ -54,7 +54,7 @@ PARALLEL_API = "https://api.parallel.ai/v1beta/search"
 PARALLEL_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "parallel-usage.json"  # keyless, no signup; asks for a few requests a second and caching
 LANGSEARCH_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "langsearch-usage.json"
 DEFAULT_PAUSE_FILE = Path.home() / ".config" / "explorer" / "search_pause.json"
-DEFAULT_WEB_ENGINES = ("marginalia", "duckduckgo-mcp", "hn")  # DuckDuckGo instead of Wikipedia
+DEFAULT_WEB_ENGINES = ("searxng", "duckduckgo-mcp")  # general web search only: SearXNG (Google and others), then DuckDuckGo
 BROWSER_ENGINE = "browser"  # the bot's own browser: the fake pages, or search_url in Chromium
 ENGINE_ALIASES = {"brave-web": BROWSER_ENGINE, "files": "corpus"}  # old names still accepted in configs and pause files
 
