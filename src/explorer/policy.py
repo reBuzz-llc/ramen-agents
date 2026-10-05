@@ -5,7 +5,6 @@ The prompt asks the model to behave; this module makes sure it does.
 from __future__ import annotations
 
 import ipaddress
-import json
 import re
 import logging
 import time
@@ -17,7 +16,6 @@ from urllib.robotparser import RobotFileParser
 
 from .actions import (
     Action,
-    McpCall,
     App,
     Ask,
     Click,
@@ -55,7 +53,7 @@ from .actions import (
 from .actions import CONSOLIDATION_TYPES, DESKTOP_TYPES, DEVELOPER_TYPES, NAVIGATION_TYPES, UPGRADE_TYPES
 from .browser import PageView
 from .chatroom import ROOM_RECIPIENT, is_room_recipient
-from .config import KNOWN_PROVIDERS, McpConfig, ChatPartnerConfig, DesktopConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, NotionConfig, PolicyConfig, PublishConfig, ScoutConfig
+from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DesktopConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, NotionConfig, PolicyConfig, PublishConfig, ScoutConfig
 from .desktop import DesktopView, hotkey_never_allowed, normalize_hotkey
 from .memory import question_words, questions_are_similar
 from .notion import valid_date, valid_priority
@@ -333,7 +331,6 @@ class PolicyContext:
     republishable_package_names: set[str] = field(default_factory=set)
     package_names_last_day: set[str] = field(default_factory=set)
     task_titles_today: set[str] = field(default_factory=set)
-    mcp_calls_today: int = 0  # MCP tool calls this bot made today
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
@@ -517,9 +514,7 @@ class Policy:
         self_goals: bool = False,
         propose_teammates: bool = False,
         leads: LeadsConfig | None = None,
-        mcp: McpConfig | None = None,
     ):
-        self.mcp = mcp or McpConfig()
         self.cfg = cfg
         self.self_goals = self_goals
         self.propose_teammates = propose_teammates
@@ -1773,27 +1768,6 @@ class Policy:
 
         if isinstance(action, Provider):
             return self._check_provider(action, ctx)
-
-        if isinstance(action, McpCall):
-            from .mcp_bridge import missing_requirements, server_named
-
-            if not self.mcp.enabled:
-                return Verdict.no("calling MCP servers is not enabled for you; that action does not exist", permanent=True)
-            server = server_named(self.mcp.servers, action.server)
-            if server is None:
-                names = ", ".join(str(s.get("name")) for s in self.mcp.servers if isinstance(s, dict)) or "none"
-                return Verdict.no(f"no MCP server named '{action.server[:40]}'; yours: {names}", permanent=True)
-            missing = missing_requirements(server)
-            if missing:
-                return Verdict.no(f"{server['name']} is not set up yet (the owner's step: {', '.join(missing)[:160]}); do not call it", permanent=True)
-            tools = [str(t) for t in server.get("tools") or []]
-            if action.tool not in tools:
-                return Verdict.no(f"{server['name']} has no tool '{action.tool[:40]}' you may call; yours: {', '.join(tools)}", permanent=True)
-            if len(json.dumps(action.arguments)) > 4000:
-                return Verdict.no("keep the arguments under 4000 characters")
-            if 0 < self.mcp.max_calls_per_day <= ctx.mcp_calls_today:
-                return Verdict.no(f"you have made {ctx.mcp_calls_today} MCP calls today, the daily limit; work with what you have")
-            return Verdict.ok()
 
         if isinstance(action, Message):
             return self._check_message(action, ctx)

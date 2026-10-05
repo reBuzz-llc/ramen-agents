@@ -317,15 +317,6 @@ class UpgradeTest(BaseModel):
     type: Literal["upgrade_test"]
 
 
-class McpCall(BaseModel):
-    """Call one read-only tool on an MCP server the owner allowed ([mcp] in the bot's config)."""
-
-    type: Literal["mcp"]
-    server: str
-    tool: str
-    arguments: dict = Field(default_factory=dict)
-
-
 class UpgradeSubmit(BaseModel):
     """Merge the worktree into main and restart on it, only if the last test run passed and no
     protected file was touched."""
@@ -339,7 +330,6 @@ Action = Annotated[
         App, Look, Click, TypeText, Hotkey,
         ListFiles, ReadFile, WriteFile, RunCommand, Upgrade, UpgradeTest, UpgradeSubmit,
         Task, Package, Provider, Message, ReviseGoal, ProposeTeammate, PublishPackage, UpdateTask, Lead, UpdateLead, Plan,
-        McpCall,
     ],
     Field(discriminator="type"),
 ]
@@ -354,7 +344,7 @@ ALL_TYPES = (
     "app", "look", "click", "type", "hotkey",
     "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit",
     "task", "package", "provider", "message", "revise_goal", "propose_teammate", "publish_package", "update_task", "lead",
-    "update_lead", "plan", "mcp",
+    "update_lead", "plan",
 )
 
 
