@@ -433,3 +433,14 @@ def test_parallel_answers_within_its_budget_and_rests_when_credit_is_used(tmp_pa
     status["code"] = 402
     assert not parallel_search(client, "q2", "k", per_day=3, usage_file=usage).ok
     assert "no key" in (parallel_search(client, "q", "", usage_file=usage).error or "")
+
+
+def test_duckduckgo_mcp_turns_the_servers_numbered_answer_into_links_and_steps_aside_when_missing():
+    from explorer import search as s
+
+    text = ("Found 2 search results:\n1. Maple Diner | Home\n   URL: https://maplediner.example/\n   Summary: <b>Open</b> daily\n"
+            "2. Maple Diner on Yelp\n   URL: https://www.yelp.com/biz/maple-diner\n   Summary: Reviews\n")
+    rows = [(m.group(1), m.group(2)) for m in s._DDG_ITEM.finditer(text)]
+    assert rows == [("Maple Diner | Home", "https://maplediner.example/"), ("Maple Diner on Yelp", "https://www.yelp.com/biz/maple-diner")]
+    page = s.duckduckgo_mcp_search("x", "/nonexistent/duckduckgo-mcp-server")
+    assert not page.ok and "not available" in (page.error or "")

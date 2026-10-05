@@ -160,6 +160,7 @@ class BrowserConfig:
     tavily_per_day: int = 30  # the fleet's shared daily budget for the `tavily` engine (1,000 free credits a month)
     langsearch_per_day: int = 100  # the fleet's shared daily budget for the `langsearch` backup engine
     parallel_per_day: int = 30  # the fleet's shared daily budget for the `parallel` second backup ($5 free credit a month)
+    ddg_mcp_command: str = ""  # the DuckDuckGo MCP server's executable; "" = ~/.local/opt/ddg-mcp/venv/bin/duckduckgo-mcp-server
     search_pause_file: str = ""
     # Each bot keeps a score per search engine and drops one that answered often and never led to a note. Changing this
     # value wipes those scores and drops once, at the next start: on 2026-09-29 the web engine was returning junk and
@@ -185,7 +186,7 @@ class BrowserConfig:
     video_transcript_languages: list[str] = field(default_factory=lambda: ["en"])
 
 
-SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel")  # brave-web: old name of browser
+SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel", "duckduckgo-mcp")  # brave-web: old name of browser
 PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind"})
 
 # OpenAI-compatible providers this project knows how to reach: drop a key at
