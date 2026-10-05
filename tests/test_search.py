@@ -375,3 +375,20 @@ def test_only_a_bot_the_owner_allows_may_name_the_special_engine():
     c.episode_search_queries = ["Noodle Bar One owner contact"]
     assert ceo.check(Search(type="search", query="Noodle Bar One owner contact", engine="tavily"), c).allowed  # a special retry of the same words
     assert not ceo.check(Search(type="search", query="Noodle Bar One owner contact"), c).allowed
+
+
+def test_langsearch_answers_within_its_daily_budget_and_steps_aside_without_a_key(tmp_path):
+    from explorer.search import langsearch_search
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Bearer k"
+        return httpx.Response(200, json={"code": 200, "data": {"webPages": {"value": [
+            {"name": "Maple Diner", "url": "https://maplediner.example/", "snippet": "<b>Open</b> daily"},
+            {"name": "Maple Diner", "url": "https://maplediner.example/", "snippet": "a duplicate"}]}}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    usage = tmp_path / "langsearch-usage.json"
+    page = langsearch_search(client, "maple diner", "k", per_day=1, usage_file=usage)
+    assert page.ok and len(page.links) == 1 and "langsearch" in page.title
+    assert "budget" in (langsearch_search(client, "maple diner", "k", per_day=1, usage_file=usage).error or "")
+    assert "no key" in (langsearch_search(client, "maple diner", "", per_day=1, usage_file=usage).error or "")
