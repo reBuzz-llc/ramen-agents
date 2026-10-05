@@ -403,7 +403,7 @@ class Observation:
             listed = "; ".join(f"#{i} {q}" for i, q in self.open_questions)
             lines.append("Open questions: " + listed + (f" (+{extra} more)" if extra > 0 else ""))
         if self.recent_notes:
-            lines.append("Recent notes: " + "; ".join(self.recent_notes))
+            lines.append("Your recent notes (saved already; never save one of these again, even in other words): " + "; ".join(self.recent_notes))
         if self.recent_actions:
             lines.append("Recent actions:")
             lines.extend(f"- {a}" for a in self.recent_actions)

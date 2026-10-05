@@ -355,6 +355,8 @@ class PolicyContext:
     recent_lead_domains: set[str] = field(default_factory=set)  # businesses already listed (by web domain)
     recent_page_texts: dict[str, str] = field(default_factory=dict)  # url -> text of pages opened recently, to ground an email
     episode_search_queries: list[str] = field(default_factory=list)  # queries already searched this episode
+    cached_search_queries: set[str] = field(default_factory=set)  # this episode's searches whose results are still at hand
+    repeat_searches_served: int = 0  # repeated searches answered from those results this episode
     seen_link_urls: set[str] = field(default_factory=set)  # link targets shown on pages this episode (for open_only_seen_urls)
     publish_packages_in_episode: int = 0  # publish_package actions accepted this episode
     now: float = field(default_factory=time.time)
@@ -1513,6 +1515,10 @@ class Policy:
             q = action.query.strip()
             twin = next((prev for prev in ctx.episode_search_queries if searches_are_twins(q, prev, self.cfg.repeat_search_overlap)), None) \
                 if self.cfg.refuse_repeated_searches and not chosen else None  # a chosen special engine may retry the same words
+            if twin is not None and twin.strip().lower() in ctx.cached_search_queries and ctx.repeat_searches_served < 2:
+                # 106 refusals in two days were repeats: the bot gets the results it already had, marked as such, instead
+                # of a dead end (the controller serves them; nothing is fetched). Twice an episode, then the refusal stands.
+                return Verdict(True, tag="repeat_search")
             if twin is not None:
                 return Verdict.no(
                     f"you already searched '{twin[:60]}' this episode. Do not search it again in other words: open one of "

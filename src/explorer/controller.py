@@ -250,6 +250,8 @@ class Controller:
         # is published on the business's own site. Bounded; a page is text, never an instruction.
         self.recent_pages: "OrderedDict[str, str]" = OrderedDict()
         self.seen_links: set[str] = set()  # link targets shown on pages this run (policy.open_only_seen_urls)
+        self._search_cache: dict[tuple[int, str], Any] = {}  # (episode, query) -> its results page, this episode only
+        self._repeat_served: dict[int, int] = {}  # episode -> repeated searches answered from that cache
         # Tooling from experience: per-engine {answered, noted} counts this bot has built up, and the
         # engines it has already dropped (so a drop is announced once). Applied before the first cycle.
         import json as _json
@@ -1168,7 +1170,7 @@ class Controller:
             interests=self.memory.interests(6),
             open_questions=[(r["id"], r["question"]) for r in self.memory.open_questions(12 if is_triage else 5)],
             open_questions_count=self.memory.count_open_questions(),
-            recent_notes=[r["title"] for r in self.memory.recent_notes(5)],
+            recent_notes=[r["title"] for r in self.memory.recent_notes(15)],
             recent_actions=recent,
             page=self.page,
             page_noted=bool(self.page and self.page.url in self.noted_urls),
@@ -1397,6 +1399,8 @@ class Controller:
             "recent_lead_domains": lambda: memory.recent_lead_domains(self.cfg.leads.dedupe_days),
             "recent_page_texts": lambda: dict(self.recent_pages),
             "episode_search_queries": lambda: memory.episode_search_queries(eid),
+            "cached_search_queries": lambda: {q for (e, q) in self._search_cache if e == eid},
+            "repeat_searches_served": lambda: self._repeat_served.get(eid, 0),
             "seen_link_urls": lambda: set(self.seen_links),
             "publish_packages_in_episode": lambda: memory.count_actions(eid, "publish_package"),
             "visited_urls": lambda: memory.visited_urls(500),
@@ -1478,10 +1482,27 @@ class Controller:
         try:
             if isinstance(action, Search):
                 query = action.query.strip()
+                eid = int(ep["id"])
+                if self.cfg.policy.refuse_repeated_searches and not (action.engine or "").strip():
+                    from .policy import searches_are_twins
+
+                    twin = next((q for (e, q) in self._search_cache if e == eid
+                                 and searches_are_twins(query, q, self.cfg.policy.repeat_search_overlap)), None)
+                    if twin is not None and self._repeat_served.get(eid, 0) < 2:
+                        self._repeat_served[eid] = self._repeat_served.get(eid, 0) + 1
+                        event(self.logger, "repeat_search_served", query=query[:100], earlier=twin[:100])
+                        result = self._after_nav(self._search_cache[(eid, twin)], f"searched '{query}' (same as '{twin[:60]}')")
+                        result.feedback = ((result.feedback + " ") if result.feedback else "") + (
+                            f"That is the same search as '{twin[:60]}' earlier this episode, so these are its results again; "
+                            "nothing new was fetched. Open one of them (follow N), or search for something genuinely different.")
+                        return result
                 outcome = self.searcher.search(query, only=(action.engine or "").strip() or None)
                 page = outcome.page
                 if not outcome.engine and not page.url:
                     return ExecResult(False, f"searched '{query}': {page.error}", False)
+                if page.ok and not (action.engine or "").strip():
+                    self._search_cache = {k: v for k, v in self._search_cache.items() if k[0] == eid}  # this episode only
+                    self._search_cache[(eid, query.lower())] = page
                 result = self._after_nav(page, f"searched '{query}'")
                 if outcome.engine:
                     self._credit_engine_answered(outcome.engine)
@@ -1511,7 +1532,15 @@ class Controller:
                 if page is not None:  # a video: its captions are the page text (Plan 10)
                     event(self.logger, "video_transcript", url=target[:200], chars=len(page.text))
                     return self._after_nav(page, label)
-                return self._after_nav(self.browser.open(target), label)
+                result = self._after_nav(self.browser.open(target), label)
+                if result.ok and self.cfg.leads.enabled and not self.cfg.leads.update_only_fields:
+                    from .policy import url_domain
+
+                    if url_domain(target) in self.memory.recent_lead_domains(self.cfg.leads.dedupe_days):
+                        # 20 leads refused in two days as already listed, after the pages had been read
+                        result.feedback = ((result.feedback + " ") if result.feedback else "") + (
+                            f"{url_domain(target)} is ALREADY on your Leads board: do not list it again. Move on to another business.")
+                return result
             if isinstance(action, Back):
                 page = self.browser.back()
                 if page is None:
