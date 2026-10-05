@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Lead Gen's daily candidates: small businesses with a website in the current target market
+       (common-data/knowledge/target.toml), from that market's open-data feed (common-data/knowledge/candidate-feeds.toml),
+       written to common-data/botBox/routed/lead-gen/candidates-<market>-DATE.md, never repeating a business. At 06:30,
+       at login and hourly, because the Mac is often off or asleep at 06:30; the script writes a day's file once.
+       A market with no feed is a logged no-op. Run now: launchctl kickstart -k gui/$(id -u)/com.rebuzz.candidates-feed -->
+  <key>Label</key>
+  <string>com.rebuzz.candidates-feed</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/scripts/candidates-feed.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/bots</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/bots/common-data/shared-state/candidates-feed.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/bots/common-data/shared-state/candidates-feed.log</string>
+</dict>
+</plist>

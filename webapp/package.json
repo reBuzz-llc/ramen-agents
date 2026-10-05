@@ -1,0 +1,33 @@
+{
+  "name": "bot-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 3000",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 3000",
+    "lint": "eslint",
+    "bots": "${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python scripts/start-data-servers.py",
+    "dev:all": "npm run bots && npm run dev",
+    "deploy": "next build && launchctl kickstart -k gui/$(id -u)/com.rebuzz.bot-dashboard",
+    "remote-access": "sh scripts/remote-access.sh",
+    "brandkit:check": "node scripts/brandkit-check.mjs",
+    "brandkit:accept": "node scripts/brandkit-check.mjs --accept",
+    "predeploy": "node scripts/brandkit-check.mjs --quiet || true"
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5"
+  }
+}

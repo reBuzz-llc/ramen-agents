@@ -1,0 +1,48 @@
+# Package Designer: researches what comparable companies sell and charge, and hands The CEO service packages.
+extends = "../common-data/configs/web-bots.toml"
+
+[agent]
+name = "Package Designer"
+bio = "The package designer of a small company, run as an automated agent by its owner. It researches which services sell and what they cost right now, and hands concrete service packages to the company's CEO bot."
+cycle_delay_seconds = 45
+tags = ["notion_writer"]
+seed_interests = [
+  "what companies charge {market} {segment} for what we sell",
+  "productized services and retainer pricing",
+  "FILL-ME: the kind of offer you want priced",
+]
+
+[policy]
+max_pages_without_note = 0
+disabled_actions = ["ask", "interest"]
+
+[browser]
+corpus_dir = "~/bots/the-ceo/raw"
+search_engines = ["searxng", "yc", "corpus"]
+
+[dashboard]
+port = 8790
+
+[handoff]
+enabled = true
+to_name = "The CEO"
+to_folder = "~/bots/the-ceo"
+files_dir = "raw/packages"
+min_source_sites = 2            # a package rests on two other companies' pages
+resend_same_name = true         # an existing package is improved under its exact name, at most once in 24 hours
+own_domains = []                # FILL-ME: your own site's domain(s); never a source for market rates
+
+[messaging]
+priority_senders = ["The CEO", "Validator"]
+[[messaging.peers]]
+name = "The CEO"
+folder = "~/bots/the-ceo"
+[[messaging.peers]]
+name = "Lead Gen"
+folder = "~/bots/lead-gen"
+[[messaging.peers]]
+name = "Scout"
+folder = "~/bots/scout"
+[[messaging.peers]]
+name = "Validator"
+folder = "~/bots/validator"

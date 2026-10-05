@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The Validator bot (~/bots/validator): checks the other bots' Notion tasks, packages and reports
+       against the owner's format instructions every 6 hours; a full re-check of all past data daily
+       and whenever ~/bots/validator/instructions/*.md changes. Read-only on Notion. -->
+  <key>Label</key><string>com.rebuzz.validator</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/validator/validator.py</string>
+  </array>
+  <key>StartInterval</key><integer>21600</integer>
+  <key>RunAtLoad</key><false/>
+  <key>ProcessType</key><string>Background</string>
+  <key>Nice</key><integer>10</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__HOME__/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/validator.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/validator.err</string>
+</dict>
+</plist>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The bot dashboard (~/bots/webapp), production build, on 127.0.0.1:3000 only.
+       Other devices reach it through tailscale serve; lib/access.ts decides who may.
+       After changing the code: cd ~/bots/webapp && npm run build && launchctl kickstart -k gui/$(id -u)/com.rebuzz.bot-dashboard -->
+  <key>Label</key>
+  <string>com.rebuzz.bot-dashboard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__HOME__/bots/webapp/node_modules/next/dist/bin/next</string>
+    <string>start</string>
+    <string>-H</string>
+    <string>127.0.0.1</string>
+    <string>-p</string>
+    <string>3000</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/bots/webapp</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/bots/webapp/logs/dashboard.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/bots/webapp/logs/dashboard.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,324 @@
+"""The Validator's rules at write time (owner, 2026-09-25: "valB is supposed to keep all output in check").
+
+The engine calls `check(action, payload, bot=...)` before a `lead`, `update_lead`, `task`, `update_task` or
+`publish_package` action writes to Notion. It returns reasons in the bots' vocabulary; an empty list means the write
+may go ahead. Checking stays the Validator's job -- the rule text is validator/instructions/*.md, the rule code is
+checks.py -- the engine only gains the authority to refuse. This module is pure: no network, no writes, answers in
+milliseconds; only rules marked as errors refuse (a [warn] stays an after-the-fact finding). What needs the web or
+the board (LD09 email-on-site, LD03 package names, duplicates, the founder of a NEW lead) stays with the sweep.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+from checks import Checker, Flag, Instructions, check_lead, check_package_toggle, check_task, load_instructions  # noqa: E402
+from sources import LeadRow, PackageToggle, TaskRow  # noqa: E402
+
+INSTRUCTIONS = HERE / "instructions"
+TEAM = HERE.parent / "common-data" / "team.json"
+GATED = ("lead", "update_lead", "task", "update_task", "publish_package")
+
+# Rules a write-time gate cannot judge, or that the engine fills in after the payload (Found by, Status, the
+# Projects relation, the toggle's price line and Created date, the Package Designer's sources).
+_SKIP = {
+    "lead": {"LD04", "LD06", "LD09", "LD11"},
+    "update_lead": {"LD04", "LD06", "LD09"},
+    "task": {"T02", "T03", "T08", "T09"},
+    "update_task": {"T01", "T02", "T03", "T04", "T06", "T07", "T08", "T09", "T12"},
+    "publish_package": {"PK01", "PK11", "PK12", "PS01", "PS02", "PS03", "PS04", "PS05", "PS06"},
+}
+# update_*: a rule counts only when the field it judges is among the fields being written (and not blank -- an
+# honest blank is allowed; the owner's deletions must never be refused or refilled by the gate).
+_FIELDS = {
+    "LD01": {"website", "email"}, "LD03": {"how_we_help"}, "LD02": {"evidence", "pain_point"}, "LD05": {"pain_point", "location", "industry", "size"},
+    "LD07": {"location"}, "LD08": {"size"}, "LD10": {"evidence"}, "LD11": {"founded_by"}, "LD15": {"founded_by"}, "LD12": {"sources"},
+    "LD13": {"email"}, "LD14": {"website"},
+    "T05": {"priority"}, "T10": {"details_append", "details", "title"}, "T11": {"due"}, "T13": {"details_append", "details", "title"},
+}
+
+# What the gate may REFUSE (owner, 2026-10-03: "clean up ... guardrails so that they have more flexibility"). Three
+# kinds of rule, kept apart: the fence and the owner's own rules refuse before the write; quality rules (shapes, formats,
+# wording) let the write through and the sweep reports them afterwards. Everything not listed here is flag-only.
+GATE_REFUSES = {
+    # the fence: personal data, invented or wrong-business values, an address that bounces
+    "LD01", "LD02", "LD14", "LD15", "LD18", "MG03",
+    # board integrity: a value Notion would add as a new dropdown option
+    "LD03",
+    # the owner's own rules (2026-10-01/02) and the repeat guard
+    "PK14", "MG04", "MG01",
+}
+
+_cache: dict[str, object] = {}
+
+
+def instructions() -> Instructions:
+    """The rule text, reloaded when a file under instructions/ changes."""
+    from checks import TARGET
+    stamp = tuple(sorted((p.name, p.stat().st_mtime_ns) for p in INSTRUCTIONS.glob("*.md"))) + (
+        (TARGET.stat().st_mtime_ns if TARGET.exists() else 0),)   # a new market re-fills {market} in the rule text
+    if _cache.get("stamp") != stamp:
+        _cache["ins"] = load_instructions(INSTRUCTIONS)
+        _cache["stamp"] = stamp
+    return _cache["ins"]  # type: ignore[return-value]
+
+
+def team_names() -> set[str]:
+    try:
+        data = json.loads(TEAM.read_text(encoding="utf-8"))
+        return {m.get("name", "").strip().lower() for m in data.get("members", []) if m.get("name")}
+    except (OSError, ValueError):
+        return set()
+
+
+def _today() -> str:
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _s(v) -> str:
+    return "" if v is None else str(v)
+
+
+def _reason(f: Flag) -> str:
+    return f"{f.rule}: {f.detail}"
+
+
+def _lead_row(p: dict, *, bot: str) -> LeadRow:
+    return LeadRow(
+        page_id="", url="", business=_s(p.get("name")), website=_s(p.get("website")), email=_s(p.get("email")),
+        location=_s(p.get("location")), industry=_s(p.get("industry")), company_size=_s(p.get("size")),
+        pain_point=_s(p.get("pain_point")), how_we_help=_s(p.get("how_we_help")), evidence=_s(p.get("evidence")),
+        stage="", found_on=None, source_pages=" ".join(p.get("sources") or []) if isinstance(p.get("sources"), list) else _s(p.get("sources")),
+        found_by=bot or "bot", created=_today(), edited="", founded_by=_s(p.get("founded_by")),
+    )
+
+
+def _task_row(p: dict, *, min_details: int) -> TaskRow:
+    return TaskRow(
+        page_id="", url="", title=_s(p.get("title")), status="Not started", priority=_s(p.get("priority")),
+        assignee_ids=["given"] if p.get("assignee") else [], assignee_names=[_s(p.get("assignee"))] if p.get("assignee") else [],
+        due=p.get("due") or None, project_ids=["given"], created=_today(), edited="",
+        body=_s(p.get("details") or p.get("details_append")), uid="", blocks=[],
+    )
+
+
+def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) -> list[str]:
+    """Reasons this write breaks the owner's rules; [] = allowed. Pure; never raises on odd payloads."""
+    if action not in GATED or not isinstance(payload, dict):
+        return []
+    ck = Checker(instructions())
+    skip = _SKIP[action]
+    written = {k for k, v in payload.items() if v not in (None, "", [])}
+    flags: list[Flag] = []
+    if action in ("lead", "update_lead"):
+        flags = check_lead(ck, _lead_row(payload, bot=bot), allowed_packages=package_names(), duplicate_of=[])
+    elif action in ("task", "update_task"):
+        flags = check_task(ck, _task_row(payload, min_details=min_details), team={}, min_details=min_details if action == "task" else 0,
+                           duplicate_of=[], bot=bot or "the-ceo")
+    elif action == "publish_package":
+        toggle = PackageToggle(block_id="", title=f'{_s(payload.get("name"))} {_s(payload.get("title"))}', email=_s(payload.get("email")),
+                               sources=[], company={}, conclusion=_s(payload.get("conclusion")), page_url="", extra={"_gate_now": _today()})
+        flags = check_package_toggle(ck, toggle, own_domains=[])
+        dup = duplicate_offer(_s(payload.get("name")), _s(payload.get("title")))
+        if dup and "PK14" in ck.rules:
+            flags.append(Flag("PK14", bot, "package", "", "", "", "", f"this offer is already on the Packages page as '{dup[:80]}'; "
+                              "republish that package (its own name) to change it, instead of adding a second toggle", "error"))
+    out: list[str] = []
+    for f in flags:
+        if f.rule in skip or f.severity != "error" or f.rule not in GATE_REFUSES:
+            continue
+        if action.startswith("update_"):
+            fields = _FIELDS.get(f.rule)
+            if fields is not None and not (fields & written):
+                continue
+            # an update changes only the fields it names: a field it leaves out is not missing (LD02 "no Pain point"
+            # refused seven evidence-only update_leads, 2026-09-26/28)
+            if f.detail.startswith("no ") or " is empty" in f.detail:
+                continue
+        out.append(_reason(f))
+    if action == "task" and about_validator_flag(payload):
+        out.append("MG04: this task is about fixing a Validator flag on your own work; that is yours to do with update_task "
+                   "or a republish, not a task for the human team")
+    return out
+
+
+
+
+CONTEXT_MAX = 2000      # bot-creator: keep each call cheap
+MG03_FIELDS = ("founded_by", "location", "size")   # industry is the bot's own description of the trade, not a page fact
+
+
+def _open_task_titles() -> list[str]:
+    """Titles of the tasks the sweep last saw open (the engine may pass its own list instead)."""
+    try:
+        state = json.loads((HERE / "workspace" / "state.json").read_text(encoding="utf-8"))
+        return [t for t in state.get("open_task_titles", [])][:40]
+    except (OSError, ValueError):
+        return []
+
+
+def questions(action: str, payload: dict, *, bot: str = "", page_text: str = "", open_tasks: list[str] | None = None) -> list[dict]:
+    """Gate 3: the owner's model-judged questions for this write, each with its context assembled (<= CONTEXT_MAX chars).
+    Pure and fast; [] for an action with no questions. The engine asks a small model for {"ok": bool, "why": str}, caches,
+    fails open, and refuses with "Validator rules: <id>: <why>" when ok is false. `page_text` is the cited page's text,
+    which only the engine holds (recent_page_texts)."""
+    if action not in GATED or not isinstance(payload, dict):
+        return []
+    qs = [q for q in instructions().write_questions if q[1] == action and q[0] in GATE_REFUSES]
+    if action == "task" and human_task(payload):
+        # contacting a business is human work by the owner's rule (2026-10-02); the 7B judge flipped its own reasoning
+        # ("Sends emails, thus requires human action" -> ok=false) on 7 outreach tasks, so this is decided, not asked
+        qs = [q for q in qs if q[0] != "MG04"]
+    if action in ("lead", "update_lead"):
+        # MG03 judges only the facts a page must state: founder, location, size -- and only those actually written. The email is checked by the
+        # engine against the pages opened (MG03 saw a 1,200-char excerpt and refused an email the contact page had,
+        # 2026-09-30); website, evidence and pain point are the bot's own reading; how_we_help is The CEO's sales pick.
+        facts = {k: v for k, v in payload.items() if k in MG03_FIELDS and v not in (None, "", [])}
+        if not facts:
+            return []
+        payload = {"name": payload.get("name", ""), **facts}
+    if not qs:
+        return []
+    # each field trimmed, so a long body never crowds the team list or the cited page out of the budget
+    fields = {k: (v[:300] + "…" if isinstance(v, str) and len(v) > 300 else v)
+              for k, v in payload.items() if k != "type" and v not in (None, "", [])}
+    base = "The write:\n" + json.dumps(fields, ensure_ascii=False, indent=1)
+    extra = ""
+    if action in ("task", "update_task"):
+        extra = ("\nOpen tasks:\n" + "\n".join(f"- {t}" for t in (open_tasks if open_tasks is not None else _open_task_titles())))
+    elif action in ("lead", "update_lead"):
+        extra = "\nCited page text:\n" + (page_text or "(not supplied)")[:1200]
+    elif action == "publish_package":
+        # the owner's direction, not The CEO's working goal: the CEO rewrites that as a task sentence every few hours,
+        # and the 7B judged packages against the task (2026-09-28: same package ok at 22:23, refused at 22:25)
+        extra = "\nThe owner's current direction:\n" + (newest_steer() or current_goal())[:600]
+    out = []
+    for qid, _, text, _bot in qs:
+        ctx = (base + extra)[:CONTEXT_MAX]
+        out.append({"id": qid, "question": text, "context": ctx})
+    return out
+
+
+def current_goal() -> str:
+    """The CEO's own goal (revise_goal writes it), else the newest steer in the knowledge base."""
+    for path in (HERE.parent / "the-ceo" / "workspace" / "self_goal.md",):
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        except OSError:
+            pass
+    try:
+        steers = (HERE.parent / "common-data" / "knowledge" / "steers.md").read_text(encoding="utf-8")
+        parts = steers.split("\n## ")
+        return parts[1].strip() if len(parts) > 1 else ""
+    except OSError:
+        return ""
+
+
+def newest_steer() -> str:
+    """The newest section of common-data/knowledge/steers.md: the owner's current direction."""
+    try:
+        parts = (HERE.parent / "common-data" / "knowledge" / "steers.md").read_text(encoding="utf-8").split("\n## ")
+        return parts[1].strip() if len(parts) > 1 else ""
+    except OSError:
+        return ""
+
+
+def package_names() -> list[str]:
+    """The package names the board accepts (its select options plus the packages page), as the last sweep saw them."""
+    try:
+        state = json.loads((HERE / "workspace" / "state.json").read_text(encoding="utf-8"))
+        return list(state.get("lead_package_names") or [])
+    except (OSError, ValueError):
+        return []
+
+
+if __name__ == "__main__":     # gate.py '<action>' '<json payload>' -- try a payload by hand
+    print(json.dumps(check(sys.argv[1], json.loads(sys.argv[2])), indent=2))
+
+
+# PK14: one offer, one toggle. The products you sell, as the words that name them; two packages naming the same product
+# are the same offer whatever the headline or price says. Yours come from [validator.offers] in validator/config.toml:
+#   "website care" = "website (care|maintenance)|site care"
+# With no table, PK14 only refuses a second toggle under an identical name.
+def _load_offers() -> dict[str, str]:
+    try:
+        import tomllib
+
+        data = tomllib.loads((HERE / "config.toml").read_text(encoding="utf-8"))
+        table = (data.get("validator") or {}).get("offers") or {}
+        return {str(k): str(v) for k, v in table.items() if str(v).strip()}
+    except (OSError, ValueError):
+        return {}
+
+
+_OFFERS = _load_offers()
+
+
+def offers_of(text: str) -> set[str]:
+    return {k for k, pat in _OFFERS.items() if re.search(pat, text or "", re.I)}
+
+
+def _published() -> dict:
+    """The CEO's record of what is on the Packages page: lower-cased package name -> {block_id, title, ...}."""
+    import sqlite3
+    db = HERE.parent / "the-ceo" / "workspace" / "explorer.sqlite3"
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1)
+        try:
+            row = con.execute("SELECT value FROM state WHERE key = 'published_package_blocks'").fetchone()
+        finally:
+            con.close()
+        return json.loads(row[0]) if row and row[0] else {}
+    except (sqlite3.Error, ValueError):
+        return {}
+
+
+def duplicate_offer(name: str, title: str, published: dict | None = None) -> str:
+    """The title of a toggle already on the page that sells the same offer under ANOTHER package name, or ""."""
+    published = _published() if published is None else published
+    if (name or "").strip().lower() in published:
+        return ""                               # a republish of the same package replaces its own toggle
+    mine = offers_of(f"{name} {title}")
+    # the more specific offers win: "website & app care" is app care, not plain website care
+    if "app care" in mine: mine -= {"website care"}
+    if "ai website" in mine: mine -= {"website care"}
+    if not mine:
+        return ""
+    for key, rec in published.items():
+        theirs = offers_of(f"{key} {rec.get('title', '')}")
+        if "app care" in theirs: theirs -= {"website care"}
+        if "ai website" in theirs: theirs -= {"website care"}
+        if mine & theirs and len(mine) <= 2:
+            return str(rec.get("title") or key)
+    return ""
+
+
+_HUMAN_WORK = re.compile(r"^\s*(outreach\b|follow[- ]?up\b|call\b|email\b|send\b|meet\b|visit\b|post\b|publish .* (website|deck)|"
+                         r"pitch\b|demo\b|book\b|schedule\b|sign\b|design\b|decide\b)", re.I)
+
+
+def human_task(payload: dict) -> bool:
+    """A task that is plainly a person's (MG04 not asked): its title opens with contacting, meeting, posting, designing
+    or deciding ("Outreach: Harbor and 4 more", "Follow up with Noodle Bar One ..."), or it is assigned to a person on the
+    team list."""
+    title = _s(payload.get("title"))
+    who = _s(payload.get("assignee")).strip().lower()
+    return bool(_HUMAN_WORK.match(title)) or (bool(who) and who in team_names())
+
+
+_FLAG_TASK = re.compile(r"\b(T|PK|LD|MG|FM|PL)\d{2}\b|\bvalidator\b|\btask format\b|\bformat checklist\b|\bchecklist items\b|"
+                        r"^\s*fix\s+ceo-\d+", re.I)
+
+
+def about_validator_flag(payload: dict) -> bool:
+    """'Fix CEO-121 Task Format Checklist Items' (2026-10-03): a task whose subject is a Validator flag or a format fix."""
+    return bool(_FLAG_TASK.search(_s(payload.get("title"))))

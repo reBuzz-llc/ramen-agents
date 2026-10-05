@@ -1,0 +1,15 @@
+{
+ "version": 1,
+ "updatedAt": "",
+ "members": [
+  {
+   "notionId": "",
+   "name": "FILL-ME: a person on your team",
+   "email": "",
+   "role": "FILL-ME: their role",
+   "details": "FILL-ME: what kind of task goes to this person. The dashboard's Team page edits this file.",
+   "default": true,
+   "avatar": null
+  }
+ ]
+}

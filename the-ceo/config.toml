@@ -1,0 +1,100 @@
+# The CEO: the family's decision maker. Shared settings (model chain, provider tables, denylist, contact) come from
+# web-bots.toml and common.toml in ~/bots/common-data/configs; anything set below wins over them. Every other setting
+# keeps the default in ~/Projects/bot/config.example.toml.
+# NOTE (TOML): a plain setting written below a [[...]] entry belongs to that entry. Keep settings above the first [[...]].
+extends = "../common-data/configs/web-bots.toml"
+
+[agent]
+name = "The CEO"
+bio = "FILL-ME: one or two sentences. Who the company is, what this agent is for right now (e.g. find new customers in {market} and turn strategy into clear tasks for the team)."
+self_goals = true
+cycle_delay_seconds = 120
+tags = ["notion_writer"]   # shown in 'bot list' and the daily review: this bot writes to the owner's Notion
+# Every 4th episode looks across all open threads and advances the most-ready one; every 6th reads back over the
+# journal and changes one thing about how it works.
+triage_every_episodes = 4
+reflect_every_episodes = 6
+# Only used on a fresh database; the live interests are in workspace/explorer.sqlite3.
+seed_interests = [
+  "how companies like ours win clients in {market}",
+  "what {market} {segment} pay and expect for what we sell",
+  "FILL-ME: a topic the decision maker should read about",
+]
+
+[policy]
+# A keyed special search the owner may allow this bot alone to call with "engine":"tavily" (free plan, no card; the
+# fleet's budget is 30 a day). Needs common-data/keys/tavily.key; leave the list empty to keep search keyless.
+search_engines_on_request = []
+# The owner hears from this bot once a day; a reply to something the owner writes is always allowed on top.
+max_says_per_day = 1
+refuse_repeated_searches = true
+max_pages_without_note = 0
+# lead: The CEO decides a column on the Leads board, it never lists a business.
+disabled_actions = ["ask", "interest", "lead"]
+max_notes_per_day = 30
+
+[model]
+# The decision maker thinks with the remote models on every step and is never paced; its spending still comes out of
+# the family's pool. To give it the strongest model first without shortening the chain: provider_first = ["<name>"].
+remote_for = "all"
+daily_token_budget = 0
+budget_weight = 0
+num_predict = 1200
+
+[browser]
+video_transcripts = true   # a YouTube link opens as the video's caption transcript (keyless)
+# The owner's own material goes in raw/ (pricing, case studies, the "What we have" page): searched as the bot's files.
+corpus_dir = "raw"
+search_engines = ["searxng", "hn", "corpus", "yc"]
+
+[dashboard]
+port = 8788
+
+[notion]
+# Tasks go to a Notion task board; packages to a Notion page, one toggle per package. Create the board with
+#   bot --config ~/bots/the-ceo/config.toml notion-board
+# then paste the ids and switch this on. The key goes in common-data/keys/notion.key.
+enabled = false                 # FILL-ME: true once database_id is set
+database_id = ""                # FILL-ME: the task board's data source id
+api_version = "2025-09-03"
+api_key_file = "~/bots/common-data/keys/notion.key"
+default_project_id = ""         # optional: a project page every task is linked to
+max_tasks_per_day = 10
+min_details_chars = 300         # a task is a full brief; a one-liner is refused
+package_page_id = ""            # FILL-ME: the Notion page that holds the packages
+package_format_version = 1      # raise it to have every older toggle republished once in the current shape
+package_republish_own = true    # a toggle on the page is replaced when its title or email changed, once a day
+package_email_allowed_figures = []   # figures every pitch may carry although no package record has them
+# "visible": no price check, The CEO sets the price. Others: "record" (figures must be in the record), "range", "off".
+package_email_price_rule = "visible"
+package_email_required_phrases = []
+package_signoff = "Regards,\n-- FILL-ME company name"
+
+[messaging]
+priority_senders = ["Validator"]   # a member's ask comes before own work
+max_per_episode = 4
+max_per_day = 40
+[[messaging.peers]]
+name = "Package Designer"
+folder = "~/bots/package-designer"
+[[messaging.peers]]
+name = "Lead Gen"
+folder = "~/bots/lead-gen"
+[[messaging.peers]]
+name = "Scout"
+folder = "~/bots/scout"
+[[messaging.peers]]
+name = "Validator"
+folder = "~/bots/validator"
+
+[leads]
+# The CEO decides the Leads board's "How we can help" column and nothing else on a row; it never lists a lead.
+enabled = false                 # FILL-ME: true once database_id is set
+database_id = ""                # FILL-ME: the Leads board's data source id (the same one Lead Gen writes to)
+update_any_row = true
+update_only_fields = ["how_we_help"]
+max_updates_per_episode = 3
+decide_glob = "leads-need-package*.md"
+# Lead Gen's leads that no task of The CEO names yet are listed for ONE outreach task a day.
+outreach_from = "Lead Gen"
+outreach_shown = 10

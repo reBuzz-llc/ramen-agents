@@ -1,0 +1,8 @@
+# The market the family is working right now. ONE place: change a line here and every bot's card, bio and starting
+# interests follow on its next cycle (the engine fills {market}, {market_short}, {segment}, {trades}, {areas} and
+# {market_slug}). The direction itself (why, since when) is in steers.md.
+market = "FILL-ME market"            # e.g. a city or country
+market_short = "FILL-ME"             # its short name
+segment = "FILL-ME segment"          # e.g. "small businesses"
+trades = "FILL-ME trades"            # e.g. "restaurants, shops, clinics"
+areas = "FILL-ME areas"              # e.g. districts of the market, comma-separated

@@ -1,0 +1,75 @@
+# Lead Gen: lists potential customers on the owner's Notion Leads board. Shared settings come from web-bots.toml.
+extends = "../common-data/configs/web-bots.toml"
+
+[agent]
+name = "Lead Gen"
+bio = "The lead finder of a small company, run as an automated agent by its owner. It reads {market} businesses' own websites, spots a problem one of the company's packages fixes, and lists the business -- with the business email it publishes -- on the owner's board."
+persona_file = "persona.md"
+cycle_delay_seconds = 45
+max_cycle_delay_seconds = 60
+tags = ["notion_writer"]
+seed_interests = [
+  "{market} {segment} with an outdated or broken website",
+  "{areas} {segment} that publish a business email on their own site",
+  "FILL-ME: the sign that a business needs what we sell",
+]
+
+[policy]
+max_actions_per_episode = 40
+max_says_per_episode = 4
+refuse_repeated_searches = true
+repeat_search_overlap = 0.85    # its recipe changes one word (the trade or the area); that is a new search
+disabled_actions = ["ask", "interest"]
+max_pages_without_note = 0
+open_only_seen_urls = true      # a typed-from-memory address is usually a dead page
+domain_no_progress_cap = 5      # five pages on one site with nothing written from it: move on
+
+[site_gate]
+enabled = true                  # the first page of a new site is judged once: a business's own site, or a directory?
+
+[model]
+remote_for = "all"
+budget_weight = 2.0             # the family's producer takes a double share of the pool when others are running
+
+[browser]
+corpus_dir = "~/bots/the-ceo/raw"
+search_engines = ["searxng", "corpus"]
+
+[dashboard]
+port = 8794
+
+[leads]
+enabled = false                 # FILL-ME: true once database_id is set
+database_id = ""                # FILL-ME: the Leads board's data source id
+max_per_episode = 0
+max_per_day = 0
+max_updates_per_episode = 0
+dedupe_days = 90
+update_any_row = true
+notify_folder = "~/bots/the-ceo"
+notify_name = "The CEO"
+candidates_glob = "candidates-{market_slug}-*.md"   # the daily list for the current market (scripts/candidates-feed.py)
+candidates_shown = 5
+# Each email is checked before the row is written. Free plans, no card; leave the key files out to skip the check.
+email_verify_key_file = "~/bots/common-data/keys/quickemailverification.key"
+email_verify_fallback_key_file = "~/bots/common-data/keys/sniffmail.key"
+
+[notion]
+api_key_file = "~/bots/common-data/keys/notion.key"
+api_version = "2025-09-03"
+
+[messaging]
+max_room_posts_per_day = 0
+priority_senders = ["The CEO", "Validator"]
+[[messaging.peers]]
+name = "Validator"
+folder = "~/bots/validator"
+[[messaging.peers]]
+name = "The CEO"
+folder = "~/bots/the-ceo"
+[[messaging.peers]]
+name = "Package Designer"
+folder = "~/bots/package-designer"
+[[messaging.peers]]
+name = "Scout"
+folder = "~/bots/scout"
