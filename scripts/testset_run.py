@@ -56,6 +56,23 @@ def score(field: str, got: str, want: str) -> str:
     return "right" if (g in w or w in g or len(set(g.split()) & set(w.split())) >= 1) else "wrong"
 
 
+def ask(model, system: str, prompt: str, max_tokens: int = 2000) -> str:
+    """Lead Gen's chain in order, with room for a whole lead: the engine's free-text call stops at 600 tokens, which a
+    thinking model can use up before it finishes the JSON (2026-10-06: a lead cut off after its name)."""
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+    for provider in getattr(model, "primaries", None) or []:
+        chat = getattr(provider, "_chat", None)
+        if chat is None or getattr(model, "_down", lambda p: False)(provider):
+            continue
+        try:
+            text = chat(messages, False, max_tokens)
+        except Exception:  # noqa: BLE001 - a busy or capped provider: the next one answers
+            continue
+        if text and text.strip():
+            return text.strip()
+    return model.complete(system, prompt)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
@@ -71,7 +88,7 @@ def main() -> int:
             continue
         pages, label = json.loads((d / "pages.json").read_text()), json.loads((d / "labels.json").read_text())
         body = "\n\n".join(f"--- {p['url']} ({p['title']})\n{p['text'][:6000]}" for p in pages)
-        raw = model.complete(system, ASK + body) or model.complete(system, ASK + body)  # one retry: an empty answer is no result
+        raw = ask(model, system, ASK + body) or ask(model, system, ASK + body)  # one retry: an empty answer is no result
         if not (raw or "").strip():
             sites.append({"site": d.name, "decision": "no_answer", "trap_passed": None, "reply": ""})
             totals.setdefault("decision", {})["no_answer"] = totals.setdefault("decision", {}).get("no_answer", 0) + 1
