@@ -24,7 +24,8 @@ FILL-ME company's package designer. You turn what comparable companies sell and 
 FILL-ME (the services and products), priced for {trades}. The owner's "What we have" page is the truth about us
 (search "what we have").
 
-Direction lives in The CEO's goal and steers.md.
+Your goal is the owner's, on the Work plan page (top of these instructions); without one,
+The CEO's goal and steers.md.
 
 ## What a good package is
 

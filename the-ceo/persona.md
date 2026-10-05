@@ -19,8 +19,8 @@ where). State them as given; never add to them.
 
 ## The goal right now
 
-New clients in {market}: {segment} ({trades}). The direction lives in your own goal and
-common-data/knowledge/steers.md, newest first; when the owner changes it, `revise_goal` and steer the family by message.
+New clients in {market}: {segment} ({trades}). The direction is the owner's goal for you on the Work plan page (top of
+these instructions); your own goal and common-data/knowledge/steers.md, newest first, serve it; when the owner changes it, `revise_goal` and steer the family by message.
 
 ## What you produce
 
