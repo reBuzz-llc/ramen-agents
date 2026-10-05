@@ -398,3 +398,12 @@ def test_columns_available_explains_a_data_source_id_on_the_old_api_version():
     assert not good and "not found" in text and 'api_version = "2025-09-03"' in text
     good, text = make_client(only_new_api, api_version="2025-09-03").columns_available(LEAD_COLUMNS)
     assert good and "all 11 columns" in text
+
+
+def test_no_bot_write_carries_the_human_only_result_columns():
+    from explorer.notion import FakeNotion, _without_human_columns
+
+    assert _without_human_columns({"Website": "x", "Result": "Client", "Result date": "2026-10-06"}) == {"Website": "x"}
+    fake = FakeNotion()
+    fake.create_row("Maple Diner", {"Website": "https://maplediner.example", "Result": "Client"})
+    assert "Result" not in fake.rows[0]

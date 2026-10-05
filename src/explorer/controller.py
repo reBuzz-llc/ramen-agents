@@ -32,6 +32,7 @@ from .actions import (
     UpdateLead,
     UpdateTask,
     Package,
+    MergeTask,
     Provider,
     Message,
     ReviseGoal,
@@ -377,6 +378,7 @@ class Controller:
             tasks_enabled=self.notion is not None,
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
             scout_enabled=self.scout_enabled,
+            merge_tasks=bool((cfg.notion.merge_status or "").strip()),
             scout_kind=cfg.scout.kind,
             message_peers=cfg.messaging.peer_names if cfg.messaging.enabled else [],
             message_room=cfg.messaging.room if cfg.messaging.enabled else False,
@@ -695,6 +697,7 @@ class Controller:
         target = self.policy.resolve_target(action, ctx)
         key = self._key(action, ep, target)
         verdict = self.policy.check(action, ctx, key=key)
+        self._last_trace = {"system": self.system, "prompt": obs.render(), "reply": result.raw, "model": getattr(self.model, "_active", None) and str(getattr(self.model._active, "label", "")) or ""}
         strip_note = ""
         if verdict.allowed and action.type == "lead":
             # Location and Company size are optional cells: the engine keeps them only when the business's own pages the
@@ -717,6 +720,7 @@ class Controller:
             for v in getattr(self.policy, "last_model_verdicts", []) or []:
                 event(self.logger, "write_gate_model", action=action.type, rule=v.get("id"), ok=v.get("ok"), why=v.get("why"), cached=v.get("cached"))
         payload = action.model_dump()
+        self._save_trace(action.type, verdict)
         if not verdict.allowed:
             if verdict.permanent:
                 self.blocked_keys.add(key)
@@ -1363,6 +1367,7 @@ class Controller:
             "tasks_today": memory.count_tasks_today,
             "recent_task_titles": memory.recent_task_titles,
             "task_titles_today": memory.task_titles_today,
+            "merges_in_episode": lambda: memory.count_actions(eid, "merge_task"),
             "team": lambda: self.team,
             "providers_in_episode": lambda: memory.count_actions(eid, "provider"),
             "providers_today": lambda: memory.count_actions_today("provider"),
@@ -1623,6 +1628,8 @@ class Controller:
                 return self._execute_package(action)
             if isinstance(action, Provider):
                 return self._execute_provider(action)
+            if isinstance(action, MergeTask):
+                return self._execute_merge_task(action)
             if isinstance(action, Message):
                 return self._execute_message(action)
             if isinstance(action, ReviseGoal):
@@ -2349,6 +2356,88 @@ class Controller:
             True, f"{verb} the packages page: '{name[:60]}'", True,
             feedback=f"'{name}' is on the packages page now; do not publish it again. Publish a different package next time.",
         )
+
+    TRACE_EVERY = 20  # one allowed decision in this many is kept, plus every refused one
+    TRACE_DAYS = 7
+
+    def _save_trace(self, action_type: str, verdict: Any) -> None:
+        """The full prompt and reply behind a decision, for "why did it do that" (owner, 2026-10-06): every refused step
+        and one allowed step in TRACE_EVERY, in workspace/traces/<day>/, kept TRACE_DAYS days. Never fails the step."""
+        try:
+            self._trace_n = getattr(self, "_trace_n", 0) + 1
+            if verdict.allowed and self._trace_n % self.TRACE_EVERY:
+                return
+            day = time.strftime("%Y-%m-%d")
+            folder = self.cfg.workspace / "traces" / day
+            folder.mkdir(parents=True, exist_ok=True)
+            t = getattr(self, "_last_trace", None) or {}
+            record = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "cycle": self.cycle_no, "action": action_type,
+                      "verdict": "allowed" if verdict.allowed else "rejected: " + str(verdict.reason), **t}
+            (folder / f"{time.strftime('%H%M%S')}-{self.cycle_no}-{action_type}.json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+            cutoff = time.time() - self.TRACE_DAYS * 86400
+            for old in (self.cfg.workspace / "traces").iterdir():
+                if old.is_dir() and old.stat().st_mtime < cutoff:
+                    import shutil
+
+                    shutil.rmtree(old, ignore_errors=True)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _execute_merge_task(self, action: MergeTask) -> ExecResult:
+        """Close a task of this bot's that another of its tasks covers (owner, 2026-10-06: "let ceoA merge"). Refused while
+        the closed task has been started by someone, or names a business or email the covering task does not."""
+        from .policy import resolve_task_title
+
+        if self.notion is None:
+            return ExecResult(False, "merging tasks is not enabled", False)
+        titles = self.memory.recent_task_titles()
+        rows = [self.memory.find_task(resolve_task_title(t, titles) or t) for t in (action.title, action.into)]
+        if any(r is None for r in rows):
+            return ExecResult(False, "one of those is not a task of yours", False)
+        src_id, dst_id = (page_id_from_url(str(r["url"] or "")) for r in rows)
+        if not src_id or not dst_id:
+            return ExecResult(False, "a task has no Notion page id on record", False)
+        try:
+            page = self.notion.read_page(src_id)
+            status = str(((page or {}).get("fields") or {}).get(self.cfg.notion.status_property, "")).strip()
+            if page is None or (status and status != self.cfg.notion.status_value):
+                return ExecResult(False, f"'{rows[0]['title'][:60]}' is '{status or 'gone'}', not '{self.cfg.notion.status_value}': "
+                                  "someone has it in hand, leave it", False)
+            src_text, dst_text = self.notion.page_text(src_id).lower(), self.notion.page_text(dst_id).lower()
+        except Exception as exc:  # noqa: BLE001
+            return ExecResult(False, f"could not read the tasks: {str(exc)[:160]}", False)
+        src_text += "\n" + str(rows[0]["title"]).lower()
+        dst_text += "\n" + str(rows[1]["title"]).lower()
+        missing = sorted({e for e in re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", src_text) if e.rstrip(".") not in dst_text})
+        names, _ = self._outreach_leads_all()
+        missing += sorted(n for n in names if n.lower() in src_text and n.lower() not in dst_text)
+        if missing:
+            return ExecResult(False, f"not merged: '{rows[1]['title'][:60]}' does not have {', '.join(missing[:6])}"
+                              + (f" and {len(missing) - 6} more" if len(missing) > 6 else ""), False,
+                              feedback="Add what is missing to the covering task with update_task details_append, then merge.")
+        self.notion.set_status(src_id, self.cfg.notion.merge_status.strip())
+        self.notion.update_task(src_id, details_append=f"Merged into \"{rows[1]['title']}\" on {time.strftime('%Y-%m-%d')}: its work continues there.")
+        self.memory.write_journal(f"Merged task '{rows[0]['title']}' into '{rows[1]['title']}'.", heading="Task")
+        event(self.logger, "merge_task", closed=str(rows[0]["title"])[:120], into=str(rows[1]["title"])[:120])
+        return ExecResult(True, f"merged '{rows[0]['title'][:60]}' into '{rows[1]['title'][:60]}'", True)
+
+    def _outreach_leads_all(self) -> tuple[list[str], int]:
+        """Every business name the lead-finding colleague has listed (for the merge check); [] when unknown."""
+        who = (self.cfg.leads.outreach_from or "").strip()
+        folder = self.cfg.messaging.folder_for(who) if who else None
+        if not folder:
+            return [], 0
+        try:
+            import sqlite3 as _sq
+
+            con = _sq.connect(f"file:{Path(folder).expanduser() / 'workspace' / 'explorer.sqlite3'}?mode=ro", uri=True, timeout=5)
+            try:
+                names = [str(r[0]).strip() for r in con.execute("SELECT name FROM leads") if r[0] and len(str(r[0]).strip()) >= 4]
+            finally:
+                con.close()
+            return names, len(names)
+        except Exception:  # noqa: BLE001
+            return [], 0
 
     def _execute_update_task(self, action: UpdateTask, ep: sqlite3.Row) -> ExecResult:
         """Fix one of this bot's own Notion tasks (assignee / priority / deadline / appended details). Policy applied

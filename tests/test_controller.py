@@ -340,3 +340,18 @@ def test_dead_ends_list_todays_repeated_refusals(cfg):
     assert any(e.startswith("publish_package 'Fixed-Price MVP' (already on the packages page, 2x)") for e in ends)
     assert not any("Once Only" in e for e in ends)  # once is not a dead end
     assert "Dead ends today" in c._observe(c.memory.current_episode()).render()
+
+
+def test_refused_steps_and_a_sample_of_allowed_ones_leave_a_trace(cfg):
+    """Owner, 2026-10-06: the full prompt and reply behind a sample of decisions, so "why did it do that" has an answer."""
+    import json as _json
+
+    from conftest import make_controller
+
+    c = make_controller(cfg)
+    c.TRACE_EVERY = 2
+    c.run(max_cycles=4)
+    files = sorted((cfg.workspace / "traces").rglob("*.json"))
+    assert files
+    t = _json.loads(files[0].read_text())
+    assert t["prompt"] and "verdict" in t and "system" in t
