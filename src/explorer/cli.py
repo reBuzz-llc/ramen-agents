@@ -158,7 +158,6 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         self_goals=cfg.agent.self_goals,
         propose_teammates=cfg.agent.propose_teammates,
         leads=cfg.leads,
-        mcp=cfg.mcp,
     )
     heartbeat = Heartbeat(db, cfg.watchdog)
     publisher = Publisher(cfg.publish, cfg.root, cfg.agent.name, cfg.agent.bio)

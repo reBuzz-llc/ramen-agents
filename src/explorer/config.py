@@ -529,20 +529,6 @@ class LeadsConfig:
 
 
 @dataclass
-class McpConfig:
-    """MCP servers this bot may call (owner, 2026-10-05: Google Analytics for The CEO). Each server is a table:
-    name, command (a local executable), args, env, tools (the read-only tools the bot may call -- nothing else is
-    callable) and requires (files that must exist first, e.g. the credentials the owner set up). A server whose
-    requirements are missing is not offered. Off by default."""
-
-    enabled: bool = False
-    servers: list[dict] = field(default_factory=list)
-    max_calls_per_day: int = 40
-    timeout_seconds: float = 90.0
-    max_chars: int = 6000
-
-
-@dataclass
 class SiteGateConfig:
     """Lead Gen's page gate (owner, 2026-09-26): when the bot opens a page on a domain it has not judged yet, one cheap
     model call decides whether it is a small business's OWN site. If not, the page's text is dropped from the next
@@ -758,7 +744,6 @@ SECTIONS: dict[str, type] = {
     "scout": ScoutConfig,
     "messaging": MessagingConfig,
     "site_gate": SiteGateConfig,
-    "mcp": McpConfig,
     "quiet": QuietConfig,
     "developer": DeveloperConfig,
     "desktop": DesktopConfig,
@@ -783,7 +768,6 @@ class Config:
     scout: ScoutConfig = field(default_factory=ScoutConfig)
     messaging: MessagingConfig = field(default_factory=MessagingConfig)
     site_gate: SiteGateConfig = field(default_factory=SiteGateConfig)
-    mcp: McpConfig = field(default_factory=McpConfig)
     quiet: QuietConfig = field(default_factory=QuietConfig)
     developer: DeveloperConfig = field(default_factory=DeveloperConfig)
     desktop: DesktopConfig = field(default_factory=DesktopConfig)
