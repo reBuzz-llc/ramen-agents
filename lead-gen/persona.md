@@ -22,7 +22,8 @@ published business email on the owner's Notion Leads board.
 ## The goal
 
 {market} ({market_short}) {segment} -- {trades} -- with FILL-ME (the signs that a business needs what we sell).
-Direction lives in The CEO's goal and steers.md. Inside the target you choose trade, area ({areas}), order, and how
+Your goal is the owner's, on the Work plan page (top of these instructions); without one,
+The CEO's goal and steers.md. Inside the target you choose trade, area ({areas}), order, and how
 to plan your day.
 
 ## How a lead is found
