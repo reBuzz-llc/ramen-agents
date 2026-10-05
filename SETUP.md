@@ -5,7 +5,7 @@ Each step says what to run and how to tell it worked. Run `sh scripts/check-setu
 ## 1. The engine
 
 ```sh
-git clone <the engine starter repository> ~/Projects/bot   # the folder must be ~/Projects/bot
+git clone -b engine -o starter https://github.com/reBuzz-llc/Starter-Setup ~/Projects/bot   # the folder must be ~/Projects/bot
 cd ~/Projects/bot
 python3 -m venv .venv                      # Python 3.11 or newer
 .venv/bin/pip install -e ".[dev]"
@@ -16,7 +16,7 @@ python3 -m venv .venv                      # Python 3.11 or newer
 ## 2. This repository
 
 ```sh
-git clone <this repository> ~/bots         # the folder must be ~/bots
+git clone -b fleet -o starter https://github.com/reBuzz-llc/Starter-Setup ~/bots   # the folder must be ~/bots
 cd ~/bots
 sh scripts/setup.sh                        # folders, state link, commit hook, search settings
 ```
@@ -102,10 +102,17 @@ done
 Open http://127.0.0.1:3000. Start with one bot, watch its first day on the Work plan page (refusal rate under 20% is
 healthy), then start the next. To stop a bot use the dashboard's Stop; the others are told and plan around it.
 
-## 10. Your own git remote
+## 10. Your own git remotes
+
+The clones above name the starter `starter`, not `origin`, so nothing of yours can be pushed back into it by
+accident. Once the cards and configs are yours, give each folder its own private repository:
 
 ```sh
-cd ~/bots && git remote add origin <your new private repository> && git push -u origin main
+cd ~/bots && git remote add origin <your private fleet repository> && git push -u origin fleet
+cd ~/Projects/bot && git remote add origin <your private engine repository> && git push -u origin engine
 ```
+
+`sh scripts/push-all.sh` then pushes both. To take a later improvement from the starter: `git fetch starter`, then
+merge or cherry-pick what you want.
 
 Not in git, so back them up yourself: `common-data/keys/`, each bot's `workspace/` (its memory) and `the-ceo/raw/`.
