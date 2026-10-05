@@ -213,7 +213,7 @@ def test_light_is_the_default_backend_and_build_controller_wires_it(tmp_path: Pa
     try:
         assert isinstance(controller.browser, LightBrowser)
         assert controller.browser._chromium is None  # nothing heavy starts until a page needs it
-        assert controller.searcher.engines == ["marginalia", "duckduckgo-mcp", "hn"]
+        assert controller.searcher.engines == ["searxng", "duckduckgo-mcp"]
         assert controller.browser.allow_url("https://en.wikipedia.org/wiki/Moss") is None
         assert controller.browser.allow_url("http://192.168.1.1/") is not None
         assert "owner.example.org" in controller.browser.user_agent
