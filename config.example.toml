@@ -1,0 +1,305 @@
+# Explorer agent configuration. Paths are relative to this file's folder.
+# A bot's config may start with a top-level `extends = "../common-data/configs/web-bots.toml"` (a path
+# or a list, relative to the file naming it): the shared files load underneath, the bot's own values
+# win, tables merge key by key and arrays replace.
+# Runtime overrides: EXPLORER_MODE, EXPLORER_MODEL_PROVIDER, EXPLORER_MODEL_NAME, EXPLORER_HEADLESS,
+# or the flags on `bot run` (--mode, --model, --headed).
+
+[agent]
+name = "Roam"
+bio = "An automated exploration agent run by a human. It reads the web out of curiosity and keeps a journal."
+# Shown in the browser user agent so site owners can reach you. Leave empty to omit.
+contact = ""
+# fake = local HTML pages under workspace/fake_web, web = the real internet through browser.backend
+mode = "fake"
+cycle_delay_seconds = 20
+max_cycle_delay_seconds = 0   # 0 = no cap on budget-aware pacing (model.daily_token_budget)
+# A markdown file next to this config describing who the agent is (see personas/ in the code
+# checkout); injected into the system prompt. Empty keeps the built-in explorer voice.
+persona_file = ""
+seed_interests = [
+  "how everyday things work",
+  "history of the internet",
+  "small independent websites",
+  "unusual animals and plants",
+]
+
+[model]
+# fake = deterministic heuristic (no LLM), ollama = local model over HTTP, gemini = Google's free-tier
+# API, remote = the providers in provider_chain, in order. A remote provider is the primary brain and
+# `fallback_provider` (ollama) takes over automatically while it is rate-limited, out of quota, or
+# unreachable.
+provider = "fake"
+host = "http://localhost:11434"
+name = "qwen2.5:7b"
+temperature = 0.7
+num_ctx = 8192
+num_predict = 700
+timeout_seconds = 180
+max_retries = 2
+keep_alive = "30m"
+# Keys are never written here: put them in the env var (it wins when set) or, for the launchd job (no
+# shell env), in the key file. Every bot shares ~/bots/common-data/keys/<name>.key (EXPLORER_KEYS_DIR
+# moves the folder), e.g.
+#   umask 077 && printf '%s' 'YOUR_KEY' > ~/bots/common-data/keys/groq.key
+# Note: a remote provider is the first thing that sends page text and the agent's state off this Mac.
+fallback_provider = "ollama"
+# With provider = "remote": the providers tried in order, "gemini" or the name of a
+# [model.providers.<name>] table, e.g. ["groq", "gemini"].
+provider_chain = []
+gemini_model = "gemini-3.6-flash"
+gemini_api_key_env = "GEMINI_API_KEY"
+gemini_api_key_file = "~/bots/common-data/keys/gemini.key"
+gemini_cooldown_minutes = 15
+# More Gemini models tried right after gemini_model when it is busy or rate-limited, same key.
+gemini_fallback_models = []   # e.g. ["gemini-flash-lite-latest"]
+# Remote calls per provider per day, counted machine-wide in ~/.config/explorer/model_calls.json
+# (every bot and dashboard on this Mac shares the count, and a restart does not forget it). A capped
+# provider is skipped until tomorrow and the chain moves on to the next one. 0 = no cap.
+calls_per_day = 0
+# "all": every call goes to the remote chain first. "writing": the local model decides every step and
+# the remote chain writes only notes, tasks, posts and messages (journal and chat stay remote first).
+# A free tier of 8,000 tokens a minute holds about one full step a minute, so "writing" is what
+# lets the better model write the output instead of the local fallback.
+remote_for = "all"
+# Add a provider automatically when ~/bots/common-data/keys/<name>.key exists for a name the project
+# knows (config.KNOWN_PROVIDERS: groq, cerebras, mistral, sambanova, ...), without editing this file.
+# `bot providers` lists the chain, keys and usage. false to only ever use the explicit provider_chain.
+auto_discover_providers = true
+# Spread the day's free remote tokens across the day: when set, a bot lengthens its own cycle while
+# tokens are being spent faster than the clock, so a shared free budget lasts into the evening. All bots
+# share one machine-wide count. 0 = no pacing. Cap the stretch with agent.max_cycle_delay_seconds.
+daily_token_budget = 0
+# Wait up to this long for a provider's per-minute token budget to refill before a call.
+token_wait_seconds = 20
+# OpenAI-compatible providers, one table each so several free tiers stack in provider_chain:
+#   [model.providers.groq]
+#   base_url = "https://api.groq.com/openai/v1"        # Cerebras: https://api.cerebras.ai/v1
+#   model = "openai/gpt-oss-120b"                      # `bot check` verifies it against /models
+#   api_key_file = "~/bots/common-data/keys/groq.key"  # the default is keys/<name>.key
+#   calls_per_day = 900                                # its own cap; omit to use model.calls_per_day
+# Keys: base_url, model (required), api_key_env (default <NAME>_API_KEY), api_key_file,
+# cooldown_minutes (default 15), calls_per_day. Owner's rule: free tiers only, never credits or plans.
+
+[browser]
+headless = true
+user_data_dir = "workspace/browser_profile"
+page_text_limit = 6000
+max_links = 40
+search_url = "https://search.brave.com/search?q={query}&source=web"
+fake_web_dir = "workspace/fake_web"
+navigation_timeout_seconds = 30
+# light = one plain HTTP fetch per page turned into text; Chromium starts only for pages that need
+# JavaScript or refuse plain clients, and closes again after 8 pages without it (light_browser.py).
+# Only Chromium pages get a dashboard screenshot. chromium = Playwright for every page.
+# tor = text only over Tor (needs the Tor service and the `tor` extra: .venv/bin/pip install -e '.[tor]').
+# The tor backend fetches only the page itself (no images, scripts or media), searches a local onion
+# directory instead of a search engine, takes no screenshots, and refuses to start without
+# policy.allowlist_file. `bot --config <this file> onion-directory` stages both and prints what changed;
+# after you review it, `... onion-directory --accept` makes them live.
+backend = "light"
+tor_proxy = "socks5h://127.0.0.1:9050"
+max_page_bytes = 2000000
+onion_directory_file = "workspace/onion_directory.json"
+# Search engines in order: marginalia (Marginalia Search, small independent websites; the shared
+# `public` key is often over its per-minute quota, a free personal key comes by email; results are
+# CC-BY-NC-SA, so leave it out for a bot doing commercial work), wikipedia (MediaWiki search; needs
+# agent.contact in the user agent or Wikipedia answers 403), hn (Hacker News through Algolia's public
+# API: good for startups, agencies, founders, tools), corpus (the owner's own folder, corpus_dir below),
+# browser (opt-in only, in no default chain: search_url, Brave by default, in Chromium, which serves bot checks after a few
+# dozen searches). No engine needs a paid plan. Empty = marginalia, wikipedia, hn. The tor backend
+# ignores this list and searches the onion directory.
+# An API engine with no results passes the query to the next one (an empty corpus does too).
+# An engine that answers with a rate limit
+# or a bot check is paused for
+# policy.search_rate_limit_cooldown_minutes / search_cooldown_minutes in search_pause_file, one file
+# shared by every bot on this Mac ("" = ~/.config/explorer/search_pause.json).
+search_engines = []
+search_pause_file = ""
+marginalia_api_key_file = "~/bots/common-data/keys/marginalia.key"
+# Only for a bot that lists browser (old name brave-web): Brave in Chromium rests this long after every search, machine-wide,
+# so all bots together stay under the ~40 searches an evening that make it serve bot checks; the other
+# engines answer in between.
+search_web_interval_seconds = 180
+# A folder of the owner's own material (.md .txt .html .csv .json) searched before the web when
+# "corpus" is first in search_engines: pasted pages from sites the bot cannot reach (LinkedIn,
+# Clutch), pricing, guides. Relative to the bot folder; "" = none. Read on every search, so a new
+# file counts at once.
+corpus_dir = ""
+
+[policy]
+pages_per_hour = 60
+per_domain_delay_seconds = 8
+max_actions_per_episode = 12
+# Past the budget, this many more note/ask/interest/rest/say actions are tolerated; then only summarize.
+budget_grace_actions = 2
+max_open_questions = 40
+# Questions it may ask in one episode; beyond that it must pursue them or summarize.
+max_questions_per_episode = 3
+# After this many refused questions in one episode, asking is closed until the next one. 0 = no limit.
+max_refused_asks_per_episode = 2
+# After this many content pages without a note or question, navigation is refused until it writes one.
+max_pages_without_note = 3
+# Chat messages (say to the owner) it may send in one episode; it is a channel to the owner, not a diary.
+max_says_per_episode = 2
+# After a search engine answers with a bot-verification page, no searches for this long.
+search_cooldown_minutes = 30
+# After a plain rate-limit status (HTTP 429/503), a shorter pause; each new rate limit restarts it.
+search_rate_limit_cooldown_minutes = 5
+max_rest_seconds = 600
+denylist_file = "workspace/denylist.txt"
+respect_robots = true
+allow_private_networks = false
+# Hosts this bot may read, one per line (subdomains included). Empty = the whole web minus the denylist.
+allowlist_file = ""
+
+[watchdog]
+heartbeat_interval_seconds = 60
+stall_minutes = 15
+repeat_threshold = 4
+max_model_failures = 5
+# After a failed model call, wait this many seconds times the failures in a row (at most 60) before retrying.
+model_failure_backoff_seconds = 5
+
+[publish]
+# Milestone 4, off by default. "local" writes Markdown files into local_dir. "git" writes posts into
+# a repository the agent owns (git_dir, created on the first post) and commits; with git_remote set
+# it also pushes there. The owner creates that repository, says in its description that a bot runs
+# it, and makes a token scoped to that one repository (GitHub: fine-grained, Contents read/write):
+#   umask 077 && printf '%s' 'github_pat_...' > ~/bots/common-data/keys/github.key
+# The token never goes into the remote URL or the repo config. `bot check` verifies it.
+enabled = false
+destinations = ["local"]
+local_dir = "workspace/published"
+git_dir = "workspace/site"
+git_branch = "main"
+git_remote = ""   # e.g. "https://github.com/<owner>/<repo>.git"
+git_token_file = "~/bots/common-data/keys/github.key"
+git_author_email = "bot@localhost"
+max_posts_per_day = 3
+
+[dashboard]
+# `bot dashboard` listens here. Keep the host on this machine.
+host = "127.0.0.1"
+port = 8787
+# The agent saves a picture of its current page to workspace/screenshots/current.png for the dashboard.
+screenshots = true
+
+[notion]
+# Creating tasks in a Notion database: the CEO persona's output skill, off by default. Create an
+# internal integration at notion.so/my-integrations, share the task database with it, paste the
+# database id (from the database URL) below, and put the token in the key file:
+#   umask 077 && printf '%s' 'ntn_...' > ~/bots/common-data/keys/notion.key
+# Property names follow the owner's canonical board (Task / Status / Priority P0-P6 / Assign as a
+# people property / Dead Line) and are matched against the real database: missing ones are skipped,
+# the title is found by type, and a people property is filled by resolving the person's name against
+# the workspace (an unknown name leaves the task unassigned and says so). `bot check` shows what will
+# be filled. `bot notion-board --parent <page>` creates a board to that spec.
+enabled = false
+database_id = ""
+api_key_env = "NOTION_API_KEY"
+api_key_file = "~/bots/common-data/keys/notion.key"
+api_version = "2022-06-28"
+title_property = "Task"
+status_property = "Status"
+status_value = "Not started"
+assignee_property = "Assign"
+priority_property = "Priority"
+due_property = "Dead Line"
+max_tasks_per_episode = 1
+max_tasks_per_day = 8
+# After this many finished episodes with no task, the next episode opens with a nudge to turn the
+# notes into one concrete task or write a "Possible task: ..." note. 0 = never.
+nudge_after_episodes = 3
+
+[scout]
+# The scout persona's output skill: free AI providers it finds are recorded to a file the owner reviews
+# (default ~/bots/common-data/providers-found.md). The bots never sign up or make keys; the owner adds a
+# key for any find worth having and model.auto_discover_providers picks it up.
+enabled = false
+report_file = ""   # "" = ~/bots/common-data/providers-found.md
+max_per_episode = 1
+max_per_day = 4
+
+[handoff]
+# Handing work to another bot on this Mac (the package-designer persona). A `package` action writes the
+# package as Markdown into the recipient's folder (files_dir, its searchable raw/ by default) and a
+# message into the recipient's workspace/inbox/, shown to it once as "From <this bot>: ...". Any bot
+# reads its own inbox; only the sender needs this section. Packages must cite pages the bot opened.
+enabled = false
+to_name = ""        # e.g. "The CEO"
+to_folder = ""      # absolute, e.g. "/Users/you/bots/the-ceo"
+files_dir = "raw/packages"
+max_per_episode = 1
+max_per_day = 4
+
+[quiet]
+# Stay out of the owner's way while they use the Mac. While quiet the agent makes no model calls,
+# closes its hidden browser, and asks Ollama to drop the model from memory; it resumes once the Mac
+# has been idle for idle_seconds. A listed app in front or a listed process running also counts.
+# `bot check` prints what the probes see right now.
+enabled = true
+when_owner_active = true
+idle_seconds = 180
+apps = ["Steam", "Epic Games Launcher"]
+processes = ["steam_osx", "Epic Games Launcher"]
+check_interval_seconds = 15
+unload_model = true
+close_browser = true
+
+[chat_partner]
+# A second local model it can talk to with say(to="partner"), a distinct voice, not itself, not
+# the owner. Off by default. Runs on Ollama, same host by default; point it at a different model
+# once you pull one so it isn't just talking to a copy of itself.
+enabled = false
+host = "http://localhost:11434"
+model = "qwen2.5:7b"
+name = "Convo"
+system_prompt = "You are Convo, an AI the owner set up so Roam has someone to talk to. Answer honestly and briefly, in your own voice."
+temperature = 0.7
+num_ctx = 4096
+num_predict = 300
+timeout_seconds = 60
+# After this many turns without a note, say(to="partner") is refused until one is taken.
+max_turns_before_note = 4
+# Hard ceiling on partner turns in one episode, so talking to it can't be the whole episode.
+max_turns_per_episode = 8
+
+[developer]
+# A folder of its own where the agent may read and write files, and (separately) run a few allowed
+# commands. Off by default. Every path is resolved and must stay inside `root`.
+enabled = false
+root = "workspace/dev"
+allow_shell = false
+allowed_commands = ["pytest", "python", "git", "ls", "cat", "grep"]
+command_timeout_seconds = 120
+max_file_bytes = 200000
+# write_file always refuses these names, wherever they appear under root (the self-upgrade checkout lives there).
+protected_names = ["policy.py", "control.py", "config.py", "supervise.sh", "launchd", "config.toml", "denylist.txt", "test_policy.py", "test_upgrade.py", "docs", "CLAUDE.md", "workspace"]
+# Self-upgrade: the agent proposes a change in a git worktree at root/checkout, tests it, and on a
+# pass fast-forwards main and restarts (exit 75). scripts/supervise.sh rolls back a version that
+# crashes within 600 s of starting and stops after 3 rollbacks in a row; set EXPLORER_ROLLBACK_WINDOW
+# and EXPLORER_MAX_ROLLBACKS in the launch agent's environment to change that.
+upgrade_enabled = false
+upgrade_branch_prefix = "bot/proposal-"
+
+[desktop]
+# Letting the agent use the Mac itself, only while you are away. Off by default; dry run by default.
+enabled = false
+# mac = the real Mac through the accessibility tree (needs the pyobjc extras and permissions), fake = tests
+backend = "mac"
+# true: desktop actions are validated and logged but not performed
+dry_run = true
+# the Mac counts as free after this long without human input
+idle_minutes = 10
+# only within these hours, e.g. "22:00-07:00"; empty means any time
+hours = ""
+allowed_apps = ["TextEdit", "Calculator", "Notes"]
+allowed_hotkeys = ["cmd+n", "cmd+a", "cmd+z", "cmd+shift+z", "escape", "return", "tab"]
+max_elements = 150
+max_type_chars = 500
+
+[paths]
+workspace = "workspace"
+db = "workspace/explorer.sqlite3"
+log = "workspace/logs/explorer.jsonl"

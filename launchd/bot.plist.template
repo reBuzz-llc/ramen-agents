@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Rendered by `bot install` from launchd/bot.plist.template: one job per bot, shared code. -->
+  <key>Label</key>
+  <string>{{LABEL}}</string>
+
+  <!-- scripts/supervise.sh runs `bot run` for the config below, restarts on the self-upgrade exit
+       code (75), and rolls a crashing new version back. Exit 0 (STOP file) stays down. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>/bin/sh</string>
+    <string>{{CODE}}/scripts/supervise.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>{{CODE}}</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <!-- Background priority for the loop; quiet mode ([quiet] in the bot's config) is what keeps the
+       GPU free while the owner plays. -->
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>Nice</key>
+  <integer>10</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{HOME}}/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>{{HOME}}</string>
+    <key>EXPLORER_HOME</key>
+    <string>{{CODE}}</string>
+    <key>EXPLORER_CONFIG</key>
+    <string>{{CONFIG}}</string>
+    <key>EXPLORER_WORKSPACE</key>
+    <string>{{WORKSPACE}}</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>{{LOGS}}/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{LOGS}}/launchd.err.log</string>
+</dict>
+</plist>
