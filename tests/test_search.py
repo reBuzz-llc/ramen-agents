@@ -203,7 +203,7 @@ def test_settings_from_config_keep_fake_mode_offline(cfg):
     assert s.pause_file == cfg.workspace / "search_pause.json"
     cfg.agent.mode = "web"
     s = settings_from_config(cfg)
-    assert s.engines == ["marginalia", "wikipedia", "hn"]  # keyless engines only; no paid search plan
+    assert s.engines == ["marginalia", "duckduckgo-mcp", "hn"]  # keyless engines only; no paid search plan
     assert s.pause_file.name == "search_pause.json" and "bots" not in str(s.pause_file)
     assert s.bot_check_minutes == cfg.policy.search_cooldown_minutes
 
