@@ -376,6 +376,9 @@ class NotionConfig:
     title_property: str = "Task"  # found by type if this name is absent
     status_property: str = "Status"
     status_value: str = "Not started"
+    # The status a bot's `merge_task` gives a task another of its tasks covers (owner, 2026-10-06: "let ceoA merge").
+    # "" = no merging. Only the bot's own tasks, only while the closed one is still `status_value`.
+    merge_status: str = ""
     assignee_property: str = "Assign"
     priority_property: str = "Priority"
     due_property: str = "Dead Line"

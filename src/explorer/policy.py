@@ -16,6 +16,7 @@ from urllib.robotparser import RobotFileParser
 
 from .actions import (
     Action,
+    MergeTask,
     App,
     Ask,
     Click,
@@ -331,6 +332,7 @@ class PolicyContext:
     republishable_package_names: set[str] = field(default_factory=set)
     package_names_last_day: set[str] = field(default_factory=set)
     task_titles_today: set[str] = field(default_factory=set)
+    merges_in_episode: int = 0  # merge_task actions accepted this episode
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
@@ -1768,6 +1770,20 @@ class Policy:
 
         if isinstance(action, Provider):
             return self._check_provider(action, ctx)
+
+        if isinstance(action, MergeTask):
+            if not self.notion.enabled or not (self.notion.merge_status or "").strip():
+                return Verdict.no("merging tasks is not enabled; that action does not exist", permanent=True)
+            src = resolve_task_title(action.title, ctx.recent_task_titles)
+            dst = resolve_task_title(action.into, ctx.recent_task_titles)
+            if src is None or dst is None:
+                which = action.title if src is None else action.into
+                return Verdict.no(f"merge_task takes the titles of two tasks you created yourself; '{which[:60]}' is not one of them")
+            if src == dst:
+                return Verdict.no("a task cannot be merged into itself; name the task that covers it in `into`")
+            if ctx.merges_in_episode >= 3:
+                return Verdict.no("you already merged three tasks this episode; leave the rest for next time")
+            return Verdict.ok()
 
         if isinstance(action, Message):
             return self._check_message(action, ctx)

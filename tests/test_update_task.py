@@ -154,3 +154,41 @@ def test_the_designer_may_resend_a_company_less_package_once_it_has_the_company(
     assert not policy.check(package(), hctx(recent_package_names=sent)).allowed
     assert policy.check(package(), hctx(recent_package_names=sent, recent_packages_without_company=sent)).allowed
     assert policy.check(package(name="MVP Launch Starter v2"), hctx(recent_package_names=sent, recent_packages_without_company=sent)).allowed is False
+
+
+class MergesTwice:
+    """Creates two outreach tasks, tries to merge the first into the second (one email missing), then fixes and merges."""
+
+    def __init__(self):
+        self.step = 0
+
+    def decide(self, system, obs):
+        from explorer.actions import MergeTask
+
+        self.step += 1
+        long = "### Why\nOutreach. " * 30
+        actions = {
+            1: Task(type="task", title="Outreach: Maple Diner and 1 more", details=long + "\n- Maple Diner: hello@maplediner.example\n- Cedar Dental: info@cedardental.example", priority="P3"),
+            2: Task(type="task", title="Contact list for the week of October 6", details=long + "\n- Maple Diner: hello@maplediner.example", priority="P3"),
+            3: MergeTask(type="merge_task", title="Outreach: Maple Diner and 1 more", into="Contact list for the week of October 6"),
+            4: upd(title="Contact list for the week of October 6", details_append="- Cedar Dental: info@cedardental.example"),
+            5: MergeTask(type="merge_task", title="Outreach: Maple Diner and 1 more", into="Contact list for the week of October 6"),
+        }
+        return ModelResult(decision=Decision(thought="tidy", action=actions.get(self.step, upd(title="x"))))
+
+    def complete(self, system, prompt):
+        return "summary"
+
+
+def test_the_ceo_merges_a_task_only_when_nothing_would_be_lost(cfg):
+    cfg.notion = NotionConfig(enabled=True, database_id="db", api_key_file="/nonexistent", merge_status="Dublicate",
+                              team_file=str(cfg.root / "no-team.json"), max_tasks_per_episode=5, max_tasks_per_day=10)
+    cfg.policy.max_actions_per_episode = 10
+    fake = FakeNotion()
+    ctl = make_controller(cfg, model=MergesTwice(), notion=fake)
+    assert "merge_task" in ctl.system
+    ctl.run(max_cycles=5)
+    rows = ctl.memory.db.query("SELECT action_type, verdict, result FROM actions ORDER BY id")
+    merges = [r for r in rows if r["action_type"] == "merge_task"]
+    assert "not merged" in merges[0]["result"] and "info@cedardental.example" in merges[0]["result"]
+    assert merges[1]["result"].startswith("merged") and fake.tasks[0]["Status"] == "Dublicate" and fake.tasks[1]["Status"] == "Not started"

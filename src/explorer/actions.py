@@ -160,6 +160,15 @@ class UpdateTask(BaseModel):
     details_append: str | None = None  # Markdown added to the end of the task page, e.g. a "### Done when" checklist
 
 
+class MergeTask(BaseModel):
+    """Close one of your own board tasks that another of your tasks already covers: it is marked with the board's
+    duplicate status and a line saying where its work went. Exists only when [notion] merge_status is set."""
+
+    type: Literal["merge_task"]
+    title: str  # the task to close (one you created, not started yet)
+    into: str  # the task that carries its work (one you created)
+
+
 class Lead(BaseModel):
     """List one potential customer on the owner's Leads board -- a business whose own pages the bot read, with a
     pain point one of our packages fixes. Exists only for a bot with [leads] enabled. No business email published
@@ -330,6 +339,7 @@ Action = Annotated[
         App, Look, Click, TypeText, Hotkey,
         ListFiles, ReadFile, WriteFile, RunCommand, Upgrade, UpgradeTest, UpgradeSubmit,
         Task, Package, Provider, Message, ReviseGoal, ProposeTeammate, PublishPackage, UpdateTask, Lead, UpdateLead, Plan,
+        MergeTask,
     ],
     Field(discriminator="type"),
 ]
@@ -344,7 +354,7 @@ ALL_TYPES = (
     "app", "look", "click", "type", "hotkey",
     "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit",
     "task", "package", "provider", "message", "revise_goal", "propose_teammate", "publish_package", "update_task", "lead",
-    "update_lead", "plan",
+    "update_lead", "plan", "merge_task",
 )
 
 

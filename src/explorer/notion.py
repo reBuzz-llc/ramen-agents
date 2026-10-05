@@ -38,6 +38,14 @@ PRIORITY_PATTERN = re.compile(r"^P[0-6]$")
 STATUS_OPTIONS = ["Not started", "In progress", "Blocker", "In Review", "QA", "Done", "Archived"]
 # The columns a lead row fills (controller._execute_lead). Kept here so `bot check` can say which of them the
 # configured board actually has; tests/test_leads.py asserts the two stay in step.
+# Columns only a person writes (owner, 2026-10-06): what came of the outreach. No bot write ever carries them.
+HUMAN_ONLY_COLUMNS = frozenset({"result", "result date"})
+
+
+def _without_human_columns(fields: dict[str, str]) -> dict[str, str]:
+    return {k: v for k, v in (fields or {}).items() if str(k).strip().lower() not in HUMAN_ONLY_COLUMNS}
+
+
 LEAD_COLUMNS = ("Website", "Business email", "Location", "Industry", "Company size", "Pain point",
                 "How we can help", "Evidence", "Stage", "Found on", "Source pages")  # no "Found by": the owner emptied it (2026-09-25)
 PRIORITY_OPTIONS = ["P0", "P1", "P2", "P3", "P4", "P5", "P6"]
@@ -246,6 +254,7 @@ class NotionClient:
         """One row on the configured board from plain strings, typed by the board's schema: url / email / date /
         select / rich_text / number columns take the string as-is; unknown columns are skipped with a warning.
         Returns the page URL."""
+        fields = _without_human_columns(fields)
         self.last_warnings = []
         schema = self.schema()
         title_prop = self.title_property()
@@ -284,6 +293,33 @@ class NotionClient:
             raise
         return {"archived": bool(page.get("archived")), "fields": self._plain_fields(page)}
 
+    def page_text(self, page_id: str, limit_blocks: int = 400) -> str:
+        """The plain text of a page's body (nested blocks included), for comparing two tasks' contents."""
+        out: list[str] = []
+
+        def walk(bid: str) -> None:
+            cursor = None
+            while len(out) < limit_blocks:
+                data = self._request("GET", f"/v1/blocks/{bid}/children", params={"page_size": 100, **({"start_cursor": cursor} if cursor else {})})
+                for b in data.get("results") or []:
+                    t = b.get("type", "")
+                    out.append("".join(x.get("plain_text", "") for x in (b.get(t) or {}).get("rich_text") or []))
+                    if b.get("has_children"):
+                        walk(b["id"])
+                cursor = data.get("next_cursor")
+                if not data.get("has_more"):
+                    return
+
+        walk(page_id)
+        return "\n".join(out)
+
+    def set_status(self, page_id: str, status: str) -> None:
+        schema = self.schema()
+        props: dict[str, Any] = {}
+        self._set_choice(props, schema, self.cfg.status_property, status)
+        if props:
+            self._request("PATCH", f"/v1/pages/{page_id}", json={"properties": props})
+
     def read_block(self, block_id: str) -> dict[str, Any] | None:
         """{"archived": bool, "type": str} for a block (a package toggle), None when it does not exist."""
         try:
@@ -318,6 +354,7 @@ class NotionClient:
     def update_row(self, page_id: str, fields: dict[str, str]) -> None:
         """Change columns of a row the bot created (update_lead): the same schema typing as create_row; only the
         given, non-empty fields change."""
+        fields = _without_human_columns(fields)
         self.last_warnings = []
         props = self._typed_props(self.schema(), fields)
         if not props:
@@ -661,6 +698,7 @@ class FakeNotion:
         return f"https://notion.fake/page-{page_id}"
 
     def create_row(self, title: str, fields: dict[str, str]) -> str:
+        fields = _without_human_columns(fields)
         self.rows.append({"title": title, **{k: str(v) for k, v in fields.items() if str(v or "").strip()}})
         return f"https://notion.fake/{len(self.rows):032x}/row-{len(self.rows)}"
 
@@ -672,6 +710,7 @@ class FakeNotion:
         return None
 
     def update_row(self, page_id: str, fields: dict[str, str]) -> None:
+        fields = _without_human_columns(fields)
         changes = {k: str(v) for k, v in fields.items() if str(v or "").strip()}
         self.updates.append({"page_id": page_id, **changes})
         # Mirror onto the stored row (create_row's URL carries the row index as a 32-hex id).
@@ -692,12 +731,30 @@ class FakeNotion:
     def delete_block(self, block_id: str) -> None:
         self.deleted.append(block_id)
 
+    def _task_index(self, page_id: str) -> int:
+        try:
+            return int(page_id.replace("-", ""), 16) - 1
+        except ValueError:
+            return -1
+
+    def page_text(self, page_id: str, limit_blocks: int = 400) -> str:
+        i = self._task_index(page_id)
+        if not 0 <= i < len(self.tasks):
+            return ""
+        extra = "\n".join(str(u.get("details_append") or "") for u in self.updates if u.get("page_id") == page_id)
+        return str(self.tasks[i].get("details", "")) + "\n" + extra
+
+    def set_status(self, page_id: str, status: str) -> None:
+        i = self._task_index(page_id)
+        if 0 <= i < len(self.tasks):
+            self.tasks[i]["Status"] = status
+
     def create_task(self, title: str, details: str, assignee: str | None = None, priority: str = "P3", due: str | None = None) -> str:
         if not valid_priority(priority):
             raise NotionError("priority must be P0 to P6")
         if not valid_date(due):
             raise NotionError("due must be a date like 2026-09-30")
-        self.tasks.append({"title": title, "details": details, "assignee": assignee, "priority": priority, "due": due})
+        self.tasks.append({"title": title, "details": details, "assignee": assignee, "priority": priority, "due": due, "Status": "Not started"})
         return f"https://notion.fake/{len(self.tasks):032x}/task-{len(self.tasks)}"
 
     def read_page(self, page_id: str) -> dict[str, Any] | None:
