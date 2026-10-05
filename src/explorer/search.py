@@ -48,6 +48,9 @@ HN_API = "https://hn.algolia.com/api/v1/search"
 TAVILY_API = "https://api.tavily.com/search"
 TAVILY_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "tavily-usage.json"
 LANGSEARCH_API = "https://api.langsearch.com/v1/web-search"
+FREESERP_API = "https://freeserp.ai/api.php"
+PARALLEL_API = "https://api.parallel.ai/v1beta/search"
+PARALLEL_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "parallel-usage.json"  # keyless, no signup; asks for a few requests a second and caching
 LANGSEARCH_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "langsearch-usage.json"
 DEFAULT_PAUSE_FILE = Path.home() / ".config" / "explorer" / "search_pause.json"
 DEFAULT_WEB_ENGINES = ("marginalia", "wikipedia", "hn")
@@ -92,6 +95,11 @@ class SearchSettings:
     langsearch_api_key: str = ""
     langsearch_per_day: int = 100
     langsearch_usage_file: Path = LANGSEARCH_USAGE_FILE
+    # The `parallel` engine (owner's key and word, 2026-10-05: "add as a second backup"): Parallel's search API, $5 of free
+    # credit a month, no card. Listed after langsearch, so it runs only when every engine before it came back empty.
+    parallel_api_key: str = ""
+    parallel_per_day: int = 30
+    parallel_usage_file: Path = PARALLEL_USAGE_FILE
 
     def __post_init__(self) -> None:
         self.engines = list(dict.fromkeys(canonical_engine(e) for e in self.engines))
@@ -284,6 +292,11 @@ class Searcher:
                 return hn_search(self.client, query)
             if engine == "searxng":
                 return searxng_search(self.client, query, self.settings.searxng_url)
+            if engine == "parallel":
+                return parallel_search(self.client, query, self.settings.parallel_api_key, self.settings.parallel_per_day,
+                                       self.settings.parallel_usage_file)
+            if engine in ("freeserp", "freeserp-sites"):
+                return freeserp_search(self.client, query, "sites" if engine == "freeserp-sites" else "web")
             if engine == "langsearch":
                 return langsearch_search(self.client, query, self.settings.langsearch_api_key, self.settings.langsearch_per_day,
                                          self.settings.langsearch_usage_file)
@@ -444,6 +457,82 @@ def tavily_search(client: httpx.Client, query: str, api_key: str, per_day: int =
     return _results_page(url, f"Web search results for '{query}' (tavily)", rows)
 
 
+def parallel_search(client: httpx.Client, query: str, api_key: str, per_day: int = 30,
+                    usage_file: Path = PARALLEL_USAGE_FILE, limit: int = 8) -> PageView:
+    """Parallel's search API, the family's second backup. Without a key, or with today's budget used, it answers "not
+    available" so the next engine runs; a 429 or a used-up credit (402) rests the engine."""
+    url = f"parallel://search?q={quote_plus(query)}"
+    if not api_key:
+        return error_page(url, "parallel is not available (no key)")
+    if not _tavily_spend(usage_file, per_day):
+        return error_page(url, f"parallel is not available (today's budget of {per_day} searches is used)")
+    resp = client.post(PARALLEL_API, headers={"x-api-key": api_key}, json={"objective": query[:380], "max_results": limit}, timeout=60.0)
+    if resp.status_code in (402, 429, 503):
+        return error_page(url, rate_limit_error(429))
+    if resp.status_code >= 400:
+        return error_page(url, f"parallel refused the search (HTTP {resp.status_code})")
+    try:
+        hits = resp.json().get("results") or []
+    except (ValueError, AttributeError):
+        hits = []
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for h in hits:
+        if not isinstance(h, dict):
+            continue
+        link, title = str(h.get("url") or "").strip(), str(h.get("title") or "").strip()
+        if not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+        excerpt = h.get("excerpts") or h.get("snippet") or ""
+        excerpt = " ".join(excerpt) if isinstance(excerpt, list) else str(excerpt)
+        rows.append((title or link, link, _strip_tags(excerpt)[:200]))
+    return _results_page(url, f"Web search results for '{query}' (parallel)", rows)
+
+
+_FREESERP_CACHE: dict[tuple[str, str], tuple[float, PageView]] = {}
+
+
+def freeserp_search(client: httpx.Client, query: str, index: str = "web", limit: int = 10) -> PageView:
+    """FreeSerp (owner, 2026-10-05: "Everyone, as one more engine"): keyless and free. index="sites" is 20M business
+    homepages with a summary each, answered in about half a second -- Lead Gen's first engine; index="web" is a
+    3-billion-page web index, slower and noisier -- the other bots' backup after the local search. Results are kept an
+    hour in this process, as the service asks callers to cache."""
+    import time as _time
+
+    url = f"freeserp://{index}?q={quote_plus(query)}"
+    key = (index, query.strip().lower())
+    hit = _FREESERP_CACHE.get(key)
+    if hit and _time.time() - hit[0] < 3600:
+        return hit[1]
+    resp = client.get(FREESERP_API, params={"q": query[:300], "index": index, "limit": limit}, timeout=40.0)
+    if resp.status_code in (429, 503):
+        return error_page(url, rate_limit_error(resp.status_code))
+    if resp.status_code >= 400:
+        return error_page(url, f"freeserp refused the search (HTTP {resp.status_code})")
+    try:
+        data = resp.json()
+        hits = data.get("results") or []
+    except (ValueError, AttributeError):
+        hits = []
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for h in hits:
+        if not isinstance(h, dict):
+            continue
+        link = str(h.get("url") or "").strip()
+        title = str(h.get("title") or link).strip()
+        if not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+        rows.append((title, link, _strip_tags(str(h.get("ai_summary") or h.get("snippet") or h.get("description") or ""))[:200]))
+    page = _results_page(url, f"Web search results for '{query}' (freeserp {index})", rows)
+    if len(_FREESERP_CACHE) > 500:
+        _FREESERP_CACHE.clear()
+    _FREESERP_CACHE[key] = (_time.time(), page)
+    return page
+
+
 def langsearch_search(client: httpx.Client, query: str, api_key: str, per_day: int = 100,
                       usage_file: Path = LANGSEARCH_USAGE_FILE, limit: int = 8) -> PageView:
     """LangSearch's web search API, the family's backup when the local search fails. Without a key, or with today's
@@ -542,6 +631,8 @@ def settings_from_config(cfg: Any) -> SearchSettings:
         tavily_per_day=int(getattr(browser_cfg, "tavily_per_day", 30) or 0),
         langsearch_api_key=load_key("LANGSEARCH_API_KEY", key_file("langsearch")) or "",
         langsearch_per_day=int(getattr(browser_cfg, "langsearch_per_day", 100) or 0),
+        parallel_api_key=load_key("PARALLEL_API_KEY", key_file("parallel")) or "",
+        parallel_per_day=int(getattr(browser_cfg, "parallel_per_day", 30) or 0),
     )
 
 

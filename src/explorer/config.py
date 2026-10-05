@@ -159,6 +159,7 @@ class BrowserConfig:
     search_engines: list[str] = field(default_factory=list)
     tavily_per_day: int = 30  # the fleet's shared daily budget for the `tavily` engine (1,000 free credits a month)
     langsearch_per_day: int = 100  # the fleet's shared daily budget for the `langsearch` backup engine
+    parallel_per_day: int = 30  # the fleet's shared daily budget for the `parallel` second backup ($5 free credit a month)
     search_pause_file: str = ""
     # Each bot keeps a score per search engine and drops one that answered often and never led to a note. Changing this
     # value wipes those scores and drops once, at the next start: on 2026-09-29 the web engine was returning junk and
@@ -184,7 +185,7 @@ class BrowserConfig:
     video_transcript_languages: list[str] = field(default_factory=lambda: ["en"])
 
 
-SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch")  # brave-web: old name of browser
+SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel")  # brave-web: old name of browser
 PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind"})
 
 # OpenAI-compatible providers this project knows how to reach: drop a key at
@@ -507,6 +508,7 @@ class LeadsConfig:
     email_verify_refuse: list[str] = field(default_factory=lambda: ["invalid"])
     # A second, shallower service for the hours the first has no credits (Sniffmail: MX and disposable checks only).
     email_verify_fallback_key_file: str = ""
+    email_verify_third_key_file: str = ""  # EzVerify: asked only when the first two cannot answer
     # A bot that may change only some columns of board rows (owner, 2026-09-30: "The CEO decides How we can help"):
     # update_lead is refused for any other field. [] = every field.
     update_only_fields: list[str] = field(default_factory=list)
@@ -542,8 +544,9 @@ class SiteGateConfig:
     max_chars: int = 1500  # page text shown to the judge
     cache_file: str = "~/bots/common-data/shared-state/smb-gate.json"  # "~" is expanded where it is opened
     # What counts as "own site" for this bot, in the judge's question.
-    audience: str = ("a small business's own website -- a restaurant, shop, clinic, salon, gym, practice or local chain "
-                     "presenting itself to its customers")
+    # Placeholders are filled from common-data/knowledge/target.toml on every check, so a new Target on the Work plan page
+    # changes the question too (owner, 2026-10-05: "fix site check" -- it was the one goal written in code).
+    audience: str = "the own website of one of the {segment} the family works for -- {trades} -- presenting itself to its customers"
     exempt_hosts: list[str] = field(default_factory=lambda: ["localhost", "127.0.0.1"])
 
 

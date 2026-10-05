@@ -3104,7 +3104,8 @@ class Controller:
             from .email_verify import EmailVerifier
 
             self._email_verifier = EmailVerifier(key_file, self.cfg.root.parent / "common-data" / "shared-state" / "email-verify.json", self.logger,
-                                                 fallback_key_file=self.cfg.leads.email_verify_fallback_key_file)
+                                                 fallback_key_file=self.cfg.leads.email_verify_fallback_key_file,
+                                                 third_key_file=self.cfg.leads.email_verify_third_key_file)
         verdict = self._email_verifier.check(email)
         event(self.logger, "email_verify", email=email[:80], result=verdict.get("result"), reason=verdict.get("reason", ""),
               accept_all=verdict.get("accept_all"), cached=bool(verdict.get("cached")), credits=verdict.get("credits", ""))
@@ -3195,7 +3196,7 @@ class Controller:
         sg = self.cfg.site_gate
         prompt = (
             f"URL: {page.url[:300]}\nTitle: {page.title[:200]}\n\nPage text (start):\n{page.text[: sg.max_chars]}\n\n"
-            f"Question: is this page on {sg.audience}? A directory, list, ranking, marketplace, aggregator, article, blog, "
+            f"Question: is this page on {self.target.fill(sg.audience)}? A directory, list, ranking, marketplace, aggregator, article, blog, "
             "news site, agency, software product, startup database or job board is NOT such a site. "
             'Answer only {"smb_own_site": true or false, "why": "<at most 10 words>"}.'
         )

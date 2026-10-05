@@ -392,3 +392,44 @@ def test_langsearch_answers_within_its_daily_budget_and_steps_aside_without_a_ke
     assert page.ok and len(page.links) == 1 and "langsearch" in page.title
     assert "budget" in (langsearch_search(client, "maple diner", "k", per_day=1, usage_file=usage).error or "")
     assert "no key" in (langsearch_search(client, "maple diner", "", per_day=1, usage_file=usage).error or "")
+
+
+def test_freeserp_reads_both_indexes_and_caches_a_query(tmp_path):
+    from explorer.search import _FREESERP_CACHE, freeserp_search
+
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert "freeserp.ai" in str(request.url) and request.url.params["index"] in ("web", "sites")
+        return httpx.Response(200, json={"ok": True, "index": request.url.params["index"], "results": [
+            {"url": "https://maplediner.example", "title": "Maple Diner", "ai_summary": "A diner in Springfield."},
+            {"url": "https://maplediner.example", "title": "dup"}, {"url": "ftp://x", "title": "not a page"}]})
+
+    _FREESERP_CACHE.clear()
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    page = freeserp_search(client, "diner springfield", "sites")
+    assert page.ok and [l.url for l in page.links] == ["https://maplediner.example"] and "(freeserp sites)" in page.title
+    assert freeserp_search(client, "Diner Springfield", "sites").title == page.title and len(calls) == 1  # cached
+    freeserp_search(client, "diner springfield", "web")
+    assert len(calls) == 2
+
+
+def test_parallel_answers_within_its_budget_and_rests_when_credit_is_used(tmp_path):
+    from explorer.search import parallel_search
+
+    status = {"code": 200}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-api-key"] == "k"
+        if status["code"] != 200:
+            return httpx.Response(status["code"], json={"error": "credit"})
+        return httpx.Response(200, json={"results": [{"url": "https://maplediner.example/", "title": "Maple Diner", "excerpts": ["Open daily", "Springfield"]}]})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    usage = tmp_path / "parallel-usage.json"
+    page = parallel_search(client, "diner springfield", "k", per_day=3, usage_file=usage)
+    assert page.ok and page.links[0].url == "https://maplediner.example/" and "(parallel)" in page.title
+    status["code"] = 402
+    assert not parallel_search(client, "q2", "k", per_day=3, usage_file=usage).ok
+    assert "no key" in (parallel_search(client, "q", "", usage_file=usage).error or "")

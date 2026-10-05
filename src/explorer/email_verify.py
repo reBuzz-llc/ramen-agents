@@ -17,13 +17,15 @@ import httpx
 
 ENDPOINT = "https://api.quickemailverification.com/v1/verify"
 FALLBACK_ENDPOINT = "https://api.sniffmail.io/verify"  # Sniffmail's free tier: syntax, MX and disposable checks only
+THIRD_ENDPOINT = "https://ezverify.app/api/v1/verify"  # EzVerify (owner, 2026-10-05: "add as a third email checker"), 200 a month
 CACHE_DAYS = 30
 
 
 class EmailVerifier:
     def __init__(self, key_file: str | Path, cache_file: str | Path, logger: logging.Logger | None = None, client: httpx.Client | None = None,
-                 fallback_key_file: str | Path = ""):
+                 fallback_key_file: str | Path = "", third_key_file: str | Path = ""):
         self.fallback_key_file = Path(fallback_key_file).expanduser() if fallback_key_file else None
+        self.third_key_file = Path(third_key_file).expanduser() if third_key_file else None
         self.key_file = Path(key_file).expanduser() if key_file else None
         self.cache_file = Path(cache_file).expanduser()
         self.logger = logger or logging.getLogger("explorer")
@@ -52,6 +54,33 @@ class EmailVerifier:
             tmp.replace(self.cache_file)
         except OSError as exc:
             self.logger.warning("email verify cache not written: %s", exc)
+
+    def _third(self, email: str, why: str) -> dict | None:
+        """EzVerify, when neither of the first two answered. It calls a role address (info@, hello@) "risky": that is the
+        kind of address a lead must have, so "risky" is recorded as could-not-confirm with its reason, never as invalid."""
+        try:
+            key = self.third_key_file.read_text(encoding="utf-8").strip() if self.third_key_file else ""
+        except OSError:
+            key = ""
+        if not key:
+            return None
+        try:
+            client = self.client or httpx.Client(timeout=40.0)
+            r = client.post(THIRD_ENDPOINT, json={"email": email}, headers={"Authorization": "Bearer " + key})
+            d = (r.json() or {}).get("data") if r.status_code == 200 else None
+        except (httpx.HTTPError, ValueError, AttributeError):
+            return None
+        if not isinstance(d, dict) or not d.get("status"):
+            return None
+        status = str(d["status"]).lower()
+        result = ("valid" if status in ("valid", "deliverable", "safe") else
+                  "invalid" if status in ("invalid", "undeliverable", "bounce", "bounced") else "unknown")
+        reason = str(d.get("reason") or status)[:60]
+        verdict = {"result": result, "reason": reason, "accept_all": "catch" in status, "role": "team inbox" in reason.lower() or "role" in reason.lower(),
+                   "disposable": "disposable" in status, "at": dt.datetime.now().isoformat(timespec="seconds"), "credits": "",
+                   "by": "ezverify", "main": why}
+        self._remember(email, verdict)
+        return verdict
 
     def _basic(self, email: str, why: str) -> dict | None:
         """The fallback's shallower verdict when the main service cannot answer: a domain with no mail server is
@@ -93,14 +122,14 @@ class EmailVerifier:
                 pass
         key = self._key()
         if not key:
-            return self._basic(email, "no key") or {**unverified, "reason": "no key"}
+            return self._basic(email, "no key") or self._third(email, "no key") or {**unverified, "reason": "no key"}
         try:
             client = self.client or httpx.Client(timeout=40.0)
             r = client.get(ENDPOINT, params={"email": email, "apikey": key})
         except httpx.HTTPError as exc:
-            return self._basic(email, "unreachable") or {**unverified, "reason": f"service unreachable ({type(exc).__name__})"}
+            return self._basic(email, "unreachable") or self._third(email, "unreachable") or {**unverified, "reason": f"service unreachable ({type(exc).__name__})"}
         if r.status_code != 200:
-            return self._basic(email, f"answered {r.status_code}") or {**unverified, "reason": f"service answered {r.status_code}"}  # 402/429: out of credits
+            return self._basic(email, f"answered {r.status_code}") or self._third(email, f"answered {r.status_code}") or {**unverified, "reason": f"service answered {r.status_code}"}  # 402/429: out of credits
         try:
             d = r.json()
         except ValueError:
