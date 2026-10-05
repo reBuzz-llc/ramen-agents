@@ -708,3 +708,20 @@ def test_any_outreach_title_counts_as_todays_batch(cfg):
     again = Task(type="task", title="Perform outreach to local leads in legal and dental", details=details)
     assert "one outreach batch a day" in policy.check(again, PolicyContext(**base, task_titles_today={"outreach: maple diner and 7 more"})).reason
     assert policy.check(again, PolicyContext(**base)).allowed
+
+
+def test_a_repeated_search_is_answered_from_the_results_already_had_twice(cfg):
+    from explorer.actions import Search
+    from explorer.config import NotionConfig
+    from explorer.policy import Denylist, Policy, PolicyContext
+
+    cfg.policy.refuse_repeated_searches = True
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig())
+    base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
+                episode_search_queries=["maple diner springfield contact email"])
+    again = Search(type="search", query="Maple Diner Springfield contact email")
+    v = policy.check(again, PolicyContext(**base, cached_search_queries={"maple diner springfield contact email"}))
+    assert v.allowed and v.tag == "repeat_search"
+    assert "already searched" in policy.check(again, PolicyContext(**base, cached_search_queries={"maple diner springfield contact email"},
+                                                                     repeat_searches_served=2)).reason
+    assert "already searched" in policy.check(again, PolicyContext(**base)).reason  # nothing cached: the refusal stands
