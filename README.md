@@ -3,8 +3,8 @@
 A blank copy of a working bot fleet: the configuration, cards, rules, dashboard and scripts for a small family of
 autonomous web bots on one Mac, with every project-specific detail removed and marked `FILL-ME`.
 
-It is the second of two repositories. The first is the engine starter (the `bot` program, cloned to
-`~/Projects/bot`); this one is what the engine runs, cloned to `~/bots`. Both start with no history and no data:
+This is the `fleet` branch of the starter. The `engine` branch is the `bot` program, cloned to `~/Projects/bot`;
+this one is what the engine runs, cloned to `~/bots`. Both start with no history and no data:
 no leads, notes, packages, finds, memories or logs. Everything a bot learns from here on is the new project's own.
 
 ## The family
