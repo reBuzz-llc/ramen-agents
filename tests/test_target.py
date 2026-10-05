@@ -45,3 +45,12 @@ def test_slug_matches_the_candidates_feed():
 
     assert [slug(x) for x in ("Springfield", "São Paulo", "Hell's Kitchen", "Zürich  (Old Town)", "")] == \
         ["springfield", "sao-paulo", "hell-s-kitchen", "zurich-old-town", "market"]
+
+
+def test_the_site_check_question_follows_the_target_file(tmp_path):
+    from explorer.config import SiteGateConfig
+
+    f = tmp_path / "target.toml"
+    f.write_text('market = "Austin, Texas"\nsegment = "dental practices"\ntrades = "general and cosmetic dentists"\n')
+    q = Target(f).fill(SiteGateConfig().audience)
+    assert "dental practices" in q and "general and cosmetic dentists" in q and "{" not in q and "restaurant" not in q

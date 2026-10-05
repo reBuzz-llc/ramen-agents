@@ -45,3 +45,26 @@ def test_the_basic_fallback_answers_when_the_main_service_is_out_of_credits(tmp_
     ok = v.check("info@joes.example")
     assert ok["result"] == "unknown" and ok["by"] == "basic" and "mailbox not confirmed" in describe(ok)
     assert v.check("info@nomx.example")["result"] == "invalid"  # no mail server at all is a solid no
+
+
+def test_ezverify_answers_third_and_a_role_address_is_never_called_invalid(tmp_path):
+    import httpx
+
+    from explorer.email_verify import EmailVerifier
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "quickemailverification" in str(request.url):
+            return httpx.Response(402, json={"message": "out of credits"})
+        if "sniffmail" in str(request.url):
+            return httpx.Response(500)
+        assert "ezverify" in str(request.url) and request.headers["authorization"] == "Bearer e"
+        email = __import__("json").loads(request.content)["email"]
+        status = "risky" if email.startswith("info@") else "invalid"
+        return httpx.Response(200, json={"success": True, "data": {"status": status, "email": email, "reason": "This looks like a shared team inbox"}})
+
+    (tmp_path / "q.key").write_text("q"); (tmp_path / "s.key").write_text("s"); (tmp_path / "e.key").write_text("e")
+    v = EmailVerifier(tmp_path / "q.key", tmp_path / "cache.json", client=httpx.Client(transport=httpx.MockTransport(handler)),
+                      fallback_key_file=tmp_path / "s.key", third_key_file=tmp_path / "e.key")
+    role = v.check("info@maplediner.example")
+    assert role["result"] == "unknown" and role["by"] == "ezverify" and role["role"]
+    assert v.check("nobody@maplediner.example")["result"] == "invalid"
