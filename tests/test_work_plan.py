@@ -60,7 +60,10 @@ def test_owner_work_plan_reaches_the_system_prompt(cfg):
     path.write_text(json.dumps({"version": 1, "bots": {cfg.root.name: {"goal": "SMB clients in Springfield",
                                 "rules": [{"id": "r1", "text": "one message a day to the owner"}, {"id": "r2", "text": "no biotech"}]}}}))
     c = make_controller(cfg)
-    assert "## The owner's work plan" in c.system and "Goal: SMB clients in Springfield" in c.system and "- [r2] no biotech" in c.system
+    assert "## YOUR GOAL, set by the owner" in c.system and "Goal: SMB clients in Springfield" in c.system and "- [r2] no biotech" in c.system
+    # it opens the instructions, before the card, and it is in every step
+    assert c.system.index("## YOUR GOAL") < c.system.index("Actions")
+    assert "Owner's goal for you" in c.owner_plan.step_line() and "no biotech" in c.owner_plan.step_line()
     path.write_text(json.dumps({"version": 1, "bots": {cfg.root.name: {"goal": "Northside only", "rules": []}}}))
     import os, time
     os.utime(path, (time.time() + 5, time.time() + 5))
@@ -75,7 +78,7 @@ def test_allowed_now_lists_caps_and_counts(cfg):
     c.memory.record_action(1, eid, "say", {"type": "say", "to": "owner", "text": "hi"}, "", "allowed", "told", True)
     ep = c.memory.current_episode()
     lines = c._allowed_now(ep)
-    assert lines[0].startswith("actions left this episode:")
+    assert lines[0].startswith("today is ") and lines[1].startswith("actions left this episode:")
     assert "NOT NOW say to owner: 1/1 today" in lines
 
 

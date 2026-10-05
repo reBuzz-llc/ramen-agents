@@ -903,6 +903,11 @@ class Policy:
         if is_meta_topic(action.title):
             return Verdict.no(meta_topic_reason("title"))
         on_page = ctx.packages_on_page or {}
+        if on_page and name.lower() not in on_page:
+            head = lambda t: re.split(r"\s[–—-]\s", str(t), maxsplit=1)[0].strip().lower()  # noqa: E731 - "Offer – $99" -> "offer"
+            owner = [k for k, v in on_page.items() if head(v.get("title", "")) and head(v.get("title", "")) == head(name)]
+            if len(owner) == 1:  # The CEO named the package by its headline 14 times in a day; PK14 called it a second toggle
+                action.name = name = str(on_page[owner[0]].get("name") or owner[0])
         if (self.notion.package_republish_own and name.lower() in on_page
                 and str(on_page[name.lower()].get("day", "")) == time.strftime("%Y-%m-%d")
                 and not str(ctx.republish_reasons.get(name.lower(), "")).startswith(("written in pitch format", "the Package Designer re-sent"))):
@@ -1707,7 +1712,7 @@ class Policy:
                 return Verdict.no("due must be a date like 2026-09-30, or null")
             if action.due and action.due.strip() and action.due.strip() < time.strftime("%Y-%m-%d"):
                 return Verdict.no(f"due {action.due.strip()} is in the past; a Dead Line is today or later")
-            if re.match(r"\s*outreach:", title, re.I) and any(re.match(r"\s*outreach:", t, re.I) for t in ctx.task_titles_today):
+            if re.search(r"\boutreach\b", title, re.I) and any(re.search(r"\boutreach\b", t, re.I) for t in ctx.task_titles_today):
                 # eight outreach tasks in seven hours on 2026-10-03, two of them for one new lead each: a batch is a day's leads
                 return Verdict.no("one outreach batch a day: today's exists. Add newly listed leads to it with update_task "
                                   "(details_append), or leave them for tomorrow's batch", permanent=True)

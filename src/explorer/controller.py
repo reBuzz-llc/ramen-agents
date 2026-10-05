@@ -1191,6 +1191,7 @@ class Controller:
             desktop_note=desktop_note,
             desktop_lines=desktop_lines,
             developer_note=self._developer_note(),
+            owner_goal_line=self.owner_plan.step_line(),
             plan_lines=self._plan_lines(),
             allowed_now=self._allowed_now(ep),
             family_line=self._family_line(),
@@ -2019,6 +2020,10 @@ class Controller:
                        and str(r[0]).strip().lower() not in tasked]
             if not waiting:
                 return [], 0
+            if any(re.search(r"\boutreach\b", t, re.I) for t in self.memory.task_titles_today()):
+                # Today's batch exists: the list kept telling The CEO to write "ONE task" all day and it wrote five under
+                # other titles (57 refusals on 2026-10-05). The leads listed since wait for tomorrow's batch.
+                return [], len(waiting)
             oldest = min(str(r[4] or "9999") for r in waiting)
             age_h = (dt.datetime.now() - dt.datetime.fromisoformat(oldest[:19])).total_seconds() / 3600 if oldest[:4].isdigit() else 0
             if len(waiting) < max(1, L.outreach_min) and age_h < L.outreach_max_wait_hours:
@@ -2079,6 +2084,7 @@ class Controller:
 
         try:
             left = cfg.policy.max_actions_per_episode - int(ep["actions"])
+            out.append(time.strftime("today is %Y-%m-%d (%A)"))
             out.append(f"actions left this episode: {max(left, 0)}")
             if cfg.policy.max_notes_per_day > 0:
                 item("notes", m.count_actions_today("note"), cfg.policy.max_notes_per_day, "today")
@@ -2468,6 +2474,11 @@ class Controller:
         from .handoff import received_package_names
 
         published = {str(k).strip().lower() for k in blocks} | self._published_package_names()
+        try:  # PK14 said "this offer is already on the page": the banner kept sending The CEO back to publish it
+            for r in self.memory.db.query("SELECT DISTINCT payload FROM actions WHERE action_type = 'publish_package' AND verdict LIKE '%PK14%'"):
+                published.add(str(json.loads(r["payload"]).get("name", "")).strip().lower())
+        except (ValueError, sqlite3.Error):
+            pass
         for name, received in received_package_names(self.cfg.root).items():
             if name.strip().lower() not in published and name not in out:
                 out[name] = f"received on {received} and not on the page yet"
