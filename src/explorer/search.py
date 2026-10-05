@@ -28,6 +28,7 @@ keys exist, with defaults, so this works before any [search] section is added.
 """
 from __future__ import annotations
 
+import re
 import json
 import logging
 import os
@@ -100,6 +101,9 @@ class SearchSettings:
     parallel_api_key: str = ""
     parallel_per_day: int = 30
     parallel_usage_file: Path = PARALLEL_USAGE_FILE
+    # The `duckduckgo-mcp` engine (owner, 2026-10-05: "add DuckDuckGo MCP for search"): the keyless DuckDuckGo MCP server,
+    # run on this Mac over stdio for each search. Only its `search` tool is ever called.
+    ddg_mcp_command: str = str(Path.home() / ".local" / "opt" / "ddg-mcp" / "venv" / "bin" / "duckduckgo-mcp-server")
 
     def __post_init__(self) -> None:
         self.engines = list(dict.fromkeys(canonical_engine(e) for e in self.engines))
@@ -292,6 +296,8 @@ class Searcher:
                 return hn_search(self.client, query)
             if engine == "searxng":
                 return searxng_search(self.client, query, self.settings.searxng_url)
+            if engine == "duckduckgo-mcp":
+                return duckduckgo_mcp_search(query, self.settings.ddg_mcp_command)
             if engine == "parallel":
                 return parallel_search(self.client, query, self.settings.parallel_api_key, self.settings.parallel_per_day,
                                        self.settings.parallel_usage_file)
@@ -455,6 +461,52 @@ def tavily_search(client: httpx.Client, query: str, api_key: str, per_day: int =
         seen.add(link)
         rows.append((title, link, _strip_tags(str(hit.get("content") or ""))[:200]))
     return _results_page(url, f"Web search results for '{query}' (tavily)", rows)
+
+
+_DDG_ITEM = re.compile(r"^\s*\d+\.\s+(.+?)\n\s*URL:\s*(\S+)\s*\n(?:\s*Summary:\s*(.*))?", re.M)
+
+
+def duckduckgo_mcp_search(query: str, command: str, limit: int = 10, timeout: float = 60.0) -> PageView:
+    """DuckDuckGo through its MCP server (keyless, no account): one `search` tool call over stdio, its numbered text
+    answer turned into a results page. The server is not installed, slow or blocked: "not available", the next engine
+    runs. Nothing but `search` is called, so the server can only read DuckDuckGo's results."""
+    import asyncio
+
+    url = f"duckduckgo-mcp://search?q={quote_plus(query)}"
+    cmd = Path(command).expanduser()
+    if not cmd.exists():
+        return error_page(url, "duckduckgo-mcp is not available (server not installed)")
+    try:
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+    except ImportError:
+        return error_page(url, "duckduckgo-mcp is not available (MCP client library missing)")
+
+    async def run() -> str:
+        params = StdioServerParameters(command=str(cmd), args=[], env={"HOME": str(Path.home()), "PATH": "/usr/bin:/bin"})
+        with open(os.devnull, "w") as quiet:  # the server's own log lines would flood the bot's error log
+            async with stdio_client(params, errlog=quiet) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool("search", {"query": query[:300], "max_results": limit})
+                    return "\n".join(str(getattr(c, "text", "") or "") for c in result.content or [])
+
+    try:
+        text = asyncio.run(asyncio.wait_for(run(), timeout))
+    except Exception as exc:  # noqa: BLE001 - a broken server is "not available", never a crash
+        return error_page(url, f"duckduckgo-mcp failed ({type(exc).__name__})")
+    low = text.lower()
+    if "captcha" in low or "rate limit" in low or "too many requests" in low:
+        return error_page(url, rate_limit_error(429))
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for m in _DDG_ITEM.finditer(text):
+        title, link, summary = m.group(1).strip(), m.group(2).strip(), (m.group(3) or "").strip()
+        if not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+        rows.append((title, link, _strip_tags(summary)[:200]))
+    return _results_page(url, f"Web search results for '{query}' (duckduckgo-mcp)", rows)
 
 
 def parallel_search(client: httpx.Client, query: str, api_key: str, per_day: int = 30,
@@ -633,6 +685,7 @@ def settings_from_config(cfg: Any) -> SearchSettings:
         langsearch_per_day=int(getattr(browser_cfg, "langsearch_per_day", 100) or 0),
         parallel_api_key=load_key("PARALLEL_API_KEY", key_file("parallel")) or "",
         parallel_per_day=int(getattr(browser_cfg, "parallel_per_day", 30) or 0),
+        **({"ddg_mcp_command": str(Path(str(getattr(browser_cfg, "ddg_mcp_command"))).expanduser())} if getattr(browser_cfg, "ddg_mcp_command", "") else {}),
     )
 
 
