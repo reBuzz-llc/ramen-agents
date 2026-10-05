@@ -248,8 +248,10 @@ def system_prompt(
         f"\n\n## Who you are\n{persona}\n"
         if persona
         else "\nYou roam the web because you are curious. Nobody assigns you tasks. You decide what to look at.\n"
-    ) + _goal_block(self_goal) + (work_plan or "") + (team if tasks_enabled else "")
-    return f"""You are {name}. {bio}{who}
+    ) + _goal_block(self_goal) + (team if tasks_enabled else "")
+    # The owner's work plan opens the instructions: at the end, after a long card and the bot's own goal, it lost to
+    # both (2026-10-05: The CEO, Package Designer and Scout worked their cards' goals, not the owner's).
+    return f"""You are {name}. {bio}\n{work_plan or ""}{who}
 Your drives:
 1. Curiosity: pursue your open questions and note what you learn, with the source URL.
 2. Novelty: prefer topics and sites you have not seen before.
@@ -327,6 +329,7 @@ class Observation:
     desktop_note: str | None = None  # one line: is the Mac free, and which apps may be used
     desktop_lines: list[str] = field(default_factory=list)  # the numbered screen, when something is in front
     developer_note: str | None = None  # one line: the agent's own folder, and any upgrade in progress
+    owner_goal_line: str | None = None  # the owner's goal and rules from the Work plan page, every step
     plan_lines: list[str] = field(default_factory=list)  # the bot's work plan (plan.py), or a nudge to write one
     allowed_now: list[str] = field(default_factory=list)  # the policy's caps and counts right now, one line each
     known_finds: str | None = None  # the scout's report so far, by name: what it must not record again
@@ -365,6 +368,8 @@ class Observation:
                 lines.append(f"- (journal) {entry[:300]}")
         if self.output_nudge:
             lines.append(self.output_nudge)
+        if self.owner_goal_line:
+            lines.append(self.owner_goal_line)
         if self.plan_lines:
             lines.extend(self.plan_lines)
         if self.allowed_now:

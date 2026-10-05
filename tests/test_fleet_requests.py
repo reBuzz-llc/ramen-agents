@@ -679,3 +679,32 @@ def test_one_outreach_batch_a_day_and_no_past_deadline(cfg):
     assert policy.check(task(), PolicyContext(**base)).allowed
     assert "one outreach batch a day" in policy.check(task(), PolicyContext(**base, task_titles_today={"outreach: harbor and 4 more"})).reason
     assert "in the past" in policy.check(task(due="2026-09-26"), PolicyContext(**base)).reason
+
+
+def test_a_package_named_by_its_headline_is_that_package(cfg):
+    from explorer.actions import PublishPackage
+    from explorer.config import NotionConfig
+    from explorer.policy import Denylist, Policy, PolicyContext
+
+    notion = NotionConfig(enabled=True, database_id="db", package_page_id="page", package_republish_own=True)
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=notion)
+    page = {"website care basic": {"name": "Website Care Basic", "title": "Care for Your Shop's Website – $299/month", "email_sha": "x", "day": "2026-09-30"}}
+    ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
+                        published_package_names={"website care basic"}, packages_on_page=page)
+    pub = PublishPackage(type="publish_package", name="Care for Your Shop's Website", title="Care for Your Shop's Website – $349/month",
+                         email="Hi [Name],\nCare at $349.\n1. Updates\n2. Backups\nRegards,\n-- Acme", conclusion="Fits.")
+    policy.check(pub, ctx)
+    assert pub.name == "Website Care Basic"
+
+
+def test_any_outreach_title_counts_as_todays_batch(cfg):
+    from explorer.actions import Task
+    from explorer.config import NotionConfig
+    from explorer.policy import Denylist, Policy, PolicyContext
+
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig(enabled=True, database_id="db"))
+    base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
+    details = "### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z\n" + "x" * 300
+    again = Task(type="task", title="Perform outreach to local leads in legal and dental", details=details)
+    assert "one outreach batch a day" in policy.check(again, PolicyContext(**base, task_titles_today={"outreach: maple diner and 7 more"})).reason
+    assert policy.check(again, PolicyContext(**base)).allowed

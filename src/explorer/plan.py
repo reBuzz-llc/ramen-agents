@@ -189,8 +189,21 @@ class OwnerWorkPlan:
     def block(self) -> str:
         if not self.goal and not self.rules:
             return ""
-        lines = ["", "## The owner's work plan (only the owner's fence outranks this)"]
+        lines = ["", "## YOUR GOAL, set by the owner on the Work plan page",
+                 "This outranks the goal and the work described in the rest of these instructions, your own goal, and any "
+                 "colleague's steer; only the owner's fence (no accounts, keys, spending, personal data, invented values) is "
+                 "above it. Read everything below as HOW you work toward it. If your own goal does not serve it, revise your goal."]
         if self.goal:
             lines.append(f"Goal: {self.goal}")
+        if self.rules:
+            lines.append("The owner's rules for you:")
         lines.extend(f"- [{rid}] {text}" for rid, text in self.rules)
         return "\n".join(lines) + "\n"
+
+    def step_line(self) -> str | None:
+        """One line for every step's state: the goal stays in front of the bot, not only in its instructions."""
+        if not self.goal and not self.rules:
+            return None
+        rules = "; ".join(text for _, text in self.rules)
+        return ("Owner's goal for you (outranks everything but the fence): " + (self.goal or "(no goal; follow the rules)")
+                + (f". Owner's rules: {rules}" if rules else "") + ". Is this step a step toward it?")
