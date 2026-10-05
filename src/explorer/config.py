@@ -158,6 +158,7 @@ class BrowserConfig:
     # ("" = ~/.config/explorer/search_pause.json; fake mode keeps it in the workspace).
     search_engines: list[str] = field(default_factory=list)
     tavily_per_day: int = 30  # the fleet's shared daily budget for the `tavily` engine (1,000 free credits a month)
+    langsearch_per_day: int = 100  # the fleet's shared daily budget for the `langsearch` backup engine
     search_pause_file: str = ""
     # Each bot keeps a score per search engine and drops one that answered often and never led to a note. Changing this
     # value wipes those scores and drops once, at the next start: on 2026-09-29 the web engine was returning junk and
@@ -183,7 +184,7 @@ class BrowserConfig:
     video_transcript_languages: list[str] = field(default_factory=lambda: ["en"])
 
 
-SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily")  # brave-web: old name of browser
+SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch")  # brave-web: old name of browser
 PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind"})
 
 # OpenAI-compatible providers this project knows how to reach: drop a key at

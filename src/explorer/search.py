@@ -47,6 +47,8 @@ MARGINALIA_API = "https://api2.marginalia-search.com/search"
 HN_API = "https://hn.algolia.com/api/v1/search"
 TAVILY_API = "https://api.tavily.com/search"
 TAVILY_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "tavily-usage.json"
+LANGSEARCH_API = "https://api.langsearch.com/v1/web-search"
+LANGSEARCH_USAGE_FILE = Path.home() / "bots" / "common-data" / "shared-state" / "langsearch-usage.json"
 DEFAULT_PAUSE_FILE = Path.home() / ".config" / "explorer" / "search_pause.json"
 DEFAULT_WEB_ENGINES = ("marginalia", "wikipedia", "hn")
 BROWSER_ENGINE = "browser"  # the bot's own browser: the fake pages, or search_url in Chromium
@@ -84,6 +86,12 @@ class SearchSettings:
     tavily_api_key: str = ""
     tavily_per_day: int = 30
     tavily_usage_file: Path = TAVILY_USAGE_FILE
+    # The `langsearch` engine (owner's key and word, 2026-10-05: "backup when search fails"): a keyed web search API with a
+    # free plan, no card. Put it right AFTER searxng: it runs only when the local search fails or comes back empty, within
+    # the fleet-wide daily budget. The second exception to keyless search; no bot may name it itself.
+    langsearch_api_key: str = ""
+    langsearch_per_day: int = 100
+    langsearch_usage_file: Path = LANGSEARCH_USAGE_FILE
 
     def __post_init__(self) -> None:
         self.engines = list(dict.fromkeys(canonical_engine(e) for e in self.engines))
@@ -276,6 +284,9 @@ class Searcher:
                 return hn_search(self.client, query)
             if engine == "searxng":
                 return searxng_search(self.client, query, self.settings.searxng_url)
+            if engine == "langsearch":
+                return langsearch_search(self.client, query, self.settings.langsearch_api_key, self.settings.langsearch_per_day,
+                                         self.settings.langsearch_usage_file)
             if engine == "tavily":
                 return tavily_search(self.client, query, self.settings.tavily_api_key, self.settings.tavily_per_day, self.settings.tavily_usage_file)
             if engine in self.extra_engines:
@@ -433,6 +444,36 @@ def tavily_search(client: httpx.Client, query: str, api_key: str, per_day: int =
     return _results_page(url, f"Web search results for '{query}' (tavily)", rows)
 
 
+def langsearch_search(client: httpx.Client, query: str, api_key: str, per_day: int = 100,
+                      usage_file: Path = LANGSEARCH_USAGE_FILE, limit: int = 8) -> PageView:
+    """LangSearch's web search API, the family's backup when the local search fails. Without a key, or with today's
+    budget used, it answers "not available" so the next engine runs; a 429 rests the engine like any other."""
+    url = f"langsearch://search?q={quote_plus(query)}"
+    if not api_key:
+        return error_page(url, "langsearch is not available (no key)")
+    if not _tavily_spend(usage_file, per_day):  # the same fleet-wide daily counter, in its own file
+        return error_page(url, f"langsearch is not available (today's budget of {per_day} searches is used)")
+    resp = client.post(LANGSEARCH_API, headers={"Authorization": "Bearer " + api_key},
+                       json={"query": query[:380], "count": limit, "summary": False})
+    if resp.status_code in (429, 503):
+        return error_page(url, rate_limit_error(resp.status_code))
+    if resp.status_code >= 400:
+        return error_page(url, f"langsearch refused the search (HTTP {resp.status_code})")
+    try:
+        hits = ((resp.json().get("data") or {}).get("webPages") or {}).get("value") or []
+    except (ValueError, AttributeError):
+        hits = []
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for hit in hits:
+        title, link = str(hit.get("name") or "").strip(), str(hit.get("url") or "").strip()
+        if not title or not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+        rows.append((title, link, _strip_tags(str(hit.get("snippet") or ""))[:200]))
+    return _results_page(url, f"Web search results for '{query}' (langsearch)", rows)
+
+
 def marginalia_search(client: httpx.Client, query: str, api_key: str = "public", limit: int = 10) -> PageView:
     """Marginalia Search: an independent index of small, text-heavy websites. The shared `public` key
     answers 429 when every user of it together passes the per-minute quota, which pauses this engine
@@ -499,6 +540,8 @@ def settings_from_config(cfg: Any) -> SearchSettings:
         searxng_url=str(getattr(browser_cfg, "searxng_url", "") or "http://127.0.0.1:8888"),
         tavily_api_key=load_key("TAVILY_API_KEY", key_file("tavily")) or "",
         tavily_per_day=int(getattr(browser_cfg, "tavily_per_day", 30) or 0),
+        langsearch_api_key=load_key("LANGSEARCH_API_KEY", key_file("langsearch")) or "",
+        langsearch_per_day=int(getattr(browser_cfg, "langsearch_per_day", 100) or 0),
     )
 
 
