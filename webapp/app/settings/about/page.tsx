@@ -120,10 +120,8 @@ export default async function AboutPage() {
               <span className="font-mono text-xs">{code.hash}</span> · {code.when}
             </Row>
             <Row label="Message">{code.subject}</Row>
-            <Row label="GitHub">
-              <a href="https://github.com/reBuzz-llc/macBot1" className="text-accent hover:underline">
-                reBuzz-llc/macBot1
-              </a>
+            <Row label="Folder">
+              <span className="font-mono text-xs">~/Projects/bot</span>
             </Row>
           </div>
         </Panel>

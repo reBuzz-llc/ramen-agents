@@ -5,7 +5,7 @@ Each step says what to run and how to tell it worked. Run `sh scripts/check-setu
 ## 1. The engine
 
 ```sh
-git clone <your engine repository> ~/Projects/bot
+git clone <the engine starter repository> ~/Projects/bot   # the folder must be ~/Projects/bot
 cd ~/Projects/bot
 python3 -m venv .venv                      # Python 3.11 or newer
 .venv/bin/pip install -e ".[dev]"
