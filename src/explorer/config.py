@@ -590,6 +590,12 @@ class MessagingConfig:
     # (default common-data/shared-state/requests.jsonl, shared by the fleet and the webapp). A message from one of
     # `priority_senders` is the recipient's top priority: shown first, and a banner stays until it answers by message.
     priority_senders: list[str] = field(default_factory=lambda: ["The CEO"])
+    # Owner, 2026-10-07: The CEO may pause, slow down and restart the members it holds resources for (`pace_member`,
+    # hold.py). Never the members named in pace_protected (the Validator checks its work), never itself, never one the
+    # owner stopped or paused. Each hold ends by itself within 24 hours.
+    can_pace_members: bool = False
+    pace_protected: list[str] = field(default_factory=lambda: ["Validator"])
+    max_paces_per_day: int = 8
     requests_file: str = ""
     # After this many accepted actions since the bot read a priority request without replying, the policy refuses
     # everything but the reply (`message` to the sender) and the reading needed for it (search/open/follow/read/back).
@@ -620,13 +626,23 @@ class MessagingConfig:
 
     def peer_states(self) -> dict[str, str]:
         """Each peer's state right now, by display name: "stopped" (workspace/STOP is present -- the owner's Stop),
-        "paused" (workspace/PAUSE) or "running". Read from the files, never remembered: the owner stops and starts
+        "paused" (workspace/PAUSE), "held:pause" / "held:slow" (The CEO's hold, workspace/HOLD) or "running". Read from the files, never remembered: the owner stops and starts
         family members at will."""
         out: dict[str, str] = {}
         for name in self.peer_names:
             folder = self.folder_for(name)
             ws = Path(folder).expanduser() / "workspace" if folder else None
-            out[name] = "running" if ws is None else "stopped" if (ws / "STOP").exists() else "paused" if (ws / "PAUSE").exists() else "running"
+            if ws is None:
+                out[name] = "running"
+            elif (ws / "STOP").exists():
+                out[name] = "stopped"
+            elif (ws / "PAUSE").exists():
+                out[name] = "paused"
+            else:
+                from .hold import read_hold
+
+                hold = read_hold(ws)
+                out[name] = f"held:{hold['mode']}" if hold else "running"  # The CEO's pause or slow-down (hold.py)
         return out
 
     def folder_for(self, name: str) -> str | None:

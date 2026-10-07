@@ -741,3 +741,56 @@ def test_the_ceo_sees_the_days_free_model_use_by_member(cfg, tmp_path: Path):
     line = ceo._fleet_usage_line()
     assert "Lead Gen 2.2M" in line and "Scout 45k" in line and "No daily token limit" in line
     assert line.index("Lead Gen") < line.index("Scout")
+
+
+def test_the_ceo_pauses_slows_and_restarts_a_member_but_never_the_owners_stop(cfg, tmp_path: Path):
+    """Owner, 2026-10-07: "let ceoA have this access and also let him start those he pause himself apart from me"."""
+    from explorer.actions import PaceMember
+    from explorer.config import MessagingConfig
+    from explorer.hold import read_hold, write_hold
+    from explorer.policy import Denylist, Policy, PolicyContext
+
+    designer = tmp_path.parent / "package-designer"; leadgen = tmp_path.parent / "lead-gen"; val = tmp_path.parent / "validator"
+    for f in (designer, leadgen, val):
+        (f / "workspace" / "inbox").mkdir(parents=True, exist_ok=True)
+    cfg.agent.name = "The CEO"
+    cfg.messaging = MessagingConfig(enabled=True, can_pace_members=True, requests_file=str(tmp_path / "requests.jsonl"),
+                                    peers=[{"name": "Package Designer", "folder": str(designer)}, {"name": "Lead Gen", "folder": str(leadgen)},
+                                           {"name": "Validator", "folder": str(val)}])
+    ceo = make_controller(cfg)
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging)
+    ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
+    assert not policy.check(PaceMember(type="pace_member", name="Validator", mode="pause", why="x"), ctx).allowed
+    assert not policy.check(PaceMember(type="pace_member", name="Lead Gen", mode="pause"), ctx).allowed  # says why
+    act = PaceMember(type="pace_member", name="lead gen", mode="pause", hours=2, why="its tokens crowd out the packages")
+    assert policy.check(act, ctx).allowed
+    r = ceo._execute_pace_member(act)
+    assert r.ok and "Lead Gen paused until" in r.summary
+    assert read_hold(leadgen / "workspace")["by"] == "The CEO"
+    assert cfg.messaging.peer_states()["Lead Gen"] == "held:pause"
+    assert "Lead Gen paused by The CEO" in ceo._family_line()
+    assert ceo._execute_pace_member(PaceMember(type="pace_member", name="Lead Gen", mode="resume")).ok
+    assert read_hold(leadgen / "workspace") is None and cfg.messaging.peer_states()["Lead Gen"] == "running"
+    # the owner's STOP is never the CEO's to lift, and a hold someone else set is not its to lift either
+    (designer / "workspace" / "STOP").write_text("", encoding="utf-8")
+    r = ceo._execute_pace_member(PaceMember(type="pace_member", name="Package Designer", mode="resume"))
+    assert not r.ok and "only the owner" in r.summary and (designer / "workspace" / "STOP").exists()
+    write_hold(leadgen / "workspace", "Someone Else", "slow", 1, "x", 600)
+    assert not ceo._execute_pace_member(PaceMember(type="pace_member", name="Lead Gen", mode="resume")).ok
+    # an expired hold is gone by itself
+    write_hold(leadgen / "workspace", "The CEO", "pause", 1, "x", now=0)
+    assert read_hold(leadgen / "workspace") is None
+
+
+def test_a_held_member_idles_or_spaces_its_steps(cfg):
+    from explorer.hold import clear_hold, write_hold
+
+    bot = make_controller(cfg)
+    cfg.workspace.mkdir(parents=True, exist_ok=True)
+    base = bot._paced_delay()
+    write_hold(cfg.workspace, "The CEO", "slow", 1, "save tokens", 900)
+    assert bot._paced_delay() == max(base, 900) and bot._held("pause") is None
+    write_hold(cfg.workspace, "The CEO", "pause", 1, "save tokens")
+    assert bot._held("pause") is not None
+    clear_hold(cfg.workspace)
+    assert bot._held("pause") is None and bot._paced_delay() == base

@@ -169,6 +169,19 @@ class MergeTask(BaseModel):
     into: str  # the task that carries its work (one you created)
 
 
+class PaceMember(BaseModel):
+    """Pause, slow down or restart a running family member to manage the family's resources (owner, 2026-10-07).
+    Every pause or slow-down ends by itself after `hours`; `resume` lifts your own hold early. Only what you held: the
+    owner's STOP and PAUSE are never yours to lift. Exists only when [messaging] can_pace_members is set."""
+
+    type: Literal["pace_member"]
+    name: str  # the family member
+    mode: Literal["pause", "slow", "resume"]
+    hours: float = 4.0  # how long the pause or slow-down lasts, at most 24
+    minutes_between_steps: int = 10  # mode "slow" only: its wait between steps, 2 to 60
+    why: str = ""  # one line the member and the owner will see
+
+
 class Lead(BaseModel):
     """List one potential customer on the owner's Leads board -- a business whose own pages the bot read, with a
     pain point one of our packages fixes. Exists only for a bot with [leads] enabled. No business email published
@@ -339,7 +352,7 @@ Action = Annotated[
         App, Look, Click, TypeText, Hotkey,
         ListFiles, ReadFile, WriteFile, RunCommand, Upgrade, UpgradeTest, UpgradeSubmit,
         Task, Package, Provider, Message, ReviseGoal, ProposeTeammate, PublishPackage, UpdateTask, Lead, UpdateLead, Plan,
-        MergeTask,
+        MergeTask, PaceMember,
     ],
     Field(discriminator="type"),
 ]
@@ -354,7 +367,7 @@ ALL_TYPES = (
     "app", "look", "click", "type", "hotkey",
     "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit",
     "task", "package", "provider", "message", "revise_goal", "propose_teammate", "publish_package", "update_task", "lead",
-    "update_lead", "plan", "merge_task",
+    "update_lead", "plan", "merge_task", "pace_member",
 )
 
 
