@@ -123,6 +123,13 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
                     + (f"not {', '.join(other)}" if other and action == "update_lead" else f"not {action}")]
         from checks import draft_issues
         return [f"{rid}: {d}" for rid, d in draft_issues(_s(payload.get("draft_email"))) if rid in GATE_REFUSES]
+    if action in ("lead", "update_lead") and _s(payload.get("whatsapp")).strip():
+        from whatsapp_false import digits_of, ruled_out
+        d = digits_of(_s(payload.get("whatsapp")))
+        hit = ruled_out().get(d) or next((v for k, v in ruled_out().items() if d and k[-10:] == d[-10:]), None)
+        if hit:
+            return [f"LD20: {d} was checked by the team in WhatsApp Web and is not on WhatsApp ({hit.get('business', '')}); "
+                    "find a different number or leave the cell empty"]
     if bot == "research-analyst" and action in GATED:
         return ["RA05: the Research Analyst never writes to the task board or Notion: research is never a task; "
                 "post the findings and answer The CEO by message"]

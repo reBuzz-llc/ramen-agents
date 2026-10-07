@@ -514,3 +514,26 @@ def test_a_whatsapp_number_must_be_printed_on_one_of_the_rows_pages():
     assert verify_whatsapp("https://wa.me/12125550199", "https://shop.example", get=get).status == "published"
     assert verify_whatsapp("https://wa.me/12125550100", "https://shop.example", get=get).status == "published"   # a printed phone counts (owner, 2026-10-07)
     assert verify_whatsapp("https://wa.me/13475550123", "https://shop.example", get=get).status == "not_found"     # a number from nowhere
+
+
+def test_a_false_whatsapp_row_keeps_its_link_out_of_the_draft():
+    from checks import draft_issues
+    d = "Hi Maria,\n\nChat: https://wa.me/12125550100\n\nRegards,\nAlex\n-- Acme LLC"
+    assert "OW05" not in {r for r, _ in draft_issues(d, whatsapp="https://wa.me/12125550100", rates=set())}
+    assert "OW05" in {r for r, _ in draft_issues(d, whatsapp="https://wa.me/12125550100", status="False Whatsapp Number", rates=set())}
+
+
+def test_the_teams_whatsapp_line_and_spine_phrases(monkeypatch):
+    import checks
+    from checks import draft_issues
+    monkeypatch.setattr(checks, "DRAFT_SIGNOFF", ["Regards,", "Alex", "-- Acme LLC"])
+    monkeypatch.setattr(checks, "OUR_WHATSAPP", "https://wa.me/12125550111")
+    monkeypatch.setattr(checks, "DRAFT_SPINE", [r"\bJordan\b", r"500,000"])
+    base = ("Hi Maria,\n\nYour menu is a PDF.\n\n1. A.\n2. B.\n\nOur co-founders Alex and Jordan.\n"
+            "Our top client drives about $500,000 a month.\n\nRegards,\nAlex\n-- Acme LLC")
+    rates = {"500000"}
+    assert draft_issues(base + "\nWhatsApp: https://wa.me/12125550111", founded_by="Maria Lopez", rates=rates) == []
+    other = {r for r, _ in draft_issues(base + "\nWhatsApp: https://wa.me/12125550100", founded_by="Maria Lopez", rates=rates)}
+    assert {"OW01", "OW04", "OW05"} <= other
+    no_spine = base.replace("Jordan", "Sam")
+    assert any(r == "OW09" and "Jordan" in d for r, d in draft_issues(no_spine, founded_by="Maria Lopez", rates=rates))

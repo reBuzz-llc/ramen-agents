@@ -187,3 +187,11 @@ def test_a_whatsapp_number_not_shaped_as_a_wa_me_link_is_refused():
     r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "+1 212 555 0100"})
     assert r and r[0].startswith("LD20")
     assert gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550100"}) == []
+
+
+def test_a_number_the_team_ruled_out_is_refused(monkeypatch):
+    import whatsapp_false
+    monkeypatch.setattr(whatsapp_false, "ruled_out", lambda: {"12125550100": {"business": "Sweet Corner"}})
+    r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550100"})
+    assert r and r[0].startswith("LD20") and "not on WhatsApp" in r[0]
+    assert gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550199"}) == []
