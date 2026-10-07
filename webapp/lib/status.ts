@@ -60,7 +60,13 @@ export function describeStatus(state: BotState | null, offline: boolean): { labe
 export function summaryStatus(b: import("./bot").BotSummary): { label: string; tone: Tone } {
   if (!b.online) return { label: "data server offline", tone: "muted" };
   if (!b.running) return b.flags.includes("STOP") ? { label: "stopped", tone: "muted" } : { label: "not running", tone: "bad" };
-  if (b.flags.includes("PAUSE") || b.status === "paused") return { label: "paused", tone: "warn" };
+  if (b.flags.includes("PAUSE")) return { label: "paused", tone: "warn" };
+  // A hold from The CEO: say who and until when, so it doesn't read as broken.
+  if (b.hold) {
+    const t = new Date(b.hold.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return { label: `${b.hold.mode === "pause" ? "paused" : "slowed"} by ${b.hold.by} until ${t}${b.hold.why ? ` (${b.hold.why})` : ""}`, tone: "warn" };
+  }
+  if (b.status === "paused") return { label: "paused", tone: "warn" };
   if (b.stale) return { label: "possibly stuck", tone: "bad" };
   switch (b.status) {
     case "running":

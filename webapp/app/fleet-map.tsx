@@ -239,7 +239,7 @@ export default function FleetMap({ data, onEdge, onNode }: { data: FleetData; on
               }`}
               title={n.label}
             >
-              {icon ? <Icon name={icon} className="h-3.5 w-3.5 shrink-0" /> : <span className={`h-2 w-2 shrink-0 rounded-full ${n.running ? "bg-sys-green" : "bg-muted"}`} aria-label={n.running ? "running" : "not running"} />}
+              {icon ? <Icon name={icon} className="h-3.5 w-3.5 shrink-0" /> : <span className={`h-2 w-2 shrink-0 rounded-full ${n.held ? "bg-sys-orange" : n.running ? "bg-sys-green" : "bg-muted"}`} aria-label={n.held ? "held by The CEO" : n.running ? "running" : "not running"} />}
               {n.kind === "bot" ? (
                 narrow ? (
                   <span className="font-mono tracking-tight">{n.handle}</span>
