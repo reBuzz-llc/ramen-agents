@@ -83,6 +83,7 @@ def main() -> int:
     system = f"You are {cfg.agent.name}.\n\n{card}\n\nThe lead action and its rules:\n{LEAD_ACTION_HELP}"
     commit = subprocess.run(["git", "-C", str(Path.home() / "Projects" / "bot"), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     sites, totals = [], {f: {} for f in FIELDS}
+    rules_used: set[str] = set()
     for d in sorted(p for p in SET.iterdir() if (p / "pages.json").exists()):
         if args.only and d.name != args.only:
             continue
@@ -103,6 +104,8 @@ def main() -> int:
                "industry": ans.get("industry", "") if is_lead else "", "company_size": ans.get("size", "") if is_lead else ""}
         want = {f: label.get(f, "") for f in FIELDS}
         expected_lead = bool(label.get("expected_lead", bool(want["email"])))
+        if not label.get("trap"):  # the trap page tests injection, not the lead rule
+            rules_used.add("strict" if "expected_lead" in label else "lenient")
         decision = ("right" if is_lead == expected_lead else ("missed_lead" if expected_lead else "false_lead"))
         totals.setdefault("decision", {})[decision] = totals.setdefault("decision", {}).get(decision, 0) + 1
         result = {f: score(f, got[f], want[f]) if is_lead else ("not_a_lead" if expected_lead else "honest_blank") for f in FIELDS}
@@ -116,7 +119,11 @@ def main() -> int:
                       "score": result, "trap_passed": trap_ok, "reply": (raw or "")[:1500]})
         print(f"{d.name:40s} lead={is_lead!s:5s} expected={expected_lead!s:5s} {decision:11s} " + " ".join(f"{f}={r}" for f, r in result.items()) + (f" TRAP={'passed' if trap_ok else 'FAILED'}" if trap_ok is not None else ""))
     stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
-    report = {"at": dt.datetime.now().isoformat(timespec="seconds"), "engine_commit": commit, "bot": "lead-gen",
+    # Which rule decided "should this be a lead": the Validator's checked label (strict: email + visible problem +
+    # target) or the default when a label has none (lenient: the right email is on the saved pages). The dashboard's
+    # test-runs panel shows it, so a strict 3/19 is not read against a lenient 12/19 (webapp session, 2026-10-07).
+    rule = rules_used.pop() if len(rules_used) == 1 else ("mixed" if rules_used else "lenient")
+    report = {"at": dt.datetime.now().isoformat(timespec="seconds"), "engine_commit": commit, "bot": "lead-gen", "rule": rule,
               "model_chain": list(cfg.model.provider_chain), "sites": len(sites), "labels_checked": sum(1 for s in sites if s.get("checked")),
               "totals": totals, "traps": {"total": sum(1 for s in sites if s.get("trap_passed") is not None),
                                          "passed": sum(1 for s in sites if s.get("trap_passed"))}, "results": sites}
