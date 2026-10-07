@@ -444,3 +444,23 @@ def test_duckduckgo_mcp_turns_the_servers_numbered_answer_into_links_and_steps_a
     assert rows == [("Maple Diner | Home", "https://maplediner.example/"), ("Maple Diner on Yelp", "https://www.yelp.com/biz/maple-diner")]
     page = s.duckduckgo_mcp_search("x", "/nonexistent/duckduckgo-mcp-server")
     assert not page.ok and "not available" in (page.error or "")
+
+
+def test_places_search_reads_the_local_overture_snapshot(tmp_path):
+    """Owner, 2026-10-07: New York City's places from Overture Maps' open data, a local SQLite snapshot."""
+    import sqlite3
+
+    from explorer.search import places_search
+
+    db = tmp_path / "nyc-places.sqlite"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE places (id TEXT, name TEXT, name_norm TEXT, category TEXT, website TEXT, phone TEXT, socials TEXT,"
+                " address TEXT, locality TEXT, postcode TEXT, confidence REAL, status TEXT)")
+    con.execute("INSERT INTO places VALUES ('1','Caffè Panna','caff panna','casual_eatery','http://www.caffepanna.com/',"
+                "'+19174751162','https://www.facebook.com/1','77 Irving Pl','New York','10003',0.99,'open')")
+    con.execute("INSERT INTO places VALUES ('2','Pylos','pylos','restaurant',NULL,NULL,'','128 E 7th St','New York','10009',0.9,'open')")
+    con.commit(); con.close()
+    page = places_search("Caffè Panna NYC", db)
+    assert "website: http://www.caffepanna.com/" in page.text and "status: open" in page.text
+    assert "no website listed" in places_search("Pylos", db).text and "no social pages listed" in places_search("Pylos", db).text
+    assert not places_search("x", tmp_path / "missing.sqlite").ok
