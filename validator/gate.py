@@ -53,7 +53,7 @@ GATE_REFUSES = {
     # board integrity: a value Notion would add as a new dropdown option
     "LD03",
     # the owner's own rules (2026-10-01/02) and the repeat guard
-    "PK14", "MG04", "MG01",
+    "PK14", "MG04", "MG01", "RA05",
 }
 
 _cache: dict[str, object] = {}
@@ -113,6 +113,9 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
     """Reasons this write breaks the owner's rules; [] = allowed. Pure; never raises on odd payloads."""
     if action not in GATED or not isinstance(payload, dict):
         return []
+    if bot == "research-analyst" and action in GATED:
+        return ["RA05: the Research Analyst never writes to the task board or Notion: research is never a task; "
+                "post the findings and answer The CEO by message"]
     ck = Checker(instructions())
     skip = _SKIP[action]
     written = {k for k, v in payload.items() if v not in (None, "", [])}
@@ -330,7 +333,23 @@ _FAMILY_WORK = re.compile(
 def family_work(payload: dict) -> bool:
     """A task whose job is research or compiling information (MG04: family work, never a board task for a person):
     e.g. 'Organize trending AI agent services by category for our clients', assigned to a person."""
-    return bool(_FAMILY_WORK.match(_s(payload.get("title"))))
+    title = _s(payload.get("title"))
+    if _FAMILY_WORK.match(title):
+        return True
+    # a deliverable for a meeting, a pitch, an event or a design tool, or one done with a person, is the team's
+    return bool(_FAMILY_DELIVERABLE.match(title)) and not _PERSON_DELIVERABLE.search(title)
+
+
+# Research deliverables are family work too: Develop/Draft/Review/Build/Update ... recommendations, a guide, offerings,
+# materials, a target list, Notion pages.
+_FAMILY_DELIVERABLE = re.compile(
+    r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish)\b"
+    r".*\b(?:recommendations?|guides?|offerings?|materials?|presentations?|strateg(?:y|ies)|reports?|research|advisory|"
+    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending)\b", re.I)
+
+_PERSON_DELIVERABLE = re.compile(
+    r"\b(?:meetings?|pitch(?:es)?|calls?|trade ?shows?|events?|workshops?|demos?|canva|figma|decks?|slides?|flyers?|"
+    r"brochures?|print|videos?|photos?|ad creatives?|with (?:the )?(?:owner|team|client))\b", re.I)
 
 
 _FLAG_TASK = re.compile(r"\b(T|PK|LD|MG|FM|PL)\d{2}\b|\bvalidator\b|\btask format\b|\bformat checklist\b|\bchecklist items\b|"

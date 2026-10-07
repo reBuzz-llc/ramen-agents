@@ -56,6 +56,9 @@ def is_search_results_url(url: str) -> bool:
     except ValueError:
         return False
     host, path, query = domain(url), u.path.rstrip("/"), u.query.lower()
+    # The engine's own pseudo-URLs for a search it ran ("duckduckgo-mcp://search?q=", "searxng://search?q=").
+    if u.scheme and u.scheme not in ("http", "https") and ("q=" in query or "search" in f"{u.netloc}{path}"):
+        return True
     if host in _SEARCH_HOSTS:
         return True
     if host == "google.com" or host.startswith("google.") or host.endswith(".google.com"):
@@ -116,6 +119,8 @@ class LeadRow:
     edited: str
     founded_by: str = ""     # the business's founder, the name outreach opens with (owner, 2026-09-24)
     email_check: str = ""    # the engine's deliverability verdict, e.g. "deliverable, checked 2026-10-02" (2026-10-02)
+    result: str = ""         # the team's outreach result (set by a person; bots never write it): Emailed, Replied ...
+    result_date: str = ""    # when the current Result was set
 
     @property
     def label(self) -> str:
@@ -167,6 +172,11 @@ class ProviderRecord:
     models: str
     why: str
     sources: list[str] = field(default_factory=list)
+    website: str = ""        # a tool (search, verification, MCP server) has a Website and no Endpoint
+
+    @property
+    def is_tool(self) -> bool:
+        return not self.endpoint and bool(self.website)
 
     @property
     def key(self) -> str:
@@ -326,7 +336,7 @@ class NotionReader:
                 return plain(v)
             if kind in ("url", "email", "phone_number"):
                 return str(v or "")
-            if kind == "select":
+            if kind in ("select", "status"):
                 return str((v or {}).get("name") or "")
             if kind == "date":
                 return str((v or {}).get("start") or "")
@@ -338,6 +348,7 @@ class NotionReader:
             company_size=val("Company size"), pain_point=val("Pain point"), how_we_help=val("How we can help"),
             evidence=val("Evidence"), stage=val("Stage"), found_on=val("Found on") or None,
             source_pages=val("Source pages"), found_by=val("Found by"), founded_by=val("Founded by"), email_check=val("Email check"),
+            result=val("Result"), result_date=val("Result date"),
             created=str(r.get("created_time") or ""), edited=str(r.get("last_edited_time") or ""),
         )
 
@@ -455,14 +466,11 @@ def providers(path: Path) -> list[ProviderRecord]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return []
-    # Records under a top-level "# Declined ..." heading, or carrying a "**Declined:**" line, are the
-    # owner's decisions, not open finds: skipped here, so any flag on them resolves.
-    m = re.search(r"^# Declined\b", text, re.M)
-    if m:
-        text = text[: m.start()]
+    # A record carrying a "**Declined...**" line is the owner's decision, not an open find: skipped, so any flag on it
+    # resolves. The "# Declined" heading is NOT a cut-off: the Scout appends new finds at the end of the file, below it.
     out: list[ProviderRecord] = []
-    for name, body in re.findall(r"^## (.+?)\n(.*?)(?=^## |\Z)", text, re.M | re.S):
-        if re.search(r"^\*\*Declined:\*\*", body, re.M):
+    for name, body in re.findall(r"^## (.+?)\n(.*?)(?=^## |^# |\Z)", text, re.M | re.S):
+        if re.search(r"^\*\*Declined\b", body, re.M):
             continue
         fields = dict(re.findall(r"^- \*\*([A-Za-z ]+):\*\*\s*(.*)$", body, re.M))
         found = re.search(r"Found (\d{4}-\d{2}-\d{2})", body)
@@ -482,6 +490,7 @@ def providers(path: Path) -> list[ProviderRecord]:
         out.append(ProviderRecord(
             name=name.strip(), found=found.group(1) if found else "", endpoint=fields.get("Endpoint", ""),
             free_terms=fields.get("Free terms", ""), models=fields.get("Models", ""), why=" ".join(why), sources=srcs,
+            website=fields.get("Website", ""),
         ))
     return out
 
