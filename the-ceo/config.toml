@@ -87,6 +87,9 @@ folder = "~/bots/package-designer"
 name = "Lead Gen"
 folder = "~/bots/lead-gen"
 [[messaging.peers]]
+name = "Research Analyst"
+folder = "~/bots/research-analyst"
+[[messaging.peers]]
 name = "Scout"
 folder = "~/bots/scout"
 [[messaging.peers]]

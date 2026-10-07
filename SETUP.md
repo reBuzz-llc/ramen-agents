@@ -93,7 +93,7 @@ cd ~/bots/webapp && npm ci && npm run build
 cd ~/bots
 sh scripts/check-setup.sh                  # should end with "Ready"
 sh scripts/install-launchd.sh              # search, local model, dashboard, Validator, data servers, checks
-for b in the-ceo lead-gen package-designer scout; do
+for b in the-ceo lead-gen package-designer scout research-analyst; do   # research-analyst is optional
   ~/Projects/bot/.venv/bin/bot --config ~/bots/$b/config.toml check
   ~/Projects/bot/.venv/bin/bot --config ~/bots/$b/config.toml install
 done

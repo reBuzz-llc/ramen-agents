@@ -1,0 +1,41 @@
+extends = "../common-data/configs/web-bots.toml"
+
+# Research Analyst (anaA), optional member: the family's research desk: The CEO's research questions come by message;
+# each episode answers one question with notes citing the pages read; the episode is its findings post. It writes nothing to Notion.
+
+[agent]
+name = "Research Analyst"
+bio = "The research desk of a company's bot family, run as an automated agent by its owner. It answers one research question at a time from public web pages and publishes what it found, with sources."
+cycle_delay_seconds = 300
+seed_interests = ["FILL-ME: a question your family needs answered", "what agencies like yours sell and at what price"]
+
+[policy]
+refuse_repeated_searches = true
+max_pages_without_note = 0
+max_notes_per_day = 12
+disabled_actions = ["ask", "interest"]
+
+[browser]
+search_engines = ["searxng", "duckduckgo-mcp", "freeserp", "langsearch", "parallel", "hn", "corpus"]
+corpus_dir = "raw"
+
+[dashboard]
+port = 8795
+
+[messaging]
+enabled = true
+[[messaging.peers]]
+name = "The CEO"
+folder = "~/bots/the-ceo"
+[[messaging.peers]]
+name = "Package Designer"
+folder = "~/bots/package-designer"
+[[messaging.peers]]
+name = "Lead Gen"
+folder = "~/bots/lead-gen"
+[[messaging.peers]]
+name = "Scout"
+folder = "~/bots/scout"
+[[messaging.peers]]
+name = "Validator"
+folder = "~/bots/validator"
