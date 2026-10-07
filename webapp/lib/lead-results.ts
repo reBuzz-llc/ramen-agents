@@ -4,7 +4,7 @@
 // sources, by the lead's website) and by industry. Until the board has a Result column this reports ready = false.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { BOTS_DIR } from "./bots";
+import { BOTS_DIR, readConfig } from "./bots";
 import { offeredSources } from "./candidates";
 import { notionBoards } from "./notion-boards";
 
@@ -14,7 +14,14 @@ const STAGES = ["Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not
 const RANK: Record<string, number> = { Emailed: 1, Replied: 2, Meeting: 3, Client: 4 };
 
 export type ResultGroup = { label: string; leads: number; byResult: Record<string, number> };
-export type LeadResults = { ready: boolean; reason: string; total: number; stages: readonly string[]; bySource: ResultGroup[]; byIndustry: ResultGroup[] };
+// The Outreach Writer's first emails (2026-10-07): rows at the queue stage get a draft or "skip: <why>" in the draft
+// column, oldest first; it never sends. Null until the board has the column.
+export type DraftCounts = { column: string; stage: string; drafted: number; skipped: number; waiting: number };
+export type LeadResults = { ready: boolean; reason: string; total: number; stages: readonly string[]; bySource: ResultGroup[]; byIndustry: ResultGroup[]; drafts: DraftCounts | null;
+  // Leads whose own site publishes a WhatsApp link ("Whatsapp" column, owner 2026-10-07); null until the column exists.
+  whatsapp: number | null;
+  // Rows the owner checked by hand in WhatsApp Web (Status "WhatsApp Verified", 2026-10-07). Not a review of the email.
+  whatsappVerified: number };
 
 const g = globalThis as { __leadResults?: { at: number; data: LeadResults } };
 
@@ -31,7 +38,7 @@ function text(p: Record<string, unknown> | undefined): string {
 
 export async function leadResults(): Promise<LeadResults> {
   if (g.__leadResults && Date.now() - g.__leadResults.at < 10 * 60 * 1000) return g.__leadResults.data;
-  const empty = (reason: string): LeadResults => ({ ready: false, reason, total: 0, stages: STAGES, bySource: [], byIndustry: [] });
+  const empty = (reason: string): LeadResults => ({ ready: false, reason, total: 0, stages: STAGES, bySource: [], byIndustry: [], drafts: null, whatsapp: null, whatsappVerified: 0 });
   let key = "";
   try {
     key = (await readFile(/*turbopackIgnore: true*/ KEY_FILE, "utf8")).trim();
@@ -87,8 +94,30 @@ export async function leadResults(): Promise<LeadResults> {
     add(groups.source, sources.get(h) ?? "Other (owner's list, web search)", result);
     add(groups.industry, (text(p.Industry) || "Unknown").split(/[,;/]/)[0].trim().slice(0, 30), result);
   }
+  // The queue's column and stage are the Outreach Writer's own settings ([leads] draft_queue_column / _stage).
+  let column = "Draft email";
+  let stage = "New";
+  try {
+    const cfg = await readConfig(path.join(BOTS_DIR, "outreach-writer", "config.toml"));
+    column = String(cfg.get("leads.draft_queue_column") ?? column).trim() || column;
+    stage = String(cfg.get("leads.draft_queue_stage") ?? stage).trim() || stage;
+  } catch {
+    /* no Outreach Writer in this family: the defaults only decide whether the board has the column */
+  }
+  let drafts: DraftCounts | null = null;
+  if (rows.some((p) => column in p)) {
+    drafts = { column, stage, drafted: 0, skipped: 0, waiting: 0 };
+    for (const p of rows) {
+      const d = text(p[column]).trim();
+      if (/^skip\s*:/i.test(d)) drafts.skipped++;
+      else if (d) drafts.drafted++;
+      else if (text(p.Stage) === stage) drafts.waiting++;
+    }
+  }
   const sort = (m: Map<string, ResultGroup>) => [...m.values()].sort((a, b) => b.leads - a.leads);
-  const data: LeadResults = { ready: true, reason: "", total: rows.length, stages: STAGES, bySource: sort(groups.source), byIndustry: sort(groups.industry).slice(0, 8) };
+  const data: LeadResults = { ready: true, reason: "", total: rows.length, stages: STAGES, bySource: sort(groups.source), byIndustry: sort(groups.industry).slice(0, 8), drafts,
+    whatsapp: rows.some((p) => "Whatsapp" in p) ? rows.filter((p) => text(p.Whatsapp).trim()).length : null,
+    whatsappVerified: rows.filter((p) => text(p.Status) === "WhatsApp Verified").length };
   g.__leadResults = { at: Date.now(), data };
   return data;
 }

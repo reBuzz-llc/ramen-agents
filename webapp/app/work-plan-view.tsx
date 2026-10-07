@@ -568,6 +568,20 @@ function ResultsPanel({ results }: { results: LeadResults }) {
             {results.total} leads on the board, {contacted} contacted so far. The team sets each lead&apos;s Result on the Leads board; the bots never
             touch it.
           </p>
+          {results.drafts ? (
+            <p className="mt-1 text-xs text-muted">
+              First emails ({results.drafts.column}, written by the Outreach Writer, never sent):{" "}
+              <span className="font-semibold text-ink tabular-nums">{results.drafts.drafted} drafted</span> ·{" "}
+              <span className="tabular-nums">{results.drafts.skipped} skipped</span> ·{" "}
+              <span className="tabular-nums">{results.drafts.waiting} waiting at {results.drafts.stage}</span>
+            </p>
+          ) : null}
+          {results.whatsapp !== null ? (
+            <p className="mt-1 text-xs text-muted">
+              <span className="font-semibold text-ink tabular-nums">{results.whatsapp}</span> of {results.total} leads have a WhatsApp link (filled by Lead Gen or from a wa.me link on their own site)
+              {results.whatsappVerified ? `, ${results.whatsappVerified} checked by hand in WhatsApp Web` : ""}.
+            </p>
+          ) : null}
           <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
             <ResultGroupList title="By where the lead came from" groups={results.bySource} />
             <ResultGroupList title="By industry (top 8)" groups={results.byIndustry} />

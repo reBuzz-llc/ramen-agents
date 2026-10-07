@@ -422,7 +422,7 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
 export type RefusalDay = { day: string; allowed: number; refused: number; fence: number };
 export type RefusalStats = { slug: string; name: string; days: RefusalDay[]; today: RefusalDay; week: RefusalDay; reasons: { reason: string; n: number }[] };
 
-const FENCE = /personal mailbox|does not appear on any page|MG03|robots\.txt|never guess|LD0[12]|LD1[458]|actually opened|actually seen|own site/i;
+const FENCE = /personal mailbox|does not appear on any page|MG03|robots\.txt|never guess|LD0[12]|LD1[458]|LD20|actually opened|actually seen|own site/i;
 
 /** Refused / (allowed + refused) per day over the last seven days, fence refusals apart, and the top three non-fence
  * reasons this week. Read-only from each bot's actions table: verdict 'allowed' is accepted, anything else refused. */

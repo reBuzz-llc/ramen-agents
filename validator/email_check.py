@@ -123,3 +123,61 @@ def stale(checked_at: str, days: float, now: dt.datetime | None = None) -> bool:
     except (TypeError, ValueError):
         return True
     return age.total_seconds() >= days * 86400
+
+
+# ---- the Whatsapp link (LD20, owner 2026-10-07) ----------------------------------------------
+
+WA_LINK = re.compile(r"(?:wa\.me/|api\.whatsapp\.com/send/?\?(?:[^\"'\s>]*?&(?:amp;)?)?phone=|whatsapp\.com/send/?\?phone=)\+?(\d{7,15})", re.I)
+
+
+_WA_LABEL = re.compile(r"whats\s?app[^0-9+]{0,25}(\+?[\d][\d\s().-]{6,20}\d)|(\+?[\d][\d\s().-]{6,20}\d)[^0-9a-z]{0,5}\(?\s*whats\s?app", re.I)
+
+
+def labelled_whatsapp(text: str) -> set[str]:
+    """Numbers a page itself labels as WhatsApp ("WhatsApp: +1 212 555 0100"), as digits. A bare phone is not one."""
+    return {re.sub(r"\D", "", m.group(1) or m.group(2)) for m in _WA_LABEL.finditer(text or "")}
+
+
+_PHONE = re.compile(r"(?:tel:|\+)?\(?\d{1,4}\)?[\s.-]?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]?\d{3,4}")
+
+
+def printed_phones(html: str) -> set[str]:
+    """Every phone number a page prints or links (tel:), as digits, 10 or more. Owner, 2026-10-07: a number found on an
+    opened page may become the row's wa.me link (a 10-digit national number gets the country code); the match is on
+    the last 10 digits, so +1 normalisation never hides it."""
+    text = (html or "") + " " + visible_text(html or "")
+    return {d for d in (re.sub(r"\D", "", m.group(0)) for m in _PHONE.finditer(text)) if 10 <= len(d) <= 15}
+
+
+def wa_digits(link: str) -> str:
+    m = WA_LINK.search(link or "")
+    return m.group(1) if m else ""
+
+
+def verify_whatsapp(link: str, website: str, extra: Iterable[str] = (), *, get: Callable | None = None) -> EmailVerdict:
+    """Look for this Whatsapp number on the row's pages (its own site, its Evidence and Source pages): as a wa.me /
+    api.whatsapp.com link, written next to the word WhatsApp, or printed as a phone number (owner, 2026-10-07: a found number
+    is converted to wa.me). A number none of the pages prints is invented."""
+    digits = wa_digits(link)
+    if not digits:
+        return EmailVerdict("skipped", "no wa.me number to check")
+    urls = pages_for(website, extra)
+    if not urls:
+        return EmailVerdict("skipped", "no website to read")
+    fetch = get or _httpx_get
+    read, others = 0, set()
+    for url in urls:
+        try:
+            status, text = fetch(url)
+        except Exception:  # noqa: BLE001
+            continue
+        if status >= 400 or not text:
+            continue
+        read += 1
+        found = {m.group(1) for m in WA_LINK.finditer(text)} | labelled_whatsapp(visible_text(text)) | printed_phones(text)
+        if any(d[-10:] == digits[-10:] for d in found if len(d) >= 10) or digits in found:
+            return EmailVerdict("published", url)
+        others |= found
+    if not read:
+        return EmailVerdict("unreachable", "none of its pages could be read from this Mac")
+    return EmailVerdict("not_found", f"{read} page(s) read", tuple(sorted(others)[:3]))

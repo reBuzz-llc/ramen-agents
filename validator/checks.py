@@ -436,6 +436,93 @@ def _same_site(a: str, b: str) -> bool:
     return bool(a) and bool(b) and (a == b or a.endswith("." + b) or b.endswith("." + a))
 
 
+# ---- the Outreach Writer's drafts (OW) ---------------------------------------------------
+
+WHAT_WE_HAVE = Path.home() / "bots" / "the-ceo" / "raw" / "what-we-have.md"
+DRAFT_SIGNOFF: list[str] = []   # the Outreach Writer's sign-off lines ([validator] draft_signoff); [] = not checked
+DRAFT_MAX_WORDS = 300      # the package's ready-to-send email plus one opening line
+_MONEY = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kK]?")
+_DRAFT_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+_DRAFT_PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\d)")
+_DRAFT_LINK = re.compile(r"https?://\S+|\bwww\.\S+", re.I)
+_DRAFT_GREETING = re.compile(r"^\s*(?:hi|hello|dear|hey)\s+([A-Z][\w'’-]+)", re.I | re.M)
+
+
+def _money(s: str) -> str:
+    s = s.replace(" ", "").replace(",", "").lower()
+    return str(int(float(s[1:-1]) * 1000)) if s.endswith("k") else s[1:].split(".")[0]
+
+
+def rate_figures(path: Path = WHAT_WE_HAVE) -> set[str]:
+    """Every dollar figure in the owner's Rates on "What we have" (the only prices a draft may quote)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    m = re.search(r"^## Rates\b(.*?)(?=^## |\Z)", text, re.M | re.S)
+    return {_money(x) for x in _MONEY.findall(m.group(1) if m else "")}
+
+
+def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: set[str] | None = None,
+                 whatsapp: str = "") -> list[tuple[str, str]]:
+    """(rule, detail) for an Outreach Writer draft. A "skip: ..." note is the bot's verdict, not an email: nothing to check."""
+    text = (draft or "").strip()
+    if not text or text.lower().startswith("skip:"):
+        return []
+    out: list[tuple[str, str]] = []
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if DRAFT_SIGNOFF and lines[-len(DRAFT_SIGNOFF):] != DRAFT_SIGNOFF:
+        out.append(("OW01", "the draft does not end with '" + "' / '".join(DRAFT_SIGNOFF) + "' on their own lines"))
+    if not 2 <= len(_NUMBERED.findall(text)) <= 6:
+        out.append(("OW09", "not built on the package's ready-to-send email (its numbered list is missing)"))
+    rates = rate_figures() if rates is None else rates
+    bad = [m for m in _MONEY.findall(text) if _money(m) not in rates]
+    if bad:
+        out.append(("OW02", "price not on the Rates: " + ", ".join(b.strip() for b in bad[:3])))
+    g = _DRAFT_GREETING.search(text)
+    if g and g.group(1).lower() not in ("there", "team", "all", "friends"):
+        first = (founded_by or "").split()[0].strip(",").lower() if founded_by.strip() else ""
+        if g.group(1).lower() != first and not g.group(1).lower() in (founded_by or "").lower():
+            out.append(("OW03", f"greets '{g.group(1)}', who is not the row's Founded by ('{founded_by or 'empty'}')"))
+    personal = _DRAFT_EMAIL.findall(text) + _DRAFT_PHONE.findall(text)
+    if personal:
+        out.append(("OW04", "contact details in the draft: " + ", ".join(personal[:2])))
+    site = domain(website) if website else ""
+    wa = (whatsapp or "").strip().rstrip("/")
+    links = [u for u in _DRAFT_LINK.findall(text) if (not site or domain(u if u.startswith("http") else "https://" + u) != site)
+             and not (wa and u.rstrip("/.,)") == wa)]
+    if links:
+        out.append(("OW05", "links other than the business's own site: " + ", ".join(u[:50] for u in links[:2])))
+    words = len(re.findall(r"\w+", text))
+    if words > DRAFT_MAX_WORDS:
+        out.append(("OW06", f"{words} words (keep it under {DRAFT_MAX_WORDS})"))
+    hit = injection(text)
+    if hit:
+        out.append(("FM07", f"repeats a page's instruction: '{hit[:60]}'"))
+    return out
+
+
+_WA_SHAPE = re.compile(r"^https://wa\.me/\d{7,15}$")
+
+
+def whatsapp_shape(link: str) -> str:
+    """LD20 (shape): the Whatsapp cell holds https://wa.me/<digits> or nothing."""
+    link = (link or "").strip()
+    if not link or _WA_SHAPE.match(link):
+        return ""
+    return f"Whatsapp is '{link[:60]}', not https://wa.me/<digits> copied from a link on the business's own site"
+
+
+def check_lead_whatsapp_published(ck: Checker, ld: LeadRow, verdict) -> list[Flag]:
+    """LD20 (proof): the wa.me number was looked for as a Whatsapp link on the business's own pages."""
+    if verdict.status != "not_found":
+        return []
+    seen = f"; links there: {', '.join('wa.me/' + d for d in verdict.others)}" if verdict.others else ""
+    return _collect(ck.flag("LD20", "lead", ld.page_id, ld.label, ld.url,
+                            f"{ld.whatsapp} is not linked on its own site ({verdict.where}){seen}",
+                            when=ld.created[:10], name=ld.business))
+
+
 STALE_EMAILED_DAYS = 10
 
 
@@ -455,6 +542,12 @@ def stale_emailed(ld: LeadRow, today: dt.date | None = None) -> str:
 def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplicate_of: list[str]) -> list[Flag]:
     f = lambda rid, detail: ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, when=ld.created[:10], name=ld.business)  # noqa: E731
     out: list[Flag] = []
+    for rid, detail in draft_issues(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp):
+        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot="outreach-writer",
+                                when=ld.created[:10], name=ld.business))
+    wa = whatsapp_shape(ld.whatsapp)
+    if wa:
+        out += _collect(f("LD20", wa))
     stale = stale_emailed(ld)
     if stale:
         out += _collect(ck.flag("LD19", "lead", ld.page_id, ld.label, ld.url, stale, bot="owner", when="", name=ld.business))
