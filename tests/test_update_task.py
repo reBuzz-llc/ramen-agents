@@ -67,7 +67,8 @@ class FixesItsTask:
 
 
 def test_the_controller_updates_the_notion_page_and_its_own_record(cfg):
-    cfg.notion = NotionConfig(enabled=True, database_id="db", api_key_file="/nonexistent")
+    cfg.notion = NotionConfig(enabled=True, database_id="db", api_key_file="/nonexistent",
+                              team_file=str(cfg.root / "no-team.json"))  # never the live team list
     fake = FakeNotion()
     ctl = make_controller(cfg, model=FixesItsTask(), notion=fake)
     ctl.run(max_cycles=2)
