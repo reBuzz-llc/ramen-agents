@@ -141,6 +141,15 @@ def test_research_for_a_person_is_refused_as_family_work():
     assert not gate.family_work({"title": "Call Poplar Books about the menu"})
 
 
+def test_research_deliverables_for_a_person_are_family_work():
+    """Owner, 2026-10-07: "ceoA is creating way to many task related to research and findings"."""
+    for t in ("Draft AI Agent Services Client Advisory Guide for Local Shops", "Update Notion Pages with Trending AI Agent Services",
+              "Build a Local Shop Target List for Custom AI Agent Services", "Develop AI Agent Service Offerings for Local Shops"):
+        assert gate.family_work({"title": t}), t
+    for t in ("Outreach: Sweet Corner and 9 more", "Send the AI agent proposal to Harbor Restaurant", "Review and sign the Harbor proposal"):
+        assert not gate.family_work({"title": t}), t
+
+
 def test_a_deliverable_for_a_meeting_or_a_person_stays_human_work():
     for t in ("Prepare presentation for the Sweet Corner meeting", "Review the package strategy with the owner",
               "Create marketing materials for the trade show", "Create a Canva presentation for the client pitch"):
@@ -153,3 +162,28 @@ def test_the_research_analyst_never_writes_to_the_board():
     r = gate.check("task", {"type": "task", "title": "Outreach: Sweet Corner"}, bot="research-analyst")
     assert r and r[0].startswith("RA05")
     assert not any(x.startswith("RA05") for x in gate.check("task", {"type": "task", "title": "Outreach: Sweet Corner"}, bot="the-ceo"))
+
+
+def test_the_outreach_writer_only_fills_its_own_cell(monkeypatch):
+    import checks
+    monkeypatch.setattr(checks, "DRAFT_SIGNOFF", ["Regards,", "Alex", "-- Acme LLC"])
+    ok = "Hi Sweet Corner team,\n\nYour contact form returns an error.\n\nRegards,\nAlex\n-- Acme LLC"
+    assert gate.check("update_lead", {"type": "update_lead", "business": "Sweet Corner", "draft_email": ok}, bot="outreach-writer") == []
+    r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "draft_email": ok, "stage": "Emailed"}, bot="outreach-writer")
+    assert r and r[0].startswith("OW07")
+    assert gate.check("task", {"type": "task", "title": "Outreach: Sweet Corner"}, bot="outreach-writer")[0].startswith("OW07")
+    r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "draft_email": ok.replace("Alex\n", "")}, bot="outreach-writer")
+    assert any(x.startswith("OW01") for x in r)
+
+
+def test_the_daily_review_of_drafts_is_the_teams():
+    for t in ("Review the drafted outreach list for today", "Review drafted outreach emails for 12 local businesses",
+              "Review and approve 10 outreach drafts"):
+        assert not gate.family_work({"title": t}), t
+        assert gate.human_task({"title": t}), t
+
+
+def test_a_whatsapp_number_not_shaped_as_a_wa_me_link_is_refused():
+    r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "+1 212 555 0100"})
+    assert r and r[0].startswith("LD20")
+    assert gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550100"}) == []

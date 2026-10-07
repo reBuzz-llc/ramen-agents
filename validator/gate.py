@@ -40,7 +40,7 @@ _SKIP = {
 _FIELDS = {
     "LD01": {"website", "email"}, "LD03": {"how_we_help"}, "LD02": {"evidence", "pain_point"}, "LD05": {"pain_point", "location", "industry", "size"},
     "LD07": {"location"}, "LD08": {"size"}, "LD10": {"evidence"}, "LD11": {"founded_by"}, "LD15": {"founded_by"}, "LD12": {"sources"},
-    "LD13": {"email"}, "LD14": {"website"},
+    "LD13": {"email"}, "LD14": {"website"}, "LD20": {"whatsapp"},
     "T05": {"priority"}, "T10": {"details_append", "details", "title"}, "T11": {"due"}, "T13": {"details_append", "details", "title"},
 }
 
@@ -49,11 +49,13 @@ _FIELDS = {
 # wording) let the write through and the sweep reports them afterwards. Everything not listed here is flag-only.
 GATE_REFUSES = {
     # the fence: personal data, invented or wrong-business values, an address that bounces
-    "LD01", "LD02", "LD14", "LD15", "LD18", "MG03",
+    "LD01", "LD02", "LD14", "LD15", "LD18", "MG03", "LD20",
     # board integrity: a value Notion would add as a new dropdown option
     "LD03",
     # the owner's own rules (2026-10-01/02) and the repeat guard
     "PK14", "MG04", "MG01", "RA05",
+    # the Outreach Writer (2026-10-07): only its own cell; no invented price; no contact details; the sign-off
+    "OW07", "OW02", "OW04", "OW01",
 }
 
 _cache: dict[str, object] = {}
@@ -96,7 +98,7 @@ def _lead_row(p: dict, *, bot: str) -> LeadRow:
         location=_s(p.get("location")), industry=_s(p.get("industry")), company_size=_s(p.get("size")),
         pain_point=_s(p.get("pain_point")), how_we_help=_s(p.get("how_we_help")), evidence=_s(p.get("evidence")),
         stage="", found_on=None, source_pages=" ".join(p.get("sources") or []) if isinstance(p.get("sources"), list) else _s(p.get("sources")),
-        found_by=bot or "bot", created=_today(), edited="", founded_by=_s(p.get("founded_by")),
+        found_by=bot or "bot", created=_today(), edited="", founded_by=_s(p.get("founded_by")), whatsapp=_s(p.get("whatsapp")),
     )
 
 
@@ -113,6 +115,14 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
     """Reasons this write breaks the owner's rules; [] = allowed. Pure; never raises on odd payloads."""
     if action not in GATED or not isinstance(payload, dict):
         return []
+    if bot == "outreach-writer":
+        # owner, 2026-10-07: it writes the "Draft email" cell and nothing else; it never contacts a business
+        other = sorted(k for k, v in payload.items() if k not in ("type", "name", "business", "page_id", "draft_email") and v not in (None, "", []))
+        if action != "update_lead" or other:
+            return ["OW07: the Outreach Writer only fills the Draft email cell (update_lead with draft_email); "
+                    + (f"not {', '.join(other)}" if other and action == "update_lead" else f"not {action}")]
+        from checks import draft_issues
+        return [f"{rid}: {d}" for rid, d in draft_issues(_s(payload.get("draft_email"))) if rid in GATE_REFUSES]
     if bot == "research-analyst" and action in GATED:
         return ["RA05: the Research Analyst never writes to the task board or Notion: research is never a task; "
                 "post the findings and answer The CEO by message"]
@@ -319,8 +329,8 @@ def human_task(payload: dict) -> bool:
     title = _s(payload.get("title"))
     who = _s(payload.get("assignee")).strip().lower()
     if family_work(payload):
-        return False            # naming a person does not make research a person's job
-    return bool(_HUMAN_WORK.match(title)) or (bool(who) and who in team_names())
+        return False            # naming a person does not make research a person's job (CEO-151, 2026-10-06)
+    return bool(_HUMAN_WORK.match(title) or _REVIEW_DRAFTS.match(title)) or (bool(who) and who in team_names())
 
 
 _FAMILY_WORK = re.compile(
@@ -330,10 +340,20 @@ _FAMILY_WORK = re.compile(
     r"providers?|pric(?:es|ing)|offers?|packages?|data|insights?|landscape)\b", re.I)
 
 
+# 2026-10-07 (owner: "ceoA is creating way to many task related to research and findings"): seven got through in a day
+# as Develop/Draft/Review/Build/Update ... recommendations, guide, offerings, materials, target list, Notion pages.
+_FAMILY_DELIVERABLE = re.compile(
+    r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish)\b"
+    r".*\b(?:recommendations?|guides?|offerings?|materials?|presentations?|strateg(?:y|ies)|reports?|research|advisory|"
+    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending)\b", re.I)
+
+
 def family_work(payload: dict) -> bool:
     """A task whose job is research or compiling information (MG04: family work, never a board task for a person):
     e.g. 'Organize trending AI agent services by category for our clients', assigned to a person."""
     title = _s(payload.get("title"))
+    if _REVIEW_DRAFTS.match(title):
+        return False            # the team's daily review of the Outreach Writer's drafts
     if _FAMILY_WORK.match(title):
         return True
     # a deliverable for a meeting, a pitch, an event or a design tool, or one done with a person, is the team's
@@ -350,6 +370,10 @@ _FAMILY_DELIVERABLE = re.compile(
 _PERSON_DELIVERABLE = re.compile(
     r"\b(?:meetings?|pitch(?:es)?|calls?|trade ?shows?|events?|workshops?|demos?|canva|figma|decks?|slides?|flyers?|"
     r"brochures?|print|videos?|photos?|ad creatives?|with (?:the )?(?:owner|team|client))\b", re.I)
+
+# The team's daily review of the Outreach Writer's drafts: reading, approving and sending is a person's.
+_REVIEW_DRAFTS = re.compile(r"^\s*(?:review|approve|check|edit|proofread)\b.*\b(?:drafts|drafted|draft emails?|outreach (?:drafts?|emails?)|"
+                            r"ready to send)\b", re.I)
 
 
 _FLAG_TASK = re.compile(r"\b(T|PK|LD|MG|FM|PL)\d{2}\b|\bvalidator\b|\btask format\b|\bformat checklist\b|\bchecklist items\b|"

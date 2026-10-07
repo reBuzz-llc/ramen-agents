@@ -121,6 +121,9 @@ class LeadRow:
     email_check: str = ""    # the engine's deliverability verdict, e.g. "deliverable, checked 2026-10-02" (2026-10-02)
     result: str = ""         # the team's outreach result (set by a person; bots never write it): Emailed, Replied ...
     result_date: str = ""    # when the current Result was set
+    draft_email: str = ""    # the Outreach Writer's first email for the team to send (owner, 2026-10-07)
+    whatsapp: str = ""       # https://wa.me/<digits>, only from a link on the business's own site (owner, 2026-10-07)
+    status: str = ""         # the team's Status: "Ready to Send Email", "WhatsApp Verified" (checked by hand) ...
 
     @property
     def label(self) -> str:
@@ -348,7 +351,7 @@ class NotionReader:
             company_size=val("Company size"), pain_point=val("Pain point"), how_we_help=val("How we can help"),
             evidence=val("Evidence"), stage=val("Stage"), found_on=val("Found on") or None,
             source_pages=val("Source pages"), found_by=val("Found by"), founded_by=val("Founded by"), email_check=val("Email check"),
-            result=val("Result"), result_date=val("Result date"),
+            result=val("Result"), result_date=val("Result date"), draft_email=val("Draft email"), whatsapp=val("Whatsapp"), status=val("Status"),
             created=str(r.get("created_time") or ""), edited=str(r.get("last_edited_time") or ""),
         )
 

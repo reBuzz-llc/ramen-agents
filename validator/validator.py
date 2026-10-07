@@ -183,6 +183,7 @@ class Run:
     def gather(self) -> None:
         own = list(self.s["own_domains"])
         checks.SIGNOFF = [str(x) for x in self.s.get("package_signoff") or []]
+        checks.DRAFT_SIGNOFF = [str(x) for x in self.s.get("draft_signoff") or []]
         checks.PROOF_FIGURES = {str(x) for x in self.s.get("package_allowed_figures") or []}
         self._process_inbox()
         self._family_check()
@@ -356,6 +357,7 @@ class Run:
         self.state["leads_index"] = index
         self._lead_upkeep(leads)
         self._verify_lead_emails(leads)
+        self._verify_lead_whatsapp(leads)
 
     def _lead_upkeep(self, leads: list) -> None:
         """Blanks are work for Lead Gen; a cell the team emptied means the value was wrong, so The CEO is told and
@@ -592,6 +594,29 @@ class Run:
             self.current += check_lead_email_published(self.ck, ld, v)
         if todo:
             self.notes.append(f"email checks: {len(fetched)} site(s) read this run, {max(0, len(todo) - len(fetched))} waiting, {len(cache)} cached")
+
+    def _verify_lead_whatsapp(self, leads: list) -> None:
+        """LD20: is the row's wa.me number really linked on the business's own site? Every row with a Whatsapp, Lead
+        Gen's included (the column is new, 2026-10-07); cached by number and site, re-read after `email_recheck_days`."""
+        from email_check import verify_whatsapp
+        from checks import check_lead_whatsapp_published
+        # a row the team marked "WhatsApp Verified" was confirmed by a person in WhatsApp Web: no page proof needed
+        rows = [ld for ld in leads if ld.whatsapp.strip() and ld.website.strip() and ld.status.strip().lower() != "whatsapp verified"]
+        if not rows or "LD20" not in self.ins.rules:
+            return
+        cache: dict[str, Any] = self.state.setdefault("whatsapp_verdicts", {})
+        recheck = float(self.s.get("email_recheck_days", 30))
+        budget = int(self.s.get("email_checks_per_run", 12))
+        for ld in rows:
+            key = f"{ld.whatsapp.strip()}|{lead_site_key(ld.website)}"
+            rec = cache.get(key)
+            if not rec or stale(str(rec.get("at", "")), recheck, self.now):
+                if self.args.dry_run or budget <= 0:
+                    continue
+                budget -= 1
+                v = verify_whatsapp(ld.whatsapp, ld.website, tuple(u for u in (ld.evidence, *ld.source_pages.split()) if u))
+                rec = cache[key] = {"status": v.status, "where": v.where, "others": list(v.others), "at": self.stamp}
+            self.current += check_lead_whatsapp_published(self.ck, ld, _Verdict(rec))
 
     # ---- Desk Agent blockers and questions (the inbox) -------------------------------
 
