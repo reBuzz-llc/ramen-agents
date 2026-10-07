@@ -6,6 +6,16 @@
 # `zip_field` + `areas` turn a ZIP prefix into a named area and keep only rows inside the market; `sector_field` +
 # `sector_order` put the trades that fit the packages first.
 #
+# FreeSerp's business-site index (free, keyless) works for any market: one search per trade x area from target.toml,
+# directories and guides left out, and only sites whose text names the trade.
+[sources.freeserp]
+enabled = true
+url = "https://freeserp.ai/api.php"
+rows_per_day = 100
+per_query = 50
+max_dr = 40          # Domain Rating ceiling: a neighbourhood business rarely passes it
+pause_seconds = 0.5  # between queries: be a light user
+
 # FILL-ME: find an open business register for your market and describe it like this (remove the leading "# "):
 #
 # [feeds."Your Market"]

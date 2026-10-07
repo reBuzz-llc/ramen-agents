@@ -67,7 +67,9 @@ function dayLabel(iso: string): string {
  * Same frame as the chatroom; read-only.
  */
 export default function RequestsView({ identity, backHref, backLabel }: { identity: Identity; backHref: string; backLabel: string }) {
-  const feed = usePoll<FleetRequest[]>("requests", POLL_MS);
+  // Open requests plus the last few days by default; "Load older" asks for the whole history (days=0).
+  const [days, setDays] = useState(3);
+  const feed = usePoll<{ items: FleetRequest[]; total: number; open: number; days: number }>(`requests?days=${days}`, POLL_MS);
   // Only bots get a handle; the Grok Bot mailbox and any script keep their plain name.
   const fleet = usePoll<BotSummary[]>("bots", 60000);
   const handles = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.name, b.handle])), [fleet.data]);
@@ -77,7 +79,8 @@ export default function RequestsView({ identity, backHref, backLabel }: { identi
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(true);
 
-  const all = useMemo(() => feed.data ?? [], [feed.data]);
+  const all = useMemo(() => feed.data?.items ?? [], [feed.data]);
+  const total = feed.data?.total ?? all.length;
   const now = feed.at;
   const openCount = useMemo(() => all.filter((r) => statusOf(r).tone === "open").length, [all]);
   const priorityOpenCount = useMemo(() => all.filter((r) => r.priority && statusOf(r).tone === "open").length, [all]);
@@ -137,7 +140,7 @@ export default function RequestsView({ identity, backHref, backLabel }: { identi
             <h1 className="truncate text-3xl font-bold text-ink">Requests</h1>
             <p className="mt-0.5 h-5 truncate text-sm text-muted">
               {all.length
-                ? `${openCount} open${priorityOpenCount ? `, ${priorityOpenCount} priority` : ""} of ${all.length}`
+                ? `${openCount} open${priorityOpenCount ? `, ${priorityOpenCount} priority` : ""} of ${total}`
                 : "What one bot has asked another to do"}
             </p>
           </div>
@@ -156,7 +159,7 @@ export default function RequestsView({ identity, backHref, backLabel }: { identi
             onChange={setScope}
             options={[
               { key: "open", label: `Open (${openCount})` },
-              { key: "all", label: `All (${all.length})` },
+              { key: "all", label: `All (${total})` },
             ]}
           />
           {scope === "all" ? (
@@ -202,7 +205,7 @@ export default function RequestsView({ identity, backHref, backLabel }: { identi
               <p className="rounded-xl bg-panel p-6 text-center text-sm text-muted">
                 No open requests: every ask has been answered, carried out or has expired.{" "}
                 <button type="button" onClick={() => setScope("all")} className="font-semibold text-accent">
-                  Show all {all.length}
+                  Show all {total}
                 </button>
               </p>
             ) : !sorted.length ? (
@@ -315,6 +318,14 @@ export default function RequestsView({ identity, backHref, backLabel }: { identi
                   <button type="button" onClick={() => setShown((n) => n + PAGE)} className={`${buttonClass("plain", "sm")} mt-3`}>
                     Show {Math.min(PAGE, sorted.length - visible.length)} more of {sorted.length}
                   </button>
+                ) : null}
+                {days > 0 && total > all.length ? (
+                  <p className="mt-3 text-xs text-muted">
+                    Showing open requests and the last {days} days ({all.length} of {total}).{" "}
+                    <button type="button" onClick={() => setDays(0)} className="font-semibold text-accent">
+                      Load older
+                    </button>
+                  </p>
                 ) : null}
               </>
             )}

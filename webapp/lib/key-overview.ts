@@ -69,6 +69,7 @@ const FREE: Record<string, string> = {
   orcarouter: "free models (account must be established)",
   quickemailverification: "100 checks a day",
   sniffmail: "500 basic checks a month",
+  ezverify: "200 checks a month",
   tavily: "1,000 credits a month (fleet cap 30/day)",
   notion: "free plan (single-member workspace)",
   "cloudflare-r2": "10 GB storage free (needs R2 switched on)",
@@ -77,6 +78,7 @@ const PAID = new Set(["deepseek", "openai", "moonshot", "replicate", "together",
 const SERVICE_KIND: Record<string, KeyKind> = {
   quickemailverification: "Email check",
   sniffmail: "Email check",
+  ezverify: "Email check",
   tavily: "Search",
   "cloudflare-r2": "Storage",
   notion: "Workspace",
@@ -142,7 +144,7 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
     readdir(/*turbopackIgnore: true*/ KEYS_DIR).catch(() => [] as string[]),
     Promise.all(bots.map(async (b) => ({ bot: b, cat: await providerCatalog(b).catch(() => null) }))),
     json<{ day?: string; counts?: Record<string, number>; usage?: Record<string, Record<string, number[]>> }>(path.join(SHARED, "model_calls.json"), {}),
-    json<Record<string, { at?: string; credits?: string }>>(path.join(SHARED, "email-verify.json"), {}),
+    json<Record<string, { at?: string; credits?: string; by?: string }>>(path.join(SHARED, "email-verify.json"), {}),
     json<Record<string, number>>(path.join(SHARED, "tavily-usage.json"), {}),
     limitEvents(bots),
     serviceStatuses(),
@@ -219,7 +221,10 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
   }
 
   // The keys that are not model providers (and any model key no bot knows yet).
-  const checksToday = Object.values(verify).filter((v) => (v.at ?? "").startsWith(day));
+  // Each verdict names the checker that gave it ("by"); none means QuickEmailVerification, the first in line.
+  const checksAll = Object.values(verify).filter((v) => (v.at ?? "").startsWith(day));
+  const byChecker = (who: string) => checksAll.filter((v) => (v.by ?? "quickemailverification") === who).length;
+  const checksToday = checksAll.filter((v) => !v.by || v.by === "quickemailverification");
   // The newest verdict that carries QuickEmailVerification's remaining credits (cached or fallback ones do not).
   const latest = Object.values(verify)
     .filter((v) => v.credits !== undefined && v.credits !== null && v.credits !== "")
@@ -234,8 +239,13 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
     } else if (name === "tavily") {
       callsToday = tavily[day] ?? 0;
       today = `${callsToday} of 30 searches today`;
-    } else if (name === "sniffmail") today = "backup only: used when the daily checks run out";
-    else if (name === "notion") today = "the bots' board writes";
+    } else if (name === "sniffmail") {
+      callsToday = byChecker("sniffmail") + byChecker("basic");
+      today = callsToday ? `${callsToday} checks today (backup)` : "backup only: used when the daily checks run out";
+    } else if (name === "ezverify") {
+      callsToday = byChecker("ezverify");
+      today = callsToday ? `${callsToday} checks today (third in line)` : "third in line: used when the first two do not answer";
+    } else if (name === "notion") today = "the bots' board writes";
     else today = "not used yet";
     const kind = SERVICE_KIND[name] ?? "AI model";
     rows.push({
