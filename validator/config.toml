@@ -71,3 +71,4 @@ key_file = "~/bots/common-data/keys/zai.key"
 # FILL-ME, for example:
 # "website care" = "website (care|maintenance)|site care"
 # "online ordering" = "online ordering|ordering app"
+# "ai agent" = "\\bai[- ]agents?\\b|autonomous agents?|agentic"

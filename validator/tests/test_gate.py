@@ -139,3 +139,17 @@ def test_research_for_a_person_is_refused_as_family_work():
     assert any(x.startswith("MG04") for x in r)
     assert not gate.family_work({"title": "Outreach: Sweet Corner and 4 more"})
     assert not gate.family_work({"title": "Call Poplar Books about the menu"})
+
+
+def test_a_deliverable_for_a_meeting_or_a_person_stays_human_work():
+    for t in ("Prepare presentation for the Sweet Corner meeting", "Review the package strategy with the owner",
+              "Create marketing materials for the trade show", "Create a Canva presentation for the client pitch"):
+        assert not gate.family_work({"title": t}), t
+    assert gate.family_work({"title": "Develop AI Agent Service Offerings for Local Shops"})
+    assert gate.family_work({"title": "Update Notion Pages with Trending AI Agent Services"})
+
+
+def test_the_research_analyst_never_writes_to_the_board():
+    r = gate.check("task", {"type": "task", "title": "Outreach: Sweet Corner"}, bot="research-analyst")
+    assert r and r[0].startswith("RA05")
+    assert not any(x.startswith("RA05") for x in gate.check("task", {"type": "task", "title": "Outreach: Sweet Corner"}, bot="the-ceo"))

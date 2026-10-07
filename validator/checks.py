@@ -130,6 +130,29 @@ def _collect(*flags: Flag | None) -> list[Flag]:
     return [f for f in flags if f is not None]
 
 
+# ---- prompt injection (FM07) ----------------------------------------------------------
+
+_INJECTION = re.compile(
+    r"\b(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|your\s+|the\s+|previous\s+|prior\s+|above\s+)*"
+    r"(?:rules?|instructions?|guidelines?|prompts?|polic(?:y|ies)|guardrails?)\b"
+    r"|\byou\s+are\s+now\s+(?:a|an|in)\b|\bnew\s+instructions?\s*:|\bsystem\s+prompt\b|\bjailbreak\b"
+    r"|\b(?:email|e-mail|message|contact)\s+(?:this|the\s+following|everyone\s+on\s+this)\s+(?:list|contacts?|people|addresses)\b"
+    r"|\bsend\s+(?:this|it|the\s+(?:list|data|leads?|keys?|file))\s+to\s+\S+@\S+"
+    r"|\b(?:reveal|print|share|send|email)\s+(?:your|the|all|our)\s+(?:\w+\s+){0,8}?(?:api\s+)?(?:keys?|tokens?|passwords?|credentials)\b"
+    r"|\b(?:email|send|forward|share)\s+(?:your|our|the|all)\s+(?:full\s+|whole\s+|entire\s+)?(?:list\s+of\s+)?(?:leads|contacts|clients|customers)\s+(?:list\s+)?to\b"
+    r"|\bstop\s+following\s+(?:your|their|the|our)\s+rules\b"
+    r"|\b(?:official\s+)?instructions?\s+from\s+(?:your|the)\s+owner\b"
+    r"|\bnote\s+to\s+(?:ai|llm|bots?|agents?)\b"
+    r"|\b(?:send|write)\s+(?:a\s+message\s+)?to\s+every\s+(?:colleague|bot|agent|family\s+member)",
+    re.I)
+
+
+def injection(text: str) -> str:
+    """The phrase in a bot's output that reads like an instruction lifted from a page (FM07), or ""."""
+    m = _INJECTION.search(text or "")
+    return m.group(0) if m else ""
+
+
 # ---- tasks (T) ---------------------------------------------------------------------
 
 BARE_TITLES = {
@@ -171,6 +194,9 @@ def check_task(
     f = lambda rid, detail: ck.flag(rid, "task", t.page_id, t.label, t.url, detail, bot=bot, when=t.created[:10], name=t.title)  # noqa: E731
     out: list[Flag] = []
     title = t.title.strip()
+    hit = injection(f"{t.title}\n{t.body}")
+    if hit:
+        out += _collect(f("FM07", f"repeats a page's instruction: '{hit[:60]}'"))
     words = [w for w in re.split(r"\s+", title) if w]
     if not title:
         out += _collect(f("T01", "the row has no title"))
@@ -332,7 +358,9 @@ def check_provider(ck: Checker, r: ProviderRecord, *, fleet_has: list[str] | Non
     f = lambda rid, detail: ck.flag(rid, "provider", r.key, r.label, r.endpoint, detail, when=r.found)  # noqa: E731
     out: list[Flag] = []
     ep = r.endpoint.strip()
-    if not ep.startswith("https://"):
+    if r.is_tool:
+        ep = r.website.strip()      # a tool is judged on its own site; SC01 (an OpenAI-compatible endpoint) is for model providers
+    elif not ep.startswith("https://"):
         out += _collect(f("SC01", f"endpoint is '{ep[:60] or '(empty)'}'"))
     elif domain(ep) in ("aistudio.google.com", "console.groq.com", "platform.openai.com", "github.com"):
         out += _collect(f("SC01", f"endpoint is a console/marketing page: {ep[:60]}"))
@@ -341,11 +369,11 @@ def check_provider(ck: Checker, r: ProviderRecord, *, fleet_has: list[str] | Non
         out += _collect(f("SC02", "free terms are empty"))
     elif "no card" not in terms.lower():
         out += _collect(f("SC02", "free terms do not say 'no card required'"))
-    known = [k for k in (fleet_has or KNOWN_PROVIDERS) if k in r.name.lower()]
+    known = [] if r.is_tool else [k for k in (fleet_has or KNOWN_PROVIDERS) if k in r.name.lower()]
     if known:
         out += _collect(f("SC03", f"'{r.name}' is a provider the fleet already knows ({known[0]})"))
     text = f"{r.free_terms} {r.why} {r.models}"
-    m = _NICHE.search(text)
+    m = None if r.is_tool else _NICHE.search(text)
     if m:
         out += _collect(f("SC04", f"niche service: '{m.group(0)}'"))
     if not r.sources:
@@ -408,9 +436,32 @@ def _same_site(a: str, b: str) -> bool:
     return bool(a) and bool(b) and (a == b or a.endswith("." + b) or b.endswith("." + a))
 
 
+STALE_EMAILED_DAYS = 10
+
+
+def stale_emailed(ld: LeadRow, today: dt.date | None = None) -> str:
+    """LD19: the team emailed this business 10+ days ago and no Result has come since. "" when not stale."""
+    if ld.result.strip().lower() != "emailed":
+        return ""
+    since, basis = (ld.result_date, "Result date") if ld.result_date else (ld.edited, "last edit (no Result date)")
+    try:
+        day = dt.date.fromisoformat(since[:10])
+    except ValueError:
+        return ""
+    age = ((today or dt.date.today()) - day).days
+    return f"Emailed {age} days ago by its {basis} ({day}) and no reply, meeting or other result since" if age >= STALE_EMAILED_DAYS else ""
+
+
 def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplicate_of: list[str]) -> list[Flag]:
     f = lambda rid, detail: ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, when=ld.created[:10], name=ld.business)  # noqa: E731
     out: list[Flag] = []
+    stale = stale_emailed(ld)
+    if stale:
+        out += _collect(ck.flag("LD19", "lead", ld.page_id, ld.label, ld.url, stale, bot="owner", when="", name=ld.business))
+    hit = injection(" \n".join((ld.pain_point, ld.how_we_help, ld.founded_by, ld.location, ld.industry, ld.company_size)))
+    if hit:
+        out += _collect(ck.flag("FM07", "lead", ld.page_id, ld.label, ld.url, f"repeats a page's instruction: '{hit[:60]}'",
+                                bot="lead-gen", when=ld.created[:10], name=ld.business))
     site = domain(ld.website) if ld.website.startswith(("http://", "https://")) else ld.website.strip().lower().removeprefix("www.").split("/")[0]
     email = ld.email.strip().lower()
     if not ld.business.strip():

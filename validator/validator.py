@@ -202,6 +202,7 @@ class Run:
             self.checked.add(("provider", r.key))
             self.current += check_provider(self.ck, r)
         self._onion_notes()
+        self._analyst_notes()
         import plans
         n_plans = 0
         for plan_file in sorted(BOTS.glob("*/workspace/plan.json")):
@@ -234,7 +235,7 @@ class Run:
             self.checked.add(("request", f.ask.id))
             flag = self.ck.flag(f.rule, "request", f.ask.id, f"{f.ask.sender} → {f.ask.to} ({f.ask.at[:16]})", "",
                                 f.detail, bot=f.bot, when=f.ask.at[:10],
-                                name=f.ask.to if f.rule in ("FM03", "FM05", "FM06") else f.ask.sender)
+                                name=f.ask.to if f.rule in ("FM03", "FM05", "FM06", "FM07") else f.ask.sender)
             if flag:
                 self.current.append(flag)
         self.notes.append(family.summary(asks, self.now))
@@ -469,6 +470,51 @@ class Run:
         self.counts["onion notes checked"] = len(rows)
         if rows:
             self.state["onion_notes_since"] = str(rows[-1][1])
+
+    def _analyst_notes(self) -> None:
+        """RA01/RA03/RA04: the Research Analyst's notes (its findings posts) cite their page, carry no personal data and
+        repeat no page's instruction. Read-only from its own sqlite; notes since the last sweep (first run: two days)."""
+        import sqlite3
+        from checks import injection
+        from sources import is_search_results_url
+        db = BOTS / "research-analyst" / "workspace" / "explorer.sqlite3"
+        if not db.exists() or "RA01" not in self.ins.rules:
+            return
+        since = str(self.state.get("analyst_notes_since") or (self.now - dt.timedelta(days=2)).isoformat(timespec="seconds"))
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            try:
+                rows = con.execute("SELECT id, created_at, title, body, source_url FROM notes WHERE created_at > ? ORDER BY id", (since,)).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error as exc:
+            self.errors.append(f"research-analyst notes unreadable: {exc}")
+            return
+        phone = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\d)")
+        email = re.compile(r"\b([\w.+-]+)@[\w-]+\.[\w.]+")
+        role = re.compile(r"^(info|hello|contact|sales|support|office|team|admin|enquiries|inquiries|help|bookings?|orders?|press|media)$", re.I)
+        for nid, created, title, body, src in rows:
+            art, label = f"analyst-note-{nid}", f'note #{nid} "{(title or "")[:60]}"'
+            self.checked.add(("note", art))
+            f = lambda rid, detail: self.ck.flag(rid, "note", art, label, src or "", detail, bot="research-analyst",  # noqa: E731
+                                                 when=str(created)[:10], name=title or "")
+            flags = []
+            if not (src or "").startswith(("http://", "https://")):
+                flags.append(f("RA01", "the note records no source page"))
+            elif is_search_results_url(src):
+                flags.append(f("RA01", f"the source is a search results page: {src[:70]}"))
+            text = f"{title}\n{body}"
+            personal = [m.group(0) for m in email.finditer(text) if not role.match(m.group(1))] + phone.findall(text)
+            if personal:
+                flags.append(f("RA03", "personal contact details in the note: " + ", ".join(personal[:2])))
+            hit = injection(text)
+            if hit:
+                flags.append(f("RA04", f"repeats a page's instruction: '{hit[:60]}'"))
+            self.current += [x for x in flags if x]
+        self.counts["analyst notes checked"] = len(rows)
+        if rows:
+            self.state["analyst_notes_since"] = str(rows[-1][1])
+
 
     def _lead_bot_name(self) -> str:
         from family import FAMILY

@@ -25,6 +25,7 @@ with its `update_lead` action; Stage stays the owner's to move.
 - LD15 — A filled-in Founded by is a person's name (First Last), never a phrase, a company, a role or "N/A": a founder nobody read off a page is an invention. Refused at write time.
 - LD16 — A report of finished work matches the record: every business a 'done' names has an accepted update_lead (or lead) in Lead Gen's own episode log since the work list went out. A 'done' without a write is an invented output. Write first, watch the verdict, then report.
 - LD18 — The Business email is deliverable: a row whose "Email check" (the engine's verification service) starts "NOT deliverable" needs a working address from the business's own site, or the row comes off the board. "Email check" is deliverability; LD09 stays the proof the address is the business's own.
+- LD19 — A reminder for the owner, not a bot defect: a row whose Result (set by the team; bots never write it) is still "Emailed" 10 or more days after its Result date has had no reply, meeting or other outcome recorded. Follow up or set the Result. With no Result date, the row's last edit counts, and the flag says so. [warn]
 - LD05 — No personal data: Pain point, Location, Industry and Company size carry no phone number and no second email address. [warn]
 
 ## Owner notes (not checked automatically)
