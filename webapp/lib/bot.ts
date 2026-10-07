@@ -84,7 +84,11 @@ export type BotProfile = {
 };
 
 // A profile plus a live status summary, for the switcher.
+// A pause or slow-down The CEO put on this bot (workspace/HOLD, engine hold.py; owner, 2026-10-07). Ends by itself.
+export type BotHold = { by: string; mode: "pause" | "slow"; until: string; why: string };
+
 export type BotSummary = BotProfile & {
+  hold?: BotHold | null;
   online: boolean;
   running: boolean;
   status: string | null;

@@ -29,7 +29,9 @@ remote_for = "writing"
 # One pool of remote tokens for the day, shared by the bots that are running right now in proportion to their
 # budget_weight; a stopped bot's share flows to the rest at once. Set it to about what your free tiers carry in a day.
 budget_scope = "active"
-fleet_token_budget = 8000000
+# 0 = no daily pool: free tiers carry their own caps (each provider's calls_per_day), so nobody is paced. Set a
+# number to share a daily pool among the running bots. The CEO sees each member's use (model.sees_fleet_usage).
+fleet_token_budget = 0
 budget_weight = 1.0
 daily_token_budget = 1000000   # the per-bot figure, used only if budget_scope is set back to "bot"
 

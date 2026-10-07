@@ -37,6 +37,10 @@ function Spark({ values, label }: { values: number[]; label: string }) {
 // online here?").
 function statusOf(b: FleetData["bots"][number]): { label: string; dot: string } {
   if (b.stopped) return { label: "Stopped", dot: "bg-muted" };
+  if (b.hold) {
+    const until = new Date(b.hold.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return { label: `${b.hold.mode === "pause" ? "Paused" : "Slowed"} by ${b.hold.by} until ${until}`, dot: "bg-sys-orange" };
+  }
   if (!b.running) return b.status === "paused" ? { label: "Paused", dot: "bg-sys-orange" } : { label: b.online ? "Not running" : "Offline", dot: "bg-muted" };
   if (b.status === "quiet" || b.status === "paused") return { label: b.status === "quiet" ? "Quiet" : "Paused", dot: "bg-sys-orange" };
   if (b.status === "exiting") return { label: "Stopping", dot: "bg-sys-orange" };

@@ -3,7 +3,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import type { BotProfile, BotState, BotSummary } from "./bot";
+import type { BotHold, BotProfile, BotState, BotSummary } from "./bot";
 import { handleFor } from "./handle";
 
 export const BOTS_DIR = process.env.BOTS_DIR ?? path.join(homedir(), "bots");
@@ -146,11 +146,24 @@ export async function fetchState(bot: BotProfile, timeoutMs = 2000): Promise<Bot
   }
 }
 
+/** The live HOLD The CEO set on this bot, or null (none, unreadable, or already past its end). */
+export async function readHold(bot: BotProfile): Promise<BotHold | null> {
+  try {
+    const h = JSON.parse(await readFile(/*turbopackIgnore: true*/ path.join(path.dirname(bot.configPath), "workspace", "HOLD"), "utf8")) as Record<string, unknown>;
+    const until = Number(h.until) * 1000;
+    if (!Number.isFinite(until) || until <= Date.now()) return null;
+    return { by: String(h.by ?? "The CEO"), mode: h.mode === "slow" ? "slow" : "pause", until: new Date(until).toISOString(), why: String(h.why ?? "").slice(0, 200) };
+  } catch {
+    return null;
+  }
+}
+
 export async function summarize(bot: BotProfile): Promise<BotSummary> {
-  const s = await fetchState(bot);
-  if (!s) return { ...bot, online: false, running: false, status: null, flags: [], stale: false, heartbeatAge: null };
+  const [s, hold] = await Promise.all([fetchState(bot), readHold(bot)]);
+  if (!s) return { ...bot, hold, online: false, running: false, status: null, flags: [], stale: false, heartbeatAge: null };
   return {
     ...bot,
+    hold,
     online: true,
     running: s.running,
     status: s.heartbeat?.status ?? null,

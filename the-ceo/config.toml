@@ -39,6 +39,8 @@ max_notes_per_day = 30
 remote_for = "all"
 daily_token_budget = 0
 budget_weight = 0
+# The CEO sees the day's free tokens by member and calls by provider, and steers the others.
+sees_fleet_usage = true
 num_predict = 1200
 
 [browser]
@@ -71,6 +73,10 @@ package_email_required_phrases = []
 package_signoff = "Regards,\n-- FILL-ME company name"
 
 [messaging]
+# pace_member: The CEO may pause, slow or restart members (workspace/HOLD, ends by itself within 24h). Never a member
+# the owner stopped or paused, never the protected ones.
+can_pace_members = true
+pace_protected = ["Validator"]
 priority_senders = ["Validator"]   # a member's ask comes before own work
 max_per_episode = 4
 max_per_day = 40

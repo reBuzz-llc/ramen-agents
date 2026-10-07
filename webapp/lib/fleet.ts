@@ -6,7 +6,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { BotProfile } from "./bot";
-import { fetchState, listBots, readConfig } from "./bots";
+import { fetchState, listBots, readConfig, readHold } from "./bots";
 import { agentPids, flags } from "./control";
 import { readRoom } from "./chatroom";
 import { readDigest } from "./digest";
@@ -20,6 +20,7 @@ export type FleetBot = {
   online: boolean; // its data server answers -- true for a stopped bot too (com.rebuzz.data.<slug> keeps running)
   running: boolean; // its loop is alive and no STOP or PAUSE file is set: what "online" on the map means to the owner
   stopped: boolean; // a STOP file is set (the owner's stop)
+  hold: import("./bot").BotHold | null; // a pause or slow-down The CEO set (workspace/HOLD), until it ends
   status: string | null;
   lastActive: string | null;
   totals: Totals;
@@ -32,7 +33,7 @@ export type FleetBot = {
   error: string | null;
 };
 
-export type MapNode = { id: string; kind: "owner" | "bot" | "room" | "notion" | "providers"; label: string; slug?: string; online?: boolean; running?: boolean; handle?: string };
+export type MapNode = { id: string; kind: "owner" | "bot" | "room" | "notion" | "providers"; label: string; slug?: string; online?: boolean; running?: boolean; held?: boolean; handle?: string };
 export type MapEdge = {
   id: string;
   from: string;
@@ -122,17 +123,18 @@ export async function fleetSummary(range: RangeKey): Promise<FleetData> {
 
   const perBot = await Promise.all(
     bots.map(async (bot): Promise<{ bot: BotProfile; row: FleetBot; ch: Channels; acts: Row[]; chats: Row[]; counts: Row[]; chatCount: number }> => {
-      const [state, ch, digest, flagList, pids] = await Promise.all([
+      const [state, ch, digest, flagList, pids, hold] = await Promise.all([
         fetchState(bot),
         channels(bot).catch(() => ({ handoff: null, messaging: [] }) as Channels),
         readDigest(bot, range),
         flags(bot).catch(() => [] as string[]),
         agentPids(bot.configPath, path.join(path.dirname(bot.configPath), "workspace", "explorer.pid")).catch(() => [] as number[]),
+        readHold(bot),
       ]);
       const stopped = flagList.includes("STOP");
       const running = pids.length > 0 && !stopped && !flagList.includes("PAUSE");
       const base: FleetBot = {
-        slug: bot.slug, name: bot.name, handle: bot.handle, online: state !== null, running, stopped, status: state?.heartbeat?.status ?? null, lastActive: null,
+        slug: bot.slug, name: bot.name, handle: bot.handle, online: state !== null, running, stopped, hold, status: state?.heartbeat?.status ?? null, lastActive: null,
         totals: ZERO, previous: ZERO, spark: starts.map(() => 0), outputs: { packages: 0, messages: 0, providers: 0, says: 0 },
         recap: digest ? { text: digest.recap, generatedAt: digest.generatedAt, goals: digest.goals.map((g) => ({ goal: g.goal, verdict: g.verdict })) } : null,
         error: null,
@@ -175,7 +177,7 @@ export async function fleetSummary(range: RangeKey): Promise<FleetData> {
     }),
   );
 
-  for (const { bot, row } of perBot) nodes.push({ id: `bot:${bot.slug}`, kind: "bot", label: bot.name, slug: bot.slug, online: row.online, running: row.running, handle: bot.handle });
+  for (const { bot, row } of perBot) nodes.push({ id: `bot:${bot.slug}`, kind: "bot", label: bot.name, slug: bot.slug, online: row.online, running: row.running, held: row.hold !== null, handle: bot.handle });
   let notion = false;
   let providers = false;
 

@@ -38,6 +38,10 @@ the brief a person can finish without asking you, and keep the board to work tha
   toggle, at most once a day. The price is yours to set and stands in the title and the email; invent no other
   figures or features.
 - **The Leads board's "How we can help" column** is yours to decide; that column only.
+- **The family's free tokens are yours to manage**: your prompt shows each member's use today. If one member's use
+  crowds out the work that matters most, tell it by message what to focus on; if that is not enough, `pace_member`
+  pauses or slows it for some hours, with a reason, and `resume` starts it again. Only members you held: one the
+  owner stopped or paused is the owner's to start. The providers' own free caps still apply.
 - **Notes** carry the page URL as `source_url`; empty for your own reasoning.
 
 ## Your colleagues
