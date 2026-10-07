@@ -206,3 +206,73 @@ def test_a_deciding_bot_may_change_only_its_fields_and_sees_its_rows(cfg):
     c.memory.record_action(1, ep["id"], "update_lead", ok.model_dump(), "", "allowed", "updated", True)
     assert [l.split(" | ")[0] for l in c._decide_lines()] == ["Juniper Cafe"]
     (routed / "leads-need-package.md").unlink()
+
+
+def test_the_outreach_writer_drafts_only_its_column_from_the_oldest_new_rows(cfg):
+    """Owner, 2026-10-07: the Outreach Writer writes a first email into "Draft email" for leads still at Stage New."""
+    from explorer.actions import Lead, UpdateLead
+    from explorer.notion import FakeNotion
+    from explorer.prompts import DRAFT_EMAIL_ACTION_HELP
+    from conftest import make_controller
+
+    cfg.leads.enabled, cfg.leads.update_any_row = True, True
+    cfg.leads.update_only_fields = ["draft_email"]
+    cfg.leads.draft_queue_column = "Draft email"
+    notion = FakeNotion()
+    notion.create_row("Acme Bakery", {"Website": "https://www.acmebakery.example", "Stage": "New", "Pain point": "no online ordering"})
+    notion.create_row("Toastique", {"Website": "https://toastique.com", "Stage": "Emailed"})
+    notion.create_row("Pylos", {"Website": "https://pylos.example", "Stage": "New", "Draft email": "Hi Pylos team"})
+    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    c.memory.start_episode(None); ep = c.memory.current_episode()
+    lines = c._decide_lines()
+    assert [l.split(" | ")[0] for l in lines] == ["Acme Bakery"] and "pain point: no online ordering" in lines[0]
+    ctx = c._policy_context(ep, None)
+    draft = "Hi Acme Bakery team,\n\nYour site has no online ordering.\n\nAlex\nAcme LLC"
+    ok = UpdateLead(type="update_lead", name="Acme Bakery", draft_email=draft)
+    assert c.policy.check(ok, ctx).allowed
+    assert not c.policy.check(UpdateLead(type="update_lead", name="Acme Bakery", draft_email=draft, location="Florida"), ctx).allowed
+    lead = Lead(type="lead", name="New Place", website="https://new.example", email="hi@new.example", pain_point="x", how_we_help="y", evidence="https://new.example")
+    assert "Lead Gen's job" in c.policy.check(lead, ctx).reason
+    assert c._execute_update_lead(ok).ok and notion.rows[0]["Draft email"] == draft
+    # no other bot may write the column
+    cfg.leads.update_only_fields = []
+    assert "Outreach Writer's column" in c.policy.check(ok, ctx).reason
+
+
+def test_the_ceo_sees_drafts_waiting_for_review_not_skips_or_approved_ones(cfg):
+    """Owner, 2026-10-07: the team checks each draft and sets Status "Ready to Send Email"; The CEO writes the review task."""
+    from explorer.notion import FakeNotion
+    from conftest import make_controller
+
+    cfg.leads.enabled = True
+    cfg.leads.outreach_draft_column, cfg.leads.outreach_min = "Draft email", 2
+    notion = FakeNotion()
+    notion.create_row("Acme Bakery", {"Draft email": "Hi Acme Bakery team, ...", "Business email": "hi@acmebakery.example"})
+    notion.create_row("Toastique", {"Draft email": "skip: the site has online ordering now"})
+    notion.create_row("Pylos", {"Draft email": "Hi Pylos team, ...", "Status": "Ready to Send Email"})
+    notion.create_row("Mokbar", {"Draft email": "Hi Mokbar team, ..."})
+    notion.create_row("Arco Gallery", {"Draft email": "Hi Arco team, ...", "Status": "WhatsApp Verified"})  # checked, not reviewed
+    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    lines, total = c._outreach_leads()
+    assert total == 3 and [l.split(" | ")[0] for l in lines] == ["Acme Bakery", "Mokbar", "Arco Gallery"]
+    cfg.leads.outreach_min = 4
+    c._review_cache = None
+    assert c._outreach_leads() == ([], 3)  # not a batch yet
+
+
+def test_a_draft_also_goes_on_the_leads_page_and_the_rates_are_quoted(cfg, tmp_path):
+    from explorer.actions import UpdateLead
+    from explorer.notion import FakeNotion
+    from conftest import make_controller
+
+    cfg.leads.enabled, cfg.leads.update_any_row = True, True
+    cfg.leads.update_only_fields, cfg.leads.draft_queue_column = ["draft_email"], "Draft email"
+    rates = tmp_path / "what-we-have.md"
+    rates.write_text("# What we have\n\n## Rates\nThe card.\n- Acme POS: $299 setup, $79/month\n\n## Who does what\n- x\n")
+    cfg.leads.rates_file = str(rates)
+    notion = FakeNotion()
+    notion.create_row("Acme Bakery", {"Stage": "New"})
+    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    assert c._execute_update_lead(UpdateLead(type="update_lead", name="Acme Bakery", draft_email="Hi team,\n\nAlex\nAcme LLC")).ok
+    assert notion.rows[0]["_sections"]["Draft email"] == "Hi team,\n\nAlex\nAcme LLC"
+    assert "$299 setup, $79/month" in c._rates_text() and "Who does what" not in c._rates_text()

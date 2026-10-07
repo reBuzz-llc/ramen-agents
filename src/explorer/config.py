@@ -533,7 +533,59 @@ class LeadsConfig:
     # not one task per new lead (two single-lead "batches" on 2026-10-03).
     outreach_min: int = 8
     outreach_max_wait_hours: int = 48
+    # Owner, 2026-10-07: "human team can verify the email and change status for Ready to send email (ceoA should create
+    # some task related to this for the human team with a reasonable short deadline as it is a priority)". With a
+    # column here, the outreach list is the board rows the Outreach Writer drafted (that column filled, not a "skip:")
+    # whose outreach_status_column is still empty: ONE review task a day, due the next day. "" = Lead Gen's leads.
+    outreach_draft_column: str = ""
+    outreach_status_column: str = "Status"
+    # Statuses that do not mean the email was reviewed (owner, 2026-10-07: "WhatsApp Verified" on the same column).
+    outreach_not_reviewed: list[str] = field(default_factory=lambda: ["WhatsApp Verified"])
+    # The Outreach Writer (owner, 2026-10-07): board rows whose Stage is draft_queue_stage and whose draft_queue_column is
+    # empty, oldest first, are its work list in every prompt (with website, pain point, package, evidence, founder).
+    # "" = off.
+    draft_queue_column: str = ""
+    # Owner, 2026-10-07: a phone number a page prints becomes the row's "Whatsapp" wa.me link; a national number gets
+    # this country code (the US: 1).
+    whatsapp_country_code: str = "1"
+    # The owner's Rates for the Outreach Writer's prompt: the "## Rates" section of this file, quoted with its work list.
+    rates_file: str = ""
+    draft_queue_stage: str = "New"
+    draft_queue_shown: int = 15
     decide_hint: str = "choose the package that fixes its pain point: update_lead with the exact business name and how_we_help = a package name from the packages page"
+
+
+@dataclass
+class SendConfig:
+    """Sending the first emails a person approved (owner, 2026-10-07: "update skill in a family member so that it can
+    send email and update the status as email sent" -> Brevo free plan, a copy to the owner the first week).
+
+    Not a model decision: an engine routine in the bot's loop sends, exactly as written, the Draft email of each Leads
+    row whose Status a PERSON set to status_ready, to that row's Business email, then sets status_sent and stage_sent.
+    Nothing is sent unless enabled, the key file, from_email and footer_address are all set. One email per business
+    ever, per_day at most, inside the business hours of `timezone` on weekdays, spacing_minutes apart. The draft is
+    re-checked by the Validator's write gate at send time; a failure is noted on the row, never retried blindly."""
+
+    enabled: bool = False
+    provider: str = "brevo"
+    key_file: str = ""
+    from_email: str = ""
+    from_name: str = ""  # FILL-ME: the name the emails are signed with
+    reply_to: str = ""  # "" = from_email
+    copy_to: str = ""  # a bcc of every email (the owner's first week); "" = none
+    footer_address: str = ""  # the company's postal address (CAN-SPAM); nothing is sent without it
+    opt_out_line: str = "If you'd rather not hear from us, reply \"no thanks\" and we won't write again."
+    per_day: int = 10
+    spacing_minutes: int = 5
+    timezone: str = "America/New_York"
+    hours: str = "09:00-17:00"
+    draft_column: str = "Draft email"
+    status_column: str = "Status"
+    status_ready: str = "Ready to Send Email"
+    status_sent: str = "Email Sent"
+    stage_column: str = "Stage"
+    stage_sent: str = "Contacted"
+    log_file: str = ""  # "" = <fleet>/common-data/shared-state/emails-sent.jsonl
 
 
 @dataclass
@@ -765,6 +817,7 @@ SECTIONS: dict[str, type] = {
     "notion": NotionConfig,
     "handoff": HandoffConfig,
     "leads": LeadsConfig,
+    "send": SendConfig,
     "scout": ScoutConfig,
     "messaging": MessagingConfig,
     "site_gate": SiteGateConfig,
@@ -789,6 +842,7 @@ class Config:
     notion: NotionConfig = field(default_factory=NotionConfig)
     handoff: HandoffConfig = field(default_factory=HandoffConfig)
     leads: LeadsConfig = field(default_factory=LeadsConfig)
+    send: SendConfig = field(default_factory=SendConfig)
     scout: ScoutConfig = field(default_factory=ScoutConfig)
     messaging: MessagingConfig = field(default_factory=MessagingConfig)
     site_gate: SiteGateConfig = field(default_factory=SiteGateConfig)

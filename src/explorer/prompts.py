@@ -57,9 +57,10 @@ UPDATE_TASK_ACTION_HELP = """- update_task: {"type":"update_task","title":"<exac
 PACE_MEMBER_ACTION_HELP = """- pace_member: {"type":"pace_member","name":"<family member>","mode":"pause"|"slow"|"resume","hours":4,"minutes_between_steps":10,"why":"<one line>"} : manage the family's resources. "pause" stops a member's work, "slow" spaces its steps out, each for `hours` (24 at most; it ends by itself); "resume" lifts a hold of yours early. Never a member the owner stopped or paused, never the Validator."""
 MERGE_TASK_ACTION_HELP = """- merge_task: {"type":"merge_task","title":"<a task of yours to close>","into":"<the task of yours that covers it>"} : close a board task another of your tasks already covers. First make sure `into` names every business and step the closed one has (add what is missing with update_task details_append); the engine checks, and refuses while anything would be lost. Only tasks nobody has started; at most three an episode."""
 
-LEAD_ACTION_HELP = """- lead: {"type":"lead","name":"...","website":"https://...","email":"hello@theirdomain.com","pain_point":"...","how_we_help":"<a package name from the packages page>","evidence":"https://...","location":"","industry":"","size":"","sources":["https://..."]} : list one potential customer on the owner's Leads board -- a business whose own site you read. Rules the policy enforces: the email must be a business address published on THEIR OWN site (a page you opened; hello@/info@/sales@ or a named address they publish), never guessed, never from a directory or a personal mailbox; no email = no lead. pain_point is what you saw on their pages that one of our packages fixes; evidence is the URL of the page that shows it; location/industry/size only as their pages state. One business once, at most one per episode."""
+LEAD_ACTION_HELP = """- lead: {"type":"lead","name":"...","website":"https://...","email":"hello@theirdomain.com","pain_point":"...","how_we_help":"<a package name from the packages page>","evidence":"https://...","location":"","industry":"","size":"","whatsapp":"","sources":["https://..."]} : list one potential customer on the owner's Leads board -- a business whose own site you read. Rules the policy enforces: the email must be a business address published on THEIR OWN site (a page you opened; hello@/info@/sales@ or a named address they publish), never guessed, never from a directory or a personal mailbox; no email = no lead. pain_point is what you saw on their pages that one of our packages fixes; evidence is the URL of the page that shows it; location/industry/size only as their pages state; whatsapp = the business's phone or WhatsApp number exactly as a page you opened prints it (their site, or a business listing; with its country code if shown), or empty. One business once, at most one per episode."""
 
-UPDATE_LEAD_ACTION_HELP = """- update_lead: {"type":"update_lead","name":"<exact business name of a row on the Leads board>","website":null,"email":null,"pain_point":null,"how_we_help":null,"evidence":null,"location":null,"industry":null,"size":null,"founded_by":null,"sources":null} : fill or fix a row on the Leads board -- only the fields you give change. The Validator's upkeep list names the rows and their empty cells: open the business's website, then search it by name, and give only what a page states. location is "City, State, Country", size "~40 locations" or "120 staff", industry the trade in a few words, founded_by the founder's name as a page states it, evidence a page on their own site showing the problem. An email must be published on the business's own site on a page you opened; evidence and sources must be pages you opened; how_we_help a package name. An empty cell is honest; an invented value is the one thing the owner will not forgive."""
+DRAFT_EMAIL_ACTION_HELP = """- update_lead: {"type":"update_lead","name":"<exact business name from your work list>","draft_email":"<the email>"} : write the first email for one business on your work list into its "Draft email" cell -- the only cell you write. Open the business's own pages (website, evidence) first. If the pain point is not really visible there, write draft_email = "skip: <one line why>" instead. Nobody is sent anything: the team reads the draft and sends it."""
+UPDATE_LEAD_ACTION_HELP = """- update_lead: {"type":"update_lead","name":"<exact business name of a row on the Leads board>","website":null,"email":null,"pain_point":null,"how_we_help":null,"evidence":null,"location":null,"industry":null,"size":null,"founded_by":null,"whatsapp":null,"sources":null} : fill or fix a row on the Leads board -- only the fields you give change. The Validator's upkeep list names the rows and their empty cells: open the business's website, then search it by name, and give only what a page states. location is "City, State, Country", size "~40 locations" or "120 staff", industry the trade in a few words, founded_by the founder's name as a page states it, whatsapp the business's phone number as a page you opened prints it (the engine makes the WhatsApp link), evidence a page on their own site showing the problem. An email must be published on the business's own site on a page you opened; evidence and sources must be pages you opened; how_we_help a package name. An empty cell is honest; an invented value is the one thing the owner will not forgive."""
 
 PROVIDER_ACTION_HELP = """- provider: {"type":"provider","name":"...","base_url":"https://...","free_terms":"...","needs_card":false,"models":["..."],"category":"model|search|data|verification|tool","why":"...","sources":["https://..."]} : record a free, card-free provider or tool you found -- an AI model API, a search or page-reader API, a data or verification API -- for the owner to review and maybe add. `category` says which: "model" ONLY for an API that serves AI models; an email checker is "verification". `models` holds model ids or, for a tool, its capabilities. Only from pages you actually read (sources), only a durable free tier with no card, at most one per episode, never one already in the report or declined."""
 
@@ -158,6 +159,7 @@ def system_prompt(
     package_page: bool = False,
     team: str = "",
     leads_enabled: bool = False,
+    draft_writer: bool = False,
     desktop_remote: bool = False,
     work_plan: str = "",
     plans_enabled: bool = False,
@@ -237,7 +239,9 @@ def system_prompt(
         actions += "\n" + PACKAGE_ACTION_HELP.replace("{to_name}", handoff_to)
     if package_page:
         actions += "\n" + PUBLISH_PACKAGE_ACTION_HELP
-    if leads_enabled:
+    if leads_enabled and draft_writer:
+        actions += "\n" + DRAFT_EMAIL_ACTION_HELP
+    elif leads_enabled:
         actions += "\n" + LEAD_ACTION_HELP + "\n" + UPDATE_LEAD_ACTION_HELP
     if message_peers or message_room:
         targets = list(message_peers or [])
@@ -347,6 +351,7 @@ class Observation:
     decide_lines: list[str] = field(default_factory=list)  # board rows waiting for this bot's decision ([leads] decide_glob)
     outreach_lines: list[str] = field(default_factory=list)  # leads no task of this bot names yet ([leads] outreach_from)
     outreach_total: int = 0
+    outreach_review: bool = False  # the list is drafted first emails to review, not leads ([leads] outreach_draft_column)
     decide_hint: str = ""
     dead_ends: list[str] = field(default_factory=list)  # today's repeated refusals of the same target, so a new episode does not retry them
 
@@ -392,7 +397,14 @@ class Observation:
         if self.decide_lines:
             lines.append(f"Leads-board rows waiting for your decision ({self.decide_hint}):")
             lines.extend(f"- {c}" for c in self.decide_lines)
-        if self.outreach_lines:
+        if self.outreach_lines and self.outreach_review:
+            lines.append(f"First-email drafts waiting for the team's review ({self.outreach_total}; the Outreach Writer wrote them in the "
+                         "Leads board's \"Draft email\" column). PRIORITY: cover them with ONE `task` for a person on the human team -- "
+                         "title \"Outreach: review N first-email drafts\", priority P1, due tomorrow, and in the details one line per "
+                         "business with its row link, plus the steps: open the row, read and correct the draft, check it against the "
+                         "business's own page, then set Status to \"Ready to Send Email\" (or leave it and note why). Never one task per lead:")
+            lines.extend(f"- {c}" for c in self.outreach_lines)
+        elif self.outreach_lines:
             lines.append(f"Leads no task of yours names yet ({self.outreach_total}). Cover the ones below with ONE `task` for the human "
                          "team -- title \"Outreach: <first business> and N more\", and for each lead a line with its email, package, "
                          "row link and the angle to open with -- never one task per lead:")

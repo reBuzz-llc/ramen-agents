@@ -198,6 +198,7 @@ class Lead(BaseModel):
     industry: str = ""  # what they do, in a few words
     size: str = ""  # team size, only if stated
     sources: list[str] = Field(default_factory=list)  # the pages read (contact page, about page, ...)
+    whatsapp: str = ""  # the business's phone or WhatsApp number as a page you opened prints it; the engine makes the wa.me link
 
 
 class UpdateLead(BaseModel):
@@ -216,6 +217,8 @@ class UpdateLead(BaseModel):
     founded_by: str | None = None  # the founder's name as a page states it (owner's "Founded by" column, 2026-09-25)
     size: str | None = None
     sources: list[str] | None = None  # pages read (contact page, about page, ...)
+    whatsapp: str | None = None  # the business's phone or WhatsApp number as a page you opened prints it
+    draft_email: str | None = None  # a first email for the team to send (Outreach Writer only), or "skip: <why>"
 
 
 class SourceCompany(BaseModel):
