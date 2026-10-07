@@ -95,10 +95,25 @@ def same_ask(a: str, b: str) -> bool:
     return bool(wx and wy) and len(wx & wy) / len(wx | wy) >= 0.5
 
 
+# Progress reports that open like this ask nothing -- when they carry no question mark. 2026-10-07: 21 of the 38 open
+# requests on the owner's Requests page were the Package Designer's reports to The CEO ("Handed The CEO ...", "Compared
+# ...", "Could not find ...", "Will compare ...", "new package ...") sitting open for two days.
+REPORT_OPENERS = re.compile(
+    r"^\s*(handed|compared|updated|sent |proposed|ready to|will |could not|couldn't|did not find|found |i found|i've found|"
+    r"i have found|i compared|i updated|i sent|i handed|new package |published|listed|finished|completed|started)", re.I)
+
+
 def is_status_note(text: str) -> bool:
     """A message that reports what the sender did ("Checked the Builtin jobs page, not relevant") asks nothing of
     the reader; it is information, never a request and never a priority (The CEO sent nine of them on 2026-09-25)."""
     return bool(STATUS_OPENERS.match(text or ""))
+
+
+def is_notice(text: str) -> bool:
+    """On the requests record only: a status note, or a progress report with no question in it. Kept apart from
+    is_status_note, which also decides when a message is unsolicited (policy)."""
+    t = text or ""
+    return is_status_note(t) or ("?" not in t and bool(REPORT_OPENERS.match(t)))
 
 
 @dataclass
@@ -162,7 +177,7 @@ class RequestLog:
     def record(self, id: str, sender: str, to: str, text: str) -> Request:
         """On record. A notice ("the owner dropped a file for you", "Responded to ...") is closed at once: it is
         information, never an ask, so it must not sit open on the owner's Requests page (five did, 2026-09-25)."""
-        notice = is_status_note(text)
+        notice = is_notice(text)
         priority = sender.strip().lower() in {p.strip().lower() for p in self.priority_senders} and not notice
         self._append({"kind": "request", "id": id, "from": sender, "to": to, "text": text.strip()[:900], "priority": priority})
         if notice:

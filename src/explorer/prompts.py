@@ -348,6 +348,7 @@ class Observation:
     known_finds: str | None = None  # the scout's report so far, by name: what it must not record again
     family_line: str | None = None  # which colleagues are running, paused or stopped right now (when any is not running)
     candidate_lines: list[str] = field(default_factory=list)  # the next businesses to open from the daily candidates file
+    noted_lines: list[str] = field(default_factory=list)  # business emails in this bot's notes never listed ([leads] noted_shown)
     decide_lines: list[str] = field(default_factory=list)  # board rows waiting for this bot's decision ([leads] decide_glob)
     outreach_lines: list[str] = field(default_factory=list)  # leads no task of this bot names yet ([leads] outreach_from)
     outreach_total: int = 0
@@ -409,6 +410,10 @@ class Observation:
                          "team -- title \"Outreach: <first business> and N more\", and for each lead a line with its email, package, "
                          "row link and the angle to open with -- never one task per lead:")
             lines.extend(f"- {c}" for c in self.outreach_lines)
+        if self.noted_lines:
+            lines.append("Leads you noted but never listed (finish these first, oldest first: open the page, check the email is "
+                         "published on the business's own site, then `lead`; one that fails the lead rule, leave):")
+            lines.extend(f"- {c}" for c in self.noted_lines)
         if self.candidate_lines:
             lines.append("Businesses to open next (from the city's record in your files; open the address, a lead only if the "
                          "site itself publishes a business email):")

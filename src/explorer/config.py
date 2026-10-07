@@ -510,6 +510,10 @@ class LeadsConfig:
     # and never opened the 150 real businesses sitting in its own files (2026-09-29/30). "" = off.
     candidates_glob: str = ""
     candidates_shown: int = 5
+    # Owner, 2026-10-07 (via appCC: Lead Gen's notes held 16 business emails it never listed): business emails in this
+    # bot's own notes whose domain is neither among its leads nor on the board are shown as leads still to finish,
+    # oldest first, until listed or refused twice. 0 = off.
+    noted_shown: int = 0
     # Owner, 2026-10-02: a lead's email is checked with a verification service before the row is written
     # (email_verify.py; QuickEmailVerification, 100 free checks a day, key in this file). "" = off. A result in
     # email_verify_refuse stops the lead ("invalid": the mailbox does not exist; disposable addresses are refused too);
@@ -556,6 +560,11 @@ class LeadsConfig:
     whatsapp_country_code: str = "1"
     # The owner's Rates for the Outreach Writer's prompt: the "## Rates" section of this file, quoted with its work list.
     rates_file: str = ""
+    # The mirrored Packages page: each "## <title>" section's "Ready-to-send email" goes into the Outreach Writer's work
+    # list next to the rows of that package (2026-10-07: it spent most of its steps hunting for the template).
+    # package_aliases maps a board "How we can help" name to the start of its toggle title on the page.
+    package_emails_file: str = ""
+    package_aliases: dict[str, str] = field(default_factory=dict)
     draft_queue_stage: str = "New"
     draft_queue_shown: int = 15
     decide_hint: str = "choose the package that fixes its pain point: update_lead with the exact business name and how_we_help = a package name from the packages page"
