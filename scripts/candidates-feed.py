@@ -27,6 +27,7 @@ import argparse
 import datetime as dt
 import json
 import re
+import sqlite3
 import ssl
 import sys
 import time
@@ -146,6 +147,78 @@ def freeserp_candidates(src: dict, target: dict, seen_hosts: set[str], done: set
     return out
 
 
+def lead_gen_hosts() -> set[str]:
+    """Every site Lead Gen has already opened: a candidate it has seen is not news."""
+    try:
+        con = sqlite3.connect(f"file:{BOTS / 'lead-gen' / 'workspace' / 'explorer.sqlite3'}?mode=ro", uri=True, timeout=5)
+        try:
+            return {str(d).lower().removeprefix("www.") for (d,) in con.execute("SELECT DISTINCT domain FROM visits") if d}
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return set()
+
+
+def overture_candidates(src: dict, target: dict, zip_areas: dict[str, str], seen_hosts: set[str], done: set[str], limit: int) -> list[dict]:
+    """Open places from the local Overture Maps snapshot (scripts/places_snapshot.py, weekly): open, a website, confidence at
+    least min_confidence, inside the target's areas by ZIP, not a chain (a website shared by several places), not a kind
+    of place that is not a business (min list in [sources.overture] exclude), not sent before, not opened by Lead Gen."""
+    db = Path(str(src.get("db", ""))).expanduser()
+    if not db.is_file():
+        print(f"overture: no snapshot at {db}")
+        return []
+    want = {a.strip().lower() for a in str(target.get("areas", "")).split(",") if a.strip()}
+    width = len(next(iter(zip_areas), "")) or 3
+    exclude = [str(x).lower() for x in src.get("exclude", [])]
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = con.execute(
+            "SELECT id, name, category, website, postcode FROM places WHERE status = 'open' AND website IS NOT NULL "
+            "AND website != '' AND confidence >= ? ORDER BY confidence DESC, id",
+            (float(src.get("min_confidence", 0.8)),),
+        ).fetchall()
+        # A name on many places is a chain even when each branch has its own address (Petco, a State Farm agent).
+        chains = {n for (n,) in con.execute("SELECT name_norm FROM places GROUP BY name_norm HAVING COUNT(*) > ?",
+                                             (int(src.get("max_places_per_name", 2)),)) if n}
+        norm = dict(con.execute("SELECT id, name_norm FROM places WHERE status = 'open' AND website IS NOT NULL"))
+        # ...and so is a brand whose branches carry a suffix ("Nudie Jeans Bedford", "Barry's East 64th").
+        stem = lambda n: " ".join(str(n or "").split()[:2])  # noqa: E731
+        stems: dict[str, int] = {}
+        for (n,) in con.execute("SELECT name_norm FROM places"):
+            if n and len(str(n).split()) > 2:
+                stems[stem(n)] = stems.get(stem(n), 0) + 1
+    finally:
+        con.close()
+    by_host: dict[str, list] = {}
+    for pid, name, category, site, postcode in rows:
+        url = website(site or "")
+        if not url:
+            continue
+        host = urllib.parse.urlparse(url).netloc.lower().removeprefix("www.")
+        by_host.setdefault(host, []).append((pid, name, category or "", url, str(postcode or "")))
+    max_places = int(src.get("max_places_per_site", 2))
+    skip = seen_hosts | done | lead_gen_hosts()
+    out: list[dict] = []
+    for host, places in by_host.items():
+        if len(places) > max_places or host in skip:
+            continue  # a chain's site, or already sent or opened
+        pid, name, category, url, postcode = places[0]
+        n = norm.get(pid)
+        if n in chains or stems.get(stem(n), 0) > int(src.get("max_places_per_name", 2)):
+            continue
+        if urllib.parse.urlparse(url).path.strip("/").count("/") >= 1:
+            continue  # a branch page deep inside a brand's site, not a business's own site
+        url = urllib.parse.urlunparse(urllib.parse.urlparse(url)._replace(query="", fragment=""))
+        area = zip_areas.get(postcode[:width], "")
+        trade = category.replace("_", " ")
+        if not area or (want and area.lower() not in want) or any(x in category.lower() for x in exclude):
+            continue
+        out.append({"host": host, "name": clean(name), "area": area, "trade": trade, "url": url})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--dry-run", action="store_true", help="print the slice; write nothing")
@@ -159,7 +232,8 @@ def main(argv: list[str] | None = None) -> int:
     conf = tomllib.loads(FEEDS.read_text(encoding="utf-8"))
     feed = conf.get("feeds", {}).get(market)
     fs = conf.get("sources", {}).get("freeserp", {})
-    if not market or (not feed and not fs.get("enabled")):
+    ov = conf.get("sources", {}).get("overture", {})
+    if not market or (not feed and not fs.get("enabled") and not ov.get("enabled")):
         print(f"no candidates source for market {market!r} in {FEEDS.name}; nothing to do")
         return 0
 
@@ -178,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     mine = state.get(market, {})
     emitted: set[str] = set(mine.get("emitted", []))
     fs_done: set[str] = set(mine.get("freeserp_emitted", []))
+    ov_done: set[str] = set(mine.get("overture_emitted", []))
     hosts: set[str] = set()
     sections: list[str] = []
 
@@ -231,7 +306,19 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(f"{market}: freeserp {len(found)} new sites")
 
-    total = len(pick) + len(found)
+    # 3. Overture Maps' open places (a local weekly snapshot), for a market that has one.
+    places: list[dict] = []
+    if ov.get("enabled") and (not ov.get("market") or ov.get("market") == market):
+        places = overture_candidates(ov, target, (feed or {}).get("areas", {}), hosts | {c["host"] for c in found}, ov_done, int(ov.get("rows_per_day", 100)))
+        if places:
+            sections.append(
+                "## From Overture Maps (open places data)\n\nFormat: name | area | kind of place | website. The map's "
+                "own details (phone, email, category) are a hint where to look, never a value to copy.\n\n"
+                + "\n".join(f"- {c['name']} | {c['area']} | {c['trade']} | {c['url']}" for c in places)
+            )
+        print(f"{market}: overture {len(places)} new sites")
+
+    total = len(pick) + len(found) + len(places)
     text = (
         f"# Small business candidates: {market} ({today})\n\n"
         f"{total} businesses in {market}, each with its own website. These are CANDIDATES, not leads: open the website, "
@@ -252,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     state[market] = {
         "emitted": sorted(emitted | {rid for _, rid, *_ in pick}),
         "freeserp_emitted": sorted(fs_done | {c["host"] for c in found}),
+        "overture_emitted": sorted(ov_done | {c["host"] for c in places}),
         "last_run": dt.datetime.now().isoformat(timespec="seconds"),
         "last_file": today_file.name,
         "remaining": len(fresh) - len(pick),
@@ -260,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=1), encoding="utf-8")
     tmp.replace(STATE)
-    print(f"wrote {today_file} ({len(pick)} open data + {len(found)} freeserp)")
+    print(f"wrote {today_file} ({len(pick)} open data + {len(found)} freeserp + {len(places)} overture)")
     return 0
 
 

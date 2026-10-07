@@ -21,7 +21,13 @@ export type LeadResults = { ready: boolean; reason: string; total: number; stage
   // Leads whose own site publishes a WhatsApp link ("Whatsapp" column, owner 2026-10-07); null until the column exists.
   whatsapp: number | null;
   // Rows the owner checked by hand in WhatsApp Web (Status "WhatsApp Verified", 2026-10-07). Not a review of the email.
-  whatsappVerified: number };
+  whatsappVerified: number;
+  // Numbers a person found are not on WhatsApp: the Validator clears those rows and keeps the numbers in
+  // shared-state/whatsapp-false-numbers.json (2026-10-07), so the count comes from that list, not the Status.
+  whatsappFalse: number;
+  // Businesses Lead Gen noted with an email but never listed (engine writes shared-state/lead-gen-noted.json each cycle).
+  noted: NotedLeads | null };
+export type NotedLeads = { waiting: number; oldest: string; titles: string[] };
 
 const g = globalThis as { __leadResults?: { at: number; data: LeadResults } };
 
@@ -36,9 +42,29 @@ function text(p: Record<string, unknown> | undefined): string {
   return "";
 }
 
+async function notedLeads(): Promise<NotedLeads | null> {
+  try {
+    const raw = await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "shared-state", "lead-gen-noted.json"), "utf8");
+    const items = ((JSON.parse(raw) as { items?: { title?: string; noted_at?: string }[] }).items ?? []).filter((i) => i && typeof i === "object");
+    const dates = items.map((i) => String(i.noted_at ?? "")).filter(Boolean).sort();
+    return { waiting: items.length, oldest: dates[0] ?? "", titles: items.slice(0, 5).map((i) => String(i.title ?? "")) };
+  } catch {
+    return null;
+  }
+}
+
+async function falseNumbers(): Promise<number> {
+  try {
+    const raw = await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "shared-state", "whatsapp-false-numbers.json"), "utf8");
+    return Object.keys(JSON.parse(raw) as Record<string, unknown>).length;
+  } catch {
+    return 0;
+  }
+}
+
 export async function leadResults(): Promise<LeadResults> {
   if (g.__leadResults && Date.now() - g.__leadResults.at < 10 * 60 * 1000) return g.__leadResults.data;
-  const empty = (reason: string): LeadResults => ({ ready: false, reason, total: 0, stages: STAGES, bySource: [], byIndustry: [], drafts: null, whatsapp: null, whatsappVerified: 0 });
+  const empty = (reason: string): LeadResults => ({ ready: false, reason, total: 0, stages: STAGES, bySource: [], byIndustry: [], drafts: null, whatsapp: null, whatsappVerified: 0, whatsappFalse: 0, noted: null });
   let key = "";
   try {
     key = (await readFile(/*turbopackIgnore: true*/ KEY_FILE, "utf8")).trim();
@@ -117,7 +143,9 @@ export async function leadResults(): Promise<LeadResults> {
   const sort = (m: Map<string, ResultGroup>) => [...m.values()].sort((a, b) => b.leads - a.leads);
   const data: LeadResults = { ready: true, reason: "", total: rows.length, stages: STAGES, bySource: sort(groups.source), byIndustry: sort(groups.industry).slice(0, 8), drafts,
     whatsapp: rows.some((p) => "Whatsapp" in p) ? rows.filter((p) => text(p.Whatsapp).trim()).length : null,
-    whatsappVerified: rows.filter((p) => text(p.Status) === "WhatsApp Verified").length };
+    whatsappVerified: rows.filter((p) => text(p.Status) === "WhatsApp Verified").length,
+    whatsappFalse: await falseNumbers(),
+    noted: await notedLeads() };
   g.__leadResults = { at: Date.now(), data };
   return data;
 }

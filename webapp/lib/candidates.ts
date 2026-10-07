@@ -25,6 +25,7 @@ const host = (u: string) => {
 
 function sourceOf(heading: string): string {
   if (/freeserp/i.test(heading)) return "FreeSerp";
+  if (/overture/i.test(heading)) return "Overture Maps";
   if (/open data|city/i.test(heading)) return "City open data";
   return heading.replace(/^##\s*From\s*/i, "").slice(0, 40) || "Candidates";
 }
