@@ -131,3 +131,11 @@ def test_a_task_about_a_validator_flag_is_refused():
     r = gate.check("task", {"type": "task", "title": "Fix CEO-121 Task Format Checklist Items", "details": "x"}, bot="the-ceo")
     assert any(x.startswith("MG04") and "update_task" in x for x in r), r
     assert gate.check("task", {"type": "task", "title": "Outreach: Harbor Restaurant and 4 more", "details": "x"}, bot="the-ceo") == []
+
+
+def test_research_for_a_person_is_refused_as_family_work():
+    r = gate.check("task", {"type": "task", "title": "Organize Trending AI Agent Services by Category for Local Clients",
+                            "assignee": "Alex Stone"})
+    assert any(x.startswith("MG04") for x in r)
+    assert not gate.family_work({"title": "Outreach: Sweet Corner and 4 more"})
+    assert not gate.family_work({"title": "Call Poplar Books about the menu"})
