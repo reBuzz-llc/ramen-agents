@@ -3,23 +3,24 @@
 
 An optional member: it writes one first email per new lead into the Leads board's "Draft email" column. A person on
 the team reads it, edits it if needed and sends it. The bot never contacts a business. Its sign-off lines are set in
-this folder's config.toml ([validator] draft_signoff, e.g. ["Regards,", "Alex", "-- Acme LLC"]).
+this folder's config.toml ([validator] draft_signoff, e.g. ["Regards,", "Alex", "-- Acme LLC"]); your own WhatsApp link
+in draft_whatsapp, and the phrases every draft keeps from the package email in draft_spine_phrases.
 
 ## The Draft email cell (refused at write time where marked; the rest flagged in the sweep)
 
-- OW01 — The draft ends with the sign-off lines in [validator] draft_signoff, exactly, on their own lines. Not checked while draft_signoff is empty. Refused at write time.
+- OW01 — The draft ends with the sign-off lines in [validator] draft_signoff, exactly, on their own lines, optionally followed by one line "WhatsApp: <draft_whatsapp>". Not checked while draft_signoff is empty. Refused at write time.
 - OW02 — A price in the draft is one of the owner's Rates on "What we have" (the-ceo/raw/what-we-have.md, "## Rates"); with no rate, "priced after a short call". An invented or market price is refused at write time.
 - OW03 — The greeting names the row's Founded by person (first name), or the business's team ("Hi <Business> team"). A name the row doesn't hold is invented.
-- OW04 — No email address and no phone number in the draft: the team sends from its own mailbox, and personal data stays off the board. Refused at write time.
-- OW05 — No links except the business's own site (when quoting what was seen there) and the row's own Whatsapp link. [warn]
+- OW04 — No email address, phone number or wa.me link in the draft (your own draft_whatsapp link excepted): the team sends from its own mailbox, and personal data stays off the board. Refused at write time.
+- OW05 — No links except the business's own site (when quoting what was seen there) your own draft_whatsapp link, and the row's own wa.me link, unless the team marked the row "False Whatsapp Number". [warn]
 - OW06 — Under 300 words: the package's ready-to-send email plus one opening line. [warn]
-- OW09 — The draft is built on the package's "Ready-to-send email" on the Packages page (the package in "How we can help"): "[Name]" becomes the Founded by person (or "<Business> team"), one opening line names a concrete thing seen on their own page, and the package's numbered list stays as The CEO wrote it. A lead whose package has no toggle on the page gets "skip: no package email yet".
+- OW09 — The draft is built on the package's "Ready-to-send email" on the Packages page (the package in "How we can help"): "[Name]" becomes the Founded by person (or "<Business> team"), one opening line names a concrete thing seen on their own page, and the package's numbered list and the rest of its body stay as The CEO wrote them. Every draft keeps 2-6 numbered points and each phrase in draft_spine_phrases (e.g. the co-founders' names, the portfolio figure). A lead whose package has no toggle on the page gets "skip: no package email yet".
 - OW07 — It writes only the Draft email cell, through update_lead with draft_email. Any other field or action (a lead, a task, a package, Stage, Result) is refused at write time.
-- A "skip: <why>" note in the cell is the bot's verdict that the row's pain point is not visible on the business's own pages. It is not checked as an email.
+- The pain point is the family's own gap analysis: no business writes its problem on its own site. Look at the business's whole public presence -- its own site, its Google Maps / Business Profile listing, its social pages, review and delivery listings -- read in public, never logged in. Google Maps rarely opens for the bots, so Google's own result snippet of rating, hours or review count may stand in for it, said as "on Google"; anything else must come from a page actually opened. Compare what they have and lack (online ordering, booking, WhatsApp, a working contact form, a current site, menus as text not PDF, its own ordering instead of only delivery apps) against what the package delivers, and name one or two of those gaps, stated as observed ("I couldn't find ..."), never as the business's own words. Skip only when the site cannot be opened or the business is outside the target. A "skip: <why>" note is not checked as an email.
 
 ## Model-judged (plain-English questions; used only when use_model = true)
 
-- Does the draft name a problem that the business's own page actually shows?
+- Does the opening line describe something the business's pages have or lack, as observed on pages that were opened -- its site, maps listing, social or review pages (e.g. "your menu is a PDF", "your Google listing has no website link", "I couldn't find online booking on your site"), without inventing a fact or claiming the business said it has a problem?
 
 ## Owner notes (not checked automatically)
 

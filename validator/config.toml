@@ -29,6 +29,9 @@ max_messages_per_bot_per_day = 3
 max_flags_per_message = 3
 own_domains = []                # FILL-ME: your own site's domain(s)
 package_signoff = []            # e.g. ["Regards,", "-- Your Company"]; empty = the sign-off is not checked
+draft_signoff = []              # the Outreach Writer's sign-off lines, e.g. ["Regards,", "Alex", "-- Acme LLC"]; empty = not checked
+draft_whatsapp = ""             # your own wa.me link a draft may end with ("WhatsApp: <link>"), e.g. "https://wa.me/12125550100"; "" = none
+draft_spine_phrases = []        # phrases (regex) every draft keeps from the package email, e.g. ["\\bAlex\\b", "500,000"]
 message_only_since = ""         # set a date (YYYY-MM-DD) to report, never message, anything made before it
 legacy_kinds = ["package_file", "provider", "task", "package"]
 lead_message_only_since = ""

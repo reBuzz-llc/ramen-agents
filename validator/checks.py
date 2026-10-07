@@ -440,6 +440,8 @@ def _same_site(a: str, b: str) -> bool:
 
 WHAT_WE_HAVE = Path.home() / "bots" / "the-ceo" / "raw" / "what-we-have.md"
 DRAFT_SIGNOFF: list[str] = []   # the Outreach Writer's sign-off lines ([validator] draft_signoff); [] = not checked
+OUR_WHATSAPP = ""          # the team's own wa.me link ([validator] draft_whatsapp); the only number a draft may carry
+DRAFT_SPINE: list[str] = []     # phrases (regex) every draft keeps from the package email ([validator] draft_spine_phrases)
 DRAFT_MAX_WORDS = 300      # the package's ready-to-send email plus one opening line
 _MONEY = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kK]?")
 _DRAFT_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
@@ -464,17 +466,22 @@ def rate_figures(path: Path = WHAT_WE_HAVE) -> set[str]:
 
 
 def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: set[str] | None = None,
-                 whatsapp: str = "") -> list[tuple[str, str]]:
+                 whatsapp: str = "", status: str = "") -> list[tuple[str, str]]:
     """(rule, detail) for an Outreach Writer draft. A "skip: ..." note is the bot's verdict, not an email: nothing to check."""
     text = (draft or "").strip()
     if not text or text.lower().startswith("skip:"):
         return []
     out: list[tuple[str, str]] = []
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if OUR_WHATSAPP and lines and lines[-1] == f"WhatsApp: {OUR_WHATSAPP}":
+        lines = lines[:-1]                      # the sign-off may end with the team's own WhatsApp line
     if DRAFT_SIGNOFF and lines[-len(DRAFT_SIGNOFF):] != DRAFT_SIGNOFF:
         out.append(("OW01", "the draft does not end with '" + "' / '".join(DRAFT_SIGNOFF) + "' on their own lines"))
-    if not 2 <= len(_NUMBERED.findall(text)) <= 6:
-        out.append(("OW09", "not built on the package's ready-to-send email (its numbered list is missing)"))
+    # every draft carries the package email's spine: its numbered points and the phrases in draft_spine_phrases
+    missing = ([] if 2 <= len(_NUMBERED.findall(text)) <= 6 else ["numbered points"]) + [
+        p for p in DRAFT_SPINE if not re.search(p, text, re.I)]
+    if missing:
+        out.append(("OW09", "not built on the package email: missing " + ", ".join(missing)))
     rates = rate_figures() if rates is None else rates
     bad = [m for m in _MONEY.findall(text) if _money(m) not in rates]
     if bad:
@@ -484,13 +491,17 @@ def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: 
         first = (founded_by or "").split()[0].strip(",").lower() if founded_by.strip() else ""
         if g.group(1).lower() != first and not g.group(1).lower() in (founded_by or "").lower():
             out.append(("OW03", f"greets '{g.group(1)}', who is not the row's Founded by ('{founded_by or 'empty'}')"))
-    personal = _DRAFT_EMAIL.findall(text) + _DRAFT_PHONE.findall(text)
+    bare = text.replace(OUR_WHATSAPP, "") if OUR_WHATSAPP else text
+    personal = _DRAFT_EMAIL.findall(bare) + _DRAFT_PHONE.findall(bare) + [
+        m.group(0) for m in re.finditer(r"(?<![\w/])\+?\d[\d\s().-]{8,}\d", bare) if len(re.sub(r"\D", "", m.group(0))) >= 10] + re.findall(
+        r"(?:wa\.me/|whatsapp\.com/send/?\?phone=)\+?\d{7,15}", bare, re.I)
     if personal:
         out.append(("OW04", "contact details in the draft: " + ", ".join(personal[:2])))
     site = domain(website) if website else ""
-    wa = (whatsapp or "").strip().rstrip("/")
+    false_wa = status.strip().lower() == "false whatsapp number"     # a person found the row's link doesn't reach WhatsApp
+    wa = "" if false_wa else (whatsapp or "").strip().rstrip("/")
     links = [u for u in _DRAFT_LINK.findall(text) if (not site or domain(u if u.startswith("http") else "https://" + u) != site)
-             and not (wa and u.rstrip("/.,)") == wa)]
+             and not (wa and u.rstrip("/.,)") == wa) and not (OUR_WHATSAPP and u.rstrip("/.,)") == OUR_WHATSAPP)]
     if links:
         out.append(("OW05", "links other than the business's own site: " + ", ".join(u[:50] for u in links[:2])))
     words = len(re.findall(r"\w+", text))
@@ -542,7 +553,7 @@ def stale_emailed(ld: LeadRow, today: dt.date | None = None) -> str:
 def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplicate_of: list[str]) -> list[Flag]:
     f = lambda rid, detail: ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, when=ld.created[:10], name=ld.business)  # noqa: E731
     out: list[Flag] = []
-    for rid, detail in draft_issues(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp):
+    for rid, detail in draft_issues(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp, status=ld.status):
         out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot="outreach-writer",
                                 when=ld.created[:10], name=ld.business))
     wa = whatsapp_shape(ld.whatsapp)

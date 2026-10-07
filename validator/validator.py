@@ -19,6 +19,8 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+
+import httpx
 import logging
 import os
 import re
@@ -184,11 +186,14 @@ class Run:
         own = list(self.s["own_domains"])
         checks.SIGNOFF = [str(x) for x in self.s.get("package_signoff") or []]
         checks.DRAFT_SIGNOFF = [str(x) for x in self.s.get("draft_signoff") or []]
+        checks.OUR_WHATSAPP = str(self.s.get("draft_whatsapp") or "").strip().rstrip("/")
+        checks.DRAFT_SPINE = [str(x) for x in self.s.get("draft_spine_phrases") or []]
         checks.PROOF_FIGURES = {str(x) for x in self.s.get("package_allowed_figures") or []}
         self._process_inbox()
         self._family_check()
         if self.args.inbox:
             self._leads_quick_look()
+            self._clear_false_whatsapp()
             return
         self._gather_notion(own)
         folder = BOTS / self.s["task_owner_bot"] / "raw" / "packages"
@@ -240,6 +245,31 @@ class Run:
             if flag:
                 self.current.append(flag)
         self.notes.append(family.summary(asks, self.now))
+
+    def _clear_false_whatsapp(self) -> None:
+        """Rows the team marked "False Whatsapp Number": rule the number out, clear the cell and the Status, and ask
+        Lead Gen once for another number (owner, 2026-10-07). The Validator's one write to the Leads board."""
+        ds = self.s.get("leads_data_source_id")
+        if not ds:
+            return
+        from whatsapp_false import ask_text, clear_false
+        try:
+            cleared = clear_false(ds, now=self.now, api_version=self.s["notion_api_version"], dry_run=self.args.dry_run)
+        except (OSError, httpx.HTTPError, KeyError, ValueError) as exc:
+            self.errors.append(f"false-WhatsApp clean-up failed: {exc}")
+            return
+        if not cleared:
+            return
+        self.counts["false whatsapp cleared"] = len(cleared)
+        self.posts.append(f"Cleared {len(cleared)} Whatsapp numbers the team marked False; Lead Gen asked to look for others")
+        slug = str(self.s.get("lead_owner_bot", "lead-gen"))
+        if self.args.dry_run or (BOTS / slug / "workspace" / "STOP").exists():
+            return
+        try:
+            from explorer.handoff import send_message
+            send_message(BOTS / slug, SENDER, ask_text(cleared), now=self.now)
+        except OSError as exc:
+            self.errors.append(f"message to {slug} failed: {exc}")
 
     def _leads_quick_look(self) -> None:
         """On the 10-minute loop: only rows edited since the last look, for the deleted-cell verdicts and the
@@ -601,7 +631,7 @@ class Run:
         from email_check import verify_whatsapp
         from checks import check_lead_whatsapp_published
         # a row the team marked "WhatsApp Verified" was confirmed by a person in WhatsApp Web: no page proof needed
-        rows = [ld for ld in leads if ld.whatsapp.strip() and ld.website.strip() and ld.status.strip().lower() != "whatsapp verified"]
+        rows = [ld for ld in leads if ld.whatsapp.strip() and ld.website.strip() and ld.status.strip().lower() not in ("whatsapp verified", "false whatsapp number")]
         if not rows or "LD20" not in self.ins.rules:
             return
         cache: dict[str, Any] = self.state.setdefault("whatsapp_verdicts", {})
