@@ -215,3 +215,26 @@ def test_an_undeliverable_email_stops_the_lead_and_a_good_one_is_noted_on_the_ro
     assert not r.ok and "does not take mail" in r.summary and notion.rows == []
     c._verify_lead_email = lambda email: {"result": "valid", "reason": "accepted_email", "accept_all": False, "at": "2026-10-02T10:00:00"}
     assert c._execute_lead(lead(), ep).ok and notion.rows[0]["Email check"] == "deliverable, checked 2026-10-02"
+
+
+def test_a_whatsapp_number_a_page_prints_becomes_a_wa_me_link():
+    """Owner, 2026-10-07: a found number becomes the row's wa.me link; a missing country code is read as US (+1)."""
+    from explorer.whatsapp import on_page, wa_link
+
+    assert wa_link("(212) 555-0187") == "https://wa.me/12125550187"
+    assert wa_link("1-212-555-0187") == "https://wa.me/12125550187"
+    assert wa_link("+44 20 7946 0958") == "https://wa.me/442079460958"
+    assert wa_link("0044 20 7946 0958") == "https://wa.me/442079460958"
+    assert wa_link("https://wa.me/9779812345678") == "https://wa.me/9779812345678"
+    assert wa_link("555-0187") is None  # no area code: not a number we can place
+    page = "Call us at (212) 555-0187 or visit 12 Court St."
+    assert on_page(wa_link("212.555.0187"), [page]) and not on_page(wa_link("(212) 555-0199"), [page])
+
+
+def test_the_page_a_whatsapp_number_came_from_is_cited(cfg):
+    from conftest import make_controller
+
+    c = make_controller(cfg)
+    c.recent_pages = {"https://yelp.example/biz/acme": "Acme Bakery. Phone (212) 555-0187", "https://acme.example": "Welcome"}
+    assert c._with_number_page("https://acme.example", "https://wa.me/12125550187") == "https://acme.example\nhttps://yelp.example/biz/acme"
+    assert c._with_number_page("", "https://wa.me/19995550000") == ""

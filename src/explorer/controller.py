@@ -393,6 +393,7 @@ class Controller:
             disabled_actions=sorted(set(cfg.policy.disabled_actions) | hidden),
             package_page=self.notion is not None and bool(cfg.notion.package_page_id.strip()),
             leads_enabled=self.leads_notion is not None,
+            draft_writer=bool(cfg.leads.draft_queue_column.strip()),
             team=team_block(self.team),
             work_plan=self.owner_plan.block(),
             plans_enabled=cfg.agent.plans,
@@ -1234,7 +1235,8 @@ class Controller:
             decide_lines=self._decide_lines(),
             outreach_lines=outreach[0],
             outreach_total=outreach[1],
-            decide_hint=self.cfg.leads.decide_hint if self.cfg.leads.decide_glob.strip() else "",
+            outreach_review=bool(self.cfg.leads.outreach_draft_column.strip()),
+            decide_hint=(self.cfg.leads.decide_hint + self._rates_text()) if (self.cfg.leads.decide_glob.strip() or self.cfg.leads.draft_queue_column.strip()) else "",
             dead_ends=self._dead_ends(),
         )
 
@@ -1982,6 +1984,8 @@ class Controller:
     def _decide_lines(self) -> list[str]:
         """The next rows from the bot's decide list ([leads] decide_glob) that it has not updated yet."""
         L = self.cfg.leads
+        if L.enabled and L.draft_queue_column.strip():
+            return self._draft_queue_lines()
         if not (L.enabled and L.decide_glob.strip()):
             return []
         try:
@@ -2066,6 +2070,8 @@ class Controller:
         """Leads the colleague in [leads] outreach_from has listed that no task of this bot names yet: (lines to show,
         how many in all). Read-only from that bot's own database; an unreadable database is simply no list."""
         L = self.cfg.leads
+        if L.outreach_draft_column.strip():
+            return self._drafts_to_review()
         who = (L.outreach_from or "").strip()
         folder = self.cfg.messaging.folder_for(who) if who else None
         if not folder:
@@ -2100,6 +2106,36 @@ class Controller:
             return lines, len(waiting)
         except Exception:  # noqa: BLE001 - a colleague's database never blocks the prompt
             return [], 0
+
+    def _drafts_to_review(self) -> tuple[list[str], int]:
+        """Drafted first emails waiting for the human team's review ([leads] outreach_draft_column): rows with a draft
+        (not a "skip:") and an empty status, that no task of this bot names yet. Read from the board every ten minutes."""
+        L = self.cfg.leads
+        if self.leads_notion is None:
+            return [], 0
+        now = time.time()
+        cached = getattr(self, "_review_cache", None)
+        if cached is None or now - cached[0] > 600:
+            try:
+                rows = self.leads_notion.rows_drafted(L.outreach_draft_column.strip(), L.outreach_status_column.strip(), 100,
+                                                      tuple(L.outreach_not_reviewed))
+            except Exception:  # noqa: BLE001
+                rows = cached[1] if cached else []
+            cached = self._review_cache = (now, rows)
+        tasked = " ".join(str(r["payload"]) for r in self.memory.db.query(
+            "SELECT payload FROM actions WHERE action_type IN ('task', 'update_task') AND verdict = 'allowed'")).lower()
+        waiting = [r for r in cached[1] if str(r.get("title") or "").strip() and str(r["title"]).strip().lower() not in tasked
+                   and json.dumps(str(r["title"]).strip())[1:-1].lower() not in tasked]
+        if not waiting:
+            return [], 0
+        if any(re.search(r"\boutreach\b", t, re.I) for t in self.memory.task_titles_today()):
+            return [], len(waiting)  # today's review task exists; the rest wait for tomorrow's
+        if len(waiting) < max(1, L.outreach_min):
+            return [], len(waiting)
+        lines = [f"{str(r['title']).strip()} | {str((r.get('fields') or {}).get('Business email', '')).strip()} | "
+                 f"{str((r.get('fields') or {}).get('How we can help', '') or '(no package)').strip()[:60]} | {str(r.get('url', '')).strip()}"
+                 for r in waiting[: max(1, L.outreach_shown)]]
+        return lines, len(waiting)
 
     def _known_finds(self) -> str | None:
         """The names already in the scout's report, in every prompt: the bot cannot read the report file itself, and
@@ -2595,6 +2631,11 @@ class Controller:
             "How we can help": action.how_we_help.strip(), "Evidence": action.evidence.strip(), "Stage": "New",
             "Found on": _dt.date.today().isoformat(), "Source pages": "\n".join(u.strip() for u in action.sources if u.strip()),
         }
+        if action.whatsapp.strip():
+            from .whatsapp import wa_link
+
+            fields["Whatsapp"] = wa_link(action.whatsapp, self.cfg.leads.whatsapp_country_code) or ""
+            fields["Source pages"] = self._with_number_page(fields["Source pages"], fields["Whatsapp"])
         check = self._verify_lead_email(action.email.strip())
         if check is not None:
             if check.get("result") in self.cfg.leads.email_verify_refuse or check.get("disposable"):
@@ -2748,6 +2789,68 @@ class Controller:
         site = str((row.get("fields") or {}).get("Website") or "").strip()
         return url_domain(site) if site else ""
 
+    def _rates_text(self) -> str:
+        """The owner's Rates, quoted for the Outreach Writer ([leads] rates_file): prices come from here only."""
+        path = (self.cfg.leads.rates_file or "").strip()
+        if not path:
+            return ""
+        try:
+            text = Path(path).expanduser().read_text(encoding="utf-8")
+        except OSError:
+            return ""
+        m = re.search(r"^## Rates\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+        if not m:
+            return ""
+        lines = [l.strip() for l in m.group(1).splitlines() if l.strip().startswith("- ")]
+        return (". THE OWNER'S RATES -- the only prices you may quote, exactly as written; match the row's package to its line "
+                "by product (e.g. 'Acme POS & Ordering' -> the Acme POS line); no line for it -> 'priced after a short call': "
+                + " ".join(lines))[:1500]
+
+    def _draft_queue_lines(self) -> list[str]:
+        """The Outreach Writer's work list (owner, 2026-10-07): the oldest board rows still at Stage New with no draft,
+        read from the board at most every five minutes; a row it wrote this episode drops out at once."""
+        L = self.cfg.leads
+        if self.leads_notion is None:
+            return []
+        now = time.time()
+        cached = getattr(self, "_draft_queue_cache", None)
+        if cached is None or now - cached[0] > 300:
+            try:
+                rows = self.leads_notion.rows_waiting(L.draft_queue_column.strip(), "Stage", L.draft_queue_stage, L.draft_queue_shown * 2)
+            except Exception:  # noqa: BLE001
+                rows = cached[1] if cached else []
+            cached = self._draft_queue_cache = (now, rows)
+        done = set()
+        for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'update_lead' AND verdict = 'allowed' "
+                                      "AND ts > datetime('now', '-1 day')"):
+            try:
+                done.add(str(json.loads(r["payload"]).get("name", "")).strip().lower())
+            except ValueError:
+                pass
+        out = []
+        for r in cached[1]:
+            f = r.get("fields") or {}
+            name = str(r.get("title") or "").strip()
+            if not name or name.lower() in done:
+                continue
+            parts = [name, f.get("Website", ""), "pain point: " + (f.get("Pain point", "") or "-")[:200],
+                     "how we can help: " + (f.get("How we can help", "") or "-"), "evidence: " + (f.get("Evidence", "") or "-"),
+                     "founded by: " + (f.get("Founded by", "") or "-")]
+            out.append(" | ".join(p for p in parts if p)[:600])
+            if len(out) >= max(1, L.draft_queue_shown):
+                break
+        return out
+
+    def _with_number_page(self, sources: str, link: str) -> str:
+        """Source pages with the page the WhatsApp number was read from added, so the Validator can find it (LD20)."""
+        from .whatsapp import page_with
+
+        url = page_with(link, dict(self.recent_pages)) if link else None
+        lines = [u for u in (sources or "").splitlines() if u.strip()]
+        if url and url not in lines:
+            lines.append(url)
+        return "\n".join(lines)
+
     def _execute_update_lead(self, action: UpdateLead) -> ExecResult:
         """Fix a Leads-board row: one of this bot's own (the page id was recorded when it listed the lead) or, with
         leads.update_any_row, any row on the board (looked up by name; it becomes one of the bot's rows afterwards)."""
@@ -2771,10 +2874,24 @@ class Controller:
             return ExecResult(False, "that lead has no Notion page id on record", False)
         mapping = (("website", "Website"), ("email", "Business email"), ("location", "Location"), ("industry", "Industry"),
                    ("size", "Company size"), ("pain_point", "Pain point"), ("how_we_help", "How we can help"), ("evidence", "Evidence"),
-                   ("founded_by", "Founded by"))
+                   ("founded_by", "Founded by"), ("draft_email", "Draft email"))
         fields = {col: str(getattr(action, attr)).strip() for attr, col in mapping if getattr(action, attr) is not None and str(getattr(action, attr)).strip()}
         if action.sources:
             fields["Source pages"] = "\n".join(u.strip() for u in action.sources if u.strip())
+        if action.whatsapp and action.whatsapp.strip():
+            from .whatsapp import wa_link
+
+            link = wa_link(action.whatsapp, self.cfg.leads.whatsapp_country_code)
+            if link:
+                fields["Whatsapp"] = link
+                cited = self._with_number_page(fields.get("Source pages", ""), link)
+                if cited != fields.get("Source pages", ""):
+                    # the row's existing sources stay; the page the number came from is added (the Validator's LD20 reads them)
+                    try:
+                        old = str((self.leads_notion.read_page(page_id) or {}).get("fields", {}).get("Source pages", ""))
+                    except Exception:  # noqa: BLE001
+                        old = ""
+                    fields["Source pages"] = "\n".join(u for u in dict.fromkeys((old + "\n" + cited).splitlines()) if u.strip())
         if "Business email" in fields:
             check = self._verify_lead_email(fields["Business email"])
             if check is not None:
@@ -2791,6 +2908,12 @@ class Controller:
             return ExecResult(False, f"update of lead '{str(row['name'])[:60]}' not confirmed: {problem}", False,
                               feedback="The change is not on the row; it does not count as done. Check the value and try once more, or report it.")
         warnings = list(getattr(self.leads_notion, "last_warnings", []) or [])
+        if "Draft email" in fields:
+            # owner, 2026-10-07: "I need them on notion - may be under the description": the draft on the lead's page too
+            try:
+                self.leads_notion.replace_section(page_id, "Draft email", fields["Draft email"])
+            except Exception as exc:  # noqa: BLE001 - the cell holds the draft either way
+                warnings.append(f"the draft is in the cell but not on the page ({str(exc)[:120]})")
         site = str(action.website).strip() if action.website and action.website.strip() else None
         self.memory.update_lead_row(int(row["id"]), site, url_domain(site) if site else None, action.email, action.how_we_help)
         changed = list(fields)

@@ -274,8 +274,8 @@ class NotionClient:
                 fields[name] = str(prop.get(kind) or "")
             elif kind in ("rich_text", "title"):
                 fields[name] = "".join(str(t.get("plain_text", "")) for t in (prop.get(kind) or []))
-            elif kind == "select":
-                fields[name] = str((prop.get("select") or {}).get("name", ""))
+            elif kind in ("select", "status"):
+                fields[name] = str((prop.get(kind) or {}).get("name", ""))
             elif kind == "date":
                 fields[name] = str(((prop.get("date") or {}).get("start")) or "")
             elif kind == "people":
@@ -350,6 +350,70 @@ class NotionClient:
                     fields[name] = str((prop.get("select") or {}).get("name", ""))
             return {"page_id": str(page.get("id", "")), "url": str(page.get("url", "")), "fields": fields}
         return None
+
+    def replace_section(self, page_id: str, heading: str, text: str) -> None:
+        """The page body's section under a heading_3 `heading`, replaced by `text` (one paragraph per line, so line
+        breaks survive). An older copy of the section is removed first; the new one goes at the end of the page."""
+        blocks = self._request("GET", f"/v1/blocks/{page_id}/children", params={"page_size": 100}).get("results") or []
+        doomed, inside = [], False
+        for b in blocks:
+            if b.get("type", "").startswith("heading_"):
+                title = "".join(t.get("plain_text", "") for t in (b.get(b["type"]) or {}).get("rich_text", []))
+                inside = title.strip().lower() == heading.strip().lower()
+                if inside:
+                    doomed.append(b["id"])
+                continue
+            if inside:
+                doomed.append(b["id"])
+        for bid in doomed:
+            self._request("DELETE", f"/v1/blocks/{bid}")
+        children = [{"object": "block", "type": "heading_3", "heading_3": {"rich_text": [{"type": "text", "text": {"content": heading}}]}}]
+        for line in (text or "").splitlines():
+            children.append({"object": "block", "type": "paragraph",
+                             "paragraph": {"rich_text": [{"type": "text", "text": {"content": line[:1900]}}] if line.strip() else []}})
+        self._request("PATCH", f"/v1/blocks/{page_id}/children", json={"children": children[:100]})
+
+    def rows_drafted(self, draft_column: str, status_column: str, limit: int,
+                     not_reviewed: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+        """Rows with a draft in `draft_column` that is not a "skip:" and whose `status_column` is empty or one of
+        `not_reviewed` (e.g. "WhatsApp Verified": checked, but the email not reviewed yet), oldest first."""
+        kind = self.schema().get(status_column)
+        filters: list[dict[str, Any]] = [{"property": draft_column, "rich_text": {"is_not_empty": True}}]
+        if kind in ("select", "status"):
+            either = [{"property": status_column, kind: {"is_empty": True}}]
+            either += [{"property": status_column, kind: {"equals": v}} for v in not_reviewed]
+            filters.append(either[0] if len(either) == 1 else {"or": either})
+        data = self._request("POST", f"{self._container_path}/query",
+                             json={"filter": {"and": filters}, "sorts": [{"timestamp": "created_time", "direction": "ascending"}],
+                                   "page_size": max(1, min(100, limit))})
+        title_prop = self.title_property()
+        out = []
+        for page in data.get("results") or []:
+            fields = self._plain_fields(page)
+            if fields.get(draft_column, "").strip().lower().startswith("skip:"):
+                continue
+            out.append({"page_id": str(page.get("id", "")), "url": str(page.get("url", "")),
+                        "title": fields.get(title_prop or "", ""), "fields": fields})
+        return out
+
+    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int) -> list[dict[str, Any]]:
+        """Rows whose `stage_property` is `stage_value` and whose `empty_column` is empty, oldest first:
+        [{"page_id", "url", "title", "fields"}]. The Outreach Writer's work list."""
+        schema = self.schema()
+        kind = schema.get(stage_property)
+        filters: list[dict[str, Any]] = [{"property": empty_column, "rich_text": {"is_empty": True}}]
+        if kind in ("select", "status"):
+            filters.append({"property": stage_property, kind: {"equals": stage_value}})
+        data = self._request("POST", f"{self._container_path}/query",
+                             json={"filter": {"and": filters}, "sorts": [{"timestamp": "created_time", "direction": "ascending"}],
+                                   "page_size": max(1, min(100, limit))})
+        title_prop = self.title_property()
+        out = []
+        for page in data.get("results") or []:
+            fields = self._plain_fields(page)
+            out.append({"page_id": str(page.get("id", "")), "url": str(page.get("url", "")),
+                        "title": fields.get(title_prop or "", ""), "fields": fields})
+        return out
 
     def update_row(self, page_id: str, fields: dict[str, str]) -> None:
         """Change columns of a row the bot created (update_lead): the same schema typing as create_row; only the
@@ -701,6 +765,28 @@ class FakeNotion:
         fields = _without_human_columns(fields)
         self.rows.append({"title": title, **{k: str(v) for k, v in fields.items() if str(v or "").strip()}})
         return f"https://notion.fake/{len(self.rows):032x}/row-{len(self.rows)}"
+
+    def replace_section(self, page_id: str, heading: str, text: str) -> None:
+        self.rows[int(page_id, 16) - 1].setdefault("_sections", {})[heading] = text
+
+    def rows_drafted(self, draft_column: str, status_column: str, limit: int,
+                     not_reviewed: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+        out = []
+        for i, row in enumerate(self.rows):
+            d = str(row.get(draft_column, "")).strip()
+            st = str(row.get(status_column, "")).strip()
+            if d and not d.lower().startswith("skip:") and (not st or st in not_reviewed):
+                out.append({"page_id": f"{i + 1:032x}", "url": f"https://notion.fake/{i + 1:032x}/row-{i + 1}",
+                            "title": str(row.get("title", "")), "fields": {k: v for k, v in row.items() if k != "title"}})
+        return out[:limit]
+
+    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int) -> list[dict[str, Any]]:
+        out = []
+        for i, row in enumerate(self.rows):
+            if str(row.get(stage_property, stage_value)) == stage_value and not str(row.get(empty_column, "")).strip():
+                out.append({"page_id": f"{i + 1:032x}", "url": f"https://notion.fake/{i + 1:032x}/row-{i + 1}",
+                            "title": str(row.get("title", "")), "fields": {k: v for k, v in row.items() if k != "title"}})
+        return out[:limit]
 
     def find_row(self, title: str) -> dict[str, Any] | None:
         for i, row in enumerate(self.rows):

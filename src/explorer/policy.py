@@ -775,12 +775,26 @@ class Policy:
             return Verdict.no("you already fixed two tasks this episode; leave the rest for next time")
         return Verdict.ok()
 
+    def _whatsapp_problem(self, number: str, ctx: PolicyContext) -> str | None:
+        """A WhatsApp number must be printed on a page the bot opened (the business's site or a listing); the engine
+        turns it into a wa.me link. Never a number from memory."""
+        from .whatsapp import on_page, wa_link
+
+        link = wa_link(number, self.leads.whatsapp_country_code if self.leads else "1")
+        if link is None:
+            return "whatsapp: give the number with its country code as the page prints it (e.g. +44 20 7946 0958); a national number is read as US"
+        if not on_page(link, ctx.recent_page_texts.values()):
+            return f"whatsapp: {number.strip()[:40]} is not on any page you opened; give a number a page prints, never one from memory"
+        return None
+
     def _check_lead(self, action: Lead, ctx: PolicyContext) -> Verdict:
         """A lead is a business the bot actually read, with a business email published on its own site (no email,
         no lead), a pain point tied to a page it opened, and the package that fixes it. Each business once."""
         L = self.leads
         if not L.enabled:
             return Verdict.no("listing leads is not enabled; that action does not exist")
+        if L.draft_queue_column.strip():
+            return Verdict.no("you write drafts for rows already on the board; listing a business is Lead Gen's job", permanent=True)
         name, site, email = action.name.strip(), action.website.strip(), action.email.strip()
         pain, fix, evidence = action.pain_point.strip(), action.how_we_help.strip(), action.evidence.strip()
         if not name or not site or not email or not pain or not fix or not evidence:
@@ -820,6 +834,10 @@ class Policy:
                 f"'{email}' does not appear on any page of {site_domain} you opened. A lead's email must be published by "
                 "the business on its own site (contact page, footer); never guess one or take it from elsewhere -- no email, no lead"
             )
+        if action.whatsapp.strip():
+            bad = self._whatsapp_problem(action.whatsapp, ctx)
+            if bad:
+                return Verdict.no(bad)
         if site_domain in ctx.recent_lead_domains:
             return Verdict.no(f"{site_domain} is already on the Leads board; find a different business", permanent=True)
         if 0 < L.max_per_episode <= ctx.leads_in_episode:  # 0 = no cap (owner, 2026-09-24: "remove caps from lead gen")
@@ -849,7 +867,8 @@ class Policy:
             return Verdict.no("that row has no website yet; give the website in the same update so the email can be checked against it")
         changes = {
             k: str(getattr(action, k)).strip()
-            for k in ("website", "email", "pain_point", "how_we_help", "evidence", "location", "industry", "size", "founded_by")
+            for k in ("website", "email", "pain_point", "how_we_help", "evidence", "location", "industry", "size", "founded_by", "draft_email",
+                      "whatsapp")
             if getattr(action, k) is not None and str(getattr(action, k)).strip()
         }
         sources = [u.strip() for u in (action.sources or []) if u.strip()]
@@ -858,6 +877,14 @@ class Policy:
             extra = sorted(k for k in changes if k not in only) + (["sources"] if sources and "sources" not in only else [])
             if extra:
                 return Verdict.no(f"on the Leads board you decide only: {', '.join(only)}. Leave {', '.join(extra)} out of the update")
+        if "whatsapp" in changes:
+            bad = self._whatsapp_problem(changes["whatsapp"], ctx)
+            if bad:
+                return Verdict.no(bad)
+        if "draft_email" in changes and "draft_email" not in only:
+            return Verdict.no("draft_email is the Outreach Writer's column; leave it out of the update", permanent=True)
+        if len(changes.get("draft_email", "")) > 1800:
+            return Verdict.no("a draft email is short: under 150 words")
         if not changes and not sources:
             return Verdict.no("an update needs at least one change: website, email, pain_point, how_we_help, evidence, location, industry, size, founded_by or sources")
         if len(changes.get("founded_by", "")) > 120:
