@@ -314,10 +314,18 @@ function TargetPanel() {
   useLeaveGuard(dirty, "You have an unsaved target. Leave this page and lose it?");
   async function save() {
     if (!draft || !dirty || busy) return;
-    setBusy(true);
     const market = draft.market.trim();
     const hasFeed = feeds.some((f) => f.toLowerCase() === market.toLowerCase());
-    if (!hasFeed && !window.confirm(`There is no candidates feed for "${market}" yet, so Lead Gen will find businesses by web search only. Save anyway?`)) return;
+    // Ask before going busy: a Cancel must leave Save and Undo usable.
+    if (
+      !hasFeed &&
+      !window.confirm(
+        `There is no open-data feed for "${market}" yet, so Lead Gen's daily list will come from FreeSerp's index of business websites only ` +
+          `(the Overture places data covers only the area its snapshot was built for). Save anyway?`,
+      )
+    )
+      return;
+    setBusy(true);
     const sent = await sendJson<TargetDoc & { error?: string }>("/api/target", "PUT", draft);
     if (sent.ok && sent.body) {
       setSaved(sent.body);
@@ -576,10 +584,20 @@ function ResultsPanel({ results }: { results: LeadResults }) {
               <span className="tabular-nums">{results.drafts.waiting} waiting at {results.drafts.stage}</span>
             </p>
           ) : null}
+          {results.noted ? (
+            <p className={`mt-1 text-xs ${results.noted.waiting ? "text-sys-orange" : "text-muted"}`} title={results.noted.titles.join("\n")}>
+              {results.noted.waiting
+                ? `${results.noted.waiting} businesses Lead Gen noted with an email but has not listed yet${results.noted.oldest ? `, oldest from ${results.noted.oldest.slice(0, 10)}` : ""} (it finishes these first).`
+                : "Every business Lead Gen noted with an email is on the board."}
+            </p>
+          ) : null}
           {results.whatsapp !== null ? (
             <p className="mt-1 text-xs text-muted">
               <span className="font-semibold text-ink tabular-nums">{results.whatsapp}</span> of {results.total} leads have a WhatsApp link (filled by Lead Gen or from a wa.me link on their own site)
-              {results.whatsappVerified ? `, ${results.whatsappVerified} checked by hand in WhatsApp Web` : ""}.
+              {results.whatsappVerified || results.whatsappFalse
+                ? `; checked by hand in WhatsApp Web: ${results.whatsappVerified} real, ${results.whatsappFalse} false (cleared from the board)`
+                : ""}
+              .
             </p>
           ) : null}
           <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">

@@ -16,6 +16,22 @@ per_query = 50
 max_dr = 40          # Domain Rating ceiling: a neighbourhood business rarely passes it
 pause_seconds = 0.5  # between queries: be a light user
 
+# Overture Maps places (open data, CDLA-Permissive-2.0) from a local SQLite snapshot of your market's area
+# (table places: id, name, name_norm, category, website, postcode, confidence, status). Areas come from your feed's ZIP
+# map; a website or name shared by more than two places is a chain and is left out. FILL-ME: build the snapshot, set
+# db and market, then enabled = true.
+[sources.overture]
+enabled = false
+market = "FILL-ME market"
+db = "~/bots/common-data/places/places.sqlite"
+rows_per_day = 100
+min_confidence = 0.8
+max_places_per_site = 2
+max_places_per_name = 2
+exclude = ["place_of_worship", "library", "school", "university", "college", "government", "park", "hospital", "atm",
+           "post_office", "police", "fire_station", "embassy", "cemetery", "public_", "community_", "non_profit", "charity",
+           "bank", "transit", "parking", "gas_station", "landmark", "historic"]
+
 # FILL-ME: find an open business register for your market and describe it like this (remove the leading "# "):
 #
 # [feeds."Your Market"]
