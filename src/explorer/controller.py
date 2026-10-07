@@ -2087,6 +2087,38 @@ class Controller:
         """Who is running right now, when someone is not (owner, 2026-10-03: "does ceoA know which member is active or
         stopped? it has to work / assign task accordingly"). The CEO learned it one refusal at a time: 46 refused
         messages to the stopped Package Designer in a day. Nothing is said while everyone runs."""
+        parts = [p for p in (self._who_is_running(), self._fleet_usage_line()) if p]
+        return "\n".join(parts) or None
+
+    def _fleet_usage_line(self) -> str | None:
+        """The day's free model use by member and by provider, for the bot that holds the family's resources
+        (model.sees_fleet_usage; owner, 2026-10-07: no token limit, The CEO manages it if needed)."""
+        if not self.cfg.model.sees_fleet_usage:
+            return None
+        from .common.fallback import CallLedger
+
+        if getattr(self, "_ledger", None) is None:
+            self._ledger = CallLedger()
+        try:
+            ledger = self._ledger
+            by_bot = ledger._load_all().get("by_bot") or {}
+            calls = ledger.today()
+        except (OSError, ValueError):
+            return None
+        if not by_bot:
+            return None
+
+        def mtok(n: int) -> str:
+            return f"{n / 1e6:.1f}M" if n >= 100_000 else f"{n // 1000}k"
+
+        members = ", ".join(f"{b} {mtok(int(t))}" for b, t in sorted(by_bot.items(), key=lambda kv: -int(kv[1])))
+        hosts = ", ".join(f"{h} {c}" for h, c in sorted(calls.items(), key=lambda kv: -kv[1]))
+        return (f"Free model use today -- tokens: {members} (total {mtok(sum(int(t) for t in by_bot.values()))}); "
+                f"calls: {hosts or 'none'}. No daily token limit; the providers' own free caps still apply and the chain "
+                "moves on when one is used up. You hold these resources: if one member's use crowds out the work that "
+                "matters most, tell it by message what to focus on.")
+
+    def _who_is_running(self) -> str | None:
         m = self.cfg.messaging
         if not m.enabled:
             return None
