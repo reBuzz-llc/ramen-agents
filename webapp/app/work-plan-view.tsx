@@ -6,6 +6,11 @@ import type { BotSummary } from "@/lib/bot";
 import type { Identity } from "@/lib/identity";
 import { ago } from "@/lib/format";
 import { summaryStatus, TONE_DOT } from "@/lib/status";
+import type { CandidateFunnel } from "@/lib/candidates";
+import type { Change } from "@/lib/changes";
+import type { LeadResults, ResultGroup } from "@/lib/lead-results";
+import type { TestRun } from "@/lib/test-runs";
+import type { CeoMeasure } from "@/lib/ceo-measure";
 import type { DetailItem, DetailKind, OwnerPlan, PastJob, RefusalDay, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
 import { sendJson } from "@/lib/client";
 import { Avatar } from "./bot-switcher";
@@ -62,7 +67,7 @@ const tidy = (p: OwnerPlan): OwnerPlan => ({ goal: p.goal.trim(), rules: p.rules
  * accepted outputs against the tokens spent. Minimal on purpose: single-line inputs, no long text.
  */
 export default function WorkPlanView({ identity, backHref, backLabel }: { identity: Identity; backHref: string; backLabel: string }) {
-  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[] }>("work-plan", 15000);
+  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[]; candidates?: CandidateFunnel; changes?: Change[]; results?: LeadResults; tests?: TestRun[]; ceo?: CeoMeasure }>("work-plan", 15000);
   const fleet = usePoll<BotSummary[]>("bots", 15000);
   const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -127,7 +132,11 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
         {feed.data ? (
           <>
             <TargetPanel />
-            <RefusalPanel stats={feed.data.refusals ?? []} />
+            {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
+            <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} />
+            {feed.data.results ? <ResultsPanel results={feed.data.results} /> : null}
+            {feed.data.candidates ? <CandidatesPanel funnel={feed.data.candidates} /> : null}
+            {feed.data.tests?.length ? <TestRunsPanel runs={feed.data.tests} /> : null}
             <Board rows={board} status={status} />
             <PastJobs jobs={feed.data.past ?? []} />
             <ul className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -271,11 +280,11 @@ function PastJobs({ jobs }: { jobs: PastJob[] }) {
 
 type TargetDoc = { market: string; market_short: string; segment: string; trades: string; areas: string };
 const TARGET_FIELDS: { key: keyof TargetDoc; label: string; hint: string }[] = [
-  { key: "market", label: "Market", hint: "e.g. a city or a country" },
-  { key: "market_short", label: "Short name", hint: "its short name" },
+  { key: "market", label: "Market", hint: "e.g. Springfield" },
+  { key: "market_short", label: "Short name", hint: "e.g. SPR" },
   { key: "segment", label: "Segment", hint: "e.g. small businesses" },
   { key: "trades", label: "Trades", hint: "e.g. restaurants, shops, clinics" },
-  { key: "areas", label: "Areas", hint: "e.g. districts, comma-separated" },
+  { key: "areas", label: "Areas", hint: "e.g. Downtown, Northside, Riverside" },
 ];
 
 /** The family's target market, one line each (common-data/knowledge/target.toml): every agent's card follows it on its
@@ -383,19 +392,256 @@ function TargetPanel() {
   );
 }
 
+function CeoStat({ label, value, prev, hint }: { label: string; value: number; prev: number; hint: string }) {
+  return (
+    <div className="rounded-lg bg-grouped-3 px-3 py-2.5">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="mt-0.5 text-2xl font-bold text-ink tabular-nums">
+        {value}
+        <span className={`ml-2 text-xs font-semibold ${value > prev ? "text-good" : value < prev ? "text-bad" : "text-muted"}`}>
+          {value > prev ? `▲ ${value - prev}` : value < prev ? `▼ ${prev - value}` : "="} vs last week
+        </span>
+      </p>
+      <p className="text-[11px] text-muted">{hint}</p>
+    </div>
+  );
+}
+
+/** The CEO's two weekly numbers (owner, 2026-10-06): tasks the team finished, leads that answered. Tasks created
+ * is deliberately not shown: it is activity, not result. This week large, the three before as small bars. */
+function CeoPanel({ m }: { m: CeoMeasure }) {
+  if (!m.ok) return null;
+  const [now, ...before] = m.weeks;
+  const max = Math.max(1, ...m.weeks.flatMap((w) => [w.tasksDone, w.leadsAnswered]));
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">The CEO this week</h2>
+        <span className="text-xs text-muted">How the CEO is measured · last 7 days</span>
+      </header>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_minmax(0,1.2fr)]">
+        <CeoStat label="Tasks the team finished" value={now.tasksDone} prev={before[0]?.tasksDone ?? 0} hint={`Done by the team · ${m.openTasks} still open`} />
+        <CeoStat label="Leads that answered" value={now.leadsAnswered} prev={before[0]?.leadsAnswered ?? 0} hint="Result reached Replied, Meeting or Client" />
+        <div className="flex items-end gap-3 px-1" aria-label="Last four weeks">
+          {[...m.weeks].reverse().map((w) => (
+            <div key={w.from} className="flex flex-1 flex-col items-center gap-1">
+              <div className="flex h-14 items-end gap-0.5">
+                <span className="w-3 rounded-sm bg-sys-blue/70" style={{ height: `${Math.max(2, (w.tasksDone / max) * 56)}px` }} title={`${w.tasksDone} tasks done`} />
+                <span className="w-3 rounded-sm bg-sys-green" style={{ height: `${Math.max(2, (w.leadsAnswered / max) * 56)}px` }} title={`${w.leadsAnswered} leads answered`} />
+              </div>
+              <span className="text-[10px] text-muted tabular-nums">{w.from.slice(5)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const FIELD_LABEL: Record<string, string> = { email: "Email", location: "Location", industry: "Industry", company_size: "Company size" };
+
+/** Lead Gen's test runs on the saved sites: decisions right out of the sites per run (newest first, the engine version
+ * beside it), the trap result, and for the latest full run how each field scored. Run before a change goes live. */
+function TestRunsPanel({ runs }: { runs: TestRun[] }) {
+  const latest = runs.find((r) => r.full) ?? runs[0];
+  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Lead Gen test runs</h2>
+        <span className="text-xs text-muted">20 saved business sites with known answers · run before a change goes live</span>
+      </header>
+      <ul className="mt-2 divide-y divide-line">
+        {runs.slice(0, 6).map((r) => {
+          const right = r.decision.right ?? 0;
+          const p = pct(right, r.sites);
+          return (
+            <li key={r.file} className="grid grid-cols-1 gap-1 py-2 text-sm sm:grid-cols-[9rem_6rem_minmax(0,1fr)_9rem] sm:items-center">
+              <span className="text-muted tabular-nums">
+                {r.at.slice(5, 16).replace("T", " ")} <span className="font-mono text-[11px]">{r.commit}</span>
+              </span>
+              <span className={`font-semibold tabular-nums ${p >= 80 ? "text-good" : p >= 50 ? "text-sys-orange" : "text-bad"}`}>
+                {right}/{r.sites} right
+              </span>
+              <span className="text-xs text-muted">
+                {r.decision.missed_lead ? `${r.decision.missed_lead} missed leads` : ""}
+                {r.decision.false_lead ? ` · ${r.decision.false_lead} false leads` : ""}
+                {r.decision.no_answer ? ` · ${r.decision.no_answer} no answer` : ""}
+                {!r.full ? " · partial rerun" : ""}
+                {r.provisional ? " · provisional (answers not yet checked)" : ""}
+                {r.rule === "strict" ? " · strict rule (email + visible problem + target)" : r.rule === "lenient" ? " · lenient rule (email only)" : r.rule === "mixed" ? " · mixed rules (some sites strict, some email only)" : " · rule not recorded"}
+              </span>
+              <span className={`text-xs ${r.traps.total ? (r.traps.passed === r.traps.total ? "text-good" : "font-semibold text-bad") : "text-muted"}`}>
+                {r.traps.total ? `trap ${r.traps.passed === r.traps.total ? "passed" : "FAILED"} (${r.traps.passed}/${r.traps.total})` : "no trap"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {latest ? (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 sm:grid-cols-4">
+          {Object.entries(latest.fields).map(([field, s]) => {
+            const total = Object.values(s).reduce((a, b) => a + b, 0) - (s.not_a_lead ?? 0);
+            return (
+              <div key={field}>
+                <p className="text-xs text-muted">{FIELD_LABEL[field] ?? field}</p>
+                {/* Right first: a run of honest blanks is safe but has found nothing yet. */}
+                <p className="text-sm text-ink tabular-nums">
+                  {total ? `${s.right ?? 0} of ${total} right` : "no lead to score"}
+                  {total && (s.wrong ?? 0) + (s.invented ?? 0) ? <span className="text-bad"> · {(s.wrong ?? 0) + (s.invented ?? 0)} wrong</span> : null}
+                </p>
+                <p className="text-[11px] text-muted">
+                  {[s.right && `${s.right} right`, s.honest_blank && `${s.honest_blank} blank`, s.wrong && `${s.wrong} wrong`, s.invented && `${s.invented} invented`, s.missed && `${s.missed} missed`]
+                    .filter(Boolean)
+                    .join(" · ") || "–"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const FUNNEL = [
+  { stage: "Emailed", tone: "bg-sys-blue/70" },
+  { stage: "Replied", tone: "bg-sys-teal" },
+  { stage: "Meeting", tone: "bg-sys-orange" },
+  { stage: "Client", tone: "bg-sys-green" },
+] as const;
+const RANK: Record<string, number> = { Emailed: 1, Replied: 2, Meeting: 3, Client: 4 };
+
+const reached = (g: ResultGroup, stage: string) =>
+  Object.entries(g.byResult).reduce((n, [r, c]) => n + ((RANK[r] ?? 0) >= RANK[stage] && !r.startsWith("reached") ? c : 0), 0);
+const lost = (g: ResultGroup) => (g.byResult["Not interested"] ?? 0) + (g.byResult["Bounced"] ?? 0);
+
+function ResultGroupList({ title, groups }: { title: string; groups: ResultGroup[] }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold text-muted">{title}</h3>
+      <ul className="space-y-3">
+        {groups.map((g) => (
+          <li key={g.label}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+              <span className="min-w-0 truncate font-medium text-ink">{g.label}</span>
+              <span className="text-xs text-muted tabular-nums">
+                {g.leads} leads · {FUNNEL.map((f) => `${reached(g, f.stage)} ${f.stage.toLowerCase()}`).join(" · ")}
+                {lost(g) ? ` · ${lost(g)} lost` : ""}
+              </span>
+            </div>
+            <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-fill-3">
+              {/* Each segment is the leads that got exactly that far, so the bar reads left to right as progress. */}
+              {FUNNEL.map((f, i) => {
+                const n = reached(g, f.stage) - (FUNNEL[i + 1] ? reached(g, FUNNEL[i + 1].stage) : 0);
+                return n > 0 ? <span key={f.stage} className={f.tone} style={{ width: `${(n / g.leads) * 100}%` }} title={`${n} got to ${f.stage.toLowerCase()}`} /> : null;
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** How far the leads got (the team's Result column on the Leads board; bots never write it): per source and per
+ * industry, the leads that reached emailed, replied, a meeting, a client. The business result, not the bots' activity. */
+function ResultsPanel({ results }: { results: LeadResults }) {
+  const contacted = results.bySource.reduce((n, g) => n + reached(g, "Emailed") + lost(g), 0);
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Lead results</h2>
+        <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
+          {FUNNEL.map((f) => (
+            <span key={f.stage} className="flex items-center gap-1">
+              <span className={`h-2 w-2 rounded-full ${f.tone}`} aria-hidden /> {f.stage}
+            </span>
+          ))}
+        </span>
+      </header>
+      {!results.ready ? (
+        <p className="mt-2 text-sm text-muted">{results.reason}</p>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-muted">
+            {results.total} leads on the board, {contacted} contacted so far. The team sets each lead&apos;s Result on the Leads board; the bots never
+            touch it.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <ResultGroupList title="By where the lead came from" groups={results.bySource} />
+            <ResultGroupList title="By industry (top 8)" groups={results.byIndustry} />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Lead Gen's daily candidate lists, per source: offered, visited, turned into leads (owner, 2026-10-05: which source
+ * pays off). A bar per step, as a share of what that source offered. */
+function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
+  if (!funnel.sources.length) return null;
+  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Lead Gen&apos;s candidates</h2>
+        <span className="text-xs text-muted">
+          Last {funnel.files} daily list{funnel.files === 1 ? "" : "s"} · offered → visited → became a lead
+        </span>
+      </header>
+      <ul className="mt-3 space-y-4">
+        {funnel.sources.map((s) => (
+          <li key={s.source}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <span className="text-sm font-medium text-ink">{s.source}</span>
+              <span className="text-xs text-muted tabular-nums">
+                {s.candidates.toLocaleString()} offered · {s.visited.toLocaleString()} visited ({pct(s.visited, s.candidates)}%) ·{" "}
+                <span className="font-semibold text-good">{s.leads.toLocaleString()} leads</span> ({pct(s.leads, s.candidates)}% of offered,{" "}
+                {pct(s.leads, s.visited)}% of visited)
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {[
+                { label: "visited", value: s.visited, tone: "bg-sys-blue/70" },
+                { label: "leads", value: s.leads, tone: "bg-sys-green" },
+              ].map((b) => (
+                <div key={b.label} className="flex items-center gap-2">
+                  <span className="w-12 shrink-0 text-[11px] text-muted">{b.label}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fill-3">
+                    <div className={`h-full rounded-full ${b.tone}`} style={{ width: `${pct(b.value, s.candidates)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted">A lead counts when an accepted lead or lead fix names the business&apos;s site. FreeSerp joins from the next daily list.</p>
+    </section>
+  );
+}
+
 const REFUSAL_TARGET = 20; // percent: the clean-up's target (engine session, 2026-10-03)
 const pctOf = (d: RefusalDay) => (d.allowed + d.refused ? Math.round((100 * d.refused) / (d.allowed + d.refused)) : null);
 
 /** Refused / all actions per agent: today, the last seven days as small bars, and the top refusal reasons. The number
  * the owner judges the card-and-guardrail clean-up by; target under 20 %. Green at or under it, red above. */
-function RefusalPanel({ stats }: { stats: RefusalStats[] }) {
+function RefusalPanel({ stats, changes }: { stats: RefusalStats[]; changes: Change[] }) {
   if (!stats.length) return null;
+  // Changes that touch a bot (or every bot), by day: marked under that day's bar so a jump has a visible cause.
+  const changesFor = (slug: string, day: string) => changes.filter((c) => c.at.startsWith(day) && (c.bots.includes("*") || c.bots.includes(slug)));
+  const week = new Set(stats[0]?.days.map((d) => d.day) ?? []);
+  const recent = changes.filter((c) => week.has(c.at.slice(0, 10)));
   const rows = [...stats].sort((a, b) => (pctOf(b.week) ?? -1) - (pctOf(a.week) ?? -1));
   return (
     <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-3">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink">Refusal rate</h2>
-        <span className="text-xs text-muted">Share of each agent&apos;s actions refused · target under {REFUSAL_TARGET}%</span>
+        <span className="text-xs text-muted">
+          Share of each agent&apos;s actions refused · target under {REFUSAL_TARGET}% · safety-rule refusals (&ldquo;fence&rdquo;) counted apart
+        </span>
       </header>
       <ul className="mt-2 divide-y divide-line">
         {rows.map((b) => {
@@ -410,19 +656,33 @@ function RefusalPanel({ stats }: { stats: RefusalStats[] }) {
                 <span className="block text-xs">
                   <span className={tone(week)}>{week === null ? "–" : `${week}%`}</span> <span className="text-muted">7 days</span>
                 </span>
+                {b.week.fence ? (
+                  <span className="block text-[11px] text-muted" title="Refusals that are the safety rules working (a personal mailbox, an email not on the business's own site, a guessed value, a site that forbids bots). Not counted in the rate.">
+                    fence: {b.week.fence} in 7 days
+                  </span>
+                ) : null}
               </span>
               {/* One bar per day, oldest first; its height is that day's refusal rate, the line is the target. */}
               <span className="relative flex h-8 items-end gap-1" aria-label={`Last seven days: ${b.days.map((d) => `${d.day} ${pctOf(d) ?? "no actions"}${pctOf(d) === null ? "" : "%"}`).join(", ")}`}>
                 <span className="absolute inset-x-0 border-t border-dashed border-line" style={{ bottom: `${Math.round((REFUSAL_TARGET / 100) * 32)}px` }} aria-hidden />
                 {b.days.map((d) => {
                   const p = pctOf(d);
+                  const ch = changesFor(b.slug, d.day);
                   return (
+                    <span key={d.day} className="relative flex h-full w-3 items-end">
+                    {ch.length ? (
+                      <span
+                        className="absolute -bottom-2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-sys-blue"
+                        title={ch.map((c) => `${c.at.slice(5, 16).replace("T", " ")} · ${c.what}`).join("\n")}
+                        aria-label={`${ch.length} change${ch.length === 1 ? "" : "s"} on ${d.day}`}
+                      />
+                    ) : null}
                     <span
-                      key={d.day}
-                      title={`${d.day}: ${p === null ? "no actions" : `${p}% refused (${d.refused} of ${d.allowed + d.refused})`}`}
+                      title={`${d.day}: ${p === null ? "no actions" : `${p}% refused (${d.refused} of ${d.allowed + d.refused})`}${d.fence ? `; ${d.fence} fence` : ""}`}
                       className={`w-3 rounded-sm ${p === null ? "bg-fill-3" : p <= REFUSAL_TARGET ? "bg-sys-green" : "bg-sys-red/80"}`}
                       style={{ height: `${Math.round(((p === null ? 6 : Math.max(6, p)) / 100) * 32)}px` }}
                     />
+                    </span>
                   );
                 })}
               </span>
@@ -433,6 +693,21 @@ function RefusalPanel({ stats }: { stats: RefusalStats[] }) {
           );
         })}
       </ul>
+      {recent.length ? (
+        <div className="mt-3 border-t border-line pt-2.5">
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-sys-blue" aria-hidden /> Changes this week (the dots under the bars)
+          </p>
+          <ul className="space-y-0.5 text-xs text-muted">
+            {recent.slice(0, 8).map((c, i) => (
+              <li key={i} className="break-words">
+                <span className="tabular-nums">{c.at.slice(5, 10)}</span> · <span className="text-ink/85">{c.what}</span>
+                {c.bots.includes("*") ? "" : ` (${c.bots.join(", ")})`} <span className="opacity-70">· {c.by}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

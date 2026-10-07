@@ -1,7 +1,13 @@
+import { jsonResponse } from "@/lib/json-response";
 import { findBot, listBots } from "@/lib/bots";
 import { sameOrigin } from "@/lib/same-origin";
 import type { NextRequest } from "next/server";
 import { attentionSince, pastJobs, refusalStats, workCards, writeOwnerPlan } from "@/lib/work-plan";
+import { candidateFunnel } from "@/lib/candidates";
+import { readChanges } from "@/lib/changes";
+import { leadResults } from "@/lib/lead-results";
+import { testRuns } from "@/lib/test-runs";
+import { ceoMeasure } from "@/lib/ceo-measure";
 
 const NO_STORE = { "cache-control": "no-store" };
 
@@ -15,8 +21,17 @@ export async function GET(req: NextRequest) {
   }
   try {
     const bots = await listBots();
-    const [cards, past, refusals] = await Promise.all([workCards(bots), pastJobs(bots), refusalStats(bots)]);
-    return Response.json({ ...cards, past, refusals }, { headers: NO_STORE });
+    const [cards, past, refusals, candidates, changes, results, tests, ceo] = await Promise.all([
+      workCards(bots),
+      pastJobs(bots),
+      refusalStats(bots),
+      candidateFunnel(bots.find((b) => b.slug === "lead-gen")),
+      readChanges(14),
+      leadResults(),
+      testRuns(),
+      ceoMeasure(),
+    ]);
+    return jsonResponse(req, { ...cards, past, refusals, candidates, changes, results, tests, ceo });
   } catch (err) {
     return Response.json({ error: `could not read the work plan: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
   }

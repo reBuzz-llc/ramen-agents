@@ -64,6 +64,14 @@ const SERVICES: Service[] = [
     check: async (k) => (/^sniff_[A-Za-z0-9_-]{16,}$/.test(k) ? { ok: true, verified: false, detail: "Not called here: every check spends one of its 500 credits" } : { ok: false, detail: "The key does not look like a Sniffmail key (sniff_…)" }),
   },
   {
+    name: "EzVerify",
+    file: "ezverify.key",
+    usedFor: "Third email checker, when neither QuickEmailVerification nor Sniffmail answers (200 checks a month)",
+    signup: "https://ezverify.app/",
+    // Every EzVerify check spends one of its monthly credits, so the page only confirms the key is on file.
+    check: async (k) => (k.length >= 16 ? { ok: true, verified: false, detail: "Not called here: every check spends one of its 200 monthly credits" } : { ok: false, detail: "The key file looks empty or cut short" }),
+  },
+  {
     name: "Tavily",
     file: "tavily.key",
     usedFor: "Web search for special sites, used only by The CEO when it asks for it (owner, 2026-10-02); 30 a day at most across the fleet (1,000 free credits a month)",

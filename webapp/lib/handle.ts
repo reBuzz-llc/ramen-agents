@@ -12,7 +12,13 @@
 
 export type Kind = "agent" | "bot";
 
+// Handles the owner chose instead of the first three letters (Research Analyst is the family's analyst: anaA,
+// owner 2026-10-07).
+const CHOSEN: Record<string, string> = { "research analyst": "anaA" };
+
 export function handleFor(name: string, kind: Kind = "agent"): string {
+  const chosen = CHOSEN[name.trim().toLowerCase()];
+  if (chosen) return chosen;
   const words = name
     .trim()
     .replace(/^the\s+/i, "")

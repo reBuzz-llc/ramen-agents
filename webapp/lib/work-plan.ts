@@ -416,52 +416,63 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
   return all.sort((a, b) => ((a.ended ?? "") < (b.ended ?? "") ? 1 : -1)).slice(0, limit);
 }
 
-export type RefusalDay = { day: string; allowed: number; refused: number };
+// refused excludes the fence: refusals that are the safety rules working (a personal mailbox, an email not on the
+// business's own site, an invented value, robots.txt...). Those are counted apart in `fence` and stay out of the
+// 20 % target, so the target never pushes toward loosening them (owner, 2026-10-05, via the engine session).
+export type RefusalDay = { day: string; allowed: number; refused: number; fence: number };
 export type RefusalStats = { slug: string; name: string; days: RefusalDay[]; today: RefusalDay; week: RefusalDay; reasons: { reason: string; n: number }[] };
 
-/** Refused / (allowed + refused) per day over the last seven days, and the top refusal reasons this week (engine
- * session's clean-up of the cards and guardrails, 2026-10-03: the number the owner judges it by; target under 20 %).
- * Read-only from each bot's actions table: verdict 'allowed' is accepted, anything else is refused. */
+const FENCE = /personal mailbox|does not appear on any page|MG03|robots\.txt|never guess|LD0[12]|LD1[458]|actually opened|actually seen|own site/i;
+
+/** Refused / (allowed + refused) per day over the last seven days, fence refusals apart, and the top three non-fence
+ * reasons this week. Read-only from each bot's actions table: verdict 'allowed' is accepted, anything else refused. */
 export async function refusalStats(bots: BotProfile[]): Promise<RefusalStats[]> {
   const today = localIso(Date.now()).slice(0, 10);
   const from = localIso(Date.now() - 6 * 86400e3).slice(0, 10);
   const out: RefusalStats[] = [];
   for (const bot of bots) {
     let rows: Row[] = [];
-    let reasons: Row[] = [];
     try {
-      const db = await dbPath(bot);
-      rows = await query(db, `SELECT substr(ts,1,10) AS day, SUM(verdict = 'allowed') AS ok, SUM(verdict != 'allowed') AS no FROM actions WHERE ts >= ${sq(from)} GROUP BY 1 ORDER BY 1`);
-      // The reason up to its first clause, numbers folded, so "you already searched 'x'" and "...'y'" count as one.
-      reasons = await query(
-        db,
-        `SELECT substr(replace(replace(verdict,'rejected: ',''),'failed: ',''),1,60) AS r, COUNT(*) AS n FROM actions WHERE ts >= ${sq(from)} AND verdict != 'allowed' GROUP BY 1 ORDER BY 2 DESC LIMIT 40`,
+      // One row per day and distinct refusal text (allowed rows collapse to one per day), classified here.
+      rows = await query(
+        await dbPath(bot),
+        `SELECT substr(ts,1,10) AS day, CASE WHEN verdict = 'allowed' THEN '' ELSE substr(replace(replace(verdict,'rejected: ',''),'failed: ',''),1,200) END AS v, COUNT(*) AS n FROM actions WHERE ts >= ${sq(from)} GROUP BY 1, 2`,
       );
     } catch {
       continue;
     }
+    const byDay = new Map<string, RefusalDay>();
+    const merged = new Map<string, number>();
+    for (const r of rows) {
+      const day = String(r.day);
+      const d = byDay.get(day) ?? { day, allowed: 0, refused: 0, fence: 0 };
+      const v = String(r.v ?? "");
+      const n = Number(r.n);
+      if (!v) d.allowed += n;
+      else if (FENCE.test(v)) d.fence += n;
+      else {
+        d.refused += n;
+        // The reason up to its first clause, quotes and numbers folded, so "you already searched 'x'" and '…y' are one.
+        const key = v.slice(0, 60).replace(/'[^']*'?/g, "'…'").replace(/\d+/g, "N").split(/[;:,(]| — | -- /)[0].trim();
+        merged.set(key, (merged.get(key) ?? 0) + n);
+      }
+      byDay.set(day, d);
+    }
     const days: RefusalDay[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = localIso(Date.now() - i * 86400e3).slice(0, 10);
-      const r = rows.find((x) => String(x.day) === d);
-      days.push({ day: d, allowed: Number(r?.ok ?? 0), refused: Number(r?.no ?? 0) });
+      days.push(byDay.get(d) ?? { day: d, allowed: 0, refused: 0, fence: 0 });
     }
-    const week = days.reduce((a, d) => ({ day: "7d", allowed: a.allowed + d.allowed, refused: a.refused + d.refused }), { day: "7d", allowed: 0, refused: 0 });
-    if (!week.allowed && !week.refused) continue;
-    const merged = new Map<string, number>();
-    for (const r of reasons) {
-      const key = String(r.r)
-        .replace(/'[^']*'?/g, "'…'")
-        .replace(/\d+/g, "N")
-        .split(/[;:,(]| — | -- /)[0]
-        .trim();
-      merged.set(key, (merged.get(key) ?? 0) + Number(r.n));
-    }
+    const week = days.reduce(
+      (a, d) => ({ day: "7d", allowed: a.allowed + d.allowed, refused: a.refused + d.refused, fence: a.fence + d.fence }),
+      { day: "7d", allowed: 0, refused: 0, fence: 0 },
+    );
+    if (!week.allowed && !week.refused && !week.fence) continue;
     out.push({
       slug: bot.slug,
       name: bot.name,
       days,
-      today: days.find((d) => d.day === today) ?? { day: today, allowed: 0, refused: 0 },
+      today: days.find((d) => d.day === today) ?? { day: today, allowed: 0, refused: 0, fence: 0 },
       week,
       reasons: [...merged.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, n]) => ({ reason, n })),
     });

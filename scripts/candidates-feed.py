@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lead Gen's daily candidates: real small businesses of the current target market, from open data.
+"""Lead Gen's daily candidates: real small businesses of the current target market, from open data (owner, 2026-09-29).
 
 Lead Gen's keyless web search kept returning news and directory pages (1 lead from 659 actions); the owner's rule for it
 is "get data from gov sites". This writes, once a day, up to `rows_per_day` businesses that have a website and an
@@ -11,10 +11,11 @@ address inside the market, trades that fit the packages first, never repeating o
 every prompt). One business per line. They are CANDIDATES: Lead Gen opens each website and records only what the site
 itself states.
 
-No place is written in this code:
+No place is written in this code (owner, 2026-09-30: "It should be said in task and goals, not in code"):
   - the market is `market` in common-data/knowledge/target.toml;
-  - its data source (endpoint, columns, ZIP-to-area map, trade order) is in common-data/knowledge/candidate-feeds.toml.
-A market with no feed there is a no-op with a logged reason.
+  - its open-data source (endpoint, columns, ZIP-to-area map, trade order) is in common-data/knowledge/candidate-feeds.toml;
+  - FreeSerp's business-site index ([sources.freeserp] there) adds sites for any market, one search per trade x area.
+A market with neither is a no-op with a logged reason.
 
 Read-only on the open-data API; writes only that folder and its own state file. Stdlib, plus certifi when present.
 
@@ -28,6 +29,7 @@ import json
 import re
 import ssl
 import sys
+import time
 import tomllib
 import unicodedata
 import urllib.parse
@@ -93,6 +95,57 @@ def first(r: dict, fields: list[str]) -> str:
     return next((clean(r.get(f)) for f in fields if clean(r.get(f))), "")
 
 
+GUIDE = re.compile(r"\b(guide|directory|directories|listings?|magazine|blog|news|reviews? site|best of|top \d+|marketplace)\b", re.I)
+
+
+def freeserp_candidates(src: dict, target: dict, seen_hosts: set[str], done: set[str], limit: int) -> list[dict]:
+    """Small business homepages for the market from FreeSerp's sites index: one search per trade x area (target.toml),
+    keeping live, real sites whose title or summary names an area or the market, under the Domain Rating ceiling, not
+    sent before and not already in today's open-data rows. Light use: one pass a day, a pause between queries."""
+    market = str(target.get("market", "")).strip()
+    trades = [t.strip() for t in re.split(r",| and ", str(target.get("trades", ""))) if t.strip()] or [str(target.get("segment", "business"))]
+    areas = [a.strip() for a in str(target.get("areas", "")).split(",") if a.strip()] or [market]
+    places = [p.lower() for p in [*areas, market, str(target.get("market_short", ""))] if p]
+    # An even share per trade x area, so the first trade does not take the whole day's quota.
+    per_combo = max(2, -(-limit // (len(trades) * len(areas))))
+    out: list[dict] = []
+    for trade in trades:
+        for area in areas:
+            if len(out) >= limit:
+                return out
+            taken = 0
+            q = urllib.parse.urlencode({"q": f"{trade} {area}", "index": "sites", "size": int(src.get("per_query", 50))})
+            try:
+                with urllib.request.urlopen(f"{src['url']}?{q}", timeout=60, context=_tls()) as r:  # noqa: S310 - configured https host
+                    rows = json.load(r).get("results", [])
+            except (OSError, ValueError) as exc:
+                print(f"freeserp: {trade} {area}: {exc}")
+                rows = []
+            time.sleep(float(src.get("pause_seconds", 0.5)))
+            for x in rows:
+                host = str(x.get("domain", "")).lower().removeprefix("www.")
+                text = f"{x.get('title', '')} {x.get('ai_summary', '')}".lower()
+                if not host or host in seen_hosts or host in done or x.get("real_site") != 1 or x.get("http_status") != 200:
+                    continue
+                if int(x.get("dr") or 0) > int(src.get("max_dr", 40)) or not any(pl in text for pl in places):
+                    continue
+                # Guides, directories and press list businesses; they are not one.
+                if GUIDE.search(text):
+                    continue
+                # The trade must show on the site ("salons" finding an accountant is the index's guess, not a lead).
+                stem = re.sub(r"(ies|es|s)$", "", trade.split()[0].lower())
+                if stem and stem not in text:
+                    continue
+                seen_hosts.add(host)
+                taken += 1
+                out.append({"host": host, "name": clean(x.get("title")) or host, "area": area, "trade": trade, "url": x.get("url") or f"https://{host}", "summary": clean(x.get("ai_summary"))[:160]})
+                if len(out) >= limit:
+                    return out
+                if taken >= per_combo:
+                    break
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--dry-run", action="store_true", help="print the slice; write nothing")
@@ -103,10 +156,11 @@ def main(argv: list[str] | None = None) -> int:
     target = tomllib.loads(TARGET.read_text(encoding="utf-8"))
     market = str(target.get("market", "")).strip()
     market_slug = str(target.get("market_slug", "")).strip() or slug(market)
-    feeds = tomllib.loads(FEEDS.read_text(encoding="utf-8")).get("feeds", {})
-    feed = feeds.get(market)
-    if not market or not feed:
-        print(f"no candidates feed for market {market!r} in {FEEDS.name} (feeds: {', '.join(feeds) or 'none'}); nothing to do")
+    conf = tomllib.loads(FEEDS.read_text(encoding="utf-8"))
+    feed = conf.get("feeds", {}).get(market)
+    fs = conf.get("sources", {}).get("freeserp", {})
+    if not market or (not feed and not fs.get("enabled")):
+        print(f"no candidates source for market {market!r} in {FEEDS.name}; nothing to do")
         return 0
 
     today = dt.date.today().isoformat()
@@ -123,45 +177,72 @@ def main(argv: list[str] | None = None) -> int:
         state = {}
     mine = state.get(market, {})
     emitted: set[str] = set(mine.get("emitted", []))
-
-    records = fetch_all(feed)
-    areas: dict[str, str] = feed.get("areas", {})
-    width = len(next(iter(areas), "")) or 0
-    order = feed.get("sector_order", {}).get("order", [])
-    rank = {s: i for i, s in enumerate(order)}
-    fresh = []
+    fs_done: set[str] = set(mine.get("freeserp_emitted", []))
     hosts: set[str] = set()
-    for r in records:
-        rid = str(r.get(feed["id_field"], ""))
-        site = website(r.get(feed["website_field"], ""))
-        area = areas.get(str(r.get(feed.get("zip_field", ""), ""))[:width]) if areas else market
-        if not rid or rid in emitted or not site or not area:
-            continue
-        host = urllib.parse.urlparse(site).netloc.lower().removeprefix("www.")
-        if host in hosts:
-            continue
-        hosts.add(host)
-        fresh.append((rank.get(r.get(feed.get("sector_field", ""), ""), len(rank)), rid, r, site, area))
-    fresh.sort(key=lambda x: (x[0], x[1]))
-    pick = fresh[: args.rows or int(feed.get("rows_per_day", 150))]
+    sections: list[str] = []
 
-    lines = []
-    for _, _rid, r, site, area in pick:
-        owner = " ".join(clean(r.get(f)) for f in feed.get("owner_fields", []) if clean(r.get(f)))
-        lines.append(
-            f"- {first(r, feed['name_fields'])} | {area} | {first(r, feed['industry_fields'])} | {site}"
-            + (f" | owner on public record: {owner}" if owner else "")
-        )
+    # 1. The market's own open-data feed, when it has one.
+    pick: list = []
+    fresh: list = []
+    if feed:
+        records = fetch_all(feed)
+        areas: dict[str, str] = feed.get("areas", {})
+        width = len(next(iter(areas), "")) or 0
+        order = feed.get("sector_order", {}).get("order", [])
+        rank = {s: i for i, s in enumerate(order)}
+        for r in records:
+            rid = str(r.get(feed["id_field"], ""))
+            site = website(r.get(feed["website_field"], ""))
+            area = areas.get(str(r.get(feed.get("zip_field", ""), ""))[:width]) if areas else market
+            if not rid or rid in emitted or not site or not area:
+                continue
+            host = urllib.parse.urlparse(site).netloc.lower().removeprefix("www.")
+            if host in hosts:
+                continue
+            hosts.add(host)
+            fresh.append((rank.get(r.get(feed.get("sector_field", ""), ""), len(rank)), rid, r, site, area))
+        fresh.sort(key=lambda x: (x[0], x[1]))
+        pick = fresh[: args.rows or int(feed.get("rows_per_day", 150))]
+        hosts = {urllib.parse.urlparse(site).netloc.lower().removeprefix("www.") for _, _, _, site, _ in pick}
+        lines = []
+        for _, _rid, r, site, area in pick:
+            owner = " ".join(clean(r.get(f)) for f in feed.get("owner_fields", []) if clean(r.get(f)))
+            lines.append(
+                f"- {first(r, feed['name_fields'])} | {area} | {first(r, feed['industry_fields'])} | {site}"
+                + (f" | owner on public record: {owner}" if owner else "")
+            )
+        if lines:
+            sections.append(
+                f"## From {feed['source']} (open data)\n\nFormat: name | area | industry | website | owner on public record. "
+                "The owner name is the public record's, a hint to confirm on the site, never a value to copy.\n\n" + "\n".join(lines)
+            )
+        print(f"{market}: open data {len(records)} with a website; {len(fresh)} not yet sent; writing {len(pick)}")
+
+    # 2. FreeSerp's business-site index, for any market.
+    found: list[dict] = []
+    if fs.get("enabled"):
+        found = freeserp_candidates(fs, target, hosts, fs_done, int(fs.get("rows_per_day", 100)))
+        if found:
+            sections.append(
+                "## From FreeSerp's index of business websites\n\nFormat: site title | area | trade searched | website | "
+                "index summary. The summary is the index's, written when it last visited the site: a hint where to look "
+                "(an empty or dated page, no ordering), never a value to copy.\n\n"
+                + "\n".join(f"- {c['name']} | {c['area']} | {c['trade']} | {c['url']}" + (f" | {c['summary']}" if c["summary"] else "") for c in found)
+            )
+        print(f"{market}: freeserp {len(found)} new sites")
+
+    total = len(pick) + len(found)
     text = (
         f"# Small business candidates: {market} ({today})\n\n"
-        f"{len(lines)} businesses in {market}, each with its own website, from {feed['source']} (open data). These are "
-        "CANDIDATES, not leads: open the website, look for the problem we can fix and the published business email, and "
-        "record only what the site states. The owner name is the public record's, a hint to confirm on the site, never a "
-        "value to copy. Format: name | area | industry | website | owner on public record.\n\n" + "\n".join(lines) + "\n"
+        f"{total} businesses in {market}, each with its own website. These are CANDIDATES, not leads: open the website, "
+        "look for the problem we can fix and the published business email, and record only what the site states.\n\n"
+        + "\n\n".join(sections) + "\n"
     )
-    print(f"{market}: {len(records)} records with a website; {len(fresh)} not yet sent; writing {len(pick)}")
     if args.dry_run:
-        print(text[:3000])
+        print(text[:4000])
+        return 0
+    if not total:
+        print("nothing new to write today")
         return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -170,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         f.unlink()
     state[market] = {
         "emitted": sorted(emitted | {rid for _, rid, *_ in pick}),
+        "freeserp_emitted": sorted(fs_done | {c["host"] for c in found}),
         "last_run": dt.datetime.now().isoformat(timespec="seconds"),
         "last_file": today_file.name,
         "remaining": len(fresh) - len(pick),
@@ -178,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=1), encoding="utf-8")
     tmp.replace(STATE)
-    print(f"wrote {today_file} ({len(pick)} rows); {state[market]['remaining']} left for later days")
+    print(f"wrote {today_file} ({len(pick)} open data + {len(found)} freeserp)")
     return 0
 
 
