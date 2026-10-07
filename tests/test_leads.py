@@ -238,3 +238,22 @@ def test_the_page_a_whatsapp_number_came_from_is_cited(cfg):
     c.recent_pages = {"https://yelp.example/biz/acme": "Acme Bakery. Phone (212) 555-0187", "https://acme.example": "Welcome"}
     assert c._with_number_page("https://acme.example", "https://wa.me/12125550187") == "https://acme.example\nhttps://yelp.example/biz/acme"
     assert c._with_number_page("", "https://wa.me/19995550000") == ""
+
+
+def test_business_emails_noted_but_never_listed_come_back_as_work(cfg):
+    """Owner, 2026-10-07 (via appCC): 16 business emails sat in Lead Gen's notes, never listed."""
+    from conftest import make_controller
+
+    cfg.leads.enabled, cfg.leads.noted_shown = True, 5
+    c = make_controller(cfg)
+    ep = c.memory.start_episode(None)
+    for title, body, url in (("Sweet Catch Brooklyn", "Footer: info@sweetcatchbk.com", "https://www.sweetcatchbk.com"),
+                             ("Placeholder form", "write to mymail@mailservice.com", "https://x.example"),
+                             ("A professor", "en21@cornell.edu", "https://cornell.edu/x"),
+                             ("Gmail shop", "shop@gmail.com", "https://shop.example")):
+        c.memory.add_note(title, body, source_url=url, episode_id=ep)
+    lines = c._noted_not_listed()
+    assert lines == ["Sweet Catch Brooklyn | info@sweetcatchbk.com | https://www.sweetcatchbk.com"]
+    import json
+    shared = json.loads((cfg.root.parent / "common-data" / "shared-state" / f"{cfg.root.name}-noted.json").read_text())
+    assert [i["email"] for i in shared["items"]] == ["info@sweetcatchbk.com"] and shared["items"][0]["refusals"] == 0

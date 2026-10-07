@@ -294,3 +294,26 @@ def test_a_whatsapp_number_a_person_marked_false_is_never_refilled(cfg):
     assert not r.ok and "does not reach WhatsApp" in r.summary and "Whatsapp" not in notion.rows[0]
     assert c._execute_update_lead(UpdateLead(type="update_lead", name="Blank Deli", whatsapp="(212) 555-0199")).ok
     assert notion.rows[1]["Whatsapp"] == "https://wa.me/12125550199"
+
+
+def test_the_writer_gets_each_rows_package_email_in_its_work_list(cfg, tmp_path):
+    """2026-10-07: the Outreach Writer spent most of its steps hunting for the package template."""
+    from explorer.notion import FakeNotion
+    from conftest import make_controller
+
+    page = tmp_path / "packages-page.md"
+    page.write_text("# Packages\n\n## Acme POS for Restaurants – after demo\nWho it is for\nChains\nReady-to-send email\n"
+                    "Hi [Name],\n1. POS\nRegards,\n-- Your Company\nSources\n- https://x.example\n\n## Other – $1\nReady-to-send email\nHi\n")
+    cfg.leads.enabled, cfg.leads.update_any_row = True, True
+    cfg.leads.update_only_fields, cfg.leads.draft_queue_column = ["draft_email"], "Draft email"
+    cfg.leads.package_emails_file = str(page)
+    cfg.leads.package_aliases = {"Acme POS & Ordering": "Acme POS for Restaurants"}
+    notion = FakeNotion()
+    notion.create_row("Sweet Corner", {"Stage": "New", "How we can help": "Acme POS & Ordering"})
+    notion.create_row("Deli", {"Stage": "New", "How we can help": "Acme ERP"})
+    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    c.memory.start_episode(None)
+    lines = c._draft_queue_lines()
+    pos = next(l for l in lines if l.startswith('PACKAGE EMAIL for "Acme POS & Ordering"'))
+    assert "Hi [Name],\n1. POS\nRegards,\n-- Your Company" in pos and "Sources" not in pos
+    assert any(l.startswith('PACKAGE EMAIL for "Acme ERP": none on the Packages page yet') and "word for word" in l for l in lines)

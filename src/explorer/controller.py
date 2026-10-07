@@ -1232,6 +1232,7 @@ class Controller:
             family_line=self._family_line(),
             known_finds=self._known_finds(),
             candidate_lines=self._candidate_lines(),
+            noted_lines=self._noted_not_listed(),
             decide_lines=self._decide_lines(),
             outreach_lines=outreach[0],
             outreach_total=outreach[1],
@@ -2012,6 +2013,87 @@ class Controller:
             return out
         except Exception:  # noqa: BLE001
             return []
+
+    _NOTED_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+    _PLACEHOLDER_LOCAL = re.compile(r"^(mymail|email|e-mail|your|yourname|name|example|test|user|someone|abc|xyz)$", re.I)
+
+    def _noted_not_listed(self) -> list[str]:
+        """The first [leads] noted_shown of _noted_items for the prompt; the whole list goes to
+        common-data/shared-state/lead-gen-noted.json for the dashboard (one definition, appCC 2026-10-07)."""
+        L = self.cfg.leads
+        if not (L.enabled and L.noted_shown > 0) or L.draft_queue_column.strip():
+            return []
+        items = self._noted_items()
+        try:
+            path = self.cfg.root.parent / "common-data" / "shared-state" / f"{self.cfg.root.name}-noted.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"at": now_iso(), "items": items}, ensure_ascii=False, indent=1), encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            pass
+        return [f"{i['title'][:60]} | {i['email']} | {i['page'] or '(no page recorded)'}" for i in items[: L.noted_shown]]
+
+    def _noted_items(self) -> list[dict]:
+        """Business emails in this bot's own notes that never became leads: domain not among its leads, not on the
+        board, not refused twice in the last two days, not a mail provider, placeholder or school address. Oldest first."""
+        from .policy import _FREE_MAIL, same_site
+
+        try:
+            notes = self.memory.db.query("SELECT title, body, source_url, created_at FROM notes ORDER BY id")
+            listed = {d for d in self.memory.recent_lead_domains(3650) if d}
+            refused: dict[str, int] = {}
+            # refusals of the last two days only: an old refusal for a fixable reason (a made-up package name, a location
+            # not on the cited page) gets another try
+            for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'lead' AND verdict != 'allowed' "
+                                          "AND ts > datetime('now', '-2 days')"):
+                try:
+                    p = json.loads(r["payload"])
+                except ValueError:
+                    continue
+                for u in (p.get("website", ""), "x@" + str(p.get("email", "")).split("@")[-1]):
+                    d = url_domain(u) if "://" in u else u.split("@")[-1].lower()
+                    if d:
+                        refused[d] = refused.get(d, 0) + 1
+        except Exception:  # noqa: BLE001 - a notes read never blocks the prompt
+            return []
+        out, seen = [], set()
+        for n in notes:
+            text = f"{n['title'] or ''}\n{n['body'] or ''}"
+            for email in self._NOTED_EMAIL.findall(text):
+                local, dom = email.rsplit("@", 1)
+                dom = dom.lower().rstrip(".")
+                if (dom in seen or any(dom == f.rstrip(".") or dom.startswith(f) for f in _FREE_MAIL)
+                        or self._PLACEHOLDER_LOCAL.match(local) or dom.endswith((".edu", ".gov")) or "example" in dom):
+                    continue
+                seen.add(dom)
+                page = str(n["source_url"] or "").strip()
+                site = url_domain(page) if page.startswith("http") else ""
+                if any(same_site(dom, d) or (site and same_site(site, d)) for d in listed):
+                    continue
+                tries = refused.get(dom, 0) + (refused.get(site, 0) if site and site != dom else 0)
+                if tries >= 2 or self._domain_on_board(site or dom):
+                    continue
+                out.append({"title": str(n["title"] or "").strip(), "email": email, "page": page,
+                            "noted_at": str(n["created_at"] or ""), "refusals": tries})
+        return out
+
+    def _domain_on_board(self, domain: str) -> bool:
+        """A row on the Leads board whose Website contains this domain (one board query per domain an hour)."""
+        if self.leads_notion is None or not domain:
+            return False
+        cache = self.__dict__.setdefault("_board_domains", {})
+        hit = cache.get(domain)
+        if hit is not None and time.time() - hit[0] < 3600:
+            return hit[1]
+        try:
+            data = self.leads_notion._request("POST", f"{self.leads_notion._container_path}/query",
+                                              json={"filter": {"property": "Website", "url": {"contains": domain}}, "page_size": 1})
+            found = bool(data.get("results"))
+        except Exception:  # noqa: BLE001
+            found = False
+        cache[domain] = (time.time(), found)
+        return found
 
     def _candidate_lines(self) -> list[str]:
         """The next few businesses from the newest candidates file that this bot has not visited or listed yet, as
@@ -2839,6 +2921,55 @@ class Controller:
             out.append(" | ".join(p for p in parts if p)[:600])
             if len(out) >= max(1, L.draft_queue_shown):
                 break
+        shown = {str(r.get("fields", {}).get("How we can help", "") or "").strip() for r in cached[1]
+                 if str(r.get("title") or "").strip() and any(o.startswith(str(r.get("title")).strip() + " |") for o in out)}
+        emails = self._package_emails()
+        missing = sorted(p for p in shown if p and p not in emails)
+        given = [p for p in sorted(shown) if p in emails]
+        if missing and not given and emails:  # a full email to copy the co-founders paragraph and portfolio line from
+            given = [sorted(emails)[0]]
+        for pkg in given:
+            out.append(f"PACKAGE EMAIL for \"{pkg}\" (start from this; keep its numbered list, co-founders paragraph and "
+                       f"portfolio line exactly):\n{emails[pkg]}")
+        for pkg in missing:
+            out.append(f"PACKAGE EMAIL for \"{pkg}\": none on the Packages page yet. Write it in the same shape: greeting, your "
+                       "observed-gap line, 2-3 numbered points from the owner's Rates line for it (in your prompt), the price "
+                       "exactly as the Rates state it (no line: 'priced after a short call'), then the co-founders paragraph and "
+                       "the portfolio line copied word for word from a PACKAGE EMAIL here, and the sign-off.")
+        return out
+
+    def _package_emails(self) -> dict[str, str]:
+        """Board package name -> its "Ready-to-send email" from the mirrored Packages page ([leads] package_emails_file),
+        matched through [leads] package_aliases or by the name's start. Re-read when the file changes."""
+        path = Path((self.cfg.leads.package_emails_file or "").strip()).expanduser() if (self.cfg.leads.package_emails_file or "").strip() else None
+        if path is None or not path.is_file():
+            return {}
+        mtime = path.stat().st_mtime
+        cached = getattr(self, "_pkg_email_cache", None)
+        if cached and cached[0] == mtime:
+            return cached[1]
+        sections: dict[str, str] = {}
+        title, body, inside = None, [], False
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines() + ["## "]:
+            if line.startswith("## "):
+                if title and body:
+                    sections[title] = "\n".join(body).strip()
+                title, body, inside = line[3:].strip(), [], False
+                continue
+            if line.strip() == "Ready-to-send email":
+                inside = True
+                continue
+            if title and inside:
+                if line.strip() == "Sources":
+                    inside = False
+                    continue
+                body.append(line)
+        out: dict[str, str] = {}
+        for board, prefix in self.cfg.leads.package_aliases.items():
+            hit = next((t for t in sections if t.lower().startswith(prefix.strip().lower())), None)
+            if hit:
+                out[board] = sections[hit]
+        self._pkg_email_cache = (mtime, out)
         return out
 
     def _whatsapp_marked_false(self, page_id: str) -> bool:

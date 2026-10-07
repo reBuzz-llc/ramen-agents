@@ -794,3 +794,14 @@ def test_a_held_member_idles_or_spaces_its_steps(cfg):
     assert bot._held("pause") is not None
     clear_hold(cfg.workspace)
     assert bot._held("pause") is None and bot._paced_delay() == base
+
+
+def test_progress_reports_without_a_question_are_notices():
+    """2026-10-07: the Package Designer's reports to The CEO sat open on the owner's Requests page for two days."""
+    from explorer.fleet_requests import is_notice as is_status_note
+
+    assert is_status_note("Handed The CEO the package for AI Agent Implementation for SMBs, priced at $2,500-$6,000/month.")
+    assert is_status_note('new package "AI Agent Solutions for SMBs" at $3,000-$8,000/month, for Small businesses')
+    assert is_status_note("Could not find SMB-specific AI agent packages from competitors.")
+    assert not is_status_note("Found a method to get a free OpenAI key. Should we request one?")  # a real question stays open
+    assert not is_status_note("What type of MCP servers would be most valuable for our family?")
