@@ -33,6 +33,7 @@ from .actions import (
     UpdateTask,
     Package,
     MergeTask,
+    PaceMember,
     Provider,
     Message,
     ReviseGoal,
@@ -379,6 +380,7 @@ class Controller:
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
             scout_enabled=self.scout_enabled,
             merge_tasks=bool((cfg.notion.merge_status or "").strip()),
+            pace_members=cfg.messaging.enabled and cfg.messaging.can_pace_members,
             scout_kind=cfg.scout.kind,
             message_peers=cfg.messaging.peer_names if cfg.messaging.enabled else [],
             message_room=cfg.messaging.room if cfg.messaging.enabled else False,
@@ -428,6 +430,10 @@ class Controller:
                     self.memory.write_journal(f"Stopped ({reason}).", heading="Stopped")
                     return 0
                 if pause_requested(self.cfg):
+                    self.heartbeat.tick(self.cycle_no, "paused")
+                    self._sleep(5)
+                    continue
+                if self._held("pause"):
                     self.heartbeat.tick(self.cycle_no, "paused")
                     self._sleep(5)
                     continue
@@ -493,7 +499,29 @@ class Controller:
             self.heartbeat.mark_progress()
         return False
 
+    def _held(self, mode: str) -> dict | None:
+        """The CEO's hold on this bot (hold.py) when it is of this mode; the journal notes when one starts and ends."""
+        from .hold import read_hold, until_text
+
+        hold = read_hold(self.cfg.workspace)
+        key = (hold or {}).get("at"), (hold or {}).get("mode")
+        if key != getattr(self, "_hold_seen", (None, None)):
+            self._hold_seen = key
+            if hold:
+                what = "paused me" if hold["mode"] == "pause" else f"slowed me to one step every {int(hold.get('step_seconds', 0)) // 60} minutes"
+                self.memory.write_journal(f"{hold.get('by', 'The CEO')} {what} until {until_text(hold)}: {hold.get('why') or 'no reason given'}.",
+                                          heading="Held")
+                event(self.logger, "held", by=hold.get("by"), mode=hold["mode"], until=until_text(hold))
+            else:
+                event(self.logger, "hold_lifted")
+        return hold if hold and hold.get("mode") == mode else None
+
     def _paced_delay(self) -> float:
+        delay = self._paced_delay_budget()
+        hold = self._held("slow")
+        return max(delay, float(hold.get("step_seconds", 0))) if hold else delay
+
+    def _paced_delay_budget(self) -> float:
         """The cycle delay, stretched when the day's shared free tokens are running out faster than the
         clock, so the budget lasts into the evening instead of being spent by mid-day. All bots read one
         machine-wide ledger, so they slow together. No budget set, or on track, means the base delay."""
@@ -1368,6 +1396,7 @@ class Controller:
             "recent_task_titles": memory.recent_task_titles,
             "task_titles_today": memory.task_titles_today,
             "merges_in_episode": lambda: memory.count_actions(eid, "merge_task"),
+            "paces_today": lambda: memory.count_actions_today("pace_member"),
             "team": lambda: self.team,
             "providers_in_episode": lambda: memory.count_actions(eid, "provider"),
             "providers_today": lambda: memory.count_actions_today("provider"),
@@ -1630,6 +1659,8 @@ class Controller:
                 return self._execute_provider(action)
             if isinstance(action, MergeTask):
                 return self._execute_merge_task(action)
+            if isinstance(action, PaceMember):
+                return self._execute_pace_member(action)
             if isinstance(action, Message):
                 return self._execute_message(action)
             if isinstance(action, ReviseGoal):
@@ -2126,14 +2157,26 @@ class Controller:
             states = m.peer_states()
         except OSError:
             return None
-        off = {n: s for n, s in states.items() if s != "running"}
-        if not off:
+        held = {n: s for n, s in states.items() if s.startswith("held:")}
+        off = {n: s for n, s in states.items() if s in ("stopped", "paused")}
+        if not off and not held:
             return None
+        lines = []
         running = ", ".join(n for n, s in states.items() if s == "running") or "nobody else"
-        away = ", ".join(f"{n} ({s} by the owner)" for n, s in off.items())
-        return (f"Family right now -- running: {running}. NOT running: {away}. Do not message them or give them tasks; "
-                "nobody would read it. Work that is theirs: do it yourself when your own actions allow it, hand it to a "
-                "running member who can, or leave it until the owner starts them again -- never keep asking.")
+        if off:
+            away = ", ".join(f"{n} ({s} by the owner)" for n, s in off.items())
+            lines.append(f"Family right now -- running: {running}. NOT running: {away}. Do not message them or give them tasks; "
+                         "nobody would read it. Work that is theirs: do it yourself when your own actions allow it, hand it to a "
+                         "running member who can, or leave it until the owner starts them again -- never keep asking.")
+        if held:
+            from .hold import read_hold, until_text
+
+            parts = []
+            for n, s in held.items():
+                h = read_hold(Path(m.folder_for(n) or "").expanduser() / "workspace") or {}
+                parts.append(f"{n} {'paused' if s == 'held:pause' else 'slowed'} by {h.get('by', 'The CEO')} until {until_text(h)}")
+            lines.append("Held: " + "; ".join(parts) + ". A paused member reads its messages when it runs again.")
+        return "\n".join(lines)
 
     def _allowed_now(self, ep: sqlite3.Row) -> list[str]:
         """The policy's caps and today's counts, one short item each, so the bot knows what is allowed before it acts
@@ -2414,6 +2457,38 @@ class Controller:
                     shutil.rmtree(old, ignore_errors=True)
         except Exception:  # noqa: BLE001
             pass
+
+    def _execute_pace_member(self, action: PaceMember) -> ExecResult:
+        """Pause, slow or restart a family member (owner, 2026-10-07: "let ceoA have this access and also let him start
+        those he pause himself apart from me"). Only its own holds: the owner's STOP and PAUSE are never touched."""
+        from .hold import clear_hold, read_hold, until_text, write_hold
+
+        m = self.cfg.messaging
+        folder = m.folder_for(action.name.strip())
+        if not folder:
+            return ExecResult(False, f"{action.name} is not a family member you can reach", False)
+        name = next(p for p in m.peer_names if p.lower() == action.name.strip().lower())
+        ws = Path(folder).expanduser() / "workspace"
+        if (ws / "STOP").exists() or (ws / "PAUSE").exists():
+            return ExecResult(False, f"the owner {'stopped' if (ws / 'STOP').exists() else 'paused'} {name}; only the owner starts it again", False)
+        hold = read_hold(ws)
+        me = self.cfg.agent.name
+        if action.mode == "resume":
+            if hold is None:
+                return ExecResult(False, f"{name} is running; there is no hold of yours to lift", False)
+            if str(hold.get("by", "")).strip().lower() != me.lower():
+                return ExecResult(False, f"{name} was held by {hold.get('by')}, not you; leave it", False)
+            clear_hold(ws)
+            detail = f"{name} runs again at full speed"
+        else:
+            step = max(2, min(60, int(action.minutes_between_steps))) * 60 if action.mode == "slow" else 0
+            hours = max(0.5, min(24.0, float(action.hours)))
+            hold = write_hold(ws, me, action.mode, hours, action.why, step)
+            detail = (f"{name} paused until {until_text(hold)}" if action.mode == "pause"
+                      else f"{name} slowed to one step every {step // 60} minutes until {until_text(hold)}")
+        self.memory.write_journal(f"{detail}. Why: {action.why.strip() or 'not given'}.", heading="Family resources")
+        event(self.logger, "pace_member", member=name, mode=action.mode, why=action.why.strip()[:200])
+        return ExecResult(True, detail, False)
 
     def _execute_merge_task(self, action: MergeTask) -> ExecResult:
         """Close a task of this bot's that another of its tasks covers (owner, 2026-10-06: "let ceoA merge"). Refused while

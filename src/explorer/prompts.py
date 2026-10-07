@@ -54,6 +54,7 @@ PACKAGE_ACTION_HELP = """- package: {"type":"package","name":"...","audience":".
 
 UPDATE_TASK_ACTION_HELP = """- update_task: {"type":"update_task","title":"<exact title of a task you created>","assignee":null,"priority":null,"due":null,"details_append":null} : fix one of your own tasks on the board when the owner or the Validator reports it incomplete -- set the missing Dead Line (due), assign the person, change the priority, or append Markdown to the page (e.g. a "### Done when" checklist with "- [ ]" items). Only the fields you give change; at most two fixes per episode; never a substitute for creating a task."""
 
+PACE_MEMBER_ACTION_HELP = """- pace_member: {"type":"pace_member","name":"<family member>","mode":"pause"|"slow"|"resume","hours":4,"minutes_between_steps":10,"why":"<one line>"} : manage the family's resources. "pause" stops a member's work, "slow" spaces its steps out, each for `hours` (24 at most; it ends by itself); "resume" lifts a hold of yours early. Never a member the owner stopped or paused, never the Validator."""
 MERGE_TASK_ACTION_HELP = """- merge_task: {"type":"merge_task","title":"<a task of yours to close>","into":"<the task of yours that covers it>"} : close a board task another of your tasks already covers. First make sure `into` names every business and step the closed one has (add what is missing with update_task details_append); the engine checks, and refuses while anything would be lost. Only tasks nobody has started; at most three an episode."""
 
 LEAD_ACTION_HELP = """- lead: {"type":"lead","name":"...","website":"https://...","email":"hello@theirdomain.com","pain_point":"...","how_we_help":"<a package name from the packages page>","evidence":"https://...","location":"","industry":"","size":"","sources":["https://..."]} : list one potential customer on the owner's Leads board -- a business whose own site you read. Rules the policy enforces: the email must be a business address published on THEIR OWN site (a page you opened; hello@/info@/sales@ or a named address they publish), never guessed, never from a directory or a personal mailbox; no email = no lead. pain_point is what you saw on their pages that one of our packages fixes; evidence is the URL of the page that shows it; location/industry/size only as their pages state. One business once, at most one per episode."""
@@ -144,6 +145,7 @@ def system_prompt(
     handoff_to: str = "",
     scout_enabled: bool = False,
     merge_tasks: bool = False,
+    pace_members: bool = False,
     scout_kind: str = "provider",
     message_peers: list[str] | None = None,
     message_room: bool = False,
@@ -227,6 +229,8 @@ def system_prompt(
         actions += "\n" + TASK_ACTION_HELP + "\n" + UPDATE_TASK_ACTION_HELP
         if merge_tasks:
             actions += "\n" + MERGE_TASK_ACTION_HELP
+    if pace_members:
+        actions += "\n" + PACE_MEMBER_ACTION_HELP
     if scout_enabled:
         actions += "\n" + (AGENT_ACTION_HELP if scout_kind == "agent" else PROVIDER_ACTION_HELP)
     if handoff_to:

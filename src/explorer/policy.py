@@ -17,6 +17,7 @@ from urllib.robotparser import RobotFileParser
 from .actions import (
     Action,
     MergeTask,
+    PaceMember,
     App,
     Ask,
     Click,
@@ -333,6 +334,7 @@ class PolicyContext:
     package_names_last_day: set[str] = field(default_factory=set)
     task_titles_today: set[str] = field(default_factory=set)
     merges_in_episode: int = 0  # merge_task actions accepted this episode
+    paces_today: int = 0  # pace_member actions accepted today
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
@@ -1783,6 +1785,21 @@ class Policy:
                 return Verdict.no("a task cannot be merged into itself; name the task that covers it in `into`")
             if ctx.merges_in_episode >= 3:
                 return Verdict.no("you already merged three tasks this episode; leave the rest for next time")
+            return Verdict.ok()
+
+        if isinstance(action, PaceMember):
+            m = self.messaging
+            if m is None or not m.enabled or not m.can_pace_members:
+                return Verdict.no("pausing family members is not enabled; that action does not exist", permanent=True)
+            name = action.name.strip().lower()
+            if name not in {p.lower() for p in m.peer_names}:
+                return Verdict.no(f"pace_member takes a family member's name: {', '.join(m.peer_names)}")
+            if name in {p.strip().lower() for p in m.pace_protected}:
+                return Verdict.no(f"{action.name.strip()} is not yours to pause or slow; only the owner does that", permanent=True)
+            if action.mode != "resume" and not action.why.strip():
+                return Verdict.no("say why in `why`: the member and the owner read it")
+            if action.mode != "resume" and ctx.paces_today >= m.max_paces_per_day:
+                return Verdict.no(f"you paused or slowed members {ctx.paces_today} times today; let them work")
             return Verdict.ok()
 
         if isinstance(action, Message):
