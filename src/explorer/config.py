@@ -127,6 +127,10 @@ class ModelConfig:
     # bot is never paced and takes no share (The CEO); its spending still comes out of the pool.
     fleet_token_budget: int = 0
     budget_weight: float = 1.0
+    # Owner, 2026-10-07: "remove token budget limit as we are using free tiers ... let ceoA manage token budget if
+    # needed". The bot that holds the family's resources sees the day's free tokens by member and calls by provider in
+    # its prompt, and steers the others by message. Nobody is paced by it.
+    sees_fleet_usage: bool = False
     # Before a remote call that would not fit the provider's remaining tokens this minute, wait up to
     # this long for the budget to refill (read from x-ratelimit-* headers); longer means skip it for now.
     token_wait_seconds: float = 20.0

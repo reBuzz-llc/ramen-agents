@@ -725,3 +725,19 @@ def test_a_repeated_search_is_answered_from_the_results_already_had_twice(cfg):
     assert "already searched" in policy.check(again, PolicyContext(**base, cached_search_queries={"maple diner springfield contact email"},
                                                                      repeat_searches_served=2)).reason
     assert "already searched" in policy.check(again, PolicyContext(**base)).reason  # nothing cached: the refusal stands
+
+
+def test_the_ceo_sees_the_days_free_model_use_by_member(cfg, tmp_path: Path):
+    """Owner, 2026-10-07: "remove token budget limit as we are using free tiers, may be let ceoA manage token budget"."""
+    from explorer.common.fallback import CallLedger
+
+    ceo = make_controller(cfg)
+    ceo._ledger = CallLedger(tmp_path / "calls.json")
+    assert ceo._fleet_usage_line() is None  # off unless the config says so
+    cfg.model.sees_fleet_usage = True
+    assert ceo._fleet_usage_line() is None  # nothing spent yet
+    CallLedger(tmp_path / "calls.json", bot="Lead Gen").add_usage("api.z.ai", "decide", 2_000_000, 200_000)
+    CallLedger(tmp_path / "calls.json", bot="Scout").add_usage("api.z.ai", "decide", 40_000, 5_000)
+    line = ceo._fleet_usage_line()
+    assert "Lead Gen 2.2M" in line and "Scout 45k" in line and "No daily token limit" in line
+    assert line.index("Lead Gen") < line.index("Scout")
