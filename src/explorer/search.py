@@ -103,6 +103,7 @@ class SearchSettings:
     parallel_usage_file: Path = PARALLEL_USAGE_FILE
     # The `duckduckgo-mcp` engine (owner, 2026-10-05: "add DuckDuckGo MCP for search"): the keyless DuckDuckGo MCP server,
     # run on this Mac over stdio for each search. Only its `search` tool is ever called.
+    places_db: Path = Path.home() / "bots" / "common-data" / "places" / "nyc-places.sqlite"
     ddg_mcp_command: str = str(Path.home() / ".local" / "opt" / "ddg-mcp" / "venv" / "bin" / "duckduckgo-mcp-server")
 
     def __post_init__(self) -> None:
@@ -298,6 +299,8 @@ class Searcher:
                 return searxng_search(self.client, query, self.settings.searxng_url)
             if engine == "duckduckgo-mcp":
                 return duckduckgo_mcp_search(query, self.settings.ddg_mcp_command)
+            if engine == "places":
+                return places_search(query, self.settings.places_db)
             if engine == "parallel":
                 return parallel_search(self.client, query, self.settings.parallel_api_key, self.settings.parallel_per_day,
                                        self.settings.parallel_usage_file)
@@ -317,6 +320,44 @@ class Searcher:
 
 
 # ---- engines ------------------------------------------------------------------------
+
+
+_PLACE_STOP = frozenset("the and of nyc new york ny llc inc co corp ltd".split())
+
+
+def places_search(query: str, db_path: Path, limit: int = 8) -> PageView:
+    """New York City's places from Overture Maps' open data (local snapshot, scripts/places_snapshot.py): the listing
+    facts for a business by name -- category, website (or none listed), phone, social pages, address, open or closed.
+    A data record, not a web page: no listing means only that Overture has none."""
+    import re as _re
+    import sqlite3 as _sq
+
+    url = f"places://nyc?q={quote_plus(query)}"
+    if not Path(db_path).exists():
+        return error_page(url, "the places snapshot is not built yet (scripts/places_snapshot.py)")
+    words = [w for w in _re.sub(r"[^a-z0-9]+", " ", query.lower()).split() if w not in _PLACE_STOP and len(w) > 1][:5]
+    if not words:
+        return error_page(url, "give a business name to look up")
+    con = _sq.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+    try:
+        where = " AND ".join("(' ' || name_norm || ' ') LIKE ?" for _ in words)
+        rows = con.execute(f"SELECT name, category, website, phone, socials, address, locality, status, confidence FROM places "
+                           f"WHERE {where} ORDER BY confidence DESC LIMIT ?", [f"% {w}%" for w in words] + [limit]).fetchall()
+    finally:
+        con.close()
+    lines = [f"Overture Maps listings for '{query}' in New York City (open map data; a listing with no website or socials "
+             "means none is listed there):"]
+    links: list[Link] = []
+    for n, (name, cat, web, phone, soc, addr, loc, status, conf) in enumerate(rows, start=1):
+        facts = [str(cat or "").replace("_", " ") or "no category", f"{addr or ''}, {loc or ''}".strip(", "),
+                 f"website: {web}" if web else "no website listed", f"phone: {phone}" if phone else "no phone listed",
+                 ("social: " + ", ".join(str(soc).split()[:3])) if soc else "no social pages listed",
+                 f"status: {status or 'unknown'}", f"confidence {float(conf or 0):.2f}"]
+        lines.append(f"[{n}] {name} -- " + "; ".join(f for f in facts if f))
+        links.append(Link(n, str(name)[:120], web or url))
+    if not rows:
+        lines.append(NO_RESULTS)
+    return PageView(url=url, title=f"Places: {query}", text="\n".join(lines), links=links)
 
 
 def _results_page(url: str, heading: str, rows: list[tuple[str, str, str]]) -> PageView:
@@ -686,6 +727,7 @@ def settings_from_config(cfg: Any) -> SearchSettings:
         parallel_api_key=load_key("PARALLEL_API_KEY", key_file("parallel")) or "",
         parallel_per_day=int(getattr(browser_cfg, "parallel_per_day", 30) or 0),
         **({"ddg_mcp_command": str(Path(str(getattr(browser_cfg, "ddg_mcp_command"))).expanduser())} if getattr(browser_cfg, "ddg_mcp_command", "") else {}),
+        **({"places_db": Path(str(getattr(browser_cfg, "places_db"))).expanduser()} if getattr(browser_cfg, "places_db", "") else {}),
     )
 
 

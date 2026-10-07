@@ -276,3 +276,21 @@ def test_a_draft_also_goes_on_the_leads_page_and_the_rates_are_quoted(cfg, tmp_p
     assert c._execute_update_lead(UpdateLead(type="update_lead", name="Acme Bakery", draft_email="Hi team,\n\nAlex\nAcme LLC")).ok
     assert notion.rows[0]["_sections"]["Draft email"] == "Hi team,\n\nAlex\nAcme LLC"
     assert "$299 setup, $79/month" in c._rates_text() and "Who does what" not in c._rates_text()
+
+
+def test_a_whatsapp_number_a_person_marked_false_is_never_refilled(cfg):
+    """Owner, 2026-10-07: Status "False Whatsapp Number" -- checked by hand in WhatsApp Web, it does not reach WhatsApp."""
+    from explorer.actions import UpdateLead
+    from explorer.notion import FakeNotion
+    from conftest import make_controller
+
+    cfg.leads.enabled, cfg.leads.update_any_row = True, True
+    notion = FakeNotion()
+    notion.create_row("Acme Bakery", {"Website": SITE, "Status": "False Whatsapp Number"})
+    notion.create_row("Blank Deli", {"Website": "https://blankdeli.example"})
+    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    c.recent_pages = {SITE: "Call (212) 555-0187", "https://blankdeli.example": "Call (212) 555-0199"}
+    r = c._execute_update_lead(UpdateLead(type="update_lead", name="Acme Bakery", whatsapp="(212) 555-0187"))
+    assert not r.ok and "does not reach WhatsApp" in r.summary and "Whatsapp" not in notion.rows[0]
+    assert c._execute_update_lead(UpdateLead(type="update_lead", name="Blank Deli", whatsapp="(212) 555-0199")).ok
+    assert notion.rows[1]["Whatsapp"] == "https://wa.me/12125550199"

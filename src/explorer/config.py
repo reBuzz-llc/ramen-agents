@@ -164,6 +164,9 @@ class BrowserConfig:
     tavily_per_day: int = 30  # the fleet's shared daily budget for the `tavily` engine (1,000 free credits a month)
     langsearch_per_day: int = 100  # the fleet's shared daily budget for the `langsearch` backup engine
     parallel_per_day: int = 30  # the fleet's shared daily budget for the `parallel` second backup ($5 free credit a month)
+    # The `places` engine (owner, 2026-10-07): New York City's places from Overture Maps' open data, a local SQLite
+    # snapshot built by ~/bots/scripts/places_snapshot.py -- name, category, website, phone, socials, address, open/closed.
+    places_db: str = "~/bots/common-data/places/nyc-places.sqlite"
     ddg_mcp_command: str = ""  # the DuckDuckGo MCP server's executable; "" = ~/.local/opt/ddg-mcp/venv/bin/duckduckgo-mcp-server
     search_pause_file: str = ""
     # Each bot keeps a score per search engine and drops one that answered often and never led to a note. Changing this
@@ -190,7 +193,7 @@ class BrowserConfig:
     video_transcript_languages: list[str] = field(default_factory=lambda: ["en"])
 
 
-SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel", "duckduckgo-mcp")  # brave-web: old name of browser
+SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel", "duckduckgo-mcp", "places")  # brave-web: old name of browser
 PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind"})
 
 # OpenAI-compatible providers this project knows how to reach: drop a key at
@@ -540,7 +543,10 @@ class LeadsConfig:
     outreach_draft_column: str = ""
     outreach_status_column: str = "Status"
     # Statuses that do not mean the email was reviewed (owner, 2026-10-07: "WhatsApp Verified" on the same column).
-    outreach_not_reviewed: list[str] = field(default_factory=lambda: ["WhatsApp Verified"])
+    outreach_not_reviewed: list[str] = field(default_factory=lambda: ["WhatsApp Verified", "False Whatsapp Number"])
+    # A person checked the row's WhatsApp link in WhatsApp Web and it does not reach WhatsApp: no bot writes Whatsapp
+    # on such a row again (its number would be re-filled from the same page).
+    whatsapp_false_status: str = "False Whatsapp Number"
     # The Outreach Writer (owner, 2026-10-07): board rows whose Stage is draft_queue_stage and whose draft_queue_column is
     # empty, oldest first, are its work list in every prompt (with website, pain point, package, evidence, founder).
     # "" = off.

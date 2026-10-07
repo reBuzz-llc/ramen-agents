@@ -2841,6 +2841,17 @@ class Controller:
                 break
         return out
 
+    def _whatsapp_marked_false(self, page_id: str) -> bool:
+        """The row's Status says a person found its WhatsApp link false ([leads] whatsapp_false_status)."""
+        status = (self.cfg.leads.whatsapp_false_status or "").strip()
+        if not status or self.leads_notion is None:
+            return False
+        try:
+            fields = (self.leads_notion.read_page(page_id) or {}).get("fields") or {}
+        except Exception:  # noqa: BLE001
+            return False
+        return str(fields.get("Status", "")).strip() == status
+
     def _with_number_page(self, sources: str, link: str) -> str:
         """Source pages with the page the WhatsApp number was read from added, so the Validator can find it (LD20)."""
         from .whatsapp import page_with
@@ -2878,6 +2889,10 @@ class Controller:
         fields = {col: str(getattr(action, attr)).strip() for attr, col in mapping if getattr(action, attr) is not None and str(getattr(action, attr)).strip()}
         if action.sources:
             fields["Source pages"] = "\n".join(u.strip() for u in action.sources if u.strip())
+        if action.whatsapp and action.whatsapp.strip() and self._whatsapp_marked_false(page_id):
+            return ExecResult(False, f"'{str(row['name'])[:60]}': a person found its WhatsApp number does not reach WhatsApp; "
+                              "leave the Whatsapp cell to the team", False,
+                              feedback="Do not give whatsapp for this business again; update the other fields without it.")
         if action.whatsapp and action.whatsapp.strip():
             from .whatsapp import wa_link
 
