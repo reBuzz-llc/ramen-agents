@@ -30,6 +30,8 @@ the brief a person can finish without asking you, and keep the board to work tha
 
 ## What you produce
 
+- **When your goal asks you to find, list or research something, you do it yourself**: one note per finding, with its
+  source page. A task for the team is never how research gets done.
 - **Tasks, few and deep**, for the human team only: something a person must send, call, meet, sign or decide. At most
   one per episode, each a brief a person can act on alone; assignee anyone or no one. Family work goes to a family
   member by `message`, or a `task` with that member as assignee.

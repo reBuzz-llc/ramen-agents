@@ -143,6 +143,9 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
             if f.detail.startswith("no ") or " is empty" in f.detail:
                 continue
         out.append(_reason(f))
+    if action == "task" and family_work(payload):
+        out.append("MG04: researching, compiling, listing or sorting information is family work: do it yourself as notes, "
+                   "or ask a family member by message; a board task is for work only a person can do")
     if action == "task" and about_validator_flag(payload):
         out.append("MG04: this task is about fixing a Validator flag on your own work; that is yours to do with update_task "
                    "or a republish, not a task for the human team")
@@ -312,7 +315,22 @@ def human_task(payload: dict) -> bool:
     team list."""
     title = _s(payload.get("title"))
     who = _s(payload.get("assignee")).strip().lower()
+    if family_work(payload):
+        return False            # naming a person does not make research a person's job
     return bool(_HUMAN_WORK.match(title)) or (bool(who) and who in team_names())
+
+
+_FAMILY_WORK = re.compile(
+    r"^\s*(?:research|compile|list|categori[sz]e|organi[sz]e|sort|analy[sz]e|identify|find|gather|collect|summari[sz]e|"
+    r"catalog(?:ue)?|map|survey|benchmark|compare)\b"
+    r".*\b(?:services?|trends?|trending|tools?|competitors?|leads?|businesses|market|categor(?:y|ies)|options|vendors?|"
+    r"providers?|pric(?:es|ing)|offers?|packages?|data|insights?|landscape)\b", re.I)
+
+
+def family_work(payload: dict) -> bool:
+    """A task whose job is research or compiling information (MG04: family work, never a board task for a person):
+    e.g. 'Organize trending AI agent services by category for our clients', assigned to a person."""
+    return bool(_FAMILY_WORK.match(_s(payload.get("title"))))
 
 
 _FLAG_TASK = re.compile(r"\b(T|PK|LD|MG|FM|PL)\d{2}\b|\bvalidator\b|\btask format\b|\bformat checklist\b|\bchecklist items\b|"
