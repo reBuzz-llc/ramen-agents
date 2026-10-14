@@ -9,6 +9,9 @@ keyless search.** It gives you a lead finder, a research analyst, a package desi
 agent that steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account,
 spend money, or collect personal data: that fence is in the code, not in a prompt.
 
+The name comes from "ramen profitable": the stretch when a young company lives on ramen while it finds its first
+customers. This is the team for that stretch, and it costs nothing to run.
+
 - **Try it in ten minutes, with no key:** [How do I try ramen-agents without a key?](try-without-a-key.html)
 - **What no agent may do:** [Can an AI agent spend money, sign up or collect personal data?](fence.html)
 - **What it runs on:** [Which free AI models and search engines does it use?](free-tiers.html)
