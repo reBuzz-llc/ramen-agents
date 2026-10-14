@@ -23,7 +23,18 @@ const host = (u: string) => {
   }
 };
 
+// A candidate's key: its website's host, or, for a business with no website (its line links the public record), its
+// name, so fifty register rows do not collapse into the register's one host.
+export const nameKey = (name: string) => "name:" + name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function keyOf(line: string, source: string): string {
+  if (/no website/i.test(source)) return nameKey(line.slice(2).split(" | ")[0]);
+  const url = line.split(" | ").find((p) => /^https?:\/\//.test(p.trim()));
+  return url ? host(url) : "";
+}
+
 function sourceOf(heading: string): string {
+  if (/re-check/i.test(heading)) return "Re-check (refused before)";
+  if (/no website/i.test(heading)) return "City open data, no website";
   if (/freeserp/i.test(heading)) return "FreeSerp";
   if (/overture/i.test(heading)) return "Overture Maps";
   if (/open data|city/i.test(heading)) return "City open data";
@@ -47,8 +58,7 @@ export async function candidateFunnel(leadGen: BotProfile | undefined, days = 7)
     for (const line of text.split("\n")) {
       if (line.startsWith("## ")) source = sourceOf(line);
       if (!line.startsWith("- ")) continue;
-      const url = line.split(" | ").find((p) => /^https?:\/\//.test(p.trim()));
-      const h = url ? host(url) : "";
+      const h = keyOf(line, source);
       if (h && !offered.has(h)) offered.set(h, { source, date });
     }
   }
@@ -69,9 +79,11 @@ export async function candidateFunnel(leadGen: BotProfile | undefined, days = 7)
       }
       for (const m of made) {
         try {
-          const site = (JSON.parse(String(m.payload)) as { website?: string }).website ?? "";
-          const h = host(site);
+          const lead = JSON.parse(String(m.payload)) as { website?: string; name?: string; business?: string };
+          const h = host(lead.website ?? "");
           if (offered.has(h)) leads.add(h);
+          const n = nameKey(lead.name ?? lead.business ?? "");
+          if (offered.has(n)) leads.add(n);
         } catch {
           /* a payload that is not JSON */
         }
@@ -101,8 +113,7 @@ export async function offeredSources(): Promise<Map<string, string>> {
     for (const line of text.split("\n")) {
       if (line.startsWith("## ")) source = sourceOf(line);
       if (!line.startsWith("- ")) continue;
-      const url = line.split(" | ").find((p) => /^https?:\/\//.test(p.trim()));
-      const h = url ? host(url) : "";
+      const h = keyOf(line, source);
       if (h && !out.has(h)) out.set(h, source);
     }
   }

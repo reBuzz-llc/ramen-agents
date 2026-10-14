@@ -63,8 +63,8 @@ def _tls() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def fetch_all(feed: dict) -> list[dict]:
-    where = f"{feed['website_field']} IS NOT NULL"
+def fetch_all(feed: dict, with_site: bool = True) -> list[dict]:
+    where = f"{feed['website_field']} IS {'NOT ' if with_site else ''}NULL"
     prefixes = list(feed.get("areas", {}))
     if prefixes:
         where += " AND (" + " OR ".join(f"starts_with({feed['zip_field']},'{p}')" for p in prefixes) + ")"
@@ -86,6 +86,13 @@ def website(raw: str) -> str | None:
     if not w.lower().startswith(("http://", "https://")):
         w = "https://" + w.lstrip("/")
     return w
+
+
+def location(r: dict, feed: dict) -> str:
+    """'City, ST, USA' from a register row's own city and state fields (the lead's Location, as the record states it)."""
+    city = clean(r.get(feed.get("city_field", "city"))).title()
+    state = clean(r.get(feed.get("state_field", "state"))).upper()
+    return f"{city}, {state}, USA" if city and len(state) == 2 else ""
 
 
 def clean(text: object) -> str:
@@ -256,6 +263,10 @@ def main(argv: list[str] | None = None) -> int:
     hosts: set[str] = set()
     sections: list[str] = []
 
+    # The target's areas (target.toml "areas"); a register row outside them is not this market's work. Empty = all.
+    want = {a.strip().lower() for a in str(target.get("areas", "")).split(",") if a.strip()}
+    in_target = lambda area: bool(area) and (not want or area.lower() in want)  # noqa: E731
+
     # 1. The market's own open-data feed, when it has one.
     pick: list = []
     fresh: list = []
@@ -269,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
             rid = str(r.get(feed["id_field"], ""))
             site = website(r.get(feed["website_field"], ""))
             area = areas.get(str(r.get(feed.get("zip_field", ""), ""))[:width]) if areas else market
-            if not rid or rid in emitted or not site or not area:
+            if not rid or rid in emitted or not site or not in_target(area):
                 continue
             host = urllib.parse.urlparse(site).netloc.lower().removeprefix("www.")
             if host in hosts:
@@ -292,6 +303,36 @@ def main(argv: list[str] | None = None) -> int:
                 "The owner name is the public record's, a hint to confirm on the site, never a value to copy.\n\n" + "\n".join(lines)
             )
         print(f"{market}: open data {len(records)} with a website; {len(fresh)} not yet sent; writing {len(pick)}")
+
+    # 1b. The same register's businesses with NO website (owner, 2026-10-10: a business without a site is a lead, and may
+    # need web development most). The public record is the page that proves it; its telephone is the contact.
+    no_site: list = []
+    if feed and int(feed.get("no_website_per_day", 0)):
+        areas = feed.get("areas", {})
+        width = len(next(iter(areas), "")) or 0
+        for r in fetch_all(feed, with_site=False):
+            rid = str(r.get(feed["id_field"], ""))
+            area = areas.get(str(r.get(feed.get("zip_field", ""), ""))[:width]) if areas else market
+            phone = re.sub(r"\D", "", str(r.get(feed.get("phone_field", "telephone"), "")))
+            if rid and rid not in emitted and in_target(area) and len(phone) >= 10:
+                no_site.append((rid, r, area, phone))
+        no_site.sort(key=lambda x: x[0])
+        no_site = no_site[: int(feed["no_website_per_day"])]
+        if no_site:
+            record = feed["url"]
+            sections.append(
+                f"## From {feed['source']}: no website (web-development prospects)\n\nFormat: name | area | location | industry | public "
+                "record | telephone on record | owner on public record. No site of their own: the public record is the page "
+                "that proves the business and its telephone; a published business email (free-mail counts) or the telephone "
+                "as a WhatsApp link is the contact. The owner name is a hint to confirm, never a value to copy.\n\n"
+                + "\n".join(
+                    f"- {first(r, feed['name_fields'])} | {area} | {location(r, feed)} | {first(r, feed['industry_fields'])} | "
+                    f"{record}?{urllib.parse.urlencode({feed['id_field']: rid})} | {phone}"
+                    + (f" | owner on public record: {o}" if (o := ' '.join(clean(r.get(f)) for f in feed.get('owner_fields', []) if clean(r.get(f)))) else "")
+                    for rid, r, area, phone in no_site
+                )
+            )
+        print(f"{market}: open data without a website: writing {len(no_site)}")
 
     # 2. FreeSerp's business-site index, for any market.
     found: list[dict] = []
@@ -318,11 +359,33 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(f"{market}: overture {len(places)} new sites")
 
-    total = len(pick) + len(found) + len(places)
+    # 4. Re-checks: businesses refused under rules that have since changed (the Validator's list), a slice a day, so
+    # Lead Gen re-opens their pages and lists only what those pages still show.
+    rc = conf.get("sources", {}).get("recheck", {})
+    rc_done: set[str] = set(mine.get("recheck_emitted", []))
+    rechecks: list[str] = []
+    rc_file = Path(str(rc.get("file", ""))).expanduser()
+    if rc.get("enabled") and rc_file.is_file():
+        for line in rc_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("- ") and " | " in line:
+                key = line[2:].split(" | ", 1)[0].strip().lower()
+                if key and key not in rc_done:
+                    rechecks.append(line)
+        rechecks = rechecks[: int(rc.get("rows_per_day", 30))]
+        if rechecks:
+            sections.append(
+                "## Re-check: refused before, acceptable under the rules as they are now\n\nFormat: name | website | email | "
+                "whatsapp | package to use | pages it was found on. Re-open those pages and list the business only with what "
+                "they still show; the rest of the line is the earlier reading, not a value to copy.\n\n" + "\n".join(rechecks)
+            )
+        print(f"{market}: re-check {len(rechecks)} of the refused list")
+
+    total = len(pick) + len(no_site) + len(found) + len(places) + len(rechecks)
     text = (
         f"# Small business candidates: {market} ({today})\n\n"
-        f"{total} businesses in {market}, each with its own website. These are CANDIDATES, not leads: open the website, "
-        "look for the problem we can fix and the published business email, and record only what the site states.\n\n"
+        f"{total} businesses in {market}. These are CANDIDATES, not leads: open the business's own pages (its website, or the "
+        "public record when it has none), look for what it has and lacks and a way to reach it, and record only what the "
+        "pages state.\n\n"
         + "\n\n".join(sections) + "\n"
     )
     if args.dry_run:
@@ -337,7 +400,8 @@ def main(argv: list[str] | None = None) -> int:
     for f in sorted(OUT_DIR.glob(f"candidates-{market_slug}-*.md"))[:-KEEP_FILES]:
         f.unlink()
     state[market] = {
-        "emitted": sorted(emitted | {rid for _, rid, *_ in pick}),
+        "emitted": sorted(emitted | {rid for _, rid, *_ in pick} | {rid for rid, *_ in no_site}),
+        "recheck_emitted": sorted(rc_done | {ln[2:].split(" | ", 1)[0].strip().lower() for ln in rechecks}),
         "freeserp_emitted": sorted(fs_done | {c["host"] for c in found}),
         "overture_emitted": sorted(ov_done | {c["host"] for c in places}),
         "last_run": dt.datetime.now().isoformat(timespec="seconds"),
@@ -348,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=1), encoding="utf-8")
     tmp.replace(STATE)
-    print(f"wrote {today_file} ({len(pick)} open data + {len(found)} freeserp + {len(places)} overture)")
+    print(f"wrote {today_file} ({len(pick)} open data + {len(no_site)} without a website + {len(found)} freeserp + {len(places)} overture + {len(rechecks)} re-checks)")
     return 0
 
 
