@@ -122,3 +122,20 @@ def test_notion_client_resolves_team_members_before_the_workspace():
     client.set_team(TEAM)
     assert client.resolve_user("alex") == "u-alex"  # the owner's pick wins over the workspace guess
     assert client.resolve_user("someone else") == "ws-x"
+
+
+def test_with_assigning_off_the_block_names_the_team_and_tasks_stay_unassigned(cfg):
+    """Owner, 2026-10-14: "tell ceoA not to assign person in the task board - I will handle that part for now"."""
+    from explorer.actions import Task
+    from explorer.notion import FakeNotion
+    from conftest import make_controller
+
+    block = team_block(TEAM, assign=False)
+    assert "Leave assignee null" in block and "Alex Stone" in block and "default" not in block
+    cfg.notion.enabled, cfg.notion.assign_people = True, False
+    notion = FakeNotion()
+    c = make_controller(cfg, notion=notion)
+    c.team = list(TEAM)
+    c.memory.start_episode(None); ep = c.memory.current_episode()
+    r = c._execute_task(Task(type="task", title="Review today's drafts", details="### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z", assignee="Alex Stone", priority="P2"), ep)
+    assert r.ok and not notion.tasks[-1].get("assignee")

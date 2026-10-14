@@ -189,8 +189,8 @@ class Lead(BaseModel):
 
     type: Literal["lead"]
     name: str  # the business
-    website: str  # its https:// site
-    email: str  # a business email published on that site (hello@, info@, a named address they publish)
+    website: str = ""  # its https:// site; "" for a business with no site (owner, 2026-10-10: it may need web dev most)
+    email: str = ""  # the business's email as a page you opened prints it (their site, or their public listing); "" only with a whatsapp
     pain_point: str  # what is wrong or missing, as seen on their pages, in one or two sentences
     how_we_help: str  # the package that fixes it, by its name on the packages page
     evidence: str  # the URL of the page that shows the pain point
@@ -199,6 +199,7 @@ class Lead(BaseModel):
     size: str = ""  # team size, only if stated
     sources: list[str] = Field(default_factory=list)  # the pages read (contact page, about page, ...)
     whatsapp: str = ""  # the business's phone or WhatsApp number as a page you opened prints it; the engine makes the wa.me link
+    map_url: str = ""  # a Google Maps link a page shows for the business; "" and the engine fills it from open map data
 
 
 class UpdateLead(BaseModel):
@@ -214,11 +215,16 @@ class UpdateLead(BaseModel):
     evidence: str | None = None  # URL of a page you opened that shows the pain point
     location: str | None = None
     industry: str | None = None
-    founded_by: str | None = None  # the founder's name as a page states it (owner's "Founded by" column, 2026-09-25)
+    founded_by: str | None = None  # the "Contact person": the highest person the business's own pages name (owner, 2026-10-14), as printed
+    contact_role: str | None = None  # that person's role, one of the board's "Contact role" options (Founder, Owner, CEO / President, ...)
     size: str | None = None
     sources: list[str] | None = None  # pages read (contact page, about page, ...)
     whatsapp: str | None = None  # the business's phone or WhatsApp number as a page you opened prints it
     draft_email: str | None = None  # a first email for the team to send (Outreach Writer only), or "skip: <why>"
+    draft_whatsapp: str | None = None  # a short WhatsApp message for the team to send (Outreach Writer only; rows with a Whatsapp link)
+    map_url: str | None = None  # a Google Maps link a page shows for the business
+    founder_linkedin: str | None = None  # the Contact person's LinkedIn profile (or the company page) as a page you opened links it
+    linkedin_via: str | None = None  # where that link was found: "1 Own site", "2 Business listing", "3 Press article", "4 Search result"
 
 
 class SourceCompany(BaseModel):

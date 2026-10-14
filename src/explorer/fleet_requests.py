@@ -100,7 +100,8 @@ def same_ask(a: str, b: str) -> bool:
 # ...", "Could not find ...", "Will compare ...", "new package ...") sitting open for two days.
 REPORT_OPENERS = re.compile(
     r"^\s*(handed|compared|updated|sent |proposed|ready to|will |could not|couldn't|did not find|found |i found|i've found|"
-    r"i have found|i compared|i updated|i sent|i handed|new package |published|listed|finished|completed|started)", re.I)
+    r"i have found|i compared|i updated|i sent|i handed|new package |published|listed|finished|completed|started|"
+    r"thanks|thank you|great work|well done|good work)", re.I)  # a thank-you held Lead Gen 30 actions as a "priority ask" (2026-10-05)
 
 
 def is_status_note(text: str) -> bool:
@@ -113,6 +114,8 @@ def is_notice(text: str) -> bool:
     """On the requests record only: a status note, or a progress report with no question in it. Kept apart from
     is_status_note, which also decides when a message is unsolicited (policy)."""
     t = text or ""
+    if t.lower().startswith("could not:"):  # the engine's release of a stuck ask: a notice, however it quotes the ask
+        return True
     return is_status_note(t) or ("?" not in t and bool(REPORT_OPENERS.match(t)))
 
 

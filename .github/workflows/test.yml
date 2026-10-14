@@ -1,0 +1,29 @@
+# The engine's tests on every push and pull request. macOS, because the always-on setup (launch agents) is macOS; the
+# tests themselves need no network, no key and no browser.
+name: engine tests
+on:
+  push:
+    branches: [engine]
+  pull_request:
+    branches: [engine]
+permissions:
+  contents: read
+jobs:
+  pytest:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - run: python -m pytest -q
+      - name: The ten-minute quickstart still works
+        run: |
+          bot new "My Explorer" --fake --dir ./demo-fleet
+          bot --config ./demo-fleet/my-explorer/config.toml demo | tee demo.txt
+          grep -q "summarize -> allowed" demo.txt

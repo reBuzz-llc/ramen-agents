@@ -10,18 +10,25 @@ from explorer import fleet
 from explorer.config import load_config
 
 
+@pytest.fixture(autouse=True)
+def _default_label_prefix(monkeypatch):
+    """The label prefix comes from $BOT_LABEL_PREFIX or ~/.config/ramen-agents/label-prefix on a real machine; these
+    tests pin the default so they pass the same everywhere."""
+    monkeypatch.setattr(fleet, "LABEL_PREFIX", "com.ramen-agents.bot.")
+
+
 def test_slug_and_label():
     assert fleet.slug("Jobless-Bot") == "jobless-bot"
     assert fleet.slug("  The CEO!! ") == "the-ceo"
-    assert fleet.label_for("Jobless-Bot") == "com.rebuzz.bot.jobless-bot"
+    assert fleet.label_for("Jobless-Bot") == "com.ramen-agents.bot.jobless-bot"
 
 
 def test_render_plist_fills_every_token_and_is_valid(tmp_path: Path):
     text = fleet.render_plist(
-        "com.rebuzz.bot.test", Path("/code"), tmp_path / "config.toml", tmp_path / "workspace", tmp_path / "logs"
+        "com.ramen-agents.bot.test", Path("/code"), tmp_path / "config.toml", tmp_path / "workspace", tmp_path / "logs"
     )
     data = plistlib.loads(text.encode())
-    assert data["Label"] == "com.rebuzz.bot.test"
+    assert data["Label"] == "com.ramen-agents.bot.test"
     assert data["ProgramArguments"][-1] == "/code/scripts/supervise.sh"
     env = data["EnvironmentVariables"]
     assert env["EXPLORER_HOME"] == "/code"
@@ -66,10 +73,10 @@ def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
         (agents / f"{label}.plist").write_text(
             fleet.render_plist(label, Path("/code"), tmp_path / name / "config.toml", tmp_path / name / "workspace", tmp_path / "logs")
         )
-    (agents / "com.rebuzz.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
-    (agents / "com.rebuzz.bot.broken.plist").write_text("not a plist")
+    (agents / "com.ramen-agents.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
+    (agents / "com.ramen-agents.bot.broken.plist").write_text("not a plist")
     bots = fleet.installed_bots(agents)
-    assert [b["label"] for b in bots] == ["com.rebuzz.bot.jobless-bot", "com.rebuzz.bot.the-ceo"]
+    assert [b["label"] for b in bots] == ["com.ramen-agents.bot.jobless-bot", "com.ramen-agents.bot.the-ceo"]
     assert bots[1]["config"] == str(tmp_path / "The CEO" / "config.toml")
 
 

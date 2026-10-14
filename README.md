@@ -50,7 +50,7 @@ on suggestions or answer with its `say` action. Commands are handled by code, no
 `/ask <question>`, `/interest <topic> [delta]`, `/pause`, `/resume`, `/stop`, `/help`.
 
 This is the per-bot page served from this repo. The fleet web dashboard (Next.js) lives in
-`~/bots/webapp`, runs as launch agent `com.rebuzz.bot-dashboard`, and is reachable remotely only
+`~/bots/webapp`, runs as launch agent `com.ramen-agents.bot-dashboard`, and is reachable remotely only
 through Tailscale.
 
 The page binds to this machine only. Every write (chat, controls) needs a token that is generated
@@ -128,7 +128,7 @@ settings; the screensaver and lock delay are in System Settings.
 ## Running at login
 
 `bot --config ~/bots/<slug>/config.toml install` renders `launchd/bot.plist.template` into a launch
-agent `com.rebuzz.bot.<slug>`. It starts at login, restarts after a crash, and stays down after
+agent `com.ramen-agents.bot.<slug>`. It starts at login, restarts after a crash, and stays down after
 `bot stop`. `bot --config ... uninstall` removes it; `bot list` shows every installed bot.
 
 ## Tests

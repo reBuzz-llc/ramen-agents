@@ -97,7 +97,7 @@ The point of the experiment is watching what it does. Provide:
 ## Machine setup
 
 - Runs under the macOS account `acme`, which the owner created specifically as a dedicated test account for this bot (confirmed 2026-09-12). It is not the owner's personal account, so nothing personal lives in it. Isolation comes from that account boundary, from Playwright's own empty Chromium profile under `workspace/browser_profile`, and from an action set with no file, form, download, or shell actions.
-- Ollama 0.34 from the official tarball at `~/.local/opt/ollama`, run by launch agent `com.rebuzz.ollama` (Homebrew on this Mac belongs to another user). Model: qwen2.5:7b, the local fallback behind an optional remote chain (`model.provider = "remote"`, see `config.example.toml`). No vision model in this mode.
+- Ollama 0.34 from the official tarball at `~/.local/opt/ollama`, run by launch agent `com.ramen-agents.ollama` (Homebrew on this Mac belongs to another user). Model: qwen2.5:7b, the local fallback behind an optional remote chain (`model.provider = "remote"`, see `config.example.toml`). No vision model in this mode.
 - Python 3.13 in `.venv` inside the project folder.
 - `browser.backend = "light"` by default: a plain HTTP fetch per page, with Playwright's Chromium started only for pages that need JavaScript or refuse plain clients (`"chromium"` and `"tor"` are the alternatives). Search uses keyless engines (Marginalia, Wikipedia, Hacker News, and the owner's own `raw/` corpus); the Tor backend searches a local onion directory.
 - robots.txt is fetched the same way, and asked again through Chromium when a site refuses plain HTTP clients.

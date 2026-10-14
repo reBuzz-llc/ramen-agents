@@ -456,11 +456,11 @@ def test_places_search_reads_the_local_overture_snapshot(tmp_path):
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE places (id TEXT, name TEXT, name_norm TEXT, category TEXT, website TEXT, phone TEXT, socials TEXT,"
                 " address TEXT, locality TEXT, postcode TEXT, confidence REAL, status TEXT)")
-    con.execute("INSERT INTO places VALUES ('1','Caffè Panna','caff panna','casual_eatery','http://www.caffepanna.com/',"
-                "'+19174751162','https://www.facebook.com/1','77 Irving Pl','New York','10003',0.99,'open')")
-    con.execute("INSERT INTO places VALUES ('2','Pylos','pylos','restaurant',NULL,NULL,'','128 E 7th St','New York','10009',0.9,'open')")
+    con.execute("INSERT INTO places VALUES ('1','Corner Cafe','corner cafe','casual_eatery','http://www.cornercafe.com/',"
+                "'+15555550100','https://www.facebook.com/1','12 Main St','New York','10003',0.99,'open')")
+    con.execute("INSERT INTO places VALUES ('2','Harbor Restaurant','harbor restaurant','restaurant',NULL,NULL,'','40 Oak St','New York','10009',0.9,'open')")
     con.commit(); con.close()
-    page = places_search("Caffè Panna NYC", db)
-    assert "website: http://www.caffepanna.com/" in page.text and "status: open" in page.text
-    assert "no website listed" in places_search("Pylos", db).text and "no social pages listed" in places_search("Pylos", db).text
+    page = places_search("Corner Cafe NYC", db, stop_words=("nyc",))   # the market words come from [browser] places_stop_words
+    assert "website: http://www.cornercafe.com/" in page.text and "status: open" in page.text
+    assert "no website listed" in places_search("Harbor Restaurant", db).text and "no social pages listed" in places_search("Harbor Restaurant", db).text
     assert not places_search("x", tmp_path / "missing.sqlite").ok

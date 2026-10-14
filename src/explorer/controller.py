@@ -70,9 +70,9 @@ from .memory import Memory, now_iso
 from .plan import OwnerWorkPlan, WorkPlan, load_plan, save_plan
 from .model import Model
 from .notion import NotionClient, page_id_from_url
-from .policy import Policy, PolicyContext, is_meta_topic, url_domain
+from .policy import Policy, PolicyContext, Verdict, is_meta_topic, url_domain
 from .presence import QuietDetector
-from .prompts import CONSOLIDATION_PROMPT, Observation, journal_system_prompt, system_prompt
+from .prompts import CONSOLIDATION_PROMPT, DAILY_JOURNAL_PROMPT, Observation, journal_system_prompt, system_prompt
 from .handoff import Inbox, find_package, send_message, send_package
 from collections import OrderedDict
 from .chatroom import Chatroom, is_room_recipient
@@ -185,6 +185,7 @@ class Controller:
     ):
         self.cfg = cfg
         self.memory = memory
+        self.memory.journal_daily = bool(cfg.agent.journal_daily)
         self.model = model
         self.browser = browser
         self.policy = policy
@@ -196,7 +197,11 @@ class Controller:
         self.page_offset = 0
         self.noted_urls: set[str] = set()
         self.blocked_keys: set[str] = set()
+        self.day_blocks: dict[str, str] = {}  # key (or "<type>:*") -> why, for the rest of today (owner, 2026-10-14)
+        self.day_refusals: dict[str, int] = {}  # key -> refusals today; the third blocks it for the day
+        self._day_blocks_date = ""
         self.pages_since_note = 0
+        self._last_counted_url = ""  # a `read` of the page last counted is the same page, not another (2026-10-14)
         self.feedback: str | None = None
         self.refusal_streak = 0  # refused actions in a row in the current episode
         self.stop_flag = False
@@ -375,7 +380,7 @@ class Controller:
             developer_enabled=self.developer is not None,
             shell_enabled=self.developer is not None and cfg.developer.allow_shell,
             upgrade_enabled=self.developer is not None and cfg.developer.upgrade_enabled,
-            persona=self.target.fill(self._persona),
+            persona=self._family_block() + self.target.fill(self._persona),
             tasks_enabled=self.notion is not None,
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
             scout_enabled=self.scout_enabled,
@@ -394,7 +399,7 @@ class Controller:
             package_page=self.notion is not None and bool(cfg.notion.package_page_id.strip()),
             leads_enabled=self.leads_notion is not None,
             draft_writer=bool(cfg.leads.draft_queue_column.strip()),
-            team=team_block(self.team),
+            team=team_block(self.team, self.cfg.notion.assign_people),
             work_plan=self.owner_plan.block(),
             plans_enabled=cfg.agent.plans,
         )
@@ -441,6 +446,7 @@ class Controller:
                 if self._quiet_hold():
                     continue
                 self._watchdog()
+                self._auto_fill_from_places()
                 self._cycle()
                 done += 1
                 if self.exit_code is not None:
@@ -753,6 +759,7 @@ class Controller:
         if not verdict.allowed:
             if verdict.permanent:
                 self.blocked_keys.add(key)
+            self._day_block(action, key, verdict)
             self.memory.bump_episode_actions(ep["id"])
             self.memory.record_action(
                 self.cycle_no, ep["id"], action.type, payload, decision.thought, "rejected: " + verdict.reason, None, False
@@ -781,7 +788,7 @@ class Controller:
         self.memory.bump_episode_actions(ep["id"])
         # A write that the policy allowed but the executor could not complete (Notion 404, a peer folder gone) is
         # recorded as failed: the dedupe sets (recent leads, packages, tasks) only count verdict = 'allowed', so a row
-        # that never existed no longer blocks its domain or name for 90 days (bots-42, 2026-09-24).
+        # that never existed no longer blocks its domain or name for 90 days (2026-09-24).
         verdict = "allowed" if (exec_result.ok or action.type not in EXTERNAL_WRITE_TYPES) else f"failed: {exec_result.summary[:120]}"
         self.memory.record_action(
             self.cycle_no, ep["id"], action.type, payload, decision.thought, verdict, exec_result.summary,
@@ -828,6 +835,118 @@ class Controller:
 
     def _current_url(self) -> str | None:
         return self.page.url if self.page else None
+
+    # "already done" or "today's limit" refusals -- never the episode-scoped ones ("already saved a note ... this episode")
+    DAY_BLOCK = re.compile(r"daily limit|today already|today's exists|refused today|already (created|handed over|has a draft|exists|published|replaced|on the board)|the (task|note) you already", re.I)  # a quoted question may say "today" too
+    DAY_BLOCK_TYPE = re.compile(r"today, the daily limit|messages today|daily limit", re.I)
+
+    def _day_blocks(self) -> dict[str, str]:
+        """Keys refused today as "already done" or "today's limit reached", kept for the rest of the day across episodes
+        and restarts (workspace/day-blocks.json). Owner, 2026-10-14: a third of all actions were such repeats."""
+        today = dt.date.today().isoformat()
+        if self._day_blocks_date != today:
+            path = self.cfg.workspace / "day-blocks.json"
+            saved: dict[str, Any] = {}
+            try:
+                saved = json.loads(path.read_text()) if path.is_file() else {}
+            except (OSError, ValueError):
+                saved = {}
+            same_day = saved.get("date") == today
+            self.day_blocks = dict(saved.get("blocks") or {}) if same_day else {}
+            self.day_refusals = {k: int(v) for k, v in (saved.get("counts") or {}).items()} if same_day else {}
+            self._day_blocks_date = today
+        return self.day_blocks
+
+    def _save_day_blocks(self) -> None:
+        try:
+            (self.cfg.workspace / "day-blocks.json").write_text(json.dumps(
+                {"date": self._day_blocks_date, "blocks": self.day_blocks, "counts": self.day_refusals}, indent=1))
+        except OSError:
+            pass
+
+    def _day_block(self, action: Action, key: str, verdict: Verdict) -> None:
+        reason = verdict.reason or ""
+        blocks = self._day_blocks()
+        if action.type == "publish_package":
+            return  # packages have their own once-a-day rule (packages_refused_today), which lets a fuller re-send through
+        if "this episode" not in reason and self.DAY_BLOCK.search(reason):
+            blocks[f"{action.type}:*" if self.DAY_BLOCK_TYPE.search(reason) else key] = reason[:160]
+        elif key and action.type not in ("summarize", "plan"):
+            # the same thing refused three times today is done for the day, whatever the reason (the Enricher's 138
+            # Studio One tries, the writer's 12 on a chain store; 2026-10-14)
+            n = self.day_refusals.get(key, 0) + 1
+            self.day_refusals[key] = n
+            if n >= self.cfg.policy.day_block_after_refusals > 0:
+                blocks[key] = f"refused {n} times today: {reason[:120]}"
+        self._save_day_blocks()
+
+    def _daily_journal_catch_up(self) -> None:
+        """One journal entry per finished day (owner, 2026-10-14: fewer, longer, data-led posts): for each day since the
+        last digest up to yesterday, the day's digest is written as the journal; the per-episode entries stay in the
+        day buffer, which is not a post."""
+        today = dt.date.today()
+        last = str(self.memory.db.get_state("daily_journal_last", "") or "")
+        try:
+            start = dt.date.fromisoformat(last) + dt.timedelta(days=1) if last else today - dt.timedelta(days=1)
+        except ValueError:
+            start = today - dt.timedelta(days=1)
+        start = max(start, today - dt.timedelta(days=7))
+        day = start
+        while day < today:
+            text = self._daily_digest(day)
+            if text:
+                self.memory.write_journal(text, heading=f"Day {day.isoformat()}", force=True)
+                event(self.logger, "journal_daily", day=day.isoformat(), chars=len(text))
+            day += dt.timedelta(days=1)
+        self.memory.db.set_state("daily_journal_last", (today - dt.timedelta(days=1)).isoformat())
+
+    def _daily_digest(self, day: dt.date) -> str:
+        """The day's journal: the model's prose over the day's material, then the sources and outputs as a list."""
+        like = day.isoformat() + "%"
+        q = self.memory.db.query
+        summaries = [str(r["body"]) for r in q("SELECT body FROM summaries WHERE kind = 'episode' AND created_at LIKE ? ORDER BY id", (like,))]
+        notes = q("SELECT title, body, source_url FROM notes WHERE created_at LIKE ? ORDER BY id", (like,))
+        tasks = q("SELECT title, url FROM tasks WHERE created_at LIKE ? ORDER BY id", (like,))
+        outputs: dict[str, list[str]] = {}
+        for r in q("SELECT action_type, payload FROM actions WHERE verdict = 'allowed' AND ts LIKE ? "
+                   "AND action_type IN ('publish_package', 'message', 'lead', 'update_lead') ORDER BY id", (like,)):
+            try:
+                p = json.loads(str(r["payload"]))
+            except ValueError:
+                p = {}
+            label = str(p.get("name") or p.get("to") or "")[:80]
+            outputs.setdefault(str(r["action_type"]), []).append(label)
+        buffer = self.memory.day_buffer(day)
+        if not (summaries or notes or tasks or outputs or buffer.strip()):
+            return ""
+        material = []
+        if summaries:
+            material.append("Episode summaries:\n" + "\n".join(f"- {s[:600]}" for s in summaries[-12:]))
+        if notes:
+            material.append("Notes (title: body -- source):\n" + "\n".join(
+                f"- {n['title']}: {str(n['body'])[:300]} -- {n['source_url'] or 'no source'}" for n in notes[-40:]))
+        if tasks:
+            material.append("Tasks created:\n" + "\n".join(f"- {t['title']} ({t['url']})" for t in tasks))
+        for kind, items in outputs.items():
+            material.append(f"{kind} ({len(items)}): " + ", ".join(i for i in items[:20] if i))
+        if buffer.strip():
+            material.append("Events:\n" + buffer.strip()[-3000:])
+        prompt = DAILY_JOURNAL_PROMPT.format(day=day.isoformat(), material="\n\n".join(material))
+        try:
+            prose = (self.model.complete(self.journal_system, prompt) or "").strip()
+        except Exception:  # noqa: BLE001
+            prose = ""
+        if not prose:
+            prose = f"{len(summaries)} episodes, {len(notes)} notes, {len(tasks)} tasks on {day.isoformat()}."
+        lines = [prose, ""]
+        sourced = [n for n in notes if str(n["source_url"] or "").startswith("http")]
+        if sourced:
+            lines += ["Sources read that day:"] + [f"- {n['title']}: {n['source_url']}" for n in sourced[-40:]] + [""]
+        if tasks:
+            lines += ["Tasks for the team:"] + [f"- {t['title']} ({t['url']})" for t in tasks] + [""]
+        if outputs.get("publish_package"):
+            lines += ["Packages published: " + ", ".join(dict.fromkeys(outputs["publish_package"])), ""]
+        return "\n".join(lines).strip()
 
     def _key(self, action: Action, ep: sqlite3.Row, target: str | None) -> str:
         extra: str | None = None
@@ -919,7 +1038,7 @@ class Controller:
             writes = int(self.memory.db.scalar(
                 "SELECT COUNT(*) FROM actions WHERE verdict = 'allowed' AND ts >= ? AND action_type IN "
                 "('lead','update_lead','task','update_task','package','publish_package','provider','note')", (r.read_at,)) or 0)
-        return {"sender": r.sender, "text": r.text, "actions_since_read": self.memory.count_actions_since(r.read_at) if r.read_at else 0,
+        return {"id": r.id, "sender": r.sender, "text": r.text, "actions_since_read": self.memory.count_actions_since(r.read_at) if r.read_at else 0,
                 "writes_since_read": writes}
 
     def _request_banner(self) -> str | None:
@@ -1204,6 +1323,8 @@ class Controller:
             open_questions=[(r["id"], r["question"]) for r in self.memory.open_questions(12 if is_triage else 5)],
             open_questions_count=self.memory.count_open_questions(),
             recent_notes=[r["title"] for r in self.memory.recent_notes(15)],
+            tasks_today=sorted(self.memory.task_titles_today())[:12] if self.notion is not None else [],
+            refused_today=[f"{k.split(':', 1)[0]} {k.split(':', 1)[1][:70]}" for k in list(self._day_blocks())[-10:]],
             recent_actions=recent,
             page=self.page,
             page_noted=bool(self.page and self.page.url in self.noted_urls),
@@ -1231,6 +1352,8 @@ class Controller:
             allowed_now=self._allowed_now(ep),
             family_line=self._family_line(),
             known_finds=self._known_finds(),
+            briefings=self._briefings(),
+            answers=self._answers_this_week(),
             candidate_lines=self._candidate_lines(),
             noted_lines=self._noted_not_listed(),
             decide_lines=self._decide_lines(),
@@ -1269,7 +1392,7 @@ class Controller:
     # -- blockers: figured out and routed by the controller, not left to the model -----------------------------------
 
     BLOCKER_FIXES = (
-        ("accessibility", "grant Accessibility to the Desk Agent app in System Settings > Privacy & Security > Accessibility, then I retry"),
+        ("accessibility", "grant Accessibility to this bot's desktop app in System Settings > Privacy & Security > Accessibility, then I retry"),
         ("screen is locked", "unlock the Mac (or leave it unlocked while I work); I retry when it is"),
         ("screensaver", "wake the screen; I retry when it is"),
         ("owner was using the mac", "I wait until the Mac has had no local input for a few minutes, then continue by itself"),
@@ -1386,6 +1509,7 @@ class Controller:
             "notes_in_episode": lambda: memory.count_actions(eid, "note"),
             "notes_today": lambda: memory.count_actions_today("note"),
             "recent_note_titles": memory.recent_note_titles,
+            "recent_note_bodies": memory.recent_note_bodies,
             "questions_in_episode": lambda: memory.count_actions(eid, "ask"),
             "refused_asks_in_episode": lambda: memory.count_refused_actions(eid, "ask"),
             "open_question_texts": memory.open_question_texts,
@@ -1400,6 +1524,8 @@ class Controller:
             "task_titles_today": memory.task_titles_today,
             "merges_in_episode": lambda: memory.count_actions(eid, "merge_task"),
             "paces_today": lambda: memory.count_actions_today("pace_member"),
+            "lead_updates_today": lambda: memory.count_actions_today("update_lead"),
+            "packages_refused_today": lambda: self._packages_refused_today(),
             "team": lambda: self.team,
             "providers_in_episode": lambda: memory.count_actions(eid, "provider"),
             "providers_today": lambda: memory.count_actions_today("provider"),
@@ -1463,6 +1589,7 @@ class Controller:
             open_questions=obs.open_questions_count if obs is not None else 0,
             last_visit_by_domain={},
             blocked_keys=set(self.blocked_keys),
+            day_blocked_keys=set(self._day_blocks()),
             pages_since_note=self.pages_since_note,
             partner_turns_since_note=self.partner_turns_since_note,
             desktop_available=self.desktop_available,
@@ -1590,11 +1717,31 @@ class Controller:
                 limit = self.cfg.browser.page_text_limit
                 if len(self.page.text) > self.page_offset + limit:
                     self.page_offset += limit
-                    self.pages_since_note += 1  # a chunk read counts like a page opened (policy caps both)
+                    if self.page.url != self._last_counted_url:  # chunks of one article are one page (2026-10-14:
+                        self.pages_since_note += 1               # 5 reads of one open page tripped "6 pages without noting")
+                        self._last_counted_url = self.page.url
                     return ExecResult(True, f"read more of {self.page.url}", True)
                 return ExecResult(False, "there is no more text on this page", False)
             if isinstance(action, Note):
                 source = action.source_url or self._current_url()
+                # the policy let a note that repeats a saved one through only because it adds a figure or a source:
+                # those sentences go onto the saved note (2026-10-14), so the subject stays one note
+                saved = self.memory.find_recent_note(action.title)
+                if saved is not None:
+                    from .policy import new_facts
+
+                    facts = new_facts(action.body, str(saved["body"] or ""))
+                    if facts:
+                        sentences = [s for s in re.split(r"(?<=[.!?])\s+", action.body.strip()) if any(f in s for f in facts)]
+                        extra = " ".join(sentences) or action.body.strip()
+                        if source and source not in extra and source not in str(saved["body"] or ""):
+                            extra += f" (source: {source})"
+                        self.memory.append_note(int(saved["id"]), extra)
+                        self.pages_since_note = 0
+                        self.partner_turns_since_note = 0
+                        if source:
+                            self.noted_urls.add(source)
+                        return ExecResult(True, f"added {len(facts)} new fact(s) to note #{saved['id']} '{str(saved['title'])[:60]}'", True)
                 note_id = self.memory.add_note(action.title, action.body, action.tags, source, ep["id"])
                 if source:
                     self.noted_urls.add(source)
@@ -1729,7 +1876,7 @@ class Controller:
             return self._task_to_bot(bot, title, action.details.strip(), action.due)
         # Owner, 2026-09-28: "let ceoA assign task to any one or no one" -- a Team-list name is made canonical, any
         # other name is tried against the workspace (unresolved = left unassigned, with a warning), none stays none.
-        assignee = action.assignee
+        assignee = action.assignee if self.cfg.notion.assign_people else None  # owner, 2026-10-14: the owner assigns
         member = find_member(self.team, assignee) if (self.team and assignee and assignee.strip()) else None
         if member is not None:
             assignee = member.name
@@ -1923,9 +2070,51 @@ class Controller:
         ticks = [str(s.get("done_at") or "") for s in self.plan.steps if s.get("done")]
         return max(ticks) if ticks else self.plan.started
 
+    def _answers_this_week(self) -> list[str]:
+        """The latest answer from each colleague to one of this bot's asks in the last 7 days (requests.jsonl), so the
+        answer outlives the episode that read it. The CEO asked the Research Analyst the same thing ~25 times in a day
+        while the Analyst had answered six times (2026-10-14)."""
+        if self.requests is None:
+            return []
+        me = self.cfg.agent.name
+        week = (dt.datetime.now() - dt.timedelta(days=7)).isoformat(timespec="seconds")
+        latest: dict[str, tuple[str, str, str]] = {}
+        try:
+            for r in self.requests.all():
+                if r.sender == me and r.answered_at >= week and r.answer.strip() and not r.answer.startswith("(same ask)"):
+                    if r.to not in latest or r.answered_at > latest[r.to][0]:
+                        latest[r.to] = (r.answered_at, r.text, r.answer)
+        except Exception:  # noqa: BLE001 - a prompt aid never breaks the loop
+            return []
+        return [f"{to}, {when[:16].replace('T', ' ')}, to your \"{ask.strip()[:80]}\": {ans.strip()[:300]}"
+                for to, (when, ask, ans) in sorted(latest.items(), key=lambda kv: kv[1][0], reverse=True)[:6]]
+
+    def _close_stale_plan(self) -> None:
+        """A plan with no step ticked for [agent] plan_stuck_hours ends stuck by itself (owner, 2026-10-14)."""
+        hours = float(self.cfg.agent.plan_stuck_hours or 0)
+        if hours <= 0 or self.plan is None or not self.plan.active:
+            return
+        marks = [str(s.get("done_at") or "") for s in self.plan.steps if s.get("done")] + [self.plan.started]
+        last = max(m for m in marks if m)
+        try:
+            age = (dt.datetime.now() - dt.datetime.fromisoformat(last[:19])).total_seconds() / 3600
+        except ValueError:
+            return
+        if age < hours:
+            return
+        note = f"no step finished in {age:.0f} hours; closed by the engine"
+        self.plan.end("stuck", note)
+        save_plan(self.plan_file, self.plan)
+        self._archive_plan()
+        self.memory.write_journal(f"Plan stuck: {self.plan.task} -- {note}", heading="Plan")
+        event(self.logger, "plan_end", status="stuck", note=note, auto=True, hours=round(age, 1))
+        self.feedback = (f"Your plan \"{self.plan.task[:80]}\" was closed: {note}. Say in one message what blocked it, "
+                         "then take a different job and write a smaller plan whose first step you can finish within the hour.")
+
     def _plan_lines(self) -> list[str]:
         if not self.cfg.agent.plans:
             return []
+        self._close_stale_plan()
         if self.plan is not None and self.plan.active:
             return self.plan.render()
         try:
@@ -1995,19 +2184,32 @@ class Controller:
             if not files:
                 return []
             done = set()
-            for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'update_lead' AND verdict = 'allowed'"):
+            since = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(files[-1].stat().st_mtime))
+            for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'update_lead' AND verdict = 'allowed' AND ts >= ?", (since,)):
                 try:
-                    done.add(str(json.loads(r["payload"]).get("name", "")).strip().lower())
+                    p = json.loads(r["payload"])
                 except ValueError:
-                    pass
+                    continue
+                if L.decide_field.strip() and not str(p.get(L.decide_field.strip()) or "").strip():
+                    continue
+                done.add(str(p.get("name", "")).strip().lower())
+            resting: dict[str, int] = {}
+            for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'update_lead' AND verdict != 'allowed' AND ts >= date('now', 'localtime')"):
+                try:
+                    n = str(json.loads(r["payload"]).get("name", "")).split(" | ")[0].strip().lower()
+                except ValueError:
+                    continue
+                resting[n] = resting.get(n, 0) + 1
             out: list[str] = []
             for line in files[-1].read_text(encoding="utf-8", errors="replace").splitlines():
                 if not line.startswith("- "):
                     continue
                 name = line[2:].split("|")[0].strip()
-                if not name or name.lower() in done:
+                if not name or name.lower() in done or resting.get(name.lower(), 0) >= 3:  # three refusals today: rest until tomorrow
                     continue
                 out.append(line[2:].strip()[:260])
+                for url in re.findall(r"https?://[^\s|]+", line):  # the row's own site: shown here, so openable
+                    self.seen_links.add(url.rstrip(".,;"))
                 if len(out) >= max(1, L.decide_shown):
                     break
             return out
@@ -2019,7 +2221,7 @@ class Controller:
 
     def _noted_not_listed(self) -> list[str]:
         """The first [leads] noted_shown of _noted_items for the prompt; the whole list goes to
-        common-data/shared-state/lead-gen-noted.json for the dashboard (one definition, appCC 2026-10-07)."""
+        common-data/shared-state/lead-gen-noted.json for the dashboard (one definition, 2026-10-07)."""
         L = self.cfg.leads
         if not (L.enabled and L.noted_shown > 0) or L.draft_queue_column.strip():
             return []
@@ -2200,24 +2402,44 @@ class Controller:
         if cached is None or now - cached[0] > 600:
             try:
                 rows = self.leads_notion.rows_drafted(L.outreach_draft_column.strip(), L.outreach_status_column.strip(), 100,
-                                                      tuple(L.outreach_not_reviewed))
+                                                      tuple(L.outreach_not_reviewed), L.score_column)
             except Exception:  # noqa: BLE001
                 rows = cached[1] if cached else []
             cached = self._review_cache = (now, rows)
+        # Only recent tasks count as covering a draft: the merged outreach batches of 10-04/05 named ~160 businesses and
+        # hid every drafted row from the review list (2026-10-10).
         tasked = " ".join(str(r["payload"]) for r in self.memory.db.query(
-            "SELECT payload FROM actions WHERE action_type IN ('task', 'update_task') AND verdict = 'allowed'")).lower()
+            "SELECT payload FROM actions WHERE action_type IN ('task', 'update_task') AND verdict = 'allowed' "
+            "AND ts > datetime('now', '-2 days')")).lower()
         waiting = [r for r in cached[1] if str(r.get("title") or "").strip() and str(r["title"]).strip().lower() not in tasked
                    and json.dumps(str(r["title"]).strip())[1:-1].lower() not in tasked]
         if not waiting:
             return [], 0
-        if any(re.search(r"\boutreach\b", t, re.I) for t in self.memory.task_titles_today()):
-            return [], len(waiting)  # today's review task exists; the rest wait for tomorrow's
+        # Today's review task exists: only a task about reviewing drafts counts. "Outreach list for ..." (CEO-172) matched
+        # a plain "outreach" test and hid the list all day on 2026-10-10.
+        if any(re.search(r"review.{0,40}draft|draft.{0,40}review|^\s*outreach:\s*review", t, re.I) for t in self.memory.task_titles_today()):
+            return [], len(waiting)
         if len(waiting) < max(1, L.outreach_min):
             return [], len(waiting)
         lines = [f"{str(r['title']).strip()} | {str((r.get('fields') or {}).get('Business email', '')).strip()} | "
-                 f"{str((r.get('fields') or {}).get('How we can help', '') or '(no package)').strip()[:60]} | {str(r.get('url', '')).strip()}"
+                 f"{str((r.get('fields') or {}).get('How can I help', '') or '(no package)').strip()[:60]} | {str(r.get('url', '')).strip()}"
                  for r in waiting[: max(1, L.outreach_shown)]]
         return lines, len(waiting)
+
+    def _briefings(self) -> list[str]:
+        """The newest file for each [agent] briefing_globs pattern in this bot's routed folder, at most 60 lines each."""
+        out: list[str] = []
+        folder = self.cfg.root.parent / "common-data" / "botBox" / "routed" / self.cfg.root.name
+        for pattern in self.cfg.agent.briefing_globs:
+            try:
+                files = sorted(folder.glob(pattern.strip()), key=lambda p: p.stat().st_mtime)
+                if not files:
+                    continue
+                lines = [l.rstrip() for l in files[-1].read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()]
+                out.append("\n".join(lines[:60])[:4000])
+            except OSError:
+                continue
+        return out
 
     def _known_finds(self) -> str | None:
         """The names already in the scout's report, in every prompt: the bot cannot read the report file itself, and
@@ -2231,6 +2453,54 @@ class Controller:
         if not names:
             return None
         return "Already in your report (never record these again; look for a KIND of tool the family lacks): " + ", ".join(names[:60])
+
+    def _family_block(self) -> str:
+        """The family's root concept and roster, generated for every prompt from common-data/family-roster.toml and the
+        members' STOP / PAUSE / HOLD files (owner, 2026-10-10: eight cards carried eight different copies). "" when the
+        roster is missing, so a bot outside a fleet runs on its card alone."""
+        import tomllib
+
+        m = self.cfg.messaging
+        path = Path(m.roster_file).expanduser() if (m.roster_file or "").strip() else self.cfg.root.parent / "common-data" / "family-roster.toml"
+        try:
+            members = tomllib.loads(path.read_text(encoding="utf-8")).get("member") or []
+        except (OSError, ValueError):
+            return ""
+        if not members:
+            return ""
+        me = self.cfg.agent.name.strip().lower()
+        from .hold import read_hold, until_text
+
+        lines = []
+        for x in members:
+            name, handle, slug = str(x.get("name", "")), str(x.get("handle", "")), str(x.get("slug", ""))
+            ws = self.cfg.root.parent / slug / "workspace"
+            if x.get("retired"):
+                state = f"retired {x['retired']}"
+            elif x.get("session"):
+                state = "runs in its own session"
+            elif (ws / "STOP").exists():
+                state = "STOPPED by the owner: do not message or task it"
+            elif (ws / "PAUSE").exists():
+                state = "paused by the owner"
+            else:
+                hold = read_hold(ws)
+                state = f"held by {hold.get('by', 'The CEO')} until {until_text(hold)}" if hold else "running"
+            who = f"{handle} = {name}" + (" (you)" if name.strip().lower() == me else "")
+            lines.append(f"- {who}: {x.get('role', '')} -- {state}")
+        handles = ", ".join(str(x.get("handle", "")) for x in members)
+        ceo_rule = ("**You, The CEO, are the provider and the rule maker.** You hold the family's resources and set what it works on; "
+                    "only the owner's fence is above you" if me == "the ceo" else
+                    "**The CEO is the provider and the rule maker.** Its request is your top priority until you answer it; its steer is the "
+                    "working rule. Only the owner's fence is above it")
+        return (
+            "## The family -- the root concept (owner, 2026-09-25)\n\n"
+            f"\"You are my family, all of you: {handles}.\" Everyone else -- every model provider, every site we read -- is a friend, "
+            "not family. Three rules sit above the rest of your card:\n"
+            "1. **Family is helped first.** Answer a family member's message before your own work; say what you did or why you could not.\n"
+            f"2. {ceo_rule}: no accounts, keys, spending, sign-ups, personal data or self-replication -- for anyone.\n"
+            "3. **Full names in messages**; the owner may use our handles. The family right now:\n" + "\n".join(lines) + "\n\n"
+        )
 
     def _family_line(self) -> str | None:
         """Who is running right now, when someone is not (owner, 2026-10-03: "does ceoA know which member is active or
@@ -2681,7 +2951,7 @@ class Controller:
         page_id = page_id_from_url(str(row["url"] or ""))
         if not page_id:
             return ExecResult(False, "that task has no Notion page id on record", False)
-        assignee = action.assignee
+        assignee = action.assignee if self.cfg.notion.assign_people else None
         if assignee and assignee.strip() and self.team:
             member = find_member(self.team, assignee)
             assignee = member.name if member is not None else assignee
@@ -2710,15 +2980,17 @@ class Controller:
         fields = {
             "Website": action.website.strip(), "Business email": action.email.strip(), "Location": action.location.strip(),
             "Industry": action.industry.strip(), "Company size": action.size.strip(), "Pain point": action.pain_point.strip(),
-            "How we can help": action.how_we_help.strip(), "Evidence": action.evidence.strip(), "Stage": "New",
-            "Found on": _dt.date.today().isoformat(), "Source pages": "\n".join(u.strip() for u in action.sources if u.strip()),
+            "How can I help": action.how_we_help.strip(), "Evidence": action.evidence.strip(),
+            "Source pages": "\n".join(u.strip() for u in action.sources if u.strip()),
         }
         if action.whatsapp.strip():
             from .whatsapp import wa_link
 
             fields["Whatsapp"] = wa_link(action.whatsapp, self.cfg.leads.whatsapp_country_code) or ""
             fields["Source pages"] = self._with_number_page(fields["Source pages"], fields["Whatsapp"])
-        check = self._verify_lead_email(action.email.strip())
+        if action.map_url.strip():  # a Maps link a page shows; the Lead Enricher fills the rest from map data (owner, 2026-10-10)
+            fields["google map location"] = action.map_url.strip()
+        check = self._verify_lead_email(action.email.strip()) if action.email.strip() else None
         if check is not None:
             if check.get("result") in self.cfg.leads.email_verify_refuse or check.get("disposable"):
                 why = "a disposable mailbox" if check.get("disposable") else f"the mail server rejects it ({check.get('reason') or 'no such mailbox'})"
@@ -2734,14 +3006,19 @@ class Controller:
         if problem:
             return ExecResult(False, f"lead '{action.name.strip()[:60]}' not confirmed: {problem}", False,
                               feedback="The row did not land on the Leads board; it does not count. Try once more, or report it.")
-        self.memory.add_lead(int(ep["id"]) if ep is not None else None, action.name, action.website, url_domain(action.website),
+        from .policy import lead_key
+
+        key = url_domain(action.website) if action.website.strip() else lead_key(action.name, action.location)
+        self.memory.add_lead(int(ep["id"]) if ep is not None else None, action.name, action.website, key,
                              action.email, action.how_we_help, url, page_id_from_url(url) or "")
         self.pages_since_note = 0  # a lead is the output the reading was for
         warnings = list(getattr(self.leads_notion, "last_warnings", []) or [])
         L = self.cfg.leads
         if L.notify_folder.strip():
-            text = (f"new lead \"{action.name.strip()}\" ({action.website.strip()}): {action.pain_point.strip()[:300]} "
-                    f"-- fits {action.how_we_help.strip()}. Business email on their site; row on the Leads board: {url}")
+            reach = "Business email on their site" if action.website.strip() and action.email.strip() else (
+                "no website; reached through its listing" + (" and WhatsApp" if action.whatsapp.strip() else ""))
+            text = (f"new lead \"{action.name.strip()}\" ({action.website.strip() or 'no website'}): {action.pain_point.strip()[:300]} "
+                    f"-- fits {action.how_we_help.strip()}. {reach}; row on the Leads board: {url}")
             try:
                 send_message(Path(L.notify_folder).expanduser(), self.cfg.agent.name, text)
             except OSError as exc:
@@ -2818,7 +3095,7 @@ class Controller:
             if name in blocks:
                 out[name] = reason or "flagged by the Validator or the owner"
         # A package handed over (by the Package Designer or the owner) that never went up is upkeep too: The CEO sat on
-        # the owner's Acme POS record for a day while publishing other things (2026-09-25).
+        # one handed-over package record for a day while publishing other things (2026-09-25).
         from .handoff import received_package_names
 
         published = {str(k).strip().lower() for k in blocks} | self._published_package_names()
@@ -2862,6 +3139,10 @@ class Controller:
         if key not in cache:
             try:
                 cache[key] = self.leads_notion.find_row(name)
+                if cache[key] is None:  # a mangled name: the one close work-list business (2026-10-14)
+                    close = self._close_work_list_name(name)
+                    if close:
+                        cache[key] = self.leads_notion.find_row(close)
             except Exception as exc:  # noqa: BLE001 - Notion errors are answers, not crashes
                 event(self.logger, "leads_board_lookup_failed", name=name[:80], error=str(exc)[:200])
                 return None
@@ -2898,7 +3179,7 @@ class Controller:
         cached = getattr(self, "_draft_queue_cache", None)
         if cached is None or now - cached[0] > 300:
             try:
-                rows = self.leads_notion.rows_waiting(L.draft_queue_column.strip(), "Stage", L.draft_queue_stage, L.draft_queue_shown * 2)
+                rows = self.leads_notion.rows_waiting(L.draft_queue_column.strip(), "Stage", L.draft_queue_stage, L.draft_queue_shown * 2, L.score_column)
             except Exception:  # noqa: BLE001
                 rows = cached[1] if cached else []
             cached = self._draft_queue_cache = (now, rows)
@@ -2915,13 +3196,38 @@ class Controller:
             name = str(r.get("title") or "").strip()
             if not name or name.lower() in done:
                 continue
-            parts = [name, f.get("Website", ""), "pain point: " + (f.get("Pain point", "") or "-")[:200],
-                     "how we can help: " + (f.get("How we can help", "") or "-"), "evidence: " + (f.get("Evidence", "") or "-"),
-                     "founded by: " + (f.get("Founded by", "") or "-")]
-            out.append(" | ".join(p for p in parts if p)[:600])
+            parts = [name, f.get("Website", ""), ("whatsapp: " + f["Whatsapp"] + " -> also draft_whatsapp") if str(f.get("Whatsapp") or "").strip() else "",
+                     "pain point: " + (f.get("Pain point", "") or "-")[:200],
+                     "how we can help: " + (f.get("How can I help", "") or "-"), "evidence: " + (f.get("Evidence", "") or "-"),
+                     "contact: " + (f.get("Contact person", "") or "-"),
+                     # the Validator's read of the site (2026-10-14): facts for the opening line; "Delivery apps" is a fit, not a gap
+                     ("tools: " + f["Tools on site"]) if str(f.get("Tools on site") or "").strip() else "",
+                     ("site: " + str(f["Site health"]).strip()[:120]) if str(f.get("Site health") or "").strip() else ""]
+            out.append(" | ".join(p for p in parts if p)[:700])
             if len(out) >= max(1, L.draft_queue_shown):
                 break
-        shown = {str(r.get("fields", {}).get("How we can help", "") or "").strip() for r in cached[1]
+        if "draft_whatsapp" in [x.lower() for x in L.update_only_fields] and len(out) < max(1, L.draft_queue_shown):
+            # rows drafted by email before WhatsApp drafts existed (owner, 2026-10-10): catch up, a few at a time
+            wa_cached = getattr(self, "_wa_queue_cache", None)
+            if wa_cached is None or now - wa_cached[0] > 300:
+                try:
+                    wa_rows = [r for r in self.leads_notion.rows_waiting("Draft Whatsapp msg", "Status", "", 60)
+                               if str(r["fields"].get("Whatsapp") or "").strip() and str(r["fields"].get(L.draft_queue_column) or "").strip()
+                               and not str(r["fields"].get(L.draft_queue_column) or "").strip().lower().startswith("skip")
+                               and str(r["fields"].get("Status") or "") != L.whatsapp_false_status]
+                except Exception:  # noqa: BLE001
+                    wa_rows = wa_cached[1] if wa_cached else []
+                wa_cached = self._wa_queue_cache = (now, wa_rows)
+            for r in wa_cached[1]:
+                f = r.get("fields") or {}
+                name = str(r.get("title") or "").strip()
+                if not name or name.lower() in done or any(o.startswith(name + " |") for o in out):
+                    continue
+                out.append(f"WHATSAPP DRAFT ONLY (the email is written): {name} | whatsapp: {f.get('Whatsapp', '')} | pain point: "
+                           f"{(f.get('Pain point', '') or '-')[:160]} | how can I help: {f.get('How can I help', '') or '-'} | contact: {f.get('Contact person', '') or '-'}"[:600])
+                if len(out) >= max(1, L.draft_queue_shown):
+                    break
+        shown = {str(r.get("fields", {}).get("How can I help", "") or "").strip() for r in cached[1]
                  if str(r.get("title") or "").strip() and any(o.startswith(str(r.get("title")).strip() + " |") for o in out)}
         emails = self._package_emails()
         missing = sorted(p for p in shown if p and p not in emails)
@@ -2930,13 +3236,23 @@ class Controller:
             given = [sorted(emails)[0]]
         for pkg in given:
             out.append(f"PACKAGE EMAIL for \"{pkg}\" (start from this; keep its numbered list, co-founders paragraph and "
-                       f"portfolio line exactly):\n{emails[pkg]}")
+                       f"portfolio line exactly):\n{self._with_signoff(emails[pkg])}")
         for pkg in missing:
             out.append(f"PACKAGE EMAIL for \"{pkg}\": none on the Packages page yet. Write it in the same shape: greeting, your "
                        "observed-gap line, 2-3 numbered points from the owner's Rates line for it (in your prompt), the price "
                        "exactly as the Rates state it (no line: 'priced after a short call'), then the co-founders paragraph and "
                        "the portfolio line copied word for word from a PACKAGE EMAIL here, and the sign-off.")
         return out
+
+    def _with_signoff(self, email: str) -> str:
+        """The package email with its own sign-off (from a line "Regards," on) replaced by [leads] draft_signoff."""
+        sign = [s for s in self.cfg.leads.draft_signoff if s.strip()]
+        if not sign:
+            return email
+        lines = email.rstrip().splitlines()
+        cut = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].strip().lower().rstrip(",") in ("regards", "best regards", "best", "thanks")), None)
+        body = lines[:cut] if cut is not None else lines
+        return "\n".join(body).rstrip() + "\n\n" + "\n".join(sign)
 
     def _package_emails(self) -> dict[str, str]:
         """Board package name -> its "Ready-to-send email" from the mirrored Packages page ([leads] package_emails_file),
@@ -2972,6 +3288,57 @@ class Controller:
         self._pkg_email_cache = (mtime, out)
         return out
 
+    def _close_work_list_name(self, name: str) -> str | None:
+        """The one work-list business whose name matches this one apart from case, punctuation or a trailing
+        market name / 'Inc' / '.com' (the writer wrote '<Business> <City>', '<Business> INC', '<business>.com')."""
+        import re as _re
+
+        market_words = sorted({w.lower() for w in (self.target.values.get("market", ""), self.target.values.get("market_short", ""),
+                                                   *self.cfg.browser.places_stop_words) if w and w.strip()}, key=len, reverse=True)
+
+        def key(t: str) -> str:
+            t = _re.sub(r"\.(com|net|org)\b", "", t.lower())
+            t = _re.sub(r"\b(inc|llc|corp|co|ltd)\b", "", t)
+            for w in market_words:                     # the market's name and short forms (target + places_stop_words)
+                t = _re.sub(rf"\b{_re.escape(w)}\b", "", t)
+            return _re.sub(r"[^a-z0-9]+", "", t)
+        want = key(name)
+        if not want:
+            return None
+        names: list[str] = []
+        for cached in (getattr(self, "_draft_queue_cache", None), getattr(self, "_wa_queue_cache", None)):
+            if cached:
+                names += [str(r.get("title") or "") for r in cached[1]]
+        try:
+            names += [l.split(" | ")[0].strip() for l in self._decide_lines()]
+        except Exception:  # noqa: BLE001
+            pass
+        hits = sorted({n for n in names if n and (key(n) == want or (len(want) > 6 and (key(n).startswith(want) or want.startswith(key(n)))))})
+        return hits[0] if len(hits) == 1 else None
+
+    def _row_fields(self, page_id: str) -> dict:
+        if self.leads_notion is None:
+            return {}
+        try:
+            return dict((self.leads_notion.read_page(page_id) or {}).get("fields") or {})
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _draft_exists(self, page_id: str) -> bool:
+        """The row's draft column already holds a draft or a "skip:" note."""
+        col = (self.cfg.leads.draft_queue_column or "").strip()
+        return bool(col) and bool(str(self._row_fields(page_id).get(col, "")).strip())
+
+    def _validator_named(self, name: str) -> bool:
+        """An open message from the Validator to this bot names this business (a fix it asked for)."""
+        if self.requests is None or not name.strip():
+            return False
+        try:
+            return any(r.sender.strip().lower() == "validator" and name.strip().lower() in r.text.lower()
+                       for r in self.requests.open_for(self.cfg.agent.name))
+        except Exception:  # noqa: BLE001
+            return False
+
     def _whatsapp_marked_false(self, page_id: str) -> bool:
         """The row's Status says a person found its WhatsApp link false ([leads] whatsapp_false_status)."""
         status = (self.cfg.leads.whatsapp_false_status or "").strip()
@@ -2982,6 +3349,77 @@ class Controller:
         except Exception:  # noqa: BLE001
             return False
         return str(fields.get("Status", "")).strip() == status
+
+    def _auto_fill_from_places(self) -> int:
+        """The Lead Enricher's engine step ([leads] auto_fill_from_places): for the rows on its decide list, fill an empty
+        "google map location" and Location from the Overture snapshot's one confident match (places.find_place), read
+        each write back, log it as this bot's. At most five rows a cycle; a row is tried once a day."""
+        L = self.cfg.leads
+        if not (L.enabled and L.auto_fill_from_places and self.leads_notion is not None and L.decide_glob.strip()):
+            return 0
+        from .places import find_place
+
+        tried = self.__dict__.setdefault("_places_tried", {})
+        today = time.strftime("%Y-%m-%d")
+        done = 0
+        for line in self._decide_lines():
+            name = line.split("|")[0].strip()
+            if not name or tried.get(name) == today:
+                continue
+            tried[name] = today
+            try:
+                row = self.leads_notion.find_row(name)
+            except Exception:  # noqa: BLE001
+                continue
+            if not row:
+                continue
+            f = row.get("fields") or {}
+            if not str(self.cfg.browser.places_db).strip():
+                break                                   # no places snapshot configured: nothing to match against
+            place = find_place(name, str(f.get("Location") or ""), Path(str(self.cfg.browser.places_db)).expanduser(), str(f.get("Website") or ""))
+            if not place:
+                continue
+            fields: dict[str, str] = {}
+            if not str(f.get("google map location") or "").strip():
+                fields["google map location"] = f"https://www.google.com/maps/search/?api=1&query={place['lat']:.6f},{place['lon']:.6f}"
+            if not str(f.get("Location") or "").strip() and place.get("locality") and place.get("region"):
+                fields["Location"] = f"{place['locality']}, {place['region']}, USA"
+            if not fields:
+                continue
+            try:
+                self.leads_notion.update_row(str(row["page_id"]), fields)
+                back = (self.leads_notion.read_page(str(row["page_id"])) or {}).get("fields") or {}
+            except Exception as exc:  # noqa: BLE001
+                event(self.logger, "places_fill_failed", business=name[:80], error=str(exc)[:160])
+                continue
+            landed = {k: v for k, v in fields.items() if str(back.get(k) or "").strip() == v}
+            if landed:
+                self._log_fact_fill(name, landed, f"Overture Maps: {place['name']}, {place.get('address') or ''}, {place.get('locality') or ''} {place.get('region') or ''}")
+                event(self.logger, "places_fill", business=name[:80], fields=sorted(landed))
+                done += 1
+            if done >= 5:
+                break
+        return done
+
+    def _log_fact_fill(self, business: str, fields: dict[str, str], source: str) -> None:
+        try:
+            path = self.cfg.root.parent / "common-data" / "shared-state" / "leads-facts-applied.jsonl"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                for col, val in fields.items():
+                    fh.write(json.dumps({"at": now_iso(), "by": self.cfg.agent.name, "business": business, "field": col, "value": val, "source": source}, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+    def _map_link(self, name: str, location: str, website: str = "") -> str | None:
+        from .places import map_link
+
+        if not str(self.cfg.browser.places_db).strip():
+            return None
+        try:
+            return map_link(name, location, Path(str(self.cfg.browser.places_db)).expanduser(), website)
+        except Exception:  # noqa: BLE001
+            return None
 
     def _with_number_page(self, sources: str, link: str) -> str:
         """Source pages with the page the WhatsApp number was read from added, so the Validator can find it (LD20)."""
@@ -2998,14 +3436,19 @@ class Controller:
         leads.update_any_row, any row on the board (looked up by name; it becomes one of the bot's rows afterwards)."""
         if self.leads_notion is None:
             return ExecResult(False, "updating leads is not enabled", False)
+        if " | " in action.name:  # the work-list line pasted whole ("Studio One | https://...", 19 refusals a day)
+            action.name = action.name.split(" | ")[0].strip()
         row = self.memory.find_lead(action.name)
         if row is None and self.cfg.leads.update_any_row:
+            close = self._close_work_list_name(action.name)
+            if close and close != action.name:
+                action.name = close
             found = (self.__dict__.get("_board_rows") or {}).get(action.name.strip().lower()) or self.leads_notion.find_row(action.name)
             if found:
                 fields = found.get("fields") or {}
                 site = str(fields.get("Website") or "")
                 lead_id = self.memory.add_lead(None, action.name, site, url_domain(site) if site else "",
-                                               str(fields.get("Business email") or ""), str(fields.get("How we can help") or ""),
+                                               str(fields.get("Business email") or ""), str(fields.get("How can I help") or ""),
                                                str(found.get("url") or ""), str(found.get("page_id") or ""))
                 row = self.memory.db.query("SELECT * FROM leads WHERE id = ?", (lead_id,))[0]
         if row is None:
@@ -3015,11 +3458,38 @@ class Controller:
         if not page_id:
             return ExecResult(False, "that lead has no Notion page id on record", False)
         mapping = (("website", "Website"), ("email", "Business email"), ("location", "Location"), ("industry", "Industry"),
-                   ("size", "Company size"), ("pain_point", "Pain point"), ("how_we_help", "How we can help"), ("evidence", "Evidence"),
-                   ("founded_by", "Founded by"), ("draft_email", "Draft email"))
+                   ("size", "Company size"), ("pain_point", "Pain point"), ("how_we_help", "How can I help"), ("evidence", "Evidence"),
+                   ("founded_by", "Contact person"), ("contact_role", "Contact role"), ("draft_email", "Draft email"), ("draft_whatsapp", "Draft Whatsapp msg"),
+                   ("map_url", "google map location"), ("founder_linkedin", "Founder LinkedIn"),
+                   ("linkedin_via", "LinkedIn found via"))  # the owner's column names (2026-10-10; LinkedIn 2026-10-14)
         fields = {col: str(getattr(action, attr)).strip() for attr, col in mapping if getattr(action, attr) is not None and str(getattr(action, attr)).strip()}
         if action.sources:
-            fields["Source pages"] = "\n".join(u.strip() for u in action.sources if u.strip())
+            # appended, never replaced: the row's record of pages read grows (2026-10-10)
+            old = str(self._row_fields(page_id).get("Source pages") or "")
+            fields["Source pages"] = "\n".join(dict.fromkeys(u.strip() for u in (old.splitlines() + list(action.sources)) if u.strip()))
+        if self.cfg.leads.fill_only:
+            cur = self._row_fields(page_id)
+            taken = [col for col in fields if col != "Source pages" and str(cur.get(col) or "").strip()]
+            if taken:
+                return ExecResult(False, f"'{str(row['name'])[:60]}' already has {', '.join(taken)}; you fill empty cells only", False,
+                                  feedback="Leave cells that already have a value; fill only the empty ones on your list.")
+        if "/in/" in fields.get("Founder LinkedIn", "").lower() and not (fields.get("Contact person") or str(self._row_fields(page_id).get("Contact person") or "").strip()):
+            # a person's profile with nobody named is the personal-data side of the fence (2026-10-14); /company/ needs no founder
+            return ExecResult(False, f"'{str(row['name'])[:60]}' has no Contact person; a person's LinkedIn profile needs that person's name on the row", False,
+                              feedback="Give founded_by in the same update (as a page states it), or leave the profile link out. A /company/ page needs no founder.")
+        if "Draft email" in fields and self._draft_exists(page_id) and not self._validator_named(str(row["name"])):
+            # 2026-10-09: Harbor Tacos was rewritten 56 times (a stale plan of the writer's); a row with a draft or a
+            # skip is done unless the Validator names it for a fix
+            return ExecResult(False, f"'{str(row['name'])[:60]}' already has a draft; it is done unless the Validator asks for a fix", False,
+                              feedback="That row is finished. Take the next row of your work list.")
+        if "Draft Whatsapp msg" in fields:
+            cur = self._row_fields(page_id)
+            if not str(cur.get("Whatsapp") or "").strip() or str(cur.get("Status") or "").strip() == self.cfg.leads.whatsapp_false_status:
+                return ExecResult(False, f"'{str(row['name'])[:60]}' has no working WhatsApp link; no WhatsApp message for it", False,
+                                  feedback="Only rows with a Whatsapp link get a WhatsApp draft.")
+            if str(cur.get("Draft Whatsapp msg") or "").strip() and not self._validator_named(str(row["name"])):
+                return ExecResult(False, f"'{str(row['name'])[:60]}' already has a WhatsApp draft", False,
+                                  feedback="That row's WhatsApp message is done. Take the next row of your work list.")
         if action.whatsapp and action.whatsapp.strip() and self._whatsapp_marked_false(page_id):
             return ExecResult(False, f"'{str(row['name'])[:60]}': a person found its WhatsApp number does not reach WhatsApp; "
                               "leave the Whatsapp cell to the team", False,
@@ -3054,12 +3524,13 @@ class Controller:
             return ExecResult(False, f"update of lead '{str(row['name'])[:60]}' not confirmed: {problem}", False,
                               feedback="The change is not on the row; it does not count as done. Check the value and try once more, or report it.")
         warnings = list(getattr(self.leads_notion, "last_warnings", []) or [])
-        if "Draft email" in fields:
-            # owner, 2026-10-07: "I need them on notion - may be under the description": the draft on the lead's page too
-            try:
-                self.leads_notion.replace_section(page_id, "Draft email", fields["Draft email"])
-            except Exception as exc:  # noqa: BLE001 - the cell holds the draft either way
-                warnings.append(f"the draft is in the cell but not on the page ({str(exc)[:120]})")
+        for col in ("Draft email", "Draft Whatsapp msg"):
+            if col in fields:
+                # owner, 2026-10-07: "I need them on notion - may be under the description": the draft on the lead's page too
+                try:
+                    self.leads_notion.replace_section(page_id, col, fields[col])
+                except Exception as exc:  # noqa: BLE001 - the cell holds the draft either way
+                    warnings.append(f"the draft is in the cell but not on the page ({str(exc)[:120]})")
         site = str(action.website).strip() if action.website and action.website.strip() else None
         self.memory.update_lead_row(int(row["id"]), site, url_domain(site) if site else None, action.email, action.how_we_help)
         changed = list(fields)
@@ -3073,10 +3544,28 @@ class Controller:
         self.memory.write_journal(f"Updated lead '{row['name']}': {', '.join(changed)} ({row['url']})", heading="Lead")
         event(self.logger, "update_lead", name=str(row["name"])[:120], changed=changed, url=str(row["url"]), warnings=warnings)
         note = (" Note: " + "; ".join(warnings) + ".") if warnings else ""
+        self.pages_since_note = 0  # a written row is this bot's output, like a note (the page cap counts from here)
         return ExecResult(
             True, f"updated lead '{str(row['name'])[:60]}' ({', '.join(changed)})", True,
             feedback=f"Lead updated ({', '.join(changed)}). It is fixed now; do not update it again for the same thing.{note}",
         )
+
+    def _packages_refused_today(self) -> set[str]:
+        """Package names whose publish_package was refused today for a 'today' reason (already replaced / published)."""
+        import datetime as _dt
+
+        out: set[str] = set()
+        try:
+            for r in self.memory.db.query("SELECT payload FROM actions WHERE action_type = 'publish_package' AND verdict != 'allowed' "
+                                          "AND verdict LIKE '%today%' AND ts >= ?", (_dt.date.today().isoformat(),)):
+                try:
+                    out.add(str(json.loads(r["payload"]).get("name", "")).strip().lower())
+                except ValueError:
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+        out.discard("")
+        return out
 
     def _republishable_package_names(self) -> set[str]:
         """Names the policy may accept again although they are on the page (see _stale_toggles)."""
@@ -3226,7 +3715,9 @@ class Controller:
             folder = self.cfg.messaging.folder_for(sender)
             if folder:
                 send_message(folder, me, note)
-            self.requests.answer(sender, me, note)
+            # Close the ask itself: answer() refuses a reply that carries a "?", and the quoted ask usually does, so the
+            # same ask was released again every cycle (335 "could not" messages for 16 asks, 2026-10-09).
+            self.requests.resolve(str(pr.get("id") or ""), f"released by the engine after {pr['actions_since_read']} actions")
             self.memory.write_journal(f"Released a priority ask from {sender} after {pr['actions_since_read']} actions without an answer.", heading="Request")
             event(self.logger, "priority_ask_released", sender=sender, actions=int(pr["actions_since_read"]))
             self.feedback = (f"The ask from {sender} was released after {pr['actions_since_read']} actions without an answer; {sender} has been told "
@@ -3441,6 +3932,7 @@ class Controller:
                 self.recent_pages.popitem(last=False)
         if page.ok and len(page.text) >= 200:
             self.pages_since_note += 1
+            self._last_counted_url = page.url
         if not page.ok:
             return ExecResult(False, f"{label}: failed, {page.error}", False)
         if gated is not None:
@@ -3477,6 +3969,8 @@ class Controller:
             return None
         host = parsed.netloc.lower().split("@")[-1].split(":")[0]
         if parsed.scheme not in ("http", "https") or not host or host in {h.lower() for h in sg.exempt_hosts}:
+            return None
+        if any(host == h.lower() or host.endswith("." + h.lower()) for h in sg.listing_hosts):  # a public listing: evidence, read as is
             return None
         if is_search_results_url(page.url):
             return None
@@ -3717,6 +4211,8 @@ class Controller:
         self.memory.add_summary("episode", ep["id"], text)
         heading = f"Episode {ep['id']}: " + (question["question"] if question else "free exploration")
         self.memory.write_journal(text, heading=heading)
+        if self.cfg.agent.journal_daily:
+            self._daily_journal_catch_up()
         self.memory.end_episode(ep["id"], text)
         self.memory.write_markdown_mirrors()
         self.noted_urls.clear()

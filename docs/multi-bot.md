@@ -6,7 +6,7 @@ each with its own persona and its own share of the machine, all running the way 
 
 **Status, same day, later:** built. `bot new NAME --persona explorer|ceo|researcher --port N` creates
 `~/bots/<slug>/` (config, persona.md, workspace); `bot --config ... install` renders
-`launchd/bot.plist.template` to `com.rebuzz.bot.<slug>`; `bot list` reads the installed agents.
+`launchd/bot.plist.template` to `com.ramen-agents.bot.<slug>`; `bot list` reads the installed agents.
 Personas live in `personas/` and are injected into the system prompt via `agent.persona_file`.
 Jobless-Bot was migrated in place with its memory; The CEO (`personas/ceo.md`, Notion tasks as its
 output skill, off until configured) was created second. All four changes listed at the bottom are
@@ -67,10 +67,10 @@ moment the owner touches the Mac.
 
 ## What has to change in the code
 
-1. `launchd/` and `scripts/install_launchd.sh` hard-code the label `com.rebuzz.explorer` and the
+1. `launchd/` and `scripts/install_launchd.sh` hard-code the label `com.ramen-agents.explorer` and the
    paths. Turn the plist into a template rendered from `bot install --name jobless-bot`, so each
-   bot gets `com.rebuzz.<name>` with its own config path, logs, and dashboard port.
-   [Done as `bot --config ... install` (`fleet.py`), label `com.rebuzz.bot.<slug>`; the install
+   bot gets `com.ramen-agents.<name>` with its own config path, logs, and dashboard port.
+   [Done as `bot --config ... install` (`fleet.py`), label `com.ramen-agents.bot.<slug>`; the install
    scripts are deleted.]
 2. `scripts/supervise.sh` takes `EXPLORER_HOME` already; make the config path a parameter too.
 3. A `bot ls` (or `bots` command) that lists every installed bot and its heartbeat, reading each

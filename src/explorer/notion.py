@@ -39,7 +39,7 @@ STATUS_OPTIONS = ["Not started", "In progress", "Blocker", "In Review", "QA", "D
 # The columns a lead row fills (controller._execute_lead). Kept here so `bot check` can say which of them the
 # configured board actually has; tests/test_leads.py asserts the two stay in step.
 # Columns only a person writes (owner, 2026-10-06): what came of the outreach. No bot write ever carries them.
-HUMAN_ONLY_COLUMNS = frozenset({"result", "result date"})
+HUMAN_ONLY_COLUMNS = frozenset({"result", "result date", "reviewed by"})  # Reviewed by: the owner's people column (2026-10-10)
 
 
 def _without_human_columns(fields: dict[str, str]) -> dict[str, str]:
@@ -47,7 +47,7 @@ def _without_human_columns(fields: dict[str, str]) -> dict[str, str]:
 
 
 LEAD_COLUMNS = ("Website", "Business email", "Location", "Industry", "Company size", "Pain point",
-                "How we can help", "Evidence", "Stage", "Found on", "Source pages")  # no "Found by": the owner emptied it (2026-09-25)
+                "How can I help", "Evidence", "Source pages")  # 2026-10-10: the owner removed Stage and Found on (Created time covers it); no "Found by": the owner emptied it (2026-09-25)
 PRIORITY_OPTIONS = ["P0", "P1", "P2", "P3", "P4", "P5", "P6"]
 
 
@@ -280,7 +280,30 @@ class NotionClient:
                 fields[name] = str(((prop.get("date") or {}).get("start")) or "")
             elif kind == "people":
                 fields[name] = ", ".join(str(p.get("name", "")) for p in (prop.get("people") or []))
+            elif kind == "multi_select":
+                fields[name] = ", ".join(str(o.get("name", "")) for o in (prop.get("multi_select") or []))
         return fields
+
+    def _query_best_first(self, filters: list[dict[str, Any]], limit: int, score_column: str) -> list[dict[str, Any]]:
+        """Pages matching `filters`, the highest `score_column` first and unscored pages last (oldest first); plain
+        oldest-first when the board has no such number column. Two queries, because Notion's own sort puts empty
+        numbers wherever it likes and the second page of 100 would hide the scored rows."""
+        limit = max(1, min(100, limit))
+        by_age = [{"timestamp": "created_time", "direction": "ascending"}]
+        scored = score_column.strip() and self.schema().get(score_column.strip()) == "number"
+        if not scored:
+            return list((self._request("POST", f"{self._container_path}/query",
+                                       json={"filter": {"and": filters} if len(filters) > 1 else filters[0], "sorts": by_age,
+                                             "page_size": limit})).get("results") or [])
+        col = score_column.strip()
+        pages = list((self._request("POST", f"{self._container_path}/query",
+                                    json={"filter": {"and": filters + [{"property": col, "number": {"is_not_empty": True}}]},
+                                          "sorts": [{"property": col, "direction": "descending"}] + by_age, "page_size": limit})).get("results") or [])
+        if len(pages) < limit:
+            pages += list((self._request("POST", f"{self._container_path}/query",
+                                         json={"filter": {"and": filters + [{"property": col, "number": {"is_empty": True}}]}, "sorts": by_age,
+                                               "page_size": limit - len(pages)})).get("results") or [])
+        return pages
 
     def read_page(self, page_id: str) -> dict[str, Any] | None:
         """Read-back after a write (owner, 2026-09-26): {"archived": bool, "fields": {...}} for a page, None when Notion says
@@ -374,21 +397,18 @@ class NotionClient:
         self._request("PATCH", f"/v1/blocks/{page_id}/children", json={"children": children[:100]})
 
     def rows_drafted(self, draft_column: str, status_column: str, limit: int,
-                     not_reviewed: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+                     not_reviewed: tuple[str, ...] = (), score_column: str = "") -> list[dict[str, Any]]:
         """Rows with a draft in `draft_column` that is not a "skip:" and whose `status_column` is empty or one of
-        `not_reviewed` (e.g. "WhatsApp Verified": checked, but the email not reviewed yet), oldest first."""
+        `not_reviewed` (e.g. "WhatsApp Verified": checked, but the email not reviewed yet), best `score_column` first."""
         kind = self.schema().get(status_column)
         filters: list[dict[str, Any]] = [{"property": draft_column, "rich_text": {"is_not_empty": True}}]
         if kind in ("select", "status"):
             either = [{"property": status_column, kind: {"is_empty": True}}]
             either += [{"property": status_column, kind: {"equals": v}} for v in not_reviewed]
             filters.append(either[0] if len(either) == 1 else {"or": either})
-        data = self._request("POST", f"{self._container_path}/query",
-                             json={"filter": {"and": filters}, "sorts": [{"timestamp": "created_time", "direction": "ascending"}],
-                                   "page_size": max(1, min(100, limit))})
         title_prop = self.title_property()
         out = []
-        for page in data.get("results") or []:
+        for page in self._query_best_first(filters, limit, score_column):
             fields = self._plain_fields(page)
             if fields.get(draft_column, "").strip().lower().startswith("skip:"):
                 continue
@@ -396,20 +416,17 @@ class NotionClient:
                         "title": fields.get(title_prop or "", ""), "fields": fields})
         return out
 
-    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int) -> list[dict[str, Any]]:
-        """Rows whose `stage_property` is `stage_value` and whose `empty_column` is empty, oldest first:
-        [{"page_id", "url", "title", "fields"}]. The Outreach Writer's work list."""
+    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int, score_column: str = "") -> list[dict[str, Any]]:
+        """Rows whose `stage_property` is `stage_value` and whose `empty_column` is empty, best `score_column` first
+        (oldest first among the unscored): [{"page_id", "url", "title", "fields"}]. The Outreach Writer's work list."""
         schema = self.schema()
         kind = schema.get(stage_property)
         filters: list[dict[str, Any]] = [{"property": empty_column, "rich_text": {"is_empty": True}}]
-        if kind in ("select", "status"):
+        if stage_value and kind in ("select", "status"):  # "" = any stage (owner, 2026-10-09: fill every empty cell)
             filters.append({"property": stage_property, kind: {"equals": stage_value}})
-        data = self._request("POST", f"{self._container_path}/query",
-                             json={"filter": {"and": filters}, "sorts": [{"timestamp": "created_time", "direction": "ascending"}],
-                                   "page_size": max(1, min(100, limit))})
         title_prop = self.title_property()
         out = []
-        for page in data.get("results") or []:
+        for page in self._query_best_first(filters, limit, score_column):
             fields = self._plain_fields(page)
             out.append({"page_id": str(page.get("id", "")), "url": str(page.get("url", "")),
                         "title": fields.get(title_prop or "", ""), "fields": fields})
@@ -769,8 +786,17 @@ class FakeNotion:
     def replace_section(self, page_id: str, heading: str, text: str) -> None:
         self.rows[int(page_id, 16) - 1].setdefault("_sections", {})[heading] = text
 
+    @staticmethod
+    def _best_first(out: list[dict[str, Any]], score_column: str) -> list[dict[str, Any]]:
+        def score(r: dict[str, Any]) -> float:
+            try:
+                return -float(str(r["fields"].get(score_column, "") or "").strip())
+            except ValueError:
+                return 1.0  # unscored rows last, in their own order
+        return sorted(out, key=score) if score_column else out
+
     def rows_drafted(self, draft_column: str, status_column: str, limit: int,
-                     not_reviewed: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+                     not_reviewed: tuple[str, ...] = (), score_column: str = "") -> list[dict[str, Any]]:
         out = []
         for i, row in enumerate(self.rows):
             d = str(row.get(draft_column, "")).strip()
@@ -778,15 +804,15 @@ class FakeNotion:
             if d and not d.lower().startswith("skip:") and (not st or st in not_reviewed):
                 out.append({"page_id": f"{i + 1:032x}", "url": f"https://notion.fake/{i + 1:032x}/row-{i + 1}",
                             "title": str(row.get("title", "")), "fields": {k: v for k, v in row.items() if k != "title"}})
-        return out[:limit]
+        return self._best_first(out, score_column)[:limit]
 
-    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int) -> list[dict[str, Any]]:
+    def rows_waiting(self, empty_column: str, stage_property: str, stage_value: str, limit: int, score_column: str = "") -> list[dict[str, Any]]:
         out = []
         for i, row in enumerate(self.rows):
-            if str(row.get(stage_property, stage_value)) == stage_value and not str(row.get(empty_column, "")).strip():
+            if (not stage_value or str(row.get(stage_property, stage_value)) == stage_value) and not str(row.get(empty_column, "")).strip():
                 out.append({"page_id": f"{i + 1:032x}", "url": f"https://notion.fake/{i + 1:032x}/row-{i + 1}",
                             "title": str(row.get("title", "")), "fields": {k: v for k, v in row.items() if k != "title"}})
-        return out[:limit]
+        return self._best_first(out, score_column)[:limit]
 
     def find_row(self, title: str) -> dict[str, Any] | None:
         for i, row in enumerate(self.rows):
