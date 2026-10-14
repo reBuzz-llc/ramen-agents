@@ -53,7 +53,7 @@ export function isDataServerProcess(args: string, configPath: string): boolean {
 }
 
 /** The process holding the bot's run lock (workspace/explorer.pid), when it is alive. Catches agents that
- * are not a `bot ... run` command line, such as the Desk Agent.app bundle (rebuzzBot.app before 2026-09-25) running the Desk Agent. */
+ * are not a `bot ... run` command line, such as the Desk Agent.app bundle running the Desk Agent. */
 export async function lockHolder(pidFile: string, procs: Proc[]): Promise<Proc | null> {
   let pid: number;
   try {
@@ -64,7 +64,7 @@ export async function lockHolder(pidFile: string, procs: Proc[]): Promise<Proc |
   if (!Number.isInteger(pid) || pid <= 1) return null;
   const proc = procs.find((p) => p.pid === pid);
   // A stale pid file can name a reused pid: only trust a process that looks like a bot...
-  if (!(proc && /\bbot\b|explorer|rebuzzBot|python|\.app\/Contents\/MacOS\//i.test(proc.args) && !/\sdashboard(\s|$)/.test(proc.args))) return null;
+  if (!(proc && /\bbot\b|explorer|python|\.app\/Contents\/MacOS\//i.test(proc.args) && !/\sdashboard(\s|$)/.test(proc.args))) return null;
   // ...and that still holds the pid file open. The bot keeps it open (and flocked) for as long as it runs, and a
   // stop only unlocks it, so the number in it outlives the bot; macOS can hand that pid to SearXNG's Python.
   const holders = await openedBy(pidFile);

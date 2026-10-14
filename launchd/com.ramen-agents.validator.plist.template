@@ -5,7 +5,7 @@
   <!-- The Validator bot (~/bots/validator): checks the other bots' Notion tasks, packages and reports
        against the owner's format instructions every 6 hours; a full re-check of all past data daily
        and whenever ~/bots/validator/instructions/*.md changes. Read-only on Notion. -->
-  <key>Label</key><string>com.rebuzz.validator</string>
+  <key>Label</key><string>com.ramen-agents.validator</string>
   <key>ProgramArguments</key>
   <array>
     <string>__HOME__/Projects/bot/.venv/bin/python</string>

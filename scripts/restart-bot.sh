@@ -8,7 +8,7 @@ set -u
 uid="$(id -u)"
 for slug in "$@"; do
     ws="$HOME/bots/$slug/workspace"
-    label="com.rebuzz.bot.$slug"
+    label="com.ramen-agents.bot.$slug"
     touch "$ws/STOP"
     i=0
     while [ $i -lt 45 ] && pgrep -f "bots/$slug/config.toml run" >/dev/null 2>&1; do sleep 1; i=$((i + 1)); done
@@ -20,6 +20,6 @@ for slug in "$@"; do
     # the supervisor exits 0 on a STOP; launchd then needs a kickstart to run it again
     launchctl kickstart "gui/$uid/$label" 2>/dev/null || launchctl kickstart -k "gui/$uid/$label"
     # the data server (bot dashboard: owner chat + webapp data) runs the same engine code; restart it too
-    launchctl kickstart -k "gui/$uid/com.rebuzz.data.$slug" 2>/dev/null || true
+    launchctl kickstart -k "gui/$uid/com.ramen-agents.data.$slug" 2>/dev/null || true
     echo "$slug: restarted (run loop + data server) at $(date +%H:%M:%S) on $(git -C "$HOME/Projects/bot" rev-parse --short HEAD)"
 done

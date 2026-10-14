@@ -2,7 +2,7 @@
 # Render the launch-agent templates in ~/bots/launchd for THIS Mac and load them.
 #   sh scripts/install-launchd.sh                 # everything, plus a data server per bot folder
 #   sh scripts/install-launchd.sh --dry-run       # show what would be written, change nothing
-#   sh scripts/install-launchd.sh searxng ollama  # only the named ones (the part after "com.rebuzz.")
+#   sh scripts/install-launchd.sh searxng ollama  # only the named ones (the part after "com.ramen-agents.")
 # Safe to run again: an agent that is already loaded is replaced. Bots' run loops are installed separately with
 #   ~/Projects/bot/.venv/bin/bot --config ~/bots/<bot>/config.toml install
 set -eu
@@ -37,10 +37,10 @@ render() {  # $1 = template, $2 = label, $3 = slug (may be empty)
   launchctl bootstrap "gui/$UID_N" "$out" && echo "loaded $2"
 }
 
-for tpl in launchd/com.rebuzz.*.plist.template; do
+for tpl in launchd/com.ramen-agents.*.plist.template; do
   base=$(basename "$tpl" .plist.template)
-  [ "$base" = "com.rebuzz.data.SLUG" ] && continue
-  short=${base#com.rebuzz.}
+  [ "$base" = "com.ramen-agents.data.SLUG" ] && continue
+  short=${base#com.ramen-agents.}
   wanted "$short" && render "$tpl" "$base" ""
 done
 
@@ -51,6 +51,6 @@ for cfg in */config.toml; do
   grep -q "^\[dashboard\]" "$cfg" || continue
   if wanted "data.$slug"; then
     [ "$DRY" = 1 ] || mkdir -p "$ROOT/$slug/workspace/logs"
-    render launchd/com.rebuzz.data.SLUG.plist.template "com.rebuzz.data.$slug" "$slug"
+    render launchd/com.ramen-agents.data.SLUG.plist.template "com.ramen-agents.data.$slug" "$slug"
   fi
 done

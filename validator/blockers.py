@@ -76,7 +76,7 @@ def desk_config() -> dict[str, Any]:
         return {}
 
 
-def accessibility_state(path: Path = DESK / "workspace" / "rebuzzbot_ax.txt") -> tuple[bool | None, str]:
+def accessibility_state(path: Path = DESK / "workspace" / "desk_agent_ax.txt") -> tuple[bool | None, str]:
     """(trusted, stamp) from the desk agent's marker file: "2026-09-24T10:30:14 accessibility_trusted=True"."""
     try:
         lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]

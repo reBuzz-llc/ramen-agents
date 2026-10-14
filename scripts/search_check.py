@@ -3,7 +3,7 @@
 
 When every source behind the local SearXNG bot-checks this Mac, the bots' searches return nothing and nobody is
 told; the bots just "find nothing" and rest. This runs one ordinary test search every three
-hours (launchd: com.rebuzz.search-check), records which engines answered in common-data/shared-state/search-health.json,
+hours (launchd: com.ramen-agents.search-check), records which engines answered in common-data/shared-state/search-health.json,
 and posts a macOS notification when search returns nothing -- once when it goes down, again every 12 hours while it
 stays down, and once when it is back. A zero-result check is repeated once after a minute with another query before
 it counts, so one blip is not an alert. Eight test searches a day against the fleet's ~100.

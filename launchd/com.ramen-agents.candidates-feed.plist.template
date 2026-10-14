@@ -6,9 +6,9 @@
        (common-data/knowledge/target.toml), from that market's open-data feed (common-data/knowledge/candidate-feeds.toml),
        written to common-data/botBox/routed/lead-gen/candidates-<market>-DATE.md, never repeating a business. At 06:30,
        at login and hourly, because the Mac is often off or asleep at 06:30; the script writes a day's file once.
-       A market with no feed is a logged no-op. Run now: launchctl kickstart -k gui/$(id -u)/com.rebuzz.candidates-feed -->
+       A market with no feed is a logged no-op. Run now: launchctl kickstart -k gui/$(id -u)/com.ramen-agents.candidates-feed -->
   <key>Label</key>
-  <string>com.rebuzz.candidates-feed</string>
+  <string>com.ramen-agents.candidates-feed</string>
   <key>ProgramArguments</key>
   <array>
     <string>__HOME__/Projects/bot/.venv/bin/python</string>

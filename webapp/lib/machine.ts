@@ -422,7 +422,7 @@ export async function inspectBot(bot: BotProfile, heartbeatStatus: string | null
     });
   }
 
-  // SearXNG (launch agent com.rebuzz.searxng): the local metasearch the bot's `searxng` engine queries.
+  // SearXNG (launch agent com.ramen-agents.searxng): the local metasearch the bot's `searxng` engine queries.
   if (list("browser.search_engines", []).includes("searxng")) {
     const searx = procs.filter((p) => /-m searx\.webapp(\s|$)/.test(p.args) || /(^|\/)searxng-run(\s|$)/.test(p.args));
     const base = str("browser.searxng_url", "http://127.0.0.1:8888");
