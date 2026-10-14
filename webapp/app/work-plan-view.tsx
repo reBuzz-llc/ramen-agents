@@ -8,7 +8,7 @@ import { ago } from "@/lib/format";
 import { summaryStatus, TONE_DOT } from "@/lib/status";
 import type { CandidateFunnel } from "@/lib/candidates";
 import type { Change } from "@/lib/changes";
-import type { LeadResults, ResultGroup } from "@/lib/lead-results";
+import type { LeadResults, Pipeline, ResultGroup } from "@/lib/lead-results";
 import type { TestRun } from "@/lib/test-runs";
 import type { CeoMeasure } from "@/lib/ceo-measure";
 import type { DetailItem, DetailKind, OwnerPlan, PastJob, RefusalDay, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
@@ -19,7 +19,7 @@ import { useLeaveGuard, useNow, usePoll } from "./hooks";
 import ProfileMenu from "./profile-menu";
 import Sheet from "./sheet";
 import { markWorkPlanSeen } from "./work-plan-shortcut";
-import { compact } from "./summary-parts";
+import { compact, Segmented } from "./summary-parts";
 import { buttonClass, Icon, Spinner } from "./ui";
 
 const MAX_GOAL = 200;
@@ -34,7 +34,7 @@ const dur = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ?
 
 /** Estimate against actual working time, as data (owner, 2026-09-30: "est time - actual time = useful data"):
  * "est 30m · actual 45m · 15m over", the difference red when over and green when under. */
-function TimeTag({ spent, estimate, className = "" }: { spent: number | null; estimate: number | null; className?: string }) {
+function TimeTag({ spent, estimate, className = "", stacked = false }: { spent: number | null; estimate: number | null; className?: string; stacked?: boolean }) {
   if (spent === null && estimate === null) return null;
   const diff = spent !== null && estimate !== null ? estimate - spent : null;
   const parts = [
@@ -45,6 +45,17 @@ function TimeTag({ spent, estimate, className = "" }: { spent: number | null; es
   // Over the estimate in red, under (or on) it in green (owner, 2026-09-30); the estimate and actual stay grey.
   const tone = diff === null ? "" : diff < 0 ? "font-semibold text-bad" : "font-semibold text-good";
   const last = parts.length - 1;
+  // Beside a checklist step: one figure per line, so the column stays narrow and the step keeps its width (owner, 2026-10-10).
+  if (stacked)
+    return (
+      <span className={`flex shrink-0 flex-col items-end text-right leading-tight text-muted tabular-nums ${className}`} title="Working time: gaps between the bot's actions, pauses over 5 minutes left out">
+        {parts.map((p, i) => (
+          <span key={i} className={`whitespace-nowrap ${diff !== null && i === last ? tone : ""}`}>
+            {p}
+          </span>
+        ))}
+      </span>
+    );
   return (
     <span className={`shrink-0 text-muted tabular-nums ${className}`} title="Working time: gaps between the bot's actions, pauses over 5 minutes left out">
       {parts.map((p, i) => (
@@ -98,6 +109,26 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
     [cards],
   );
 
+  // The page grew to a dozen panels (owner, 2026-10-10: "this page is too long"): three tabs, the open one in the address
+  // (#leads, #checks); #target opens the Agents tab, where the browser scrolls to the target panel.
+  const [tab, setTab] = useState<Tab>("agents");
+  useEffect(() => {
+    const read = () => {
+      const h = window.location.hash.slice(1) as Tab;
+      setTab(TABS.some((t) => t.key === h) ? h : "agents");
+    };
+    const t = setTimeout(read, 0);
+    window.addEventListener("hashchange", read);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("hashchange", read);
+    };
+  }, []);
+  const pickTab = (t: Tab) => {
+    setTab(t);
+    window.history.replaceState(window.history.state, "", t === "agents" ? window.location.pathname : `#${t}`);
+  };
+
   return (
     <>
       <header className="pt-safe fixed inset-x-0 top-0 z-30">
@@ -131,30 +162,51 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
 
         {feed.data ? (
           <>
-            <TargetPanel />
-            {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
-            <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} />
-            {feed.data.results ? <ResultsPanel results={feed.data.results} /> : null}
-            {feed.data.candidates ? <CandidatesPanel funnel={feed.data.candidates} /> : null}
-            {feed.data.tests?.length ? <TestRunsPanel runs={feed.data.tests} /> : null}
-            <Board rows={board} status={status} />
-            <PastJobs jobs={feed.data.past ?? []} />
-            <ul className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {/* Same order as the scoreboard, so a row there and its card here line up. */}
-              {board.map((c) => (
-                <li key={c.slug} className="min-w-0">
-                  {/* Keyed on the saved values: a change to the file (a save, or an edit elsewhere) starts the card afresh,
-                      while polls that bring the same values leave an edit in progress alone. */}
-                  <AgentCard key={JSON.stringify(c.owner)} card={c} tone={status.get(c.slug)} onDirty={markDirty} />
-                </li>
-              ))}
-            </ul>
+            <div className="mb-4">
+              <Segmented label="Work plan section" options={TABS} value={tab} onChange={pickTab} />
+            </div>
+            {/* Every tab stays mounted and is only hidden, so an unsaved goal or target edit survives a switch. */}
+            <div hidden={tab !== "leads"}>
+              {feed.data.results ? <HowWeSend results={feed.data.results} /> : null}
+              {feed.data.results ? <ResultsPanel results={feed.data.results} /> : null}
+              {feed.data.candidates ? <CandidatesPanel funnel={feed.data.candidates} /> : null}
+              {feed.data.tests?.length ? <TestRunsPanel runs={feed.data.tests} /> : null}
+            </div>
+            <div hidden={tab !== "checks"}>
+              {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
+              <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} />
+            </div>
+            <div hidden={tab !== "agents"}>
+              <TargetPanel />
+              <Board rows={board} status={status} />
+              <ul className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {/* Same order as the scoreboard, so a row there and its card here line up. */}
+                {board.map((c) => (
+                  <li key={c.slug} className="min-w-0">
+                    {/* Keyed on the saved values: a change to the file (a save, or an edit elsewhere) starts the card afresh,
+                        while polls that bring the same values leave an edit in progress alone. */}
+                    <AgentCard key={JSON.stringify(c.owner)} card={c} tone={status.get(c.slug)} onDirty={markDirty} />
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5">
+                <PastJobs jobs={feed.data.past ?? []} />
+              </div>
+            </div>
           </>
         ) : null}
       </main>
     </>
   );
 }
+
+// The target sits on the Agents tab with the goals it shapes (owner, 2026-10-10: "target and task can be on 1 tab").
+type Tab = "agents" | "leads" | "checks";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "agents", label: "Agents and target" },
+  { key: "leads", label: "Leads" },
+  { key: "checks", label: "Checks" },
+];
 
 /** Today's scoreboard: every number opens what stands behind it. */
 function Board({ rows, status }: { rows: WorkCard[]; status: Map<string, ReturnType<typeof summaryStatus>> }) {
@@ -512,101 +564,152 @@ function TestRunsPanel({ runs }: { runs: TestRun[] }) {
   );
 }
 
-const FUNNEL = [
-  { stage: "Emailed", tone: "bg-sys-blue/70" },
-  { stage: "Replied", tone: "bg-sys-teal" },
-  { stage: "Meeting", tone: "bg-sys-orange" },
-  { stage: "Client", tone: "bg-sys-green" },
-] as const;
-const RANK: Record<string, number> = { Emailed: 1, Replied: 2, Meeting: 3, Client: 4 };
+/** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
+ * people send from the business mailbox. */
+// The routine lives on the Leads board itself, in the board's description (owner, 2026-10-10); rows are not assigned per person.
+const SEND_GUIDE = ""; // FILL-ME: your Leads board's Notion URL (its description holds the team's steps); "" hides the link
 
-const reached = (g: ResultGroup, stage: string) =>
-  Object.entries(g.byResult).reduce((n, [r, c]) => n + ((RANK[r] ?? 0) >= RANK[stage] && !r.startsWith("reached") ? c : 0), 0);
-const lost = (g: ResultGroup) => (g.byResult["Not interested"] ?? 0) + (g.byResult["Bounced"] ?? 0);
-
-function ResultGroupList({ title, groups }: { title: string; groups: ResultGroup[] }) {
+function HowWeSend({ results }: { results: LeadResults }) {
+  const team = results.sending.team;
   return (
-    <div>
-      <h3 className="mb-2 text-xs font-semibold text-muted">{title}</h3>
-      <ul className="space-y-3">
-        {groups.map((g) => (
-          <li key={g.label}>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-              <span className="min-w-0 truncate font-medium text-ink">{g.label}</span>
-              <span className="text-xs text-muted tabular-nums">
-                {g.leads} leads · {FUNNEL.map((f) => `${reached(g, f.stage)} ${f.stage.toLowerCase()}`).join(" · ")}
-                {lost(g) ? ` · ${lost(g)} lost` : ""}
-              </span>
-            </div>
-            <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-fill-3">
-              {/* Each segment is the leads that got exactly that far, so the bar reads left to right as progress. */}
-              {FUNNEL.map((f, i) => {
-                const n = reached(g, f.stage) - (FUNNEL[i + 1] ? reached(g, FUNNEL[i + 1].stage) : 0);
-                return n > 0 ? <span key={f.stage} className={f.tone} style={{ width: `${(n / g.leads) * 100}%` }} title={`${n} got to ${f.stage.toLowerCase()}`} /> : null;
-              })}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">How we send{team.length ? ` (${team.join(", ")})` : ""}</h2>
+        {results.ready ? (
+          <span className="text-xs text-muted tabular-nums">
+            <span className="font-semibold text-ink">{results.sending.sent}</span> marked Email Sent ·{" "}
+            <span className="font-semibold text-ink">{results.sending.repliesWeek}</span> answers in the last 7 days
+          </span>
+        ) : null}
+      </header>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink/90">
+        <li>On the Leads board, filter to rows with a Draft email and an empty Status (WhatsApp statuses count as empty).</li>
+        <li>Read the draft against the business&apos;s own site and fix anything wrong. A draft starting &quot;skip:&quot; needs nothing.</li>
+        <li>Send it from the business mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
+        <li>Set Status to &quot;Email Sent&quot;.</li>
+        <li>
+          When they answer, set Result (Replied, Meeting, Client, Not interested, Bounced) and Result date. This is the only way the
+          family learns what works.
+        </li>
+      </ol>
+      <p className="mt-2 text-xs text-muted">
+        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts. {SEND_GUIDE ? (
+          <>
+            The full step-by-step is the{" "}
+            <a href={SEND_GUIDE} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+              Leads board&apos;s description
+            </a>
+            .
+          </>
+        ) : null}
+      </p>
+    </section>
   );
 }
 
-/** How far the leads got (the team's Result column on the Leads board; bots never write it): per source and per
- * industry, the leads that reached emailed, replied, a meeting, a client. The business result, not the bots' activity. */
+const STAGES_SHOWN: { key: keyof Pipeline; label: string; who: string }[] = [
+  { key: "leads", label: "On the board", who: "Lead Gen" },
+  { key: "drafted", label: "Drafted", who: "Outreach Writer" },
+  { key: "sent", label: "Sent", who: "the team" },
+  { key: "replied", label: "Answered", who: "the business" },
+  { key: "meeting", label: "Meeting", who: "the team" },
+  { key: "client", label: "Client", who: "the team" },
+];
+
+/** How far the leads got, and where they pile up (owner, 2026-10-10: "how could this be better?"). A pipeline from the
+ * board to a client, the first stage that stalls marked; then the same steps per source and per industry, so the
+ * source whose leads answer shows itself. Sent and later come from the team's Status and Result; bots never set them. */
 function ResultsPanel({ results }: { results: LeadResults }) {
-  const contacted = results.bySource.reduce((n, g) => n + reached(g, "Emailed") + lost(g), 0);
+  const p = results.pipeline;
+  // The stall: the first stage that has nothing while the one before it has work waiting.
+  const stall = STAGES_SHOWN.findIndex((s, i) => i > 0 && p[s.key] === 0 && p[STAGES_SHOWN[i - 1].key] > 0);
+  // Before the first email goes out, the later columns are all zero: leave them out rather than show empty bars.
+  const cols = STAGES_SHOWN.filter((s) => s.key === "leads" || s.key === "drafted" || p.sent > 0 || s.key === "sent");
   return (
     <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink">Lead results</h2>
-        <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
-          {FUNNEL.map((f) => (
-            <span key={f.stage} className="flex items-center gap-1">
-              <span className={`h-2 w-2 rounded-full ${f.tone}`} aria-hidden /> {f.stage}
-            </span>
-          ))}
-        </span>
+        <span className="text-xs text-muted">The team sets Status and Result on the Leads board; the bots never touch them.</span>
       </header>
       {!results.ready ? (
         <p className="mt-2 text-sm text-muted">{results.reason}</p>
       ) : (
         <>
-          <p className="mt-1 text-xs text-muted">
-            {results.total} leads on the board, {contacted} contacted so far. The team sets each lead&apos;s Result on the Leads board; the bots never
-            touch it.
-          </p>
-          {results.drafts ? (
-            <p className="mt-1 text-xs text-muted">
-              First emails ({results.drafts.column}, written by the Outreach Writer, never sent):{" "}
-              <span className="font-semibold text-ink tabular-nums">{results.drafts.drafted} drafted</span> ·{" "}
-              <span className="tabular-nums">{results.drafts.skipped} skipped</span> ·{" "}
-              <span className="tabular-nums">{results.drafts.waiting} waiting at {results.drafts.stage}</span>
-            </p>
-          ) : null}
-          {results.noted ? (
-            <p className={`mt-1 text-xs ${results.noted.waiting ? "text-sys-orange" : "text-muted"}`} title={results.noted.titles.join("\n")}>
-              {results.noted.waiting
-                ? `${results.noted.waiting} businesses Lead Gen noted with an email but has not listed yet${results.noted.oldest ? `, oldest from ${results.noted.oldest.slice(0, 10)}` : ""} (it finishes these first).`
-                : "Every business Lead Gen noted with an email is on the board."}
-            </p>
-          ) : null}
-          {results.whatsapp !== null ? (
-            <p className="mt-1 text-xs text-muted">
-              <span className="font-semibold text-ink tabular-nums">{results.whatsapp}</span> of {results.total} leads have a WhatsApp link (filled by Lead Gen or from a wa.me link on their own site)
-              {results.whatsappVerified || results.whatsappFalse
-                ? `; checked by hand in WhatsApp Web: ${results.whatsappVerified} real, ${results.whatsappFalse} false (cleared from the board)`
-                : ""}
-              .
-            </p>
-          ) : null}
-          <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
-            <ResultGroupList title="By where the lead came from" groups={results.bySource} />
-            <ResultGroupList title="By industry (top 8)" groups={results.byIndustry} />
+          <ol className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {STAGES_SHOWN.map((s, i) => (
+              <li key={s.key} className={`rounded-lg px-3 py-2 ${i === stall ? "bg-sys-orange/15 ring-1 ring-sys-orange/50" : "bg-fill-3"}`}>
+                <p className="text-[11px] text-muted">{s.label}</p>
+                <p className={`text-2xl font-semibold tabular-nums ${i === stall ? "text-sys-orange" : "text-ink"}`}>{p[s.key].toLocaleString()}</p>
+                <p className={`text-[11px] ${i === stall ? "font-semibold text-sys-orange" : "text-muted"}`}>{i === stall ? `waiting on ${s.who}` : s.who}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+            {results.drafts ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                drafts: {results.drafts.skipped} skipped · {results.drafts.waiting} still to draft
+              </span>
+            ) : null}
+            {results.whatsappDrafts !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">WhatsApp drafts: {results.whatsappDrafts}</span>
+            ) : null}
+            {results.mapLinks !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                map links: {results.mapLinks} of {results.total}
+              </span>
+            ) : null}
+            {results.noted?.waiting ? (
+              <span className="rounded-full bg-sys-orange/15 px-2 py-0.5 text-sys-orange tabular-nums" title={results.noted.titles.join("\n")}>
+                {results.noted.waiting} noted by Lead Gen, not yet listed
+              </span>
+            ) : null}
+            {results.whatsapp !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                WhatsApp: {results.whatsapp} links · checked by hand {results.whatsappVerified} real, {results.whatsappFalse} false
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <GroupTable title="By where the lead came from" groups={results.bySource} cols={cols} />
+            <GroupTable title="By industry" groups={results.byIndustry} cols={cols} />
           </div>
         </>
       )}
     </section>
+  );
+}
+
+function GroupTable({ title, groups, cols }: { title: string; groups: ResultGroup[]; cols: typeof STAGES_SHOWN }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-1 text-xs font-semibold text-muted">{title}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="text-[11px] text-muted">
+              <th className="py-1 pr-2 text-left font-normal" />
+              {cols.map((c) => (
+                <th key={c.key} className="px-1.5 py-1 text-right font-normal whitespace-nowrap">
+                  {c.key === "leads" ? "Leads" : c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {groups.map((g) => (
+              <tr key={g.label}>
+                <td className="py-1.5 pr-2 text-ink">{g.label}</td>
+                {cols.map((c) => (
+                  <td key={c.key} className={`px-1.5 py-1.5 text-right ${g[c.key] ? "text-ink" : "text-muted/60"}`}>
+                    {g[c.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -976,7 +1079,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
                     {s.done ? <Icon name="check" className="h-2.5 w-2.5" /> : null}
                   </span>
                   <span className={`min-w-0 flex-1 break-words ${s.done ? "text-muted line-through" : "text-ink"}`}>{s.text}</span>
-                  <TimeTag spent={s.spentMin} estimate={s.estimateMin} className="mt-0.5 text-xs" />
+                  <TimeTag spent={s.spentMin} estimate={s.estimateMin} className="mt-0.5 text-xs" stacked />
                 </li>
               ))}
             </ul>

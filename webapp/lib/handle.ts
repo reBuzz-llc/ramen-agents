@@ -12,9 +12,9 @@
 
 export type Kind = "agent" | "bot";
 
-// Handles the owner chose instead of the first three letters (Research Analyst is the family's analyst: anaA,
-// owner 2026-10-07).
-const CHOSEN: Record<string, string> = { "research analyst": "anaA" };
+// Handles chosen instead of the first three letters, where those would mislead or clash (owner, 2026-10-07 and
+// 2026-10-10): Research Analyst is anaA, Lead Enricher is enrA ("lea" is Lead Gen's).
+const CHOSEN: Record<string, string> = { "research analyst": "anaA", "lead enricher": "enrA" };
 
 export function handleFor(name: string, kind: Kind = "agent"): string {
   const chosen = CHOSEN[name.trim().toLowerCase()];

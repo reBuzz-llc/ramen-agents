@@ -83,6 +83,31 @@ export async function readConfig(configPath: string, seen: string[] = []): Promi
   return merged;
 }
 
+/** slug -> handle from the family's one roster (common-data/family-roster.toml, 2026-10-10), so the dashboard
+ *  shows the handle the bots themselves are told. A member not on it falls back to handleFor(name). */
+async function rosterHandles(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  let text = "";
+  try {
+    text = await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "family-roster.toml"), "utf8");
+  } catch {
+    return out;
+  }
+  let cur: { slug?: string; handle?: string } = {};
+  const flush = () => cur.slug && cur.handle && out.set(cur.slug, cur.handle);
+  for (const line of text.split("\n")) {
+    if (line.trim() === "[[member]]") {
+      flush();
+      cur = {};
+      continue;
+    }
+    const m = line.match(/^\s*(slug|handle)\s*=\s*"([^"]*)"/);
+    if (m) cur[m[1] as "slug" | "handle"] = m[2];
+  }
+  flush();
+  return out;
+}
+
 export async function listBots(): Promise<BotProfile[]> {
   let entries: string[];
   try {
@@ -90,6 +115,7 @@ export async function listBots(): Promise<BotProfile[]> {
   } catch {
     return [];
   }
+  const handles = await rosterHandles();
   const bots = await Promise.all(
     entries.filter((e) => SLUG.test(e)).map(async (slug): Promise<(BotProfile & { portSet: boolean }) | null> => {
       const configPath = path.join(BOTS_DIR, slug, "config.toml");
@@ -106,7 +132,7 @@ export async function listBots(): Promise<BotProfile[]> {
           port: typeof port === "number" && port > 0 && port < 65536 ? port : DEFAULT_PORT,
           portSet: typeof port === "number" && port > 0 && port < 65536,
           configPath,
-          handle: handleFor(String(toml.get("agent.name") ?? slug)),
+          handle: handles.get(slug) ?? handleFor(String(toml.get("agent.name") ?? slug)),
         };
       } catch {
         return null; // not a bot folder
