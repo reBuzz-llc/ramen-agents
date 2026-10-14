@@ -380,7 +380,7 @@ LEADS_SCHEMA = {"properties": {c: {"type": "rich_text"} for c in LEAD_COLUMNS} |
 def test_columns_available_reports_a_row_board_and_its_missing_columns():
     """`bot check` on the Leads board: reachable, and which of the columns a lead fills are really there."""
     good, text = make_client(api(schema=LEADS_SCHEMA)).columns_available(LEAD_COLUMNS)
-    assert good and "all 11 columns this bot fills exist" in text and "title 'Business'" in text
+    assert good and "all 9 columns this bot fills exist" in text and "title 'Business'" in text
     thin = {"properties": {"Business": {"type": "title"}, "Website": {"type": "url"}}}
     good, text = make_client(api(schema=thin)).columns_available(LEAD_COLUMNS)
     assert good and "NOT on the board" in text and "Business email" in text and "Source pages" in text
@@ -397,7 +397,7 @@ def test_columns_available_explains_a_data_source_id_on_the_old_api_version():
     good, text = make_client(only_new_api).columns_available(LEAD_COLUMNS)  # defaults to 2022-06-28
     assert not good and "not found" in text and 'api_version = "2025-09-03"' in text
     good, text = make_client(only_new_api, api_version="2025-09-03").columns_available(LEAD_COLUMNS)
-    assert good and "all 11 columns" in text
+    assert good and "all 9 columns" in text
 
 
 def test_no_bot_write_carries_the_human_only_result_columns():

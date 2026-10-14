@@ -59,6 +59,7 @@ from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DesktopConfig, Developer
 from .desktop import DesktopView, hotkey_never_allowed, normalize_hotkey
 from .memory import question_words, questions_are_similar
 from .notion import valid_date, valid_priority
+from .places import MAP_LINK
 from .team import Member, find_member
 
 # The agent's own tooling, phrased the way the model phrases it. Rate limits, captchas and search
@@ -150,6 +151,13 @@ def email_domain(email: str) -> str:
     return m.group(1).lower().removeprefix("www.") if m else ""
 
 
+def lead_key(name: str, location: str) -> str:
+    """The dedupe key of a business with no website: its name and city (owner, 2026-10-10)."""
+    city = (location or "").split(",")[0]
+    norm = lambda t: re.sub(r"[^a-z0-9]+", " ", t.lower()).strip()  # noqa: E731
+    return f"lead:{norm(name)}|{norm(city)}"
+
+
 def same_site(domain: str, site: str) -> bool:
     """example.com and mail.example.com count as the same business."""
     return bool(domain and site) and (domain == site or domain.endswith("." + site) or site.endswith("." + domain))
@@ -216,6 +224,19 @@ def posts_are_twins(a: str, b: str) -> bool:
     return len(wa & wb) / min(len(wa), len(wb)) >= 0.6
 
 
+_FACT = re.compile(r"\$\s?\d[\d,.]*\s?[kKmMbB]?|\d[\d,.]*\s?%|https?://[^\s)>\]]+")
+
+
+def new_facts(new_body: str, old_body: str) -> list[str]:
+    """Figures ($ amounts, percentages) and http URLs in `new_body` that `old_body` lacks: what makes a note that repeats
+    a saved one's subject worth adding to it (2026-10-14: the Research Analyst had 168 notes refused as duplicates while
+    researching one question, so no real new figure could land)."""
+    norm = lambda x: re.sub(r"[\s,]", "", x.lower()).rstrip(".")  # noqa: E731
+    old = {norm(m) for m in _FACT.findall(old_body or "")}
+    found = [m.strip().rstrip(".,;") for m in _FACT.findall(new_body or "")]
+    return [m for m in dict.fromkeys(found) if norm(m) not in old]
+
+
 def notes_are_twins(a: str, b: str) -> bool:
     """Two note titles that say the same thing in different words: both long enough to carry a finding (four or
     more content words) and sharing three quarters of them. 'Fresnel lens orders' vs 'Fresnel lens history' are two
@@ -271,6 +292,12 @@ class Verdict:
         return cls(False, reason, permanent, over_budget, tag)
 
 
+LINKEDIN_LINK = re.compile(r"^https://(?:[a-z]{2,3}\.)?linkedin\.com/(in|company)/[A-Za-z0-9%_\-]{2,100}$")
+LINKEDIN_STEPS = ("1 Own site", "2 Business listing", "3 Press article", "4 Search result")
+CONTACT_ROLES = ("Founder", "Owner", "CEO / President", "Principal / Partner", "General Manager", "Practice / Office Manager", "Operations",
+                 "Marketing", "Franchise Development", "Executive Director", "Other")  # the board's "Contact role" options (owner, 2026-10-14)
+
+
 @dataclass
 class PolicyContext:
     mode: str  # fake | web
@@ -280,9 +307,11 @@ class PolicyContext:
     open_questions: int
     last_visit_by_domain: dict[str, float]
     blocked_keys: set[str] = field(default_factory=set)
+    day_blocked_keys: set[str] = field(default_factory=set)  # refused as "already done / today's limit" earlier today; "<type>:*" = the whole type
     pages_since_note: int = 0
     episode_note_titles: set[str] = field(default_factory=set)  # lower-cased titles saved this episode
     recent_note_titles: set[str] = field(default_factory=set)  # lower-cased titles saved in the last few days
+    recent_note_bodies: dict[str, str] = field(default_factory=dict)  # lower-cased title -> body, for a duplicate that adds a fact
     notes_in_episode: int = 0  # notes saved this episode
     notes_today: int = 0  # notes saved today
     questions_in_episode: int = 0  # ask actions accepted this episode
@@ -335,6 +364,8 @@ class PolicyContext:
     task_titles_today: set[str] = field(default_factory=set)
     merges_in_episode: int = 0  # merge_task actions accepted this episode
     paces_today: int = 0  # pace_member actions accepted today
+    lead_updates_today: int = 0  # update_lead actions accepted today
+    packages_refused_today: set[str] = field(default_factory=set)  # package names whose republish was refused today
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
@@ -376,6 +407,12 @@ class PolicyContext:
             object.__setattr__(self, name, value)
             return value
         return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        pending = object.__getattribute__(self, "__dict__").get("loaders")
+        if pending and name in pending:  # a value set directly wins over the lazy loader (tests, callers pinning a field)
+            pending.pop(name)
+        object.__setattr__(self, name, value)
 
 
 class Allowlist:
@@ -775,6 +812,11 @@ class Policy:
             return Verdict.no("you already fixed two tasks this episode; leave the rest for next time")
         return Verdict.ok()
 
+    def _wa_link(self, number: str) -> str:
+        from .whatsapp import wa_link
+
+        return wa_link(number, self.leads.whatsapp_country_code if self.leads else "1") or number
+
     def _whatsapp_problem(self, number: str, ctx: PolicyContext) -> str | None:
         """A WhatsApp number must be printed on a page the bot opened (the business's site or a listing); the engine
         turns it into a wa.me link. Never a number from memory."""
@@ -788,8 +830,10 @@ class Policy:
         return None
 
     def _check_lead(self, action: Lead, ctx: PolicyContext) -> Verdict:
-        """A lead is a business the bot actually read, with a business email published on its own site (no email,
-        no lead), a pain point tied to a page it opened, and the package that fixes it. Each business once."""
+        """A lead is a business the bot actually read: its email (or WhatsApp number) printed on a page it opened, a
+        pain point tied to a page it opened, and the package that fixes it. Each business once. Owner, 2026-10-10: a
+        business with no website is a lead too (its public listing page is the evidence, its city recorded); a free-mail
+        address may be the business's (the Validator's gate judges which); a WhatsApp number may stand in for the email."""
         L = self.leads
         if not L.enabled:
             return Verdict.no("listing leads is not enabled; that action does not exist")
@@ -797,54 +841,84 @@ class Policy:
             return Verdict.no("you write drafts for rows already on the board; listing a business is Lead Gen's job", permanent=True)
         name, site, email = action.name.strip(), action.website.strip(), action.email.strip()
         pain, fix, evidence = action.pain_point.strip(), action.how_we_help.strip(), action.evidence.strip()
-        if not name or not site or not email or not pain or not fix or not evidence:
-            return Verdict.no("a lead needs the business name, website, a business email, the pain point, how_we_help (a package name) and the evidence URL")
-        if len(name) > 120 or len(pain) > 1500 or len(action.industry) > 200 or len(action.location) > 200:
+        whatsapp, location = action.whatsapp.strip(), action.location.strip()
+        if not name or not pain or not fix or not evidence:
+            return Verdict.no("a lead needs the business name, the pain point, how_we_help (a package name) and the evidence URL")
+        if not email and not whatsapp:
+            return Verdict.no("a lead needs a way to reach the business: its email, or its WhatsApp number, as a page you opened prints it")
+        if len(name) > 120 or len(pain) > 1500 or len(action.industry) > 200 or len(location) > 200:
             return Verdict.no("keep the name under 120 characters, the pain point under 1500, industry and location short")
         if is_meta_topic(pain) or is_meta_topic(name):
             return Verdict.no(meta_topic_reason("lead"))
         schemes = ("http://", "https://", "fake://") if ctx.mode == "fake" else ("http://", "https://")
-        if not site.startswith(schemes):
-            return Verdict.no("website must be the business's http(s) address")
-        site_domain = url_domain(site)
-        edomain = email_domain(email)
-        if not edomain:
-            return Verdict.no("email must be a real address like hello@theirdomain.com")
-        if any(edomain == f or edomain.startswith(f) for f in _FREE_MAIL):
-            return Verdict.no("that is a personal mailbox provider, not a business address; a lead needs an email on the business's own domain, or no lead")
-        # Owner, 2026-09-30: an email on a different domain is accepted when it is printed on the business's own page
-        # (shopcityspf.com on shopcity.us; sweetcorner.org on the .com site). The on-page check below is the
-        # proof for every address, same domain or not; a free mailbox provider stays refused above.
+        if site and not site.startswith(schemes):
+            return Verdict.no("website must be the business's http(s) address, or empty when it has none")
+        if not site and not location:
+            return Verdict.no("a business with no website needs its location (City, State, Country) so it is not confused with another of that name")
         visited_keys = {url_key(u) for u in ctx.visited_urls}
         opened = lambda u: u in ctx.visited_urls or url_key(u) in visited_keys  # noqa: E731
         sources = [u.strip() for u in action.sources if u.strip()]
         if any(not u.startswith(schemes) for u in sources) or (sources and any(not opened(u) for u in sources)):
             return Verdict.no("sources must be http(s) pages you actually opened")
         if not opened(evidence):
-            return Verdict.no("evidence must be the URL of a page you actually opened that shows the pain point")
-        own_pages = {u: t for u, t in ctx.recent_page_texts.items() if same_site(url_domain(u), site_domain)}
-        if not own_pages:
-            # A city-record address that forwards to the business's real domain: the pages the bot read are on that
-            # domain, and when the email's own domain is that domain they ARE the business's site (22 refusals).
-            own_pages = {u: t for u, t in ctx.recent_page_texts.items() if same_site(url_domain(u), edomain)}
-        if not own_pages:
-            return Verdict.no("you have not opened any page on the business's own site; read its site (contact page, about page) before listing it")
-        if not any(email.lower() in (t or "").lower() for t in own_pages.values()):
-            return Verdict.no(
-                f"'{email}' does not appear on any page of {site_domain} you opened. A lead's email must be published by "
-                "the business on its own site (contact page, footer); never guess one or take it from elsewhere -- no email, no lead"
-            )
-        if action.whatsapp.strip():
-            bad = self._whatsapp_problem(action.whatsapp, ctx)
+            return Verdict.no("evidence must be the URL of a page you actually opened that shows the pain point" + (
+                "" if site else " -- for a business with no website, its public listing page (a directory, a city record, its public Facebook or Instagram page)"))
+        site_domain = url_domain(site) if site else ""
+        edomain = email_domain(email) if email else ""
+        if email and not edomain:
+            return Verdict.no("email must be a real address like hello@theirdomain.com")
+        # The proof pages: the business's own site when it has one (an address on another domain counts when printed
+        # there; a free-mail address too -- the Validator's gate judges whether it reads as the business's); otherwise
+        # the listing pages the bot opened for it (evidence and sources).
+        if site:
+            proof = {u: t for u, t in ctx.recent_page_texts.items() if same_site(url_domain(u), site_domain)}
+            if not proof and edomain:
+                # A city-record address that forwards to the business's real domain: the pages the bot read are on that
+                # domain, and when the email's own domain is that domain they ARE the business's site (22 refusals).
+                proof = {u: t for u, t in ctx.recent_page_texts.items() if same_site(url_domain(u), edomain)}
+            if not proof:
+                return Verdict.no("you have not opened any page on the business's own site; read its site (contact page, about page) before listing it")
+            where = f"any page of {site_domain} you opened"
+        else:
+            listing = {url_key(u) for u in [evidence, *sources]}
+            proof = {u: t for u, t in ctx.recent_page_texts.items() if url_key(u) in listing}
+            if not proof:
+                return Verdict.no("you have not read the listing page you cite; open it (evidence) before listing a business with no website")
+            where = "the listing page you opened"
+        if email and not any(email.lower() in (t or "").lower() for t in proof.values()):
+            return Verdict.no(f"'{email}' does not appear on {where}. A lead's email is one a page prints; never guess one or take it from elsewhere")
+        if whatsapp:
+            bad = self._whatsapp_problem(whatsapp, ctx)
             if bad:
                 return Verdict.no(bad)
-        if site_domain in ctx.recent_lead_domains:
-            return Verdict.no(f"{site_domain} is already on the Leads board; find a different business", permanent=True)
+            action.whatsapp = self._wa_link(whatsapp)  # the gate and the board see the link, not the raw number
+        if action.map_url.strip() and not MAP_LINK.match(action.map_url.strip()):
+            return Verdict.no("map_url must be a Google Maps link a page shows (google.com/maps/..., maps.app.goo.gl/...); otherwise leave it empty, the engine fills it from map data")
+        key = site_domain or lead_key(name, location)
+        if key in ctx.recent_lead_domains:
+            return Verdict.no(f"{site_domain or name} is already on the Leads board; find a different business", permanent=True)
         if 0 < L.max_per_episode <= ctx.leads_in_episode:  # 0 = no cap (owner, 2026-09-24: "remove caps from lead gen")
             return Verdict.no("you already listed a lead this episode; research the next one first")
         if 0 < L.max_per_day <= ctx.leads_today:
             return Verdict.no(f"you have listed {ctx.leads_today} leads today, the daily limit; keep notes on candidates instead")
         return Verdict.ok()
+
+    def _linkedin_problem(self, link: str, via: str, ctx: PolicyContext) -> str:
+        """"Founder LinkedIn" (owner, 2026-10-14: step-wise, other sources allowed, "defined with the link"): a profile or
+        company page copied from a page the bot saw this episode -- never from linkedin.com itself (login wall) and never
+        from memory -- with the step it came from in "LinkedIn found via". The Validator's LD23/EN05 re-check the cited page."""
+        link, via = link.strip().rstrip("/"), via.strip()
+        if via and not link:
+            return "linkedin_via goes with founder_linkedin; give the link or leave both out"
+        if not LINKEDIN_LINK.match(link):
+            return "founder_linkedin must be https://www.linkedin.com/in/<name> (the founder) or /company/<name>; otherwise leave it out"
+        if via not in LINKEDIN_STEPS:
+            return "linkedin_via must be one of: " + ", ".join(LINKEDIN_STEPS) + " -- the step the link was found at"
+        path = link.split("linkedin.com", 1)[-1].lower()
+        seen = any(path in (u or "").lower() for u in ctx.seen_link_urls) or any(path in (t or "").lower() for t in ctx.recent_page_texts.values())
+        if not seen:
+            return "founder_linkedin must be a link printed on a page you opened this episode (the business's site, a listing, an article or a search result); never one from memory"
+        return ""
 
     def _check_update_lead(self, action: UpdateLead, ctx: PolicyContext) -> Verdict:
         """Fix a lead this bot listed: only its own rows (exact business name), only real changes, and every changed
@@ -853,6 +927,8 @@ class Policy:
         L = self.leads
         if not L.enabled:
             return Verdict.no("updating leads is not enabled; that action does not exist")
+        if " | " in action.name:  # the work-list line pasted whole ("PJ's Coffee | https://pjscoffee.com", 37 refusals)
+            action.name = action.name.split(" | ")[0].strip()
         name = action.name.strip()
         site_domain = ctx.recent_lead_names.get(name.lower()) if name else None
         if name and site_domain is None and L.update_any_row and ctx.lead_site_on_board is not None:
@@ -868,27 +944,64 @@ class Policy:
         changes = {
             k: str(getattr(action, k)).strip()
             for k in ("website", "email", "pain_point", "how_we_help", "evidence", "location", "industry", "size", "founded_by", "draft_email",
-                      "whatsapp")
+                      "whatsapp", "draft_whatsapp", "map_url", "founder_linkedin", "linkedin_via", "contact_role")
             if getattr(action, k) is not None and str(getattr(action, k)).strip()
         }
         sources = [u.strip() for u in (action.sources or []) if u.strip()]
         only = [f for f in L.update_only_fields if f]
         if only:
             extra = sorted(k for k in changes if k not in only) + (["sources"] if sources and "sources" not in only else [])
-            if extra:
+            if extra and L.fill_only and any(k in only for k in changes):
+                # the Lead Enricher echoed the row's website in 111 updates a day (2026-10-14): drop what is not its to
+                # write and keep the fills
+                for k in extra:
+                    if k == "sources":
+                        action.sources = None
+                    else:
+                        setattr(action, k, None)
+                        changes.pop(k, None)
+                sources = [] if "sources" in extra else sources
+            elif extra:
                 return Verdict.no(f"on the Leads board you decide only: {', '.join(only)}. Leave {', '.join(extra)} out of the update")
         if "whatsapp" in changes:
             bad = self._whatsapp_problem(changes["whatsapp"], ctx)
             if bad:
                 return Verdict.no(bad)
+            action.whatsapp = self._wa_link(changes["whatsapp"])
         if "draft_email" in changes and "draft_email" not in only:
             return Verdict.no("draft_email is the Outreach Writer's column; leave it out of the update", permanent=True)
+        if "draft_whatsapp" in changes and "draft_whatsapp" not in only:
+            return Verdict.no("draft_whatsapp is the Outreach Writer's column; leave it out of the update", permanent=True)
         if len(changes.get("draft_email", "")) > 1800:
             return Verdict.no("a draft email is short: under 150 words")
+        if len(changes.get("draft_whatsapp", "")) > 700:
+            return Verdict.no("a WhatsApp message is short: under 90 words")
+        if 0 < L.max_updates_per_day <= ctx.lead_updates_today:
+            return Verdict.no(f"you have updated {ctx.lead_updates_today} rows today, the daily limit; the rest wait for tomorrow")
+        if "map_url" in changes and not MAP_LINK.match(changes["map_url"]):
+            return Verdict.no("map_url must be a Google Maps link a page shows (google.com/maps/..., maps.app.goo.gl/...); otherwise leave it out, the engine fills it from map data")
+        if "founder_linkedin" in changes or "linkedin_via" in changes:
+            bad = self._linkedin_problem(changes.get("founder_linkedin", ""), changes.get("linkedin_via", ""), ctx)
+            if bad:
+                return Verdict.no(bad)
         if not changes and not sources:
             return Verdict.no("an update needs at least one change: website, email, pain_point, how_we_help, evidence, location, industry, size, founded_by or sources")
         if len(changes.get("founded_by", "")) > 120:
-            return Verdict.no("founded_by is a person's name or two as a page states them, under 120 characters")
+            return Verdict.no("founded_by is the contact person's name (or two names) as a page states them, under 120 characters")
+        if "contact_role" in changes and changes["contact_role"] not in CONTACT_ROLES:
+            return Verdict.no("contact_role must be one of: " + ", ".join(CONTACT_ROLES) + " -- the role the page gives the contact person")
+        if L.fill_only:
+            # The fact check (owner, 2026-10-10: "I expect high accuracy and fact check from it"): a founder's name and a
+            # city must be printed on a page the bot opened this episode; a value from memory or a guess is refused.
+            texts = " ".join((t or "").lower() for t in ctx.recent_page_texts.values())
+            if not texts.strip() and any(k in changes for k in ("founded_by", "location", "size", "industry")):
+                return Verdict.no("open the business's page first; every cell you fill must come from a page you opened this episode")
+            for k, label in (("founded_by", "the contact person's name"), ("location", "the city")):
+                if k in changes:
+                    want = changes[k].split(",")[0] if k == "location" else changes[k]
+                    words = [w for w in re.findall(r"[A-Za-z][A-Za-z'\-]+", want) if len(w) > 1]
+                    if words and not all(w.lower() in texts for w in words):
+                        return Verdict.no(f"{label} '{want[:60]}' is not printed on any page you opened this episode; fill only what a page states, or leave it empty")
         if len(changes.get("pain_point", "")) > 1500 or len(changes.get("industry", "")) > 200 or len(changes.get("location", "")) > 200:
             return Verdict.no("keep the pain point under 1500 characters, industry and location short")
         if "pain_point" in changes and is_meta_topic(changes["pain_point"]):
@@ -903,8 +1016,7 @@ class Policy:
             edomain = email_domain(email)
             if not edomain:
                 return Verdict.no("email must be a real address like hello@theirdomain.com")
-            if any(edomain == f or edomain.startswith(f) for f in _FREE_MAIL):
-                return Verdict.no("that is a personal mailbox provider, not a business address; a lead needs an email on the business's own domain")
+            # a free-mail address is allowed when it reads as the business's; the Validator's gate judges that (owner, 2026-10-10)
             # a different domain is fine when the address is printed on the business's own page (checked below)
             own_pages = {u: t for u, t in ctx.recent_page_texts.items() if same_site(url_domain(u), site_domain)}
             if not own_pages or not any(email.lower() in (t or "").lower() for t in own_pages.values()):
@@ -941,6 +1053,10 @@ class Policy:
             owner = [k for k, v in on_page.items() if head(v.get("title", "")) and head(v.get("title", "")) == head(name)]
             if len(owner) == 1:  # The CEO named the package by its headline 14 times in a day; PK14 called it a second toggle
                 action.name = name = str(on_page[owner[0]].get("name") or owner[0])
+        if name.lower() in ctx.packages_refused_today:
+            # 2026-10-10: 118 refused republish attempts of one package in a day, a fresh try every episode. Checked after
+            # the headline-to-toggle mapping above: the model names the package by its headline, the record by its name.
+            return Verdict.no(f"'{name[:60]}' was refused today already; it is not republished again before tomorrow. Do something else.", permanent=True)
         if (self.notion.package_republish_own and name.lower() in on_page
                 and str(on_page[name.lower()].get("day", "")) == time.strftime("%Y-%m-%d")
                 and not str(ctx.republish_reasons.get(name.lower(), "")).startswith(("written in pitch format", "the Package Designer re-sent"))):
@@ -978,9 +1094,9 @@ class Policy:
         missing = [p for p in self.notion.package_email_required_phrases if p.strip() and p.strip().lower() not in lowered]
         if missing:
             return Verdict.no(
-                f"the email must carry {', '.join(repr(m) for m in missing)} -- the owner's format: the co-founders Alex and Sam "
-                "by name and role, and the one portfolio line (across our 20+ clients the top performer does about $500,000 in "
-                "online sales a month, up from roughly $300,000). Write the email again with them in."
+                f"the email must carry {', '.join(repr(m) for m in missing)}"
+                + (f" -- {self.notion.package_email_format_note}" if self.notion.package_email_format_note.strip() else "")
+                + ". Write the email again with them in."
             )
         record = ctx.package_record(name) if ctx.package_record is not None else None
         rule = (self.notion.package_email_price_rule or "record").strip().lower()
@@ -1068,7 +1184,7 @@ class Policy:
         elif to.lower() not in {n.lower() for n in m.peer_names}:
             targets = [*m.peer_names] + ([f'"{ROOM_RECIPIENT}" (the fleet chatroom)'] if m.room else [])
             listed = ", ".join(targets) or "(no colleagues configured)"
-            hint = (" The owner is reached with `say`, not `message`." if to.lower() in ("owner", "the owner")
+            hint = (" The owner is reached with `say`, not `message`." if to.lower() in {n.lower() for n in m.owner_names}
                     else " A person on the human team gets a `task`, not a `message`.")
             return Verdict.no(f"you can only message: {listed}.{hint}", permanent=True)
         else:
@@ -1131,6 +1247,14 @@ class Policy:
                         f"you already asked {to} that at {sent_at[11:16]} and it is still open; they see it every cycle. "
                         "Wait for the answer or do your own work -- do not send it again."
                     )
+        if m.one_open_ask and not is_status_note(text) and not _answering and ctx.open_asks_to.get(to.lower()):
+            # One open ask per colleague at a time (owner, 2026-10-10: "reduce this" -- the CEO sent the Research Analyst
+            # 17 asks in a day, each a new angle on the same unanswered one).
+            prev, sent_at = ctx.open_asks_to[to.lower()][0]
+            return Verdict.no(
+                f"{to} still has your ask from {sent_at[11:16]} open ('{prev[:60]}'). One open ask per colleague: wait for the "
+                "answer, or do your own work; a new question goes after that one is answered."
+            )
         if is_status_note(text) and not text.lower().startswith("done") and to.lower() not in ctx.open_asks_from and not answering_priority:
             # "Checked X, not relevant" to a colleague is a status note; it would become their top priority and cost
             # them a reply. Notes go in a note; a message asks for something or answers an ask.
@@ -1360,7 +1484,7 @@ class Policy:
 
     # -- main entry ----------------------------------------------------------
 
-    GATED_TYPES = frozenset({"lead", "update_lead", "task", "update_task", "publish_package"})
+    GATED_TYPES = frozenset({"lead", "update_lead", "task", "update_task", "publish_package", "message"})  # message: MG06/MG07 for The CEO (2026-10-14)
 
     def _gate(self):
         """The write gate module, loaded once from policy.write_gate; None when off or unloadable."""
@@ -1469,6 +1593,10 @@ class Policy:
             return Verdict.no(f"{action.type} is not one of your actions; pick another", permanent=True)
         if key and key in ctx.blocked_keys:
             return Verdict.no("that action is blocked for this episode (repeated too often, or refused earlier)")
+        if (key and key in ctx.day_blocked_keys) or f"{action.type}:*" in ctx.day_blocked_keys:
+            # owner, 2026-10-14 ("do less but more quality work"): a third of all actions were repeats of something
+            # already done or refused that day
+            return Verdict.no("that was refused or done already today; it stays blocked until tomorrow. Do something different.")
 
         budget_left = self.cfg.max_actions_per_episode - ctx.actions_in_episode
         if budget_left <= 0 and action.type != "summarize":
@@ -1482,6 +1610,11 @@ class Policy:
         if (action.type in NAVIGATION_TYPES or action.type == "read") and (
             0 < self.cfg.max_pages_without_note <= ctx.pages_since_note
         ):
+            if "note" in [d.lower() for d in self.cfg.disabled_actions]:  # a bot that writes rows, not notes (the Outreach Writer)
+                return Verdict.no(
+                    f"you have opened or read {ctx.pages_since_note} pages since your last write; write the draft for the "
+                    "business you are on now (update_lead), or skip it, before opening another page"
+                )
             return Verdict.no(
                 f"you have opened or read {ctx.pages_since_note} pages without noting anything; "
                 "note what you learned, or ask a question, before opening or reading another page"
@@ -1578,6 +1711,8 @@ class Policy:
                 # A business on the Leads board is no guess: its site is the row's Website (Lead Gen typed
                 # https://sunnydeli-example.com from the Validator's upkeep list three times and was refused, 2026-09-26).
                 seen = seen or (url_domain(target) in ctx.recent_lead_domains) or (target.rstrip("/") in ctx.seen_link_urls)
+                if not seen:  # a page on the same site as one opened this episode (/about, /contact): no guess (2026-10-14)
+                    seen = any(same_site(url_domain(target), url_domain(u)) for u in ctx.visited_urls if u.startswith("http"))
                 if not seen:
                     return Verdict.no(
                         "open only an address you have actually seen -- on a page's link list this episode, or one you visited "
@@ -1604,7 +1739,9 @@ class Policy:
                     f"you already saved a note titled '{action.title.strip()[:60]}' this episode; "
                     "add new information under a different title, or move on"
                 )
-            if action.title.strip().lower() in ctx.recent_note_titles:
+            same = action.title.strip().lower()
+            if same in ctx.recent_note_titles and (same not in ctx.recent_note_bodies
+                                                   or not new_facts(action.body, ctx.recent_note_bodies[same])):
                 return Verdict.no(
                     f"you already saved a note titled '{action.title.strip()[:60]}' in the last few days; "
                     "it exists, do not save it again. Note something new, or move on",
@@ -1612,6 +1749,8 @@ class Policy:
                 )
             # The same fact in new words is still the same note (the Scout saved "Speka has a free tier" five ways).
             twin = next((t for t in ctx.recent_note_titles | ctx.episode_note_titles if notes_are_twins(action.title, t)), None)
+            if twin and twin in ctx.recent_note_bodies and new_facts(action.body, ctx.recent_note_bodies[twin]):
+                twin = None   # it adds a figure or a source: the controller appends it to that note instead of refusing
             if twin:
                 return Verdict.no(
                     f"that is the note you already have as '{twin[:60]}'; do not save the same finding in new words. "

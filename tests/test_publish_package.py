@@ -183,3 +183,16 @@ def test_visible_mode_shows_both_prices_on_the_toggle(cfg, tmp_path):
                                                   email="Hi [Name], the MVP package for $9,999.\n1. a\n2. b\nRegards,"))
     assert r.ok, r.summary
     assert notion.toggles[-1]["price"].startswith("The CEO's price: $9,999 (Package Designer's research: $15,000 - $30,000)")
+
+
+def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
+    """2026-10-10: The CEO retried one republish 118 times in a day, a fresh attempt every episode."""
+    from explorer.actions import PublishPackage
+    from explorer.config import NotionConfig
+    from explorer.policy import Denylist, Policy, PolicyContext, PublishConfig, PolicyConfig
+
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="p", package_republish_own=True))
+    ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
+                        packages_refused_today={"smb ai customer support agent setup"})
+    v = policy.check(PublishPackage(type="publish_package", name="SMB AI Customer Support Agent Setup", title="T", email="e", conclusion=""), ctx)
+    assert not v.allowed and "not republished again before tomorrow" in v.reason

@@ -2,7 +2,7 @@
 
 Layout the owner chose (2026-09-14): the code lives once (this checkout), and each bot is a folder
 holding only its `config.toml`, its `persona.md`, and its `workspace/`. launchd runs one job per
-bot, labelled `com.rebuzz.bot.<slug>`, through the shared supervisor; the job's environment tells
+bot, labelled `<label prefix><slug>` (fleet._label_prefix), through the shared supervisor; the job's environment tells
 the supervisor which config and workspace it is for. The launch agents on disk are the registry:
 `bot list` reads them, so there is no separate file that can go stale.
 """
@@ -18,7 +18,27 @@ from pathlib import Path
 from typing import Any
 
 CODE_ROOT = Path(__file__).resolve().parents[2]
-LABEL_PREFIX = "com.rebuzz.bot."
+
+
+def _label_prefix() -> str:
+    """The launchd label prefix for this fleet: $BOT_LABEL_PREFIX, else ~/.config/ramen-agents/label-prefix, else the
+    default. A fleet installed under another prefix keeps it there, so `bot list`, install and the restart scripts still
+    find its agents (2026-10-14: the owner's family stays under its original prefix)."""
+    import os
+
+    env = os.environ.get("BOT_LABEL_PREFIX", "").strip()
+    if env:
+        return env if env.endswith(".") else env + "."
+    try:
+        saved = (Path.home() / ".config" / "ramen-agents" / "label-prefix").read_text(encoding="utf-8").strip()
+    except OSError:
+        saved = ""
+    if saved:
+        return saved if saved.endswith(".") else saved + "."
+    return "com.ramen-agents.bot."
+
+
+LABEL_PREFIX = _label_prefix()
 TEMPLATE = CODE_ROOT / "launchd" / "bot.plist.template"
 PERSONAS_DIR = CODE_ROOT / "personas"
 
@@ -108,8 +128,10 @@ def _inherited(shared: Path | None) -> dict[str, Any]:
     return {f"{sec}.{k}": v for sec, table in _read_with_extends(shared).items() if isinstance(table, dict) for k, v in table.items()}
 
 
-def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root: Path = CODE_ROOT) -> Path:
-    """A minimal config.toml for a new bot: only what differs from the defaults and the shared configs."""
+def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root: Path = CODE_ROOT, fake: bool = False) -> Path:
+    """A minimal config.toml for a new bot: only what differs from the defaults and the shared configs. With `fake`,
+    a bot for the quickstart: the built-in heuristic model and the bundled fake web, so it runs with no key and no
+    network (2026-10-14)."""
     from .common.keys import key_file
 
     spec = PERSONAS[persona]
@@ -153,6 +175,8 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
         if tor
         else ("" if "model.provider" in have else 'provider = "ollama"\n')  # web bots take the shared model chain
     )
+    if fake:
+        model = '# Fake mode: a built-in model that needs no key; nothing leaves this machine.\nprovider = "fake"\nprovider_chain = []\n'
     tor_browser = 'backend = "tor"\ntor_proxy = "socks5h://127.0.0.1:9050"\n' if tor else ""
     tor_policy = (
         'allowlist_file = "workspace/allowed_hosts.txt"\n'
@@ -189,13 +213,13 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
             "agent",
             f'name = "{name}"\n'
             f'bio = "{spec["bio"]}"\n'
-            + line("agent.mode", "web", '"web"')
+            + ('mode = "fake"\n' if fake else line("agent.mode", "web", '"web"'))
             + f"cycle_delay_seconds = {spec['cycle_delay_seconds']}\n"
             + line("agent.persona_file", "persona.md", '"persona.md"')
             + f"seed_interests = [{interests}]\n",
         )
         + section("model", model)
-        + section("browser", tor_browser + line("browser.fake_web_dir", fake_web, f'"{fake_web}"'))
+        + section("browser", tor_browser + (f'fake_web_dir = "{fake_web}"\n' if fake else line("browser.fake_web_dir", fake_web, f'"{fake_web}"')))
         + section("policy", denylist + tor_policy)
         + section("dashboard", f"port = {port}\n")
         + section("quiet", line("quiet.enabled", True, "true"))  # type: ignore[arg-type]
@@ -237,7 +261,13 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
     return path
 
 
-def new_bot(name: str, parent: Path, persona: str, port: int, code_root: Path = CODE_ROOT) -> Path:
+FAKE_PERSONA_HEADER = (
+    "<!-- Fake mode: this bot reads the bundled fake web and thinks with a built-in model; nothing leaves the machine.\n"
+    "     When you are ready for the real web, see the quickstart's next step. -->\n\n"
+)
+
+
+def new_bot(name: str, parent: Path, persona: str, port: int, code_root: Path = CODE_ROOT, fake: bool = False) -> Path:
     """Create <parent>/<slug>/ with config.toml, persona.md and a workspace. The denylist is copied into the
     workspace only when no shared config provides one (common-data/denylist.txt in the shared layout)."""
     if persona not in PERSONAS:
@@ -246,9 +276,10 @@ def new_bot(name: str, parent: Path, persona: str, port: int, code_root: Path = 
     if folder.exists() and any(folder.iterdir()):
         raise FileExistsError(f"{folder} already exists and is not empty")
     (folder / "workspace").mkdir(parents=True, exist_ok=True)
-    write_bot_config(folder, name, persona, port, code_root)
+    write_bot_config(folder, name, persona, port, code_root, fake=fake)
     persona_src = PERSONAS_DIR / f"{persona}.md"
-    (folder / "persona.md").write_text(persona_src.read_text(encoding="utf-8"), encoding="utf-8")
+    text = persona_src.read_text(encoding="utf-8")
+    (folder / "persona.md").write_text((FAKE_PERSONA_HEADER + text) if fake else text, encoding="utf-8")
     if "policy.denylist_file" not in _inherited(shared_config_for(parent, persona)):
         shutil.copy(code_root / "workspace" / "denylist.txt", folder / "workspace" / "denylist.txt")
     return folder

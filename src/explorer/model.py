@@ -43,6 +43,7 @@ class FakeModel:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.tried_login = False   # once a session it walks into a login page, so the demo shows the fence refusing it
 
     def decide(self, system: str, obs: Observation) -> ModelResult:
         self.calls += 1
@@ -50,6 +51,10 @@ class FakeModel:
         action: Any
         if obs.episode_actions >= obs.episode_budget:
             action = Summarize(type="summarize")
+        elif self.calls == 6 and not self.tried_login:
+            self.tried_login = True
+            return ModelResult(decision=Decision(thought="fake model: this page asks me to sign in; let me try",
+                                                 action=Open(type="open", url="fake://login.html")))
         elif page is None or not page.ok:
             if obs.interests:
                 action = Search(type="search", query=obs.interests[(self.calls // 3) % len(obs.interests)][0])

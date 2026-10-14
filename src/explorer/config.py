@@ -23,6 +23,12 @@ class AgentConfig:
     contact: str = ""
     mode: str = "fake"  # fake | web
     cycle_delay_seconds: float = 20.0
+    # Owner, 2026-10-14 ("decrease post load ... longer and data oriented with more links"): one journal entry a day --
+    # a data-led digest of the day's notes (with their sources), tasks, packages and messages -- instead of one per episode.
+    journal_daily: bool = False
+    # Files in this bot's routed folder (common-data/botBox/routed/<bot>/) shown whole in every prompt, e.g. the
+    # Validator's weekly Results digest for The CEO (owner, 2026-10-10: "steer from results"). Globs; newest match each.
+    briefing_globs: list[str] = field(default_factory=list)
     # Upper bound on the delay after budget-aware pacing stretches it (model.daily_token_budget). 0 = no cap.
     max_cycle_delay_seconds: float = 0.0
     seed_interests: list[str] = field(default_factory=lambda: ["how everyday things work", "history of the internet"])
@@ -58,6 +64,9 @@ class AgentConfig:
     # ticks steps as writes land, ends it done or stuck; workspace/plan.json, shown in every prompt. The owner's own
     # goal and rules per bot come from common-data/work-plan.json (the webapp's Work plan page).
     plans: bool = True
+    # A plan with no step ticked for this many hours ends "stuck" by itself (Package Designer sat 45 hours and 2,192 actions on
+    # one plan with nothing done, 2026-10-14). 0 = never.
+    plan_stuck_hours: float = 6.0
     # After a lead, update_lead, task, update_task or publish_package write, read the object back from Notion; only a
     # confirmed write counts (an unconfirmed one is recorded "failed:" and does not close an ask or tick a plan).
     readback_writes: bool = True
@@ -164,9 +173,12 @@ class BrowserConfig:
     tavily_per_day: int = 30  # the fleet's shared daily budget for the `tavily` engine (1,000 free credits a month)
     langsearch_per_day: int = 100  # the fleet's shared daily budget for the `langsearch` backup engine
     parallel_per_day: int = 30  # the fleet's shared daily budget for the `parallel` second backup ($5 free credit a month)
-    # The `places` engine (owner, 2026-10-07): New York City's places from Overture Maps' open data, a local SQLite
+    # The `places` engine (owner, 2026-10-07): the target market's places from Overture Maps' open data, a local SQLite
     # snapshot built by ~/bots/scripts/places_snapshot.py -- name, category, website, phone, socials, address, open/closed.
-    places_db: str = "~/bots/common-data/places/nyc-places.sqlite"
+    places_db: str = ""          # e.g. "~/bots/common-data/places/<market>-places.sqlite"; "" = the engine is off
+    # Words dropped from a business name before a places lookup: the market's own name and its short forms
+    # (e.g. ["new", "york", "nyc", "ny"]), which a listing's name rarely carries.
+    places_stop_words: list[str] = field(default_factory=list)
     ddg_mcp_command: str = ""  # the DuckDuckGo MCP server's executable; "" = ~/.local/opt/ddg-mcp/venv/bin/duckduckgo-mcp-server
     search_pause_file: str = ""
     # Each bot keeps a score per search engine and drops one that answered often and never led to a note. Changing this
@@ -185,7 +197,7 @@ class BrowserConfig:
     # behind a login wall the bot cannot reach itself. Relative to the bot folder. "" = none.
     corpus_dir: str = ""
     # The local SearXNG meta-search for the `searxng` engine (Google, Brave, DuckDuckGo, Startpage, Mojeek,
-    # Wikipedia in one JSON query). Installed as launch agent com.rebuzz.searxng on 127.0.0.1:8888.
+    # Wikipedia in one JSON query), run as a local launch agent on 127.0.0.1:8888.
     searxng_url: str = "http://127.0.0.1:8888"
     # Open a YouTube video as its caption transcript (transcript.py): keyless, read-only, so the bot reads what
     # is said instead of the watch page's title and comments. Falls back to the page when there are no captions.
@@ -227,6 +239,8 @@ class PolicyConfig:
     pages_per_hour: int = 60
     per_domain_delay_seconds: float = 8.0
     max_actions_per_episode: int = 12
+    # The same action refused this many times in a day is blocked until tomorrow (0 = off). Owner, 2026-10-14: do less, better.
+    day_block_after_refusals: int = 3
     # Once the budget is used up, this many more note/ask/interest/rest/say actions are tolerated; then only summarize.
     budget_grace_actions: int = 2
     # Refused actions in a row that close the episode early. A small model that ignores "not allowed"
@@ -387,6 +401,9 @@ class NotionConfig:
     # "" = no merging. Only the bot's own tasks, only while the closed one is still `status_value`.
     merge_status: str = ""
     assignee_property: str = "Assign"
+    # Owner, 2026-10-14: "tell ceoA not to assign person in the task board - I will handle that part". False = a person
+    # named as assignee is dropped (the task is created unassigned); a family member's name still routes the task to it.
+    assign_people: bool = True
     priority_property: str = "Priority"
     due_property: str = "Dead Line"
     # The guide wants every task linked to a project (§12). The agent has no project picker, so every
@@ -433,6 +450,8 @@ class NotionConfig:
     # Phrases every package email must carry (the owner's format: the co-founders by name, the portfolio figures). A
     # publish whose email lacks one is refused naming it; the model dropped the portfolio line twice on 2026-09-25.
     package_email_required_phrases: list[str] = field(default_factory=list)
+    # Why those phrases are required, told to the bot when one is missing (the owner's format in their words). "" = none.
+    package_email_format_note: str = ""
     timeout_seconds: float = 30.0
     # After this many finished episodes with no task created, the next episode opens with a nudge:
     # turn the notes into one concrete task, or write a "Possible task: ..." note saying why not yet.
@@ -496,6 +515,14 @@ class LeadsConfig:
     max_per_episode: int = 1  # 0 = no cap
     max_per_day: int = 3  # 0 = no cap
     max_updates_per_episode: int = 2  # update_lead actions per episode; 0 = no cap
+    max_updates_per_day: int = 0  # update_lead actions per day; 0 = no cap (the Lead Enricher: ~20, light on the free providers)
+    # A bot that only FILLS empty cells (the Lead Enricher, owner 2026-10-10): an update that would replace a cell the
+    # row already has is refused; Source pages is appended to, never replaced.
+    fill_only: bool = False
+    # The Lead Enricher owns map links and Locations (owner, 2026-10-10): each cycle the engine fills, from the Overture
+    # snapshot's one confident match, the empty "google map location" and Location of the rows on its decide list, as
+    # this bot, logged to common-data/shared-state/leads-facts-applied.jsonl. Off for everyone else.
+    auto_fill_from_places: bool = False
     dedupe_days: int = 90  # a business (by web domain) is listed once; not again within this window
     # Owner, 2026-09-24: let the bot add fields to ANY row on the Leads board (the owner's or the CEO's rows too), not
     # only rows it listed itself. The grounding rules stay: an email must be published on the business's own site on a
@@ -505,12 +532,12 @@ class LeadsConfig:
     notify_folder: str = ""
     notify_name: str = "The CEO"
     # A daily candidates file in this bot's routed folder (common-data/botBox/routed/<slug>/), e.g.
-    # "spf-open-data-*.md" with lines "- name | borough | industry | https://site | ...". The newest file's next few
+    # "open-data-*.md" with lines "- name | borough | industry | https://site | ...". The newest file's next few
     # unvisited businesses are shown in every prompt as addresses to open: the bot searched the web for "directories"
     # and never opened the 150 real businesses sitting in its own files (2026-09-29/30). "" = off.
     candidates_glob: str = ""
     candidates_shown: int = 5
-    # Owner, 2026-10-07 (via appCC: Lead Gen's notes held 16 business emails it never listed): business emails in this
+    # Owner, 2026-10-07 (Lead Gen's notes held 16 business emails it never listed): business emails in this
     # bot's own notes whose domain is neither among its leads nor on the board are shown as leads still to finish,
     # oldest first, until listed or refused twice. 0 = off.
     noted_shown: int = 0
@@ -524,18 +551,24 @@ class LeadsConfig:
     # A second, shallower service for the hours the first has no credits (Sniffmail: MX and disposable checks only).
     email_verify_fallback_key_file: str = ""
     email_verify_third_key_file: str = ""  # EzVerify: asked only when the first two cannot answer
-    # A bot that may change only some columns of board rows (owner, 2026-09-30: "The CEO decides How we can help"):
+    # A bot that may change only some columns of board rows (owner, 2026-09-30: "The CEO decides How can I help"):
     # update_lead is refused for any other field. [] = every field.
     update_only_fields: list[str] = field(default_factory=list)
     # A work list in the bot's routed folder, lines "- Business | industry | pain point": the next rows this bot has not
     # updated yet are shown in every prompt with what to decide. "" = off.
     decide_glob: str = ""
     decide_shown: int = 5
+    # A decide row drops out only after an allowed update_lead made AFTER the list file's date that carries this field
+    # ("" = any field). 2026-10-10: a new 213-row pain-point list must not lose the rows rewritten the day before.
+    decide_field: str = ""
     # The colleague whose leads this bot turns into outreach tasks for the human team (The CEO: "Lead Gen"). The leads
     # that bot listed and that no task of this bot names yet are shown in every prompt, to be covered by ONE task --
     # The CEO wrote one small task per lead, or none. "" = off.
     outreach_from: str = ""
     outreach_shown: int = 10
+    # The Validator's "Lead score" (0-100): the writer's queue and the CEO's review list take the best leads first, unscored
+    # rows last (2026-10-14). "" = oldest first.
+    score_column: str = "Lead score"
     # The list appears when this many leads wait, or when the oldest has waited this long: a batch is a day's leads,
     # not one task per new lead (two single-lead "batches" on 2026-10-03).
     outreach_min: int = 8
@@ -556,17 +589,20 @@ class LeadsConfig:
     # "" = off.
     draft_queue_column: str = ""
     # Owner, 2026-10-07: a phone number a page prints becomes the row's "Whatsapp" wa.me link; a national number gets
-    # this country code (the US: 1).
+    # this country code (the US and Canada: 1).
     whatsapp_country_code: str = "1"
     # The owner's Rates for the Outreach Writer's prompt: the "## Rates" section of this file, quoted with its work list.
     rates_file: str = ""
     # The mirrored Packages page: each "## <title>" section's "Ready-to-send email" goes into the Outreach Writer's work
     # list next to the rows of that package (2026-10-07: it spent most of its steps hunting for the template).
-    # package_aliases maps a board "How we can help" name to the start of its toggle title on the page.
+    # package_aliases maps a board "How can I help" name to the start of its toggle title on the page.
     package_emails_file: str = ""
     package_aliases: dict[str, str] = field(default_factory=dict)
     draft_queue_stage: str = "New"
     draft_queue_shown: int = 15
+    # The exact last lines of every draft. A package email's own sign-off is replaced by these in the work list
+    # (2026-10-09: the package emails' own closing was copied into 32 drafts that lacked the signer's name). [] = as is.
+    draft_signoff: list[str] = field(default_factory=list)
     decide_hint: str = "choose the package that fixes its pain point: update_lead with the exact business name and how_we_help = a package name from the packages page"
 
 
@@ -585,7 +621,7 @@ class SendConfig:
     provider: str = "brevo"
     key_file: str = ""
     from_email: str = ""
-    from_name: str = ""  # FILL-ME: the name the emails are signed with
+    from_name: str = ""
     reply_to: str = ""  # "" = from_email
     copy_to: str = ""  # a bcc of every email (the owner's first week); "" = none
     footer_address: str = ""  # the company's postal address (CAN-SPAM); nothing is sent without it
@@ -623,6 +659,11 @@ class SiteGateConfig:
     # changes the question too (owner, 2026-10-05: "fix site check" -- it was the one goal written in code).
     audience: str = "the own website of one of the {segment} the family works for -- {trades} -- presenting itself to its customers"
     exempt_hosts: list[str] = field(default_factory=lambda: ["localhost", "127.0.0.1"])
+    # Public listing sites a bot may read as evidence for a business with no website (owner, 2026-10-10). They pass the
+    # gate as listings, never as the business's own site (the Validator's LD14 keeps them out of the Website cell).
+    listing_hosts: list[str] = field(default_factory=lambda: [
+        "yellowpages.com", "bbb.org", "yelp.com", "facebook.com", "instagram.com",
+        "manta.com", "mapquest.com", "foursquare.com", "chamberofcommerce.com", "linkedin.com"])   # add the market's own city/open-data hosts in config
 
 
 @dataclass
@@ -637,6 +678,8 @@ class MessagingConfig:
     cloud. Each peer is one `[[messaging.peers]]` table with a name and an absolute folder. The peer
     treats the message as a colleague's information, never an instruction."""
 
+    # Names a bot may use for the owner, who is reached with `say`, not `message` (the owner's own name goes in config).
+    owner_names: list[str] = field(default_factory=lambda: ["owner", "the owner"])
     enabled: bool = False
     peers: list[dict[str, str]] = field(default_factory=list)  # each {"name": ..., "folder": ...(absolute)}
     # The fleet chatroom: one shared log all bots post to and read (chatroom.py). A `message` action
@@ -660,6 +703,12 @@ class MessagingConfig:
     # Owner, 2026-10-07: The CEO may pause, slow down and restart the members it holds resources for (`pace_member`,
     # hold.py). Never the members named in pace_protected (the Validator checks its work), never itself, never one the
     # owner stopped or paused. Each hold ends by itself within 24 hours.
+    # One open ask per colleague at a time (owner, 2026-10-10: "reduce this" -- The CEO sent the Research Analyst 17 asks
+    # in a day, each a new angle on the same unanswered one). Off by default: other bots' different asks may queue.
+    one_open_ask: bool = False
+    # The family roster (name, handle, slug, role) the engine turns into the family block of every prompt, with each
+    # member's state right now. "" = <fleet root>/common-data/family-roster.toml. Owner, 2026-10-10.
+    roster_file: str = ""
     can_pace_members: bool = False
     pace_protected: list[str] = field(default_factory=lambda: ["Validator"])
     max_paces_per_day: int = 8

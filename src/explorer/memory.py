@@ -97,6 +97,28 @@ class Memory:
         rows = self.db.query("SELECT title FROM notes WHERE created_at >= ?", (cutoff,))
         return {str(r["title"]).strip().lower() for r in rows}
 
+    def recent_note_bodies(self, days: int = 7) -> dict[str, str]:
+        """Lower-cased title -> body of the notes saved in the last `days` (the newest wins), so a duplicate note can
+        be judged on whether it adds a figure or a source the saved one lacks (2026-10-14)."""
+        cutoff = (dt.datetime.now() - dt.timedelta(days=days)).isoformat(timespec="seconds")
+        rows = self.db.query("SELECT title, body FROM notes WHERE created_at >= ? ORDER BY id", (cutoff,))
+        return {str(r["title"]).strip().lower(): str(r["body"] or "") for r in rows}
+
+    def find_recent_note(self, title: str, days: int = 7) -> sqlite3.Row | None:
+        """The note saved in the last `days` with this title, or one that says the same thing in other words."""
+        from .policy import notes_are_twins
+
+        cutoff = (dt.datetime.now() - dt.timedelta(days=days)).isoformat(timespec="seconds")
+        rows = self.db.query("SELECT * FROM notes WHERE created_at >= ? ORDER BY id DESC", (cutoff,))
+        want = title.strip().lower()
+        return (next((r for r in rows if str(r["title"]).strip().lower() == want), None)
+                or next((r for r in rows if notes_are_twins(title, str(r["title"]))), None))
+
+    def append_note(self, note_id: int, text: str) -> None:
+        """Add a dated paragraph to a saved note (its FTS row follows through the notes_au trigger)."""
+        self.db.execute("UPDATE notes SET body = substr(body || ? , 1, 8000) WHERE id = ?",
+                        (f"\n\n{now_iso()[:10]}: {text.strip()[:2000]}", note_id))
+
     def note_count(self) -> int:
         return int(self.db.scalar("SELECT COUNT(*) FROM notes", default=0))
 
@@ -546,7 +568,14 @@ class Memory:
         out: set[str] = {str(r["domain"]) for r in self.db.query("SELECT domain FROM leads WHERE created_at >= ?", (cutoff,))}
         for row in self.db.query("SELECT payload FROM actions WHERE action_type = 'lead' AND verdict = 'allowed' AND ts >= ?", (cutoff,)):
             try:
-                out.add(url_domain(str(json.loads(row["payload"]).get("website", ""))))
+                p = json.loads(row["payload"])
+                site = str(p.get("website", "") or "")
+                if site:
+                    out.add(url_domain(site))
+                else:  # a business with no website is keyed by name and city (owner, 2026-10-10)
+                    from .policy import lead_key
+
+                    out.add(lead_key(str(p.get("name", "")), str(p.get("location", ""))))
             except (ValueError, AttributeError):
                 continue
         out.discard("")
@@ -627,8 +656,18 @@ class Memory:
         day = day or dt.date.today()
         return self.workspace / "journal" / f"{day.isoformat()}.md"
 
-    def write_journal(self, text: str, heading: str | None = None) -> Path:
-        path = self.journal_path()
+    journal_daily: bool = False  # set by the controller ([agent] journal_daily): entries buffer, one digest a day is the journal
+
+    def day_buffer_path(self, day: dt.date | None = None) -> Path:
+        """Where the day's episode summaries and events wait when journal_daily is on (not a journal file, so not a post)."""
+        return self.workspace / "journal" / f".day-{(day or dt.date.today()).isoformat()}.md"
+
+    def day_buffer(self, day: dt.date) -> str:
+        path = self.day_buffer_path(day)
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def write_journal(self, text: str, heading: str | None = None, force: bool = False) -> Path:
+        path = self.day_buffer_path() if self.journal_daily and not force else self.journal_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         stamp = dt.datetime.now().strftime("%H:%M")
         head = f"## {stamp} {heading}".rstrip() if heading else f"## {stamp}"

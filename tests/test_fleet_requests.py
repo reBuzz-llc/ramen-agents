@@ -805,3 +805,45 @@ def test_progress_reports_without_a_question_are_notices():
     assert is_status_note("Could not find SMB-specific AI agent packages from competitors.")
     assert not is_status_note("Found a method to get a free OpenAI key. Should we request one?")  # a real question stays open
     assert not is_status_note("What type of MCP servers would be most valuable for our family?")
+    assert is_status_note("Thanks for the new SMB leads, Lead Gen. Keep them coming for Jo's outreach batch.")
+
+
+def test_briefing_files_in_the_routed_folder_are_shown_in_the_prompt(cfg):
+    """Owner, 2026-10-10: the CEO steers from the Validator's weekly Results digest."""
+    from conftest import make_controller
+
+    cfg.agent.briefing_globs = ["results-digest*.md"]
+    routed = cfg.root.parent / "common-data" / "botBox" / "routed" / cfg.root.name
+    routed.mkdir(parents=True, exist_ok=True)
+    (routed / "results-digest.md").write_text("# Results digest\n\n- sent | this week | 3\n- results | Replied | 1\n")
+    c = make_controller(cfg)
+    assert c._briefings() == ["# Results digest\n- sent | this week | 3\n- results | Replied | 1"]
+    (routed / "results-digest.md").unlink()
+
+
+def test_the_engines_release_of_a_stuck_ask_is_a_notice_even_when_it_quotes_a_question():
+    """2026-10-09: 16 asks became 335 'could not' messages; each quoted the ask's '?' and so was never closed."""
+    from explorer.fleet_requests import is_notice
+
+    assert is_notice("could not: Research Analyst made no headway on this after 30 actions, so the engine released it. "
+                     "The ask was: Could you compile the findings?")
+
+
+def test_the_family_block_comes_from_the_roster_with_each_members_state(cfg, tmp_path):
+    """Owner, 2026-10-10: eight cards carried eight different family blocks; one roster, generated into every prompt."""
+    from conftest import make_controller
+
+    fleet = cfg.root.parent
+    (fleet / "common-data").mkdir(parents=True, exist_ok=True)
+    (fleet / "common-data" / "family-roster.toml").write_text(
+        '[[member]]\nname = "The CEO"\nhandle = "ceoA"\nslug = "the-ceo"\nrole = "the rule maker"\n'
+        '[[member]]\nname = "Lead Gen"\nhandle = "leaA"\nslug = "lead-gen"\nrole = "leads"\n'
+        '[[member]]\nname = "Jobless-Bot"\nhandle = "jobA"\nslug = "jobless-bot"\nrole = "journal"\nretired = "2026-09-25"\n')
+    (fleet / "lead-gen" / "workspace").mkdir(parents=True, exist_ok=True)
+    (fleet / "lead-gen" / "workspace" / "STOP").write_text("")
+    cfg.agent.name = "The CEO"
+    block = make_controller(cfg)._family_block()
+    assert '"You are my family, all of you: ceoA, leaA, jobA."' in block
+    assert "You, The CEO, are the provider" in block and "- ceoA = The CEO (you): the rule maker -- running" in block
+    assert "- leaA = Lead Gen: leads -- STOPPED by the owner" in block and "jobA = Jobless-Bot: journal -- retired 2026-09-25" in block
+    (fleet / "lead-gen" / "workspace" / "STOP").unlink(); (fleet / "common-data" / "family-roster.toml").unlink()

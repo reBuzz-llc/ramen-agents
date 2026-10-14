@@ -95,10 +95,15 @@ def default_member(team: list[Member]) -> Member | None:
     return team[0] if len(team) == 1 else None
 
 
-def team_block(team: list[Member]) -> str:
-    """The prompt section that tells the model who it may assign tasks to."""
+def team_block(team: list[Member], assign: bool = True) -> str:
+    """The prompt section that tells the model who it may assign tasks to -- or, with assign=False, who the team is while
+    the owner does the assigning (owner, 2026-10-14)."""
     if not team:
         return ""
+    if not assign:
+        lines = ["", "## Team (the owner's list)", "Leave assignee null on every task: the owner assigns. Write the brief for whoever fits."]
+        lines += [f"- {m.name}: " + (" -- ".join(b for b in (m.role, m.details) if b) or "no details given") for m in team]
+        return "\n".join(lines) + "\n"
     lines = [
         "",
         "## Team (the owner's list; every task is assigned to exactly one of these people)",

@@ -1,7 +1,7 @@
 """Command line entry point.
 
 bot run | status | tail | pause | resume | stop | init | check | journal | dashboard | tasks
-bot new NAME --persona P | install | uninstall | list        (several bots, one codebase; see fleet.py)
+bot new NAME [--fake] | demo | install | uninstall | list        (several bots, one codebase; see fleet.py)
 """
 from __future__ import annotations
 
@@ -705,16 +705,74 @@ def cmd_new(cfg: Config, args: argparse.Namespace) -> int:
     from .fleet import new_bot
 
     try:
-        folder = new_bot(args.name, Path(args.dir).expanduser(), args.persona, args.port)
+        folder = new_bot(args.name, Path(args.dir).expanduser(), args.persona, args.port, fake=args.fake)
     except (FileExistsError, ValueError) as exc:
         print(f"cannot create the bot: {exc}", file=sys.stderr)
         return 2
     print(f"created {folder}")
+    if args.fake:
+        print("  fake mode: a built-in model and the bundled fake web; no key, nothing leaves this machine")
+        print("next:")
+        print(f"  bot --config {folder / 'config.toml'} demo")
+        return 0
     print(f"  config:  {folder / 'config.toml'}   (edit to taste)")
     print(f"  persona: {folder / 'persona.md'}    (fill in the sections marked for the owner)")
     print("next:")
     print(f"  bot --config {folder / 'config.toml'} check")
     print(f"  bot --config {folder / 'config.toml'} install")
+    return 0
+
+
+def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
+    """A few steps in fake mode, printed one line each, then the journal entry (the quickstart, 2026-10-14). Always the
+    fake model and the fake web, whatever the config says, so it runs with no key and no network."""
+    import sqlite3
+
+    cfg.agent.mode = "fake"
+    cfg.model.provider = "fake"
+    cfg.model.provider_chain = []
+    cfg.agent.cycle_delay_seconds = 0
+    cfg.quiet.enabled = False  # a demo is watched: never wait for the person at the keyboard to step away
+    if not cfg.path(cfg.policy.denylist_file).exists():  # a folder made by hand: the fence still needs its list
+        shipped = Path(__file__).resolve().parents[2] / "workspace" / "denylist.txt"
+        if shipped.exists():
+            cfg.policy.denylist_file = str(shipped)
+    validate(cfg)
+    cfg.ensure_dirs()
+    logger = setup_logging(cfg.log_path, to_stderr=False)
+    if stop_requested(cfg):
+        print(f"STOP file present at {cfg.stop_file}. Run 'bot resume' to clear it.", file=sys.stderr)
+        return 2
+    lock = PidLock(cfg.pid_file)
+    if not lock.acquire():
+        print(f"another run holds {cfg.pid_file}", file=sys.stderr)
+        return 3
+    started = dt.datetime.now().isoformat(timespec="seconds")
+    try:
+        build_controller(cfg, logger).run(max_cycles=args.steps)
+    finally:
+        lock.release()
+
+    con = sqlite3.connect(f"file:{cfg.db_path}?mode=ro", uri=True)
+    try:
+        rows = con.execute(
+            "SELECT action_type, payload, verdict, result FROM actions WHERE ts >= ? ORDER BY id", (started,)
+        ).fetchall()
+    finally:
+        con.close()
+    for i, (kind, payload, verdict, result) in enumerate(rows, 1):
+        try:
+            data = json.loads(payload or "{}")
+        except ValueError:
+            data = {}
+        what = data.get("url") or data.get("query") or (f"'{data['title']}'" if data.get("title") else "") or data.get("text", "")
+        outcome = "allowed" if verdict == "allowed" else f"refused ({str(verdict).removeprefix('rejected: ')[:60]})"
+        detail = f" ({str(result)[:60]})" if verdict == "allowed" and result and kind in ("open", "follow") else ""
+        print(" ".join(f"step {i}: {kind} {str(what)[:70]} -> {outcome}{detail}".split()))
+    journal = cfg.workspace / "journal" / f"{dt.date.today().isoformat()}.md"
+    if journal.exists():
+        print(f"\njournal ({journal}):\n")
+        print(journal.read_text(encoding="utf-8").strip()[-2000:])
     return 0
 
 
@@ -888,7 +946,11 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument("--persona", choices=list(PERSONAS), default="explorer")
     new.add_argument("--dir", default="~/bots", help="parent folder for bots (default ~/bots)")
     new.add_argument("--port", type=int, default=8787, help="dashboard port for this bot")
+    new.add_argument("--fake", action="store_true", help="a bot for trying it out: built-in model, bundled fake web, no key")
     new.set_defaults(func=cmd_new)
+    demo = sub.add_parser("demo", help="run a few steps in fake mode and print them (no key, no network)")
+    demo.add_argument("--steps", type=int, default=16, help="how many steps (default 16: one research session, its journal entry, and a refusal)")
+    demo.set_defaults(func=cmd_demo)
     sub.add_parser("install", help="install (or reinstall) this bot's launch agent; use --config").set_defaults(func=cmd_install)
     sub.add_parser("uninstall", help="remove this bot's launch agent; use --config").set_defaults(func=cmd_uninstall)
     sub.add_parser("providers", help="the model provider chain, keys and usage").set_defaults(func=cmd_providers)
