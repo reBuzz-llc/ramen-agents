@@ -14,7 +14,7 @@ Share that page with your Notion integration first. The script prints the board'
 ## Who writes what
 
 Bots only ever fill an empty cell or their own column. The Validator checks every write before it lands and reports
-anything off afterwards. The people on the team own Status, Result, Result date and Reviewed by; no bot writes those.
+anything off afterwards. The people on the team own Status, Result, Result date and Reviewed by; no bot writes those. "Sent by" records which person sent the email; the Validator copies it from Notion's last editor when Status becomes Email Sent.
 
 | Column | What it holds | Written by |
 |---|---|---|
@@ -37,6 +37,7 @@ anything off afterwards. The people on the team own Status, Result, Result date 
 | Result | the outcome: Not contacted, Emailed, Replied, Meeting, Client, Not interested, Bounced | your team |
 | Result date | when the Result was set | your team |
 | Reviewed by | who on the team reviewed the row | your team |
+| Sent by | the person who set Status to Email Sent, taken from Notion's last editor; never a bot, never over a filled cell | the Validator |
 | Source pages | the pages the facts came from, one URL per line | Lead Gen, Lead Enricher (appended) |
 | Company size | locations, staff or both, as the business publishes it | Lead Gen, Lead Enricher |
 | Founder LinkedIn | the contact's LinkedIn profile, or the business's company page | Lead Enricher |

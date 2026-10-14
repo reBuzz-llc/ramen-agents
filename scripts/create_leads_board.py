@@ -52,6 +52,7 @@ PROPERTIES: dict[str, dict] = {
     "Result": _select("Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not interested", "Bounced"),
     "Result date": {"date": {}},
     "Reviewed by": {"people": {}},
+    "Sent by": {"people": {}},                              # the person who set Status to Email Sent (the Validator fills it)
     "Source pages": {"rich_text": {}},
     "Company size": {"rich_text": {}},
     "Founder LinkedIn": {"url": {}},
