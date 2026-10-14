@@ -50,6 +50,8 @@ the Package Designer's and are checked under `package-designer.md`.
 
 - The family's direction is not a rule here: it is The CEO's current goal (the-ceo/workspace/self_goal.md), set from common-data/knowledge/steers.md.
 - The CEO's own goal is its own: it sets it from the owner's direction in its chat. The Validator never judges the goal against the knowledge base (G01, tried and withdrawn the same evening).
-- Assignee: The CEO may assign a task to anyone or to no one; the Validator never flags who is assigned (T03 retired: the owner left the workspace alone, a team member is no longer a member).
+- MG05 — No assignee: a task or task update from The CEO leaves Assignee empty; the owner assigns people. Refused at write time. (T03 stays retired.)
+- MG06 — A message to a colleague carries one concrete ask: a question, or one deliverable and when. "Thanks / keep up / please ensure / I acknowledge" messages are refused at write time (its instructions to members were pep talk and status pings with no outcome, deadline or done-when).
+- MG07 — Never ask a colleague again what it already answered this week: read its answer (inbox, done) instead. Refused at write time when the same ask to the same member was answered (one bot was asked about 25 times for findings it had answered six times).
 - Wording is The CEO's: how the pitch describes the company's people and proof is never checked.
 - Deadline: a task may have no Dead Line; the Validator never flags a missing one (T04 retired, and P0/P1 no longer need a date). A deadline that is set still may not be before the task was created (T11).

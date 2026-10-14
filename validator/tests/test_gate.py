@@ -37,7 +37,7 @@ def test_update_lead_judges_only_the_fields_written():
 
 def test_task_rules():
     """Task shape (title, priority, details, Done when) is quality: flag-only since 2026-10-03."""
-    weak = {"type": "task", "title": "Follow up", "priority": "urgent", "assignee": "Nobody Known", "details": "short", "due": "2099-01-01"}
+    weak = {"type": "task", "title": "Follow up", "priority": "urgent", "details": "short", "due": "2099-01-01"}
     assert gate.check("task", weak, bot="the-ceo") == []
     assert gate.check("update_task", {"type": "update_task", "title": "x", "priority": "high"}) == []
 
@@ -195,3 +195,72 @@ def test_a_number_the_team_ruled_out_is_refused(monkeypatch):
     r = gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550100"})
     assert r and r[0].startswith("LD20") and "not on WhatsApp" in r[0]
     assert gate.check("update_lead", {"type": "update_lead", "name": "Sweet Corner", "whatsapp": "https://wa.me/12125550199"}) == []
+
+
+def test_the_outreach_writer_is_gated_under_its_display_name(monkeypatch):
+    import checks
+    import gate
+    monkeypatch.setattr(checks, "DRAFT_SIGNOFF", ["Regards,", "Alex", "-- Acme LLC"])
+    monkeypatch.setattr(checks, "DRAFT_PROOF_FIGURES", {"750000", "400000"})
+    d = ("Hi Acme Bakery team,\n\nYour ordering runs through an online ordering app.\n\n1. A.\n2. B.\n\nAlex and Jordan.\n"
+         "Our top client drives about $750,000 a month, up from roughly $400,000.\n\nRegards,\n-- Acme LLC")
+    for name in ("Outreach Writer", "outreach-writer"):
+        reasons = gate.check("update_lead", {"type": "update_lead", "name": "Acme Bakery", "draft_email": d}, bot=name)
+        assert any(r.startswith("OW01") for r in reasons) and not any(r.startswith("OW02") for r in reasons), reasons
+    assert gate.check("update_lead", {"type": "update_lead", "name": "X", "pain_point": "y"}, bot="Outreach Writer")[0].startswith("OW07")
+    assert gate.check("task", {"type": "task", "title": "x"}, bot="Research Analyst")[0].startswith("RA05")
+
+
+def test_a_findings_post_is_family_work():
+    from gate import family_work
+    for t in ("Coordinate AI agent findings post publication", "Finalize and publish the AI agent findings post",
+              "Complete the blog post on NYC POS trends"):
+        assert family_work({"title": t}), t
+    assert not family_work({"title": "Coordinate the client meeting with Jordan"})
+
+
+def test_tasks_that_hand_a_bot_its_own_job_are_family_work():
+    from gate import family_work
+    for t in ("Have Package Designer create findings post package for medical AI",
+              "Complete missing information for 24/7 AI Customer Support Agents package",
+              "Complete and publish '24/7 AI Customer Support Agents' package",
+              "Analyze medical AI adoption findings for NYC SMB findings post"):
+        assert family_work({"title": t}), t
+    assert not family_work({"title": "Present the POS package to the client in a meeting"})
+
+
+
+def test_a_weak_pain_point_rewrite_is_refused_but_a_new_lead_is_not():
+    import gate
+    weak = {"type": "update_lead", "name": "Little Steps Daycare", "pain_point": "Basic website design with limited mobile responsiveness"}
+    assert gate.check("update_lead", weak, bot="Lead Gen")[0].startswith("LD21")
+    good = dict(weak, pain_point="Pain point: On their site: a 2018 copyright footer and no online enrolment.\n"
+                "They can try: add a free Google Form for enrolment and update the footer.\n"
+                "We propose: Website Care, an enrolment form and monthly updates, priced after a short call.")
+    assert not [r for r in gate.check("update_lead", good, bot="Lead Gen") if r.startswith("LD21")]
+    assert not [r for r in gate.check("lead", dict(weak, type="lead"), bot="Lead Gen") if r.startswith("LD21")]
+
+
+def test_the_ceo_leaves_the_assignee_to_the_owner():
+    import gate
+    t = {"type": "task", "title": "Outreach: review 12 first-email drafts", "details": "x" * 400, "assignee": "Jordan Lee"}
+    assert gate.check("task", t, bot="The CEO")[0].startswith("MG05")
+    assert not [r for r in gate.check("task", dict(t, assignee=""), bot="The CEO") if r.startswith("MG05")]
+
+
+def test_the_ceo_does_not_ask_again_or_send_pep_talk(tmp_path):
+    import datetime as dt
+    import json
+    from gate import ceo_message_issues
+    log = tmp_path / "r.jsonl"
+    log.write_text("\n".join(json.dumps(x) for x in [
+        {"kind": "request", "id": "a", "from": "The CEO", "to": "Research Analyst", "at": "2026-10-14T04:00:00",
+         "text": "Could you share your research findings on AI agent services for NYC SMBs, costs and ROI?"},
+        {"kind": "answered", "id": "a", "at": "2026-10-14T04:24:00", "answer": "Here are the figures"}]))
+    now = dt.datetime(2026, 10, 14, 6)
+    again = {"to": "Research Analyst", "text": "Please share your research findings on AI agent services for NYC SMBs, costs and ROI."}
+    assert ceo_message_issues(again, now=now, log=log)[0].startswith("MG07")
+    assert ceo_message_issues({"to": "Research Analyst", "text": "Which POS do NYC bakeries use most?"}, now=now, log=log) == []
+    assert ceo_message_issues({"to": "Lead Gen", "text": "Please ensure the drafts are ready."}, now=now, log=log)[0].startswith("MG06")
+    assert ceo_message_issues({"to": "Lead Gen", "text": "Keep up the focus on pipeline progression."}, now=now, log=log)[0].startswith("MG06")
+    assert ceo_message_issues({"to": "Lead Gen", "text": "Please list 5 dental practices in Queens by Friday."}, now=now, log=log) == []

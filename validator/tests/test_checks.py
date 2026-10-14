@@ -24,7 +24,7 @@ What you get:
 2. Core MVP web or mobile application development
 3. In-person discovery and progress review meetings with our Springfield team
 
-Our co-founders, Alex and Sam, work onsite in Springfield and are available to meet you in person. Alex leads development teams and project management; Sam heads growth and lead generation, a team of 15+ specialists in email marketing and search visibility across SEO, AEO and GEO. Among our 20+ clients, our highest earner brings in $500,000 in online monthly sales, which we scaled up from $300,000 per month.
+Our co-founders, Alex and Sam, work onsite in Springfield and are available to meet you in person. Alex leads development teams and project management; Sam heads growth and lead generation, a team of 15+ specialists in email marketing and search visibility across SEO, AEO and GEO. Among our 20+ clients, our highest earner brings in $750,000 in online monthly sales, which we scaled up from $400,000 per month.
 
 Regards,
 -- Acme LLC"""
@@ -32,7 +32,7 @@ Regards,
 
 # What a project sets in [validator]: the exact sign-off, and the figures every pitch may carry.
 checks.SIGNOFF = ["Regards,", "-- Acme LLC"]
-checks.PROOF_FIGURES = {"$500,000", "$300,000", "$500k", "$300k"}
+checks.PROOF_FIGURES = {"$750,000", "$400,000", "$750k", "$400k"}
 
 
 @pytest.fixture(scope="module")
@@ -255,7 +255,9 @@ PACKAGES = ["Starter Standard", "Starter Plus", "Growth Plan"]
 def lead(**kw) -> LeadRow:
     base = dict(page_id="c" * 32, url="https://www.notion.so/l", business="Acme Bakery", website="https://www.acmebakery.com",
                 email="hello@acmebakery.com", location="Northside, NY", industry="Food", company_size="10-20 staff",
-                pain_point="Their online ordering page 404s; hiring a web developer per their careers page.",
+                pain_point="Pain point: On their site: the online ordering page 404s; hiring a web developer per their careers page.\n"
+                           "They can try: point the Order button at their online store until the page is fixed.\n"
+                           "We propose: Growth Plan, priced after a short call.",
                 how_we_help="Growth Plan", evidence="https://www.acmebakery.com/careers", stage="New",
                 found_on="2026-09-22", source_pages="", found_by="Lead Gen", founded_by="Ada Okafor", created="2026-09-22T10:00:00.000Z", edited="")
     base.update(kw)
@@ -269,13 +271,14 @@ def test_good_lead_passes(ck):
 
 
 def test_lead_defects(ck):
-    flags = check_lead(ck, lead(email="acmebakery@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[])
-    assert rules_of(flags) == ["LD01"] and "personal mailbox" in flags[0].detail
+    assert check_lead(ck, lead(email="acmebakery@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[]) == []   # the business's own free-mail (owner, 2026-10-10)
+    flags = check_lead(ck, lead(email="ada.okafor1990@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[])
+    assert rules_of(flags) == ["LD01"] and "person's own mailbox" in flags[0].detail
     flags = check_lead(ck, lead(email="hello@othersite.com", evidence="https://yelp.com/biz/acme", how_we_help="Consulting",
                                 pain_point=""), allowed_packages=PACKAGES, duplicate_of=["Acme Bakery (old)"])
-    assert rules_of(flags) == ["LD02", "LD02", "LD03", "LD04"]   # another domain is no longer LD01 (owner, 2026-09-30); LD09 checks it is on the site
+    assert rules_of(flags) == ["LD02", "LD03", "LD04", "LD21"]   # an empty Pain point is the Enricher's (2026-10-10); another domain is no longer LD01 (owner, 2026-09-30); LD09 checks it is on the site
     assert all(f.bot == "lead-gen" for f in flags)
-    flags = check_lead(ck, lead(pain_point="Call the owner on +1 (212) 555-0100 or jane@acmebakery.com"), allowed_packages=PACKAGES, duplicate_of=[])
+    flags = check_lead(ck, lead(pain_point="Pain point: Call the owner on +1 (212) 555-0100 or jane@acmebakery.com\nThey can try: list the menu.\nWe propose: Acme POS & Ordering."), allowed_packages=PACKAGES, duplicate_of=[])
     assert rules_of(flags) == ["LD05"] and flags[0].severity == "warn" and "phone" in flags[0].detail and "second email" in flags[0].detail
 
 
@@ -528,12 +531,142 @@ def test_the_teams_whatsapp_line_and_spine_phrases(monkeypatch):
     from checks import draft_issues
     monkeypatch.setattr(checks, "DRAFT_SIGNOFF", ["Regards,", "Alex", "-- Acme LLC"])
     monkeypatch.setattr(checks, "OUR_WHATSAPP", "https://wa.me/12125550111")
-    monkeypatch.setattr(checks, "DRAFT_SPINE", [r"\bJordan\b", r"500,000"])
+    monkeypatch.setattr(checks, "DRAFT_SPINE", [r"\bJordan\b", r"750,000"])
     base = ("Hi Maria,\n\nYour menu is a PDF.\n\n1. A.\n2. B.\n\nOur co-founders Alex and Jordan.\n"
-            "Our top client drives about $500,000 a month.\n\nRegards,\nAlex\n-- Acme LLC")
-    rates = {"500000"}
+            "Our top client drives about $750,000 a month.\n\nRegards,\nAlex\n-- Acme LLC")
+    rates = {"750000"}
     assert draft_issues(base + "\nWhatsApp: https://wa.me/12125550111", founded_by="Maria Lopez", rates=rates) == []
     other = {r for r, _ in draft_issues(base + "\nWhatsApp: https://wa.me/12125550100", founded_by="Maria Lopez", rates=rates)}
     assert {"OW01", "OW04", "OW05"} <= other
     no_spine = base.replace("Jordan", "Sam")
     assert any(r == "OW09" and "Jordan" in d for r, d in draft_issues(no_spine, founded_by="Maria Lopez", rates=rates))
+
+
+def test_a_pain_point_is_one_observed_gap(monkeypatch):
+    import checks
+    from checks import pain_point_issue
+    monkeypatch.setattr(checks, "INTEGRATED_TOOLS", ["door ?dash", "uber ?eats", "quick ?books"])
+    monkeypatch.setattr(checks, "OWN_PRODUCT_WORDS", [r"\bacme\b"])
+    for weak in ("Basic website that could benefit from professional website care", "Website needs assessment for potential issues",
+                 "No obvious pain points identified - website appears modern and functional", "N/A",
+                 "Outdated copyright from 2021, needing a website care retainer.", "Poor mobile responsiveness",
+                 "Broken contact form showing error message on submission",
+                 "Relies on DoorDash and Uber Eats for delivery", "Books kept in QuickBooks, no integrated POS",
+                 "On their site: Basic website design using an older structure", "On Google: Limited online presence",
+                 "On their site: no Acme ordering yet"):
+        assert pain_point_issue(weak), weak
+    assert "three parts" in pain_point_issue("On their site: menu is a PDF, no online ordering.")
+    assert not pain_point_issue("")
+    monkeypatch.setattr(checks, "INTEGRATED_TOOLS", [])
+    assert "three parts" in pain_point_issue("Relies on DoorDash and Uber Eats for delivery")   # no tools configured: not a fit check
+
+
+def test_the_three_part_pain_point():
+    from checks import pain_point_issue, pain_point_parts
+    good = ("Pain point: On their site: the menu is a PDF from 2019 and there is no online ordering.\n"
+            "They can try: put the menu on the site as text with prices, and add an online order link.\n"
+            "We propose: Starter Plus, online ordering on the same menu as the counter, $299 setup and $79 a month.")
+    assert pain_point_parts(good)["diy"].startswith("put the menu")
+    assert pain_point_issue(good, rates={"299", "79"}) == ""
+    assert "missing 'They can try:'" in pain_point_issue(good.replace("They can try:", "Also:"), rates={"299", "79"})
+    assert "price" in pain_point_issue(good.replace("$79", "$99"), rates={"299", "79"})
+    assert "themselves" in pain_point_issue(good.replace("put the menu", "hire our team to put the menu"), rates={"299", "79"})
+    assert "mobile" not in pain_point_issue(good, rates={"299", "79"})
+    assert "cannot see" in pain_point_issue(good.replace("the menu is a PDF", "poor mobile responsiveness"), rates={"299", "79"})
+
+
+def test_a_team_greeting_and_the_portfolio_line_pass(monkeypatch):
+    import checks
+    from checks import draft_issues
+    monkeypatch.setattr(checks, "DRAFT_PROOF_FIGURES", {"750000", "400000"})
+    d = ("Hi Acme Bakery team,\n\nYour ordering runs through a click-and-collect app.\n\n1. A.\n2. B.\n\nAlex and Jordan.\n"
+         "Our top client drives about $750,000 a month, up from roughly $400,000.\n\nRegards,\nAlex\n-- Acme LLC")
+    assert draft_issues(d, founded_by="", rates=set()) == []
+    monkeypatch.setattr(checks, "DRAFT_PROOF_FIGURES", set())
+    assert "OW02" in {r for r, _ in draft_issues(d, founded_by="", rates=set())}
+
+
+def test_a_price_from_the_published_package_email_is_allowed(tmp_path, monkeypatch):
+    import checks
+    page = tmp_path / "packages.md"
+    page.write_text("# Packages\n\n## Website Care\n\nPrice: $1\n\nReady-to-send email\n\nHi [Name],\n$299-$599/month.\n")
+    monkeypatch.setattr(checks, "PACKAGES_PAGE", page)
+    monkeypatch.setattr(checks, "rate_figures", lambda path=None: set())
+    assert checks.package_email_figures(page) == {"299", "599"}
+    d = "Hi Maria,\n\nYour menu is a PDF.\n\n1. A.\n2. B.\n\nAlex and Jordan.\nCare from $299-$599/month.\n\nRegards,\nAlex\n-- Acme LLC"
+    assert "OW02" not in {r for r, _ in checks.draft_issues(d, founded_by="Maria Lopez")}
+
+
+def test_a_business_with_no_website_is_a_lead(ck):
+    from checks import free_mail_issue, lead_key
+    listing = "https://www.yellowpages.com/queens-ny/mip/joes-pizza-1"
+    nosite = dict(business="Joe's Pizza", website="", email="joespizzanyc@gmail.com", location="Queens, NY, USA",
+                  evidence=listing, source_pages=listing, how_we_help="Growth Plan")
+    assert check_lead(ck, lead(**nosite), allowed_packages=PACKAGES, duplicate_of=[]) == []
+    assert check_lead(ck, lead(**dict(nosite, email="", whatsapp="https://wa.me/17185550100")), allowed_packages=PACKAGES, duplicate_of=[]) == []
+    assert "LD01" in rules_of(check_lead(ck, lead(**dict(nosite, email="")), allowed_packages=PACKAGES, duplicate_of=[]))
+    assert "LD01" in rules_of(check_lead(ck, lead(**dict(nosite, location="")), allowed_packages=PACKAGES, duplicate_of=[]))
+    assert "LD02" in rules_of(check_lead(ck, lead(**dict(nosite, evidence="")), allowed_packages=PACKAGES, duplicate_of=[]))
+    assert free_mail_issue("orders.queens@yahoo.com", "Joe's Pizza") == ""
+    assert free_mail_issue("jordan.smith1987@gmail.com", "Joe's Pizza")
+    assert free_mail_issue("michael.chen@gmail.com", "Joe's Pizza")          # "hi" inside a name is not a business word
+    assert lead_key({"website": "", "business": "Joe's Pizza", "city": "Queens"}) == "name:joespizza|queens"
+    assert lead_key({"website": "https://www.joes.com/menu", "business": "Joe's Pizza"}) == "joes.com"
+
+
+def test_a_whatsapp_draft_and_a_map_link(monkeypatch):
+    import checks
+    from checks import map_link_issue, whatsapp_draft_issues
+    monkeypatch.setattr(checks, "WA_MSG_SIGNOFF", "Alex, Acme LLC")
+    good = ("Hi Maria, I'm Alex from Acme in New York. I saw your menu is a PDF and there is no online ordering on your site. "
+            "We set up ordering on the same menu as your counter. Would a 15-minute call this week help?\n– Alex, Acme LLC")
+    assert whatsapp_draft_issues(good, founded_by="Maria Lopez", whatsapp="https://wa.me/12125550100", rates=set(), on_row=True) == []
+    rules = lambda m, **k: {r for r, _ in whatsapp_draft_issues(m, rates=set(), **k)}
+    assert "OW10" in rules(good, whatsapp="", on_row=True)
+    assert "OW10" in rules(good, whatsapp="https://wa.me/1", status="False Whatsapp Number", on_row=True)
+    assert "OW11" in rules(good.replace("– Alex, Acme LLC", "Thanks"))
+    assert "OW12" in rules(good + " $99 a month, call 212-555-0100")
+    assert "OW14" in rules(good + " word" * 80)
+    assert rules(good) == set()                      # the gate: no row, no OW10
+    monkeypatch.setattr(checks, "WA_MSG_SIGNOFF", "")
+    assert "OW11" not in rules(good.replace("– Alex, Acme LLC", "Thanks"))     # no sign-off configured: not checked
+    assert map_link_issue("https://www.google.com/maps/search/?api=1&query=40.7128,-74.0060") == ""
+    assert map_link_issue("https://maps.app.goo.gl/AbC123") == ""
+    assert map_link_issue("https://www.yelp.com/biz/joes") and map_link_issue("40.71,-74.00")
+
+
+def test_a_title_in_the_greeting_is_not_the_name():
+    from checks import draft_issues
+    d = ("Hi Dr. Lee,\n\nYour site has a 2018 footer.\n\n1. A.\n2. B.\n\nAlex and Jordan.\n\n"
+         "Regards,\nAlex\n-- Acme LLC")
+    assert "OW03" not in {r for r, _ in draft_issues(d, founded_by="Dana Lee", rates=set())}
+
+
+def test_first_names_only_are_a_founder():
+    from checks import first_names_only
+    assert first_names_only("Sam and Pat") and first_names_only("Maria") and first_names_only("Ana, Luis & Pat")
+    assert not first_names_only("The team") and not first_names_only("Owner") and not first_names_only("sam")
+    assert not first_names_only("Family owned since 1990")
+
+
+def test_a_founder_linkedin_and_its_step():
+    from checks import linkedin_issue
+    assert linkedin_issue("https://www.linkedin.com/in/joe-russo-123", "1 Own site", "Joe Russo") == ""
+    assert linkedin_issue("https://www.linkedin.com/company/joes-pizza", "4 Search result", "") == ""
+    assert "found via" in linkedin_issue("https://www.linkedin.com/in/joe-russo", "", "Joe Russo")
+    assert "not a LinkedIn" in linkedin_issue("https://www.facebook.com/joe", "1 Own site", "Joe Russo")
+    assert "whose" in linkedin_issue("https://www.linkedin.com/in/joe-russo", "1 Own site", "")
+    import gate
+    p = {"type": "update_lead", "name": "Joe's Pizza", "founder_linkedin": "https://www.linkedin.com/in/joe-russo", "linkedin_via": "2 Business listing"}
+    assert not [r for r in gate.check("update_lead", p, bot="Lead Enricher") if r[:4] in ("LD23", "EN01")]
+    assert gate.check("update_lead", dict(p, linkedin_via=""), bot="Lead Enricher")[0].startswith("LD23")
+
+
+def test_a_contact_role():
+    from checks import contact_role_issue
+    assert contact_role_issue("Practice / Office Manager", "Lisa", on_row=True) == ""
+    assert "not one of" in contact_role_issue("Boss", "Lisa", on_row=True)
+    assert "no Contact person" in contact_role_issue("Owner", "", on_row=True)
+    assert contact_role_issue("Owner", "", on_row=False) == ""          # at write time the row is not in hand
+    import gate
+    assert gate.check("update_lead", {"type": "update_lead", "name": "X", "contact_role": "Boss"}, bot="Lead Enricher")[0].startswith("LD24")

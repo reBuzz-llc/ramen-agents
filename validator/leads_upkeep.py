@@ -22,10 +22,10 @@ from typing import Iterable
 
 # The cells Lead Gen can research and fill once it has the website. "Business email" is deliberately absent: a
 # wrong address is worse than none, and LD09 already checks the ones that are there.
-FILLABLE = ("Founded by", "Location", "Company size", "Industry", "Evidence")
+FILLABLE = ("Contact person", "Location", "Company size", "Industry", "Evidence")
 # Every column the team can empty. "Found by" was left out at first, and the owner's first test on 2026-09-25 was
 # to clear exactly that column on all 21 rows -- unseen. Nothing is left out now.
-WATCHED = FILLABLE + ("Pain point", "How we can help", "Business email", "Source pages", "Found by", "Stage", "Found on")
+WATCHED = FILLABLE + ("Pain point", "How can I help", "Business email", "Source pages")   # Stage, Found on, Found by removed by the owner 2026-10-10
 # The same column emptied on this many rows in one look is said so to The CEO: a column decision, not cells.
 COLUMN_CLEAR_AT = 3
 # How long a deleted cell waits for The CEO's assignee before it rejoins Lead Gen's own list.
@@ -55,10 +55,9 @@ class Upkeep:
 def cells_of(lead) -> dict[str, str]:
     """The watched columns of one row, as plain strings."""
     by_column = {
-        "Founded by": lead.founded_by, "Location": lead.location, "Company size": lead.company_size,
+        "Contact person": lead.founded_by, "Location": lead.location, "Company size": lead.company_size,
         "Industry": lead.industry, "Evidence": lead.evidence, "Pain point": lead.pain_point,
-        "How we can help": lead.how_we_help, "Business email": lead.email, "Source pages": lead.source_pages,
-        "Found by": lead.found_by, "Stage": lead.stage, "Found on": lead.found_on or "",
+        "How can I help": lead.how_we_help, "Business email": lead.email, "Source pages": lead.source_pages,
     }
     return {c: (by_column.get(c) or "").strip() for c in WATCHED}
 
@@ -132,7 +131,7 @@ def work_message(work: list[tuple[str, str, list[str]]], total_rows: int) -> str
         UPKEEP_FILE.write_text(
             "# Leads board upkeep list\n\n"
             f"Written by the Validator. {len(work)} of {total_rows} rows have empty cells. For each business: open its website "
-            "first, then search it by name, and fill only what a page states with update_lead (exact business name). Founded by = "
+            "first, then search it by name, and fill only what a page states with update_lead (exact business name). Contact person = "
             "the founder's name; Location = City, State, Country; Company size = locations and/or staff; Industry = the trade in a "
             "few words; Evidence = a page on their own site showing the problem. An empty cell is honest; a guess is not.\n\n"
             + "\n".join(lines) + "\n", encoding="utf-8")
@@ -141,7 +140,7 @@ def work_message(work: list[tuple[str, str, list[str]]], total_rows: int) -> str
     except OSError:
         where = "First rows: " + "; ".join(l[2:] for l in lines[:4]) + "."
     return (
-        f"Leads board upkeep: {len(work)} of {total_rows} rows have cells you can fill (Founded by, Location, Company size, "
+        f"Leads board upkeep: {len(work)} of {total_rows} rows have cells you can fill (Contact person, Location, Company size, "
         f"Industry, Evidence -- never the email). {where} Open each business's website first, then a search, and fill only "
         "what a page states with update_lead. Leave a cell empty rather than guess. When a batch is filled, reply to me with "
         "one message: done: <business>: <cells>; ...; could not find: <business>: <cells>."
@@ -175,7 +174,7 @@ def write_board_file(leads: list) -> int:
     """Every row on the Leads board (business, website, stage), for Lead Gen's own files: it cannot read the board,
     and on 2026-09-25 it tried to list Main Street Hardware fourteen times in one day, refused each time as already listed.
     Before a `lead`, it searches its files for "leads board"."""
-    rows = sorted(((ld.business.strip(), ld.website.strip(), (ld.stage or "").strip()) for ld in leads if ld.business.strip()),
+    rows = sorted(((ld.business.strip(), ld.website.strip(), (ld.status or "").strip()) for ld in leads if ld.business.strip()),
                   key=lambda r: r[0].lower())
     try:
         BOARD_FILE.parent.mkdir(parents=True, exist_ok=True)
