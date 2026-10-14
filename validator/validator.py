@@ -389,6 +389,11 @@ class Run:
                 self.notes.append(f"lead signals: {res['read']} sites read, {res['written']} rows written")
             except (OSError, httpx.HTTPError) as exc:
                 self.errors.append(f"lead signals: {exc}")
+            import okr_progress     # progress under The CEO's weekly key results
+            try:
+                self.notes.append("OKR: " + okr_progress.run(leads, self.now))
+            except OSError as exc:
+                self.errors.append(f"okr progress: {exc}")
             import refusal_report   # the family's refusal scoreboard and the team's sends, once a day (2026-10-14)
             if refusal_report.due(self.state, self.now):
                 try:
