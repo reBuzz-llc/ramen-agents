@@ -105,9 +105,15 @@ The real setup turns the fake demo into a working family: real web, free model k
 workspace for the boards.
 
 1. Clone both halves: the engine (`-b engine`) to `~/Projects/bot`, and the family's folders (`-b fleet`) to `~/bots`.
-2. Follow `SETUP.md` on the `fleet` branch. It lists every marker to fill (`FILL-ME`), every free key to create, and
-   the Notion boards to share with your integration. `sh scripts/check-setup.sh` tells you what is still missing.
-3. Start one agent first (Lead Gen is the most useful), watch it on the dashboard for a day, then add the rest.
+2. **Free tiers first.** [docs/free-tiers.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md)
+   lists every model provider and search engine in the chain with its free limits and where its key goes;
+   `bot providers` shows which keys you have.
+3. **Create your Leads board.** [docs/leads-board.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/leads-board.md)
+   explains the board; `scripts/create_leads_board.py` creates a new database under the Notion page you give and
+   prints the config lines to paste.
+4. Follow `SETUP.md` on the `fleet` branch for the rest: every marker to fill (`FILL-ME`) and every board to share
+   with your integration. `sh scripts/check-setup.sh` tells you what is still missing.
+5. Start one agent first (Lead Gen is the most useful), watch it on the dashboard for a day, then add the rest.
 
 The long-running setup uses macOS launch agents. The engine and the fake demo run anywhere Python does.
 
