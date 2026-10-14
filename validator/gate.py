@@ -40,7 +40,7 @@ _SKIP = {
 _FIELDS = {
     "LD01": {"website", "email"}, "LD03": {"how_we_help"}, "LD02": {"evidence", "pain_point"}, "LD05": {"pain_point", "location", "industry", "size"},
     "LD07": {"location"}, "LD08": {"size"}, "LD10": {"evidence"}, "LD11": {"founded_by"}, "LD15": {"founded_by"}, "LD12": {"sources"},
-    "LD13": {"email"}, "LD14": {"website"}, "LD20": {"whatsapp"},
+    "LD13": {"email"}, "LD14": {"website"}, "LD20": {"whatsapp"}, "LD22": {"map_url", "google_map_location"}, "LD23": {"founder_linkedin", "linkedin_via"}, "LD24": {"contact_role"},
     "T05": {"priority"}, "T10": {"details_append", "details", "title"}, "T11": {"due"}, "T13": {"details_append", "details", "title"},
 }
 
@@ -49,13 +49,15 @@ _FIELDS = {
 # wording) let the write through and the sweep reports them afterwards. Everything not listed here is flag-only.
 GATE_REFUSES = {
     # the fence: personal data, invented or wrong-business values, an address that bounces
-    "LD01", "LD02", "LD14", "LD15", "LD18", "MG03", "LD20",
+    "LD01", "LD02", "LD14", "LD15", "LD18", "MG03", "LD20", "LD23", "LD24",
     # board integrity: a value Notion would add as a new dropdown option
     "LD03",
     # the owner's own rules (2026-10-01/02) and the repeat guard
-    "PK14", "MG04", "MG01", "RA05",
+    "PK14", "MG04", "MG01", "RA05", "MG05",
     # the Outreach Writer (2026-10-07): only its own cell; no invented price; no contact details; the sign-off
-    "OW07", "OW02", "OW04", "OW01",
+    "OW07", "OW02", "OW04", "OW01", "OW11", "OW12",
+    # the Lead Enricher (2026-10-10): only its own cells
+    "EN01",
 }
 
 _cache: dict[str, object] = {}
@@ -99,6 +101,8 @@ def _lead_row(p: dict, *, bot: str) -> LeadRow:
         pain_point=_s(p.get("pain_point")), how_we_help=_s(p.get("how_we_help")), evidence=_s(p.get("evidence")),
         stage="", found_on=None, source_pages=" ".join(p.get("sources") or []) if isinstance(p.get("sources"), list) else _s(p.get("sources")),
         found_by=bot or "bot", created=_today(), edited="", founded_by=_s(p.get("founded_by")), whatsapp=_s(p.get("whatsapp")),
+        map_url=_s(p.get("map_url") or p.get("google_map_location")),
+        founder_linkedin=_s(p.get("founder_linkedin")), linkedin_via=_s(p.get("linkedin_via")), contact_role=_s(p.get("contact_role")),
     )
 
 
@@ -113,16 +117,22 @@ def _task_row(p: dict, *, min_details: int) -> TaskRow:
 
 def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) -> list[str]:
     """Reasons this write breaks the owner's rules; [] = allowed. Pure; never raises on odd payloads."""
-    if action not in GATED or not isinstance(payload, dict):
+    if action not in (*GATED, "message") or not isinstance(payload, dict):
         return []
-    if bot == "outreach-writer":
+    # the engine passes the bot's display name ("Outreach Writer"); compare on the folder slug ("outreach-writer").
+    # Until 2026-10-07 21:00 the slug compare never matched, so OW and RA05 were not refused at write time.
+    slug = re.sub(r"[^a-z0-9]+", "-", (bot or "").strip().lower()).strip("-")
+    if slug == "outreach-writer":
         # owner, 2026-10-07: it writes the "Draft email" cell and nothing else; it never contacts a business
-        other = sorted(k for k, v in payload.items() if k not in ("type", "name", "business", "page_id", "draft_email") and v not in (None, "", []))
+        other = sorted(k for k, v in payload.items() if k not in ("type", "name", "business", "page_id", "draft_email", "draft_whatsapp", "draft_whatsapp_msg") and v not in (None, "", []))
         if action != "update_lead" or other:
             return ["OW07: the Outreach Writer only fills the Draft email cell (update_lead with draft_email); "
                     + (f"not {', '.join(other)}" if other and action == "update_lead" else f"not {action}")]
         from checks import draft_issues
-        return [f"{rid}: {d}" for rid, d in draft_issues(_s(payload.get("draft_email"))) if rid in GATE_REFUSES]
+        wa_msg = _s(payload.get("draft_whatsapp") or payload.get("draft_whatsapp_msg"))
+        from checks import whatsapp_draft_issues
+        return ([f"{rid}: {d}" for rid, d in draft_issues(_s(payload.get("draft_email"))) if rid in GATE_REFUSES]
+                + [f"{rid}: {d}" for rid, d in whatsapp_draft_issues(wa_msg) if rid in GATE_REFUSES])
     if action in ("lead", "update_lead") and _s(payload.get("whatsapp")).strip():
         from whatsapp_false import digits_of, ruled_out
         d = digits_of(_s(payload.get("whatsapp")))
@@ -130,7 +140,29 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
         if hit:
             return [f"LD20: {d} was checked by the team in WhatsApp Web and is not on WhatsApp ({hit.get('business', '')}); "
                     "find a different number or leave the cell empty"]
-    if bot == "research-analyst" and action in GATED:
+    if action == "message":
+        return ceo_message_issues(payload) if slug == "the-ceo" else []
+    if slug == "the-ceo" and action in ("task", "update_task") and _s(payload.get("assignee")).strip():
+        # owner, 2026-10-14: "tell ceoA not to assign person ... I will handle that part for now"
+        return ["MG05: leave the Assignee empty; the owner assigns people on the task board for now. Write the task without an assignee."]
+    if slug == "lead-enricher":
+        # owner, 2026-10-10 ("yes go"): it fills empty Founder / CEO, Location, Company size, Industry and map cells only
+        other = sorted(k for k, v in payload.items() if k not in ("type", "name", "business", "page_id", "founded_by", "location",
+                                                                  "size", "industry", "map_url", "google_map_location", "sources",
+                                                                  "pain_point", "whatsapp", "founder_linkedin", "linkedin_via", "contact_role")
+                 and v not in (None, "", []))
+        if action != "update_lead" or other:
+            return ["EN01: the Lead Enricher only fills empty Founder / CEO, Location, Company size, Industry, Pain point, Whatsapp and map cells "
+                    "(update_lead); " + (f"not {', '.join(other)}" if other and action == "update_lead" else f"not {action}")]
+    if action == "update_lead" and _s(payload.get("pain_point")).strip():
+        # owner, 2026-10-10 ("sounds like a good plan"): a rewritten Pain point is refused when weak or not in the three
+        # parts, so the writer sees why and tries again; a new lead is never refused for it (the sweep flags it, LD21)
+        from checks import pain_point_issue
+        weak = pain_point_issue(_s(payload.get("pain_point")))
+        if weak:
+            return [f"LD21: {weak}. Write three lines: 'Pain point: <one gap you saw, and where>', 'They can try: <a fix "
+                    "they can do themselves>', 'We propose: <what our team does, from the row's package>'"]
+    if slug == "research-analyst" and action in GATED:
         return ["RA05: the Research Analyst never writes to the task board or Notion: research is never a task; "
                 "post the findings and answer The CEO by message"]
     ck = Checker(instructions())
@@ -344,15 +376,21 @@ _FAMILY_WORK = re.compile(
     r"^\s*(?:research|compile|list|categori[sz]e|organi[sz]e|sort|analy[sz]e|identify|find|gather|collect|summari[sz]e|"
     r"catalog(?:ue)?|map|survey|benchmark|compare)\b"
     r".*\b(?:services?|trends?|trending|tools?|competitors?|leads?|businesses|market|categor(?:y|ies)|options|vendors?|"
-    r"providers?|pric(?:es|ing)|offers?|packages?|data|insights?|landscape)\b", re.I)
+    r"providers?|pric(?:es|ing)|offers?|packages?|data|insights?|landscape|findings|adoption|posts?)\b", re.I)
+
+# "Have Package Designer create ..." -- a task telling a person to make a bot do its own job (2026-10-10)
+_HAVE_A_BOT = re.compile(r"^\s*(?:have|ask|get|tell|let)\s+(?:the\s+)?(?:package designer|lead gen|research analyst|scout|"
+                         r"outreach writer|validator|ceo|the ceo|pacA|leaA|anaA|scoA|outA)\b", re.I)
 
 
-# 2026-10-07 (owner: "ceoA is creating way to many task related to research and findings"): seven got through in a day
+# 2026-10-07 (the owner: The CEO was making too many tasks out of research and findings): seven got through in a day
 # as Develop/Draft/Review/Build/Update ... recommendations, guide, offerings, materials, target list, Notion pages.
 _FAMILY_DELIVERABLE = re.compile(
-    r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish)\b"
+    r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish|finali[sz]e|"
+    r"coordinate|complete|polish)\b"
     r".*\b(?:recommendations?|guides?|offerings?|materials?|presentations?|strateg(?:y|ies)|reports?|research|advisory|"
-    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending)\b", re.I)
+    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending|"
+    r"(?:findings |blog )?posts?|articles?|publication|packages?)\b", re.I)   # 2026-10-09: 4 "findings post" tasks went to a person
 
 
 def family_work(payload: dict) -> bool:
@@ -361,18 +399,11 @@ def family_work(payload: dict) -> bool:
     title = _s(payload.get("title"))
     if _REVIEW_DRAFTS.match(title):
         return False            # the team's daily review of the Outreach Writer's drafts
-    if _FAMILY_WORK.match(title):
+    if _FAMILY_WORK.match(title) or _HAVE_A_BOT.match(title):
         return True
     # a deliverable for a meeting, a pitch, an event or a design tool, or one done with a person, is the team's
     return bool(_FAMILY_DELIVERABLE.match(title)) and not _PERSON_DELIVERABLE.search(title)
 
-
-# Research deliverables are family work too: Develop/Draft/Review/Build/Update ... recommendations, a guide, offerings,
-# materials, a target list, Notion pages.
-_FAMILY_DELIVERABLE = re.compile(
-    r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish)\b"
-    r".*\b(?:recommendations?|guides?|offerings?|materials?|presentations?|strateg(?:y|ies)|reports?|research|advisory|"
-    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending)\b", re.I)
 
 _PERSON_DELIVERABLE = re.compile(
     r"\b(?:meetings?|pitch(?:es)?|calls?|trade ?shows?|events?|workshops?|demos?|canva|figma|decks?|slides?|flyers?|"
@@ -390,3 +421,43 @@ _FLAG_TASK = re.compile(r"\b(T|PK|LD|MG|FM|PL)\d{2}\b|\bvalidator\b|\btask forma
 def about_validator_flag(payload: dict) -> bool:
     """'Fix CEO-121 Task Format Checklist Items' (2026-10-03): a task whose subject is a Validator flag or a format fix."""
     return bool(_FLAG_TASK.search(_s(payload.get("title"))))
+
+
+# ---- The CEO's messages to the family (2026-10-14: owner asked "what instructions does ceoA give"; since 10-13 it asked the
+# Research Analyst ~25 times for findings the Analyst had answered six times, and its other messages were pep talk) ----
+
+_PEP = re.compile(r"^\s*(?:thanks|thank you|great|good job|well done|keep up|keep going|keep the focus|continue|please ensure|ensure|"
+                  r"make sure|remember|let'?s|i acknowledge|i'?ve acknowledged|acknowledged|noted|i will|i'?ll|i am|i'?m)\b", re.I)
+_CONCRETE = re.compile(r"\?|\b(?:by|before|today|tomorrow|monday|tuesday|wednesday|thursday|friday|\d{4}-\d{2}-\d{2}|\d+)\b", re.I)
+REQUESTS = Path.home() / "bots" / "common-data" / "shared-state" / "requests.jsonl"
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z]{4,}", text.lower())} - {"could", "please", "share", "would", "your", "with", "that",
+                                                                   "this", "from", "have", "what", "about", "findings", "research"}
+
+
+def ceo_message_issues(payload: dict, *, now: dt.datetime | None = None, log: Path | None = None) -> list[str]:
+    to, text = _s(payload.get("to")).strip(), _s(payload.get("text")).strip()
+    if not text:
+        return []
+    if _PEP.match(text) and not _CONCRETE.search(text):
+        return ["MG06: no concrete ask -- a message to a colleague asks one question or names one deliverable and when "
+                "(\"thanks / keep up / please ensure / I acknowledge\" is not a message). Send nothing, or ask the question."]
+    now = now or dt.datetime.now()
+    try:
+        rows = [json.loads(x) for x in (log or REQUESTS).read_text(encoding="utf-8").splitlines() if x.strip()]
+    except (OSError, ValueError):
+        return []
+    week = (now - dt.timedelta(days=7)).isoformat(timespec="seconds")
+    answered = {r["id"]: r for r in rows if r.get("kind") in ("answered", "resolved")}
+    mine = _words(text)
+    for r in reversed(rows):
+        if r.get("kind") != "request" or r.get("from") != "The CEO" or r.get("to") != to or str(r.get("at", "")) < week:
+            continue
+        theirs = _words(str(r.get("text", "")))
+        if mine and theirs and len(mine & theirs) / len(mine | theirs) >= 0.4 and r["id"] in answered:
+            when = str(answered[r["id"]].get("at", ""))[:16].replace("T", " ")
+            return [f"MG07: you asked {to} this on {str(r.get('at', ''))[:10]} and it answered at {when}; read that answer in your "
+                    "inbox (done) and use it instead of asking again."]
+    return []

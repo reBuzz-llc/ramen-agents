@@ -425,6 +425,15 @@ _SIZE_UNIT = r"(?:locations?|stores?|shops?|outlets?|sites?|units?|branches|rest
 _SIZE_PART = re.compile(rf"^(?:about|approx\.?|around|over|under|up to|~|<|>)?\s*\d[\d,.\s]*(?:[-–—+]\s*\d[\d,.]*)?\s*\+?\s*{_SIZE_UNIT}$", re.I)
 # A founder is a person: at least two capitalised words, or two names joined by & / ; / "and" for co-founders.
 _PERSON = re.compile(r"\b[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’.-]+)+")
+# owner, 2026-10-14: "only first name is also fine" -- "Sam and Pat", "Maria" as the business's own page prints them
+_NOT_A_NAME = {"team", "owner", "owners", "founder", "founders", "staff", "management", "family", "llc", "inc", "co", "corp",
+               "company", "group", "studio", "restaurant", "cafe", "the", "our", "and", "unknown", "n/a", "na", "none"}
+
+
+def first_names_only(text: str) -> bool:
+    parts = [x for x in re.split(r"\s*(?:,|&|\band\b)\s*", (text or "").strip()) if x]
+    return bool(parts) and len(parts) <= 4 and all(
+        re.fullmatch(r"[A-Z][a-z'’-]{1,20}", x) and x.lower() not in _NOT_A_NAME for x in parts)
 COUNTRY_WORDS = {"usa", "us", "u.s.", "u.s.a.", "united states", "united states of america", "uk", "u.k.",
                  "united kingdom", "canada", "ca", "australia", "india", "nepal", "ireland", "germany", "france"}
 _STREET = re.compile(r"^\d|\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|suite|ste|floor|fl)\b\.?$", re.I)
@@ -442,12 +451,15 @@ WHAT_WE_HAVE = Path.home() / "bots" / "the-ceo" / "raw" / "what-we-have.md"
 DRAFT_SIGNOFF: list[str] = []   # the Outreach Writer's sign-off lines ([validator] draft_signoff); [] = not checked
 OUR_WHATSAPP = ""          # the team's own wa.me link ([validator] draft_whatsapp); the only number a draft may carry
 DRAFT_SPINE: list[str] = []     # phrases (regex) every draft keeps from the package email ([validator] draft_spine_phrases)
+# Dollar figures a draft may carry that are not prices, e.g. a portfolio line in the package email, as digits ("750000").
+# Set from [validator] draft_proof_figures; empty = none.
+DRAFT_PROOF_FIGURES: set[str] = set()
 DRAFT_MAX_WORDS = 300      # the package's ready-to-send email plus one opening line
 _MONEY = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kK]?")
 _DRAFT_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 _DRAFT_PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\d)")
 _DRAFT_LINK = re.compile(r"https?://\S+|\bwww\.\S+", re.I)
-_DRAFT_GREETING = re.compile(r"^\s*(?:hi|hello|dear|hey)\s+([A-Z][\w'’-]+)", re.I | re.M)
+_DRAFT_GREETING = re.compile(r"^\s*(?:hi|hello|dear|hey)\s+(?:(?:dr|mr|mrs|ms|miss|prof)\.?\s+)?([A-Z][\w'’-]+)", re.I | re.M)   # "Hi Dr Lee": the name, not the title
 
 
 def _money(s: str) -> str:
@@ -463,6 +475,23 @@ def rate_figures(path: Path = WHAT_WE_HAVE) -> set[str]:
         return set()
     m = re.search(r"^## Rates\b(.*?)(?=^## |\Z)", text, re.M | re.S)
     return {_money(x) for x in _MONEY.findall(m.group(1) if m else "")}
+
+
+PACKAGES_PAGE = Path.home() / "bots" / "the-ceo" / "raw" / "packages-page.md"
+
+
+def package_email_figures(path: Path | None = None) -> set[str]:
+    """Every dollar figure in a "Ready-to-send email" on the Packages page (2026-10-10: a package email The
+    CEO published quotes a monthly price range, and the writer is told to keep the package email as written)."""
+    try:
+        text = (path or PACKAGES_PAGE).read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    out: set[str] = set()
+    for sec in re.split(r"^## ", text, flags=re.M)[1:]:
+        _, _, email = sec.partition("Ready-to-send email")
+        out |= {_money(x) for x in _MONEY.findall(email)}
+    return out
 
 
 def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: set[str] | None = None,
@@ -482,15 +511,16 @@ def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: 
         p for p in DRAFT_SPINE if not re.search(p, text, re.I)]
     if missing:
         out.append(("OW09", "not built on the package email: missing " + ", ".join(missing)))
-    rates = rate_figures() if rates is None else rates
+    rates = (rate_figures() | package_email_figures() if rates is None else rates) | DRAFT_PROOF_FIGURES   # the package email's portfolio line is not a price
     bad = [m for m in _MONEY.findall(text) if _money(m) not in rates]
     if bad:
         out.append(("OW02", "price not on the Rates: " + ", ".join(b.strip() for b in bad[:3])))
     g = _DRAFT_GREETING.search(text)
-    if g and g.group(1).lower() not in ("there", "team", "all", "friends"):
+    team = bool(g) and bool(re.match(r"[^\n]{0,80}\bteam\b", text[g.start():], re.I))   # "Hi <Business> team"
+    if g and not team and g.group(1).lower() not in ("there", "team", "all", "friends"):
         first = (founded_by or "").split()[0].strip(",").lower() if founded_by.strip() else ""
         if g.group(1).lower() != first and not g.group(1).lower() in (founded_by or "").lower():
-            out.append(("OW03", f"greets '{g.group(1)}', who is not the row's Founded by ('{founded_by or 'empty'}')"))
+            out.append(("OW03", f"greets '{g.group(1)}', who is not the row's Contact person ('{founded_by or 'empty'}')"))
     bare = text.replace(OUR_WHATSAPP, "") if OUR_WHATSAPP else text
     personal = _DRAFT_EMAIL.findall(bare) + _DRAFT_PHONE.findall(bare) + [
         m.group(0) for m in re.finditer(r"(?<![\w/])\+?\d[\d\s().-]{8,}\d", bare) if len(re.sub(r"\D", "", m.group(0))) >= 10] + re.findall(
@@ -511,6 +541,100 @@ def draft_issues(draft: str, *, founded_by: str = "", website: str = "", rates: 
     if hit:
         out.append(("FM07", f"repeats a page's instruction: '{hit[:60]}'"))
     return out
+
+
+# ---- the Outreach Writer's first WhatsApp message (owner, 2026-10-10: "agree") -----------------------------
+
+WA_MSG_MAX_WORDS = 90        # a first WhatsApp message is read on a phone: a few lines, not the email
+# The last line a first WhatsApp message signs off with, e.g. "Alex, Acme LLC". Set from [validator] whatsapp_signoff;
+# "" = the sign-off is not checked.
+WA_MSG_SIGNOFF = ""
+
+
+def whatsapp_draft_issues(msg: str, *, founded_by: str = "", website: str = "", rates: set[str] | None = None,
+                          whatsapp: str = "", status: str = "", on_row: bool = False) -> list[tuple[str, str]]:
+    """(rule, detail) for a "Draft Whatsapp msg" cell; on_row = checked against a board row (the sweep), not a write. Empty or "skip: ..." is not checked."""
+    text = (msg or "").strip()
+    if not text or text.lower().startswith("skip:"):
+        return []
+    out: list[tuple[str, str]] = []
+    if on_row and not whatsapp.strip():
+        out.append(("OW10", "a WhatsApp draft on a row with no Whatsapp link"))
+    if status.strip().lower() == "false whatsapp number":
+        out.append(("OW10", "a WhatsApp draft on a row the team marked False Whatsapp Number"))
+    last = [ln.strip() for ln in text.splitlines() if ln.strip()][-1]
+    if WA_MSG_SIGNOFF and WA_MSG_SIGNOFF.lower() not in last.lower():
+        out.append(("OW11", f"the last line does not sign off as '{WA_MSG_SIGNOFF}'"))
+    allowed = (rate_figures() | package_email_figures() if rates is None else rates) | DRAFT_PROOF_FIGURES
+    bad = [m.strip() for m in _MONEY.findall(text) if _money(m) not in allowed]
+    if bad:
+        out.append(("OW12", "price not on the Rates or a package email: " + ", ".join(bad[:3])))
+    bare = text.replace(OUR_WHATSAPP, "") if OUR_WHATSAPP else text
+    personal = _DRAFT_EMAIL.findall(bare) + _DRAFT_PHONE.findall(bare) + re.findall(r"wa\.me/\+?\d{7,15}", bare, re.I)
+    if personal:
+        out.append(("OW12", "contact details in the message: " + ", ".join(personal[:2])))
+    site = domain(website) if website else ""
+    links = [u for u in _DRAFT_LINK.findall(text) if not (site and domain(u if u.startswith("http") else "https://" + u) == site)]
+    if links:
+        out.append(("OW13", "links other than the business's own site: " + ", ".join(u[:50] for u in links[:2])))
+    words = len(re.findall(r"\w+", text))
+    if words > WA_MSG_MAX_WORDS:
+        out.append(("OW14", f"{words} words; a first WhatsApp message stays under {WA_MSG_MAX_WORDS}"))
+    g = _DRAFT_GREETING.search(text)
+    team = bool(g) and bool(re.match(r"[^\n]{0,80}\bteam\b", text[g.start():], re.I))
+    if g and founded_by and not team and g.group(1).lower() not in ("there", "team", "all") \
+            and g.group(1).lower() not in founded_by.lower():
+        out.append(("OW14", f"greets '{g.group(1)}', who is not the row's Contact person ('{founded_by}')"))
+    hit = injection(text)
+    if hit:
+        out.append(("FM07", f"repeats a page's instruction: '{hit[:60]}'"))
+    return out
+
+
+# "google map location" (owner, 2026-10-10): a Google Maps link, from coordinates or a place page, nothing else
+_MAP_LINK = re.compile(r"^https://(?:www\.)?(?:google\.[a-z.]+/maps|maps\.google\.[a-z.]+/|maps\.app\.goo\.gl/|goo\.gl/maps/)\S*$", re.I)
+
+
+# "Founder LinkedIn" (owner, 2026-10-14: "make it a step wise process but pass from other sources as well ... defined with the
+# link"): the founder's profile (or the business's company page), found in this order and recorded in "LinkedIn found via".
+LINKEDIN_STEPS = ("1 Own site", "2 Business listing", "3 Press article", "4 Search result")
+_LINKEDIN = re.compile(r"^https://(?:[a-z]{2,3}\.)?linkedin\.com/(in|company)/[A-Za-z0-9%_-]{2,100}/?$")
+
+
+def linkedin_issue(url: str, via: str, founder: str) -> str:
+    u, v = (url or "").strip(), (via or "").strip()
+    if not u:
+        return "'LinkedIn found via' is set but there is no Founder LinkedIn" if v else ""
+    m = _LINKEDIN.match(u)
+    if not m:
+        return f"'{u[:60]}' is not a LinkedIn profile or company page (https://www.linkedin.com/in/<name> or /company/<name>)"
+    if v not in LINKEDIN_STEPS:
+        return "Founder LinkedIn needs 'LinkedIn found via' (" + ", ".join(LINKEDIN_STEPS) + ")"
+    if m.group(1) == "in" and not (founder or "").strip():
+        return "a person's LinkedIn profile on a row with no Contact person: whose is it?"
+    return ""
+
+
+CONTACT_ROLES = ("Founder", "Owner", "CEO / President", "Principal / Partner", "General Manager", "Practice / Office Manager",
+                 "Operations", "Marketing", "Franchise Development", "Executive Director", "Other")
+
+
+def contact_role_issue(role: str, person: str, *, on_row: bool) -> str:
+    r = (role or "").strip()
+    if not r:
+        return ""
+    if r not in CONTACT_ROLES:
+        return f"Contact role '{r[:40]}' is not one of: " + ", ".join(CONTACT_ROLES)
+    if on_row and not (person or "").strip():
+        return "a Contact role with no Contact person"
+    return ""
+
+
+def map_link_issue(url: str) -> str:
+    u = (url or "").strip()
+    if not u or _MAP_LINK.match(u):
+        return ""
+    return f"'{u[:60]}' is not a Google Maps link (google.com/maps/..., maps.google.com/..., maps.app.goo.gl/...)"
 
 
 _WA_SHAPE = re.compile(r"^https://wa\.me/\d{7,15}$")
@@ -559,6 +683,20 @@ def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplica
     wa = whatsapp_shape(ld.whatsapp)
     if wa:
         out += _collect(f("LD20", wa))
+    for rid, detail in whatsapp_draft_issues(ld.draft_whatsapp, founded_by=ld.founded_by, website=ld.website,
+                                             whatsapp=ld.whatsapp, status=ld.status, on_row=True):
+        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot="outreach-writer",
+                                when=ld.created[:10], name=ld.business))
+    # at write time the row is not in hand (an update carries only its own fields): whose profile it is is checked in the sweep
+    role = contact_role_issue(ld.contact_role, ld.founded_by, on_row=bool(ld.page_id))
+    if role:
+        out += _collect(f("LD24", role))
+    li = linkedin_issue(ld.founder_linkedin, ld.linkedin_via, ld.founded_by if ld.page_id else "(at write time)")
+    if li:
+        out += _collect(f("LD23", li))
+    bad_map = map_link_issue(ld.map_url)
+    if bad_map:
+        out += _collect(f("LD22", bad_map))
     stale = stale_emailed(ld)
     if stale:
         out += _collect(ck.flag("LD19", "lead", ld.page_id, ld.label, ld.url, stale, bot="owner", when="", name=ld.business))
@@ -570,36 +708,49 @@ def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplica
     email = ld.email.strip().lower()
     if not ld.business.strip():
         out += _collect(f("LD01", "no Business name"))
-    if not site:
-        out += _collect(f("LD01", "no Website"))
+    # owner, 2026-10-10: a business with no website is a lead too (it may need one most): its proof is a public listing
+    # page a bot opened (the Evidence), it is told apart by name and city, and its contact may be a WhatsApp number alone
+    no_site = not site
+    has_wa = bool(ld.whatsapp.strip())
+    if no_site and not ld.location.strip():
+        out += _collect(f("LD01", "no Website and no Location: a business without a site is told apart by its name and city"))
     if not email or "@" not in email:
-        out += _collect(f("LD01", "no Business email"))
+        if not has_wa:
+            out += _collect(f("LD01", "no Business email and no Whatsapp: a lead needs one way to reach the business"))
     else:
         mail_dom = email.rsplit("@", 1)[1]
         if mail_dom in PERSONAL_MAILBOXES:
-            out += _collect(f("LD01", f"email is on a personal mailbox provider ({mail_dom})"))
+            why = free_mail_issue(email, ld.business)
+            if why:
+                out += _collect(f("LD01", why))
         # a different domain is fine when the address is printed on the business's own site (owner, 2026-09-30:
         # shop-city.example on shop.example) -- LD09 proves that from the site's pages; the engine proves it at write time
     ev = ld.evidence.strip()
     if not ld.pain_point.strip():
-        out += _collect(f("LD02", "no Pain point"))
-    if not ev:
+        out += _collect(f("LD21", "Pain point is empty: on the Lead Enricher's list"))
+    if not ev and no_site:
+        out += _collect(f("LD02", "no Website and no Evidence: a business without a site needs the public listing page it was found on"))
+    elif not ev:
         out += _collect(f("LD10", "no Evidence URL: nothing on record shows the pain point is real"))
     elif not ev.startswith(("http://", "https://")):
         out += _collect(f("LD02", f"Evidence is not a URL: {ev[:50]}"))
+    elif no_site:
+        ev_dom = domain(ev)
+        if not ev_dom:
+            out += _collect(f("LD02", "Evidence is not a page URL"))
     elif site:
         ev_dom = domain(ev)
         if not (_same_site(ev_dom, site) or any(ev_dom == jb or ev_dom.endswith("." + jb) for jb in JOB_BOARDS)):
             out += _collect(f("LD02", f"Evidence is on {ev_dom}, not the business's site or a job board it uses"))
     if not ld.how_we_help.strip():
-        out += _collect(f("LD03", "How we can help is empty"))
+        out += _collect(f("LD03", "How can I help is empty"))
     elif allowed_packages and ld.how_we_help.strip() not in allowed_packages:
         near = closest_package(ld.how_we_help, allowed_packages)
         hint = f"; did you mean '{near}'?" if near else ""
         out += _collect(f("LD03", f"'{ld.how_we_help[:50]}' is not one of the package names{hint} Accepted: "
                                   + "; ".join(sorted(allowed_packages, key=len)[:12])))
     if duplicate_of:
-        out += _collect(f("LD04", f"same website domain as " + ", ".join(duplicate_of[:3])))
+        out += _collect(f("LD04", f"same business (website domain, or name and city) as " + ", ".join(duplicate_of[:3])))
     size = ld.company_size.strip()
     parts = [x.strip() for x in re.split(r"[;,]", size) if x.strip()]
     if size and (len(size) > COMPANY_SIZE_MAX or not parts or not all(_SIZE_PART.match(x) for x in parts)):
@@ -613,11 +764,11 @@ def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplica
         out += _collect(f("LD07", f"Location starts with a street address ('{place[0][:30]}'), not the city"))
     founder = ld.founded_by.strip()
     if not founder:
-        out += _collect(f("LD11", "Founded by is empty: the founder's name is the thing outreach opens with"))
-    elif not _PERSON.search(founder):
-        out += _collect(f("LD15", f"Founded by reads '{founder[:50]}', which is not a person's name"))
+        out += _collect(f("LD11", "Contact person is empty: the founder's name is the thing outreach opens with"))
+    elif not (_PERSON.search(founder) or first_names_only(founder)):
+        out += _collect(f("LD15", f"Contact person reads '{founder[:50]}', which is not a person's name"))
     elif re.search(r"(\b[A-Z]|['’-])$", founder):
-        out += _collect(f("LD15", f"Founded by reads '{founder[:50]}', a name cut off mid-word"))
+        out += _collect(f("LD15", f"Contact person reads '{founder[:50]}', a name cut off mid-word"))
     if (ld.email_check or "").strip().lower().startswith("not deliverable"):
         out += _collect(f("LD18", f"the email service says '{ld.email}' is {ld.email_check.strip()[:60]}: outreach to it would bounce"))
     pages = [x for x in re.split(r"[\s,;]+", ld.source_pages) if x]
@@ -640,7 +791,83 @@ def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplica
     if others or phone:
         what = ("a second email address" if others else "") + (" and " if others and phone else "") + ("a phone number" if phone else "")
         out += _collect(f("LD05", f"text fields contain {what}"))
+    weak = pain_point_issue(ld.pain_point)
+    if weak:
+        out += _collect(f("LD21", weak))
     return out
+
+
+# A pain point is one gap someone saw, and where (owner, 2026-10-07: "review the pain point column"; the family's own
+# gap analysis, never the business's words). 31 of 169 rows read "could benefit from professional website care".
+_VAGUE_PAIN = re.compile(r"could benefit|may (?:need|benefit)|potentially|needs? (?:an )?assessment|no obvious|appears (?:modern|functional)"
+                         r"|likely needs|may not be optimi[sz]ed|could be modernized|basic (?:website |site )?design\b|older structure|limited online presence|needs? (?:modern )?(?:care|professional)|^\s*n/?a\s*$", re.I)
+_PITCH_PAIN_BASE = r"\bretainer\b|\bour (?:package|service|team)"
+# Your own company, product and package names (regex), which belong in 'We propose:', never in the gap itself.
+# Set from [validator] own_product_words, e.g. ["\\bacme\\b", "acme pos"]; empty = only the generic words above.
+OWN_PRODUCT_WORDS: list[str] = []
+# Tools your offer works alongside (regex), e.g. ["door ?dash", "quick ?books"]: a pain point that calls one of them a
+# problem is a fit, not a gap (2026-10-09: the owner's product integrates them). Set from [validator]
+# pain_integrated_tools; empty = not checked.
+INTEGRATED_TOOLS: list[str] = []
+
+
+def _pitch_pain(text: str) -> bool:
+    return bool(re.search(_PITCH_PAIN_BASE, text, re.I) or any(re.search(w, text, re.I) for w in OWN_PRODUCT_WORDS))
+
+
+_UNSEEN_PAIN = re.compile(r"mobile[- ](?:friendl|responsiv|layout|view|support|optimi|design)|mobile/|responsiv|on submission|submission errors?|form errors? (?:on|when) submit", re.I)
+
+
+# The cell's three parts (owner, 2026-10-10: "1 - pain-point. 2 - solution to that problem that they can try. 3 - our
+# proposed solution that our team can handle"), one per line, each starting with its label.
+PAIN_LABELS = (("pain", "Pain point:"), ("diy", "They can try:"), ("ours", "We propose:"))
+_PART = re.compile(r"^\s*(pain point|they can try|we propose)\s*:\s*", re.I | re.M)
+
+
+def pain_point_parts(pain: str) -> dict[str, str]:
+    """{"pain", "diy", "ours"} -> text for a three-part cell; {} when the cell has none of the labels."""
+    hits = list(_PART.finditer(pain or ""))
+    out: dict[str, str] = {}
+    for i, m in enumerate(hits):
+        key = {"pain point": "pain", "they can try": "diy", "we propose": "ours"}[m.group(1).lower()]
+        out[key] = pain[m.end(): hits[i + 1].start() if i + 1 < len(hits) else len(pain)].strip()
+    return out
+
+
+def _gap_issue(text: str) -> str:
+    if _VAGUE_PAIN.search(text):
+        return f"vague, names no gap anyone saw: '{text[:70]}'"
+    if _pitch_pain(text):
+        return f"names our package instead of their gap (that belongs in 'We propose:'): '{text[:70]}'"
+    if any(re.search(w, text, re.I) for w in INTEGRATED_TOOLS):
+        return f"calls a tool we work alongside a problem; we integrate with it, so that is a fit, not a gap: '{text[:70]}'"
+    if _UNSEEN_PAIN.search(text):
+        return f"claims something the bots cannot see (they never load a phone-sized page or submit a form): '{text[:70]}'"
+    return ""
+
+
+def pain_point_issue(pain: str, *, rates: set[str] | None = None) -> str:
+    """Why a Pain point cell is not the owner's three parts with one observed gap ('' = fine or empty; empty is LD02's)."""
+    text = (pain or "").strip()
+    if not text:
+        return ""
+    parts = pain_point_parts(text)
+    if not parts:
+        return _gap_issue(text) or "not in the three parts: 'Pain point:', 'They can try:', 'We propose:' (one per line)"
+    missing = [label for key, label in PAIN_LABELS if not parts.get(key)]
+    if missing:
+        return "missing " + ", ".join(f"'{m}'" for m in missing)
+    gap = _gap_issue(parts["pain"])
+    if gap:
+        return gap
+    if re.search(r"\bour (?:team|package|service)|\bwe\b|\bhire\b", parts["diy"], re.I) or \
+            any(re.search(w, parts["diy"], re.I) for w in OWN_PRODUCT_WORDS):
+        return f"'They can try:' must be a fix they can do themselves, without us: '{parts['diy'][:70]}'"
+    allowed = (rate_figures() | package_email_figures() if rates is None else rates) | DRAFT_PROOF_FIGURES
+    bad = [m.strip() for m in _MONEY.findall(parts["ours"]) if _money(m) not in allowed]
+    if bad:
+        return "'We propose:' quotes a price that is not on the Rates or a package email: " + ", ".join(bad[:3])
+    return ""
 
 
 def check_lead_email_published(ck: Checker, ld: LeadRow, verdict) -> list[Flag]:
@@ -654,15 +881,48 @@ def check_lead_email_published(ck: Checker, ld: LeadRow, verdict) -> list[Flag]:
     return [flag] if flag else []
 
 
+# A free-mail address (gmail, yahoo ...) is a business's contact when the business shows it as one (owner, 2026-10-10: "it might
+# be"); it reads as a person's own mailbox when its name is a person's, not the business's.
+_BUSINESS_PART = ("info", "contact", "hello", "order", "booking", "reserv", "shop", "store", "cafe", "bakery", "pizza",
+                  "grill", "kitchen", "salon", "studio", "clinic", "dental", "office", "team", "sales", "service", "repair",
+                  "brooklyn", "bklyn", "queens", "bronx", "manhattan", "staten", "gym", "photo", "pics")       # found inside a run-together name
+_BUSINESS_TOKEN = {"hi", "spa", "gym", "fit", "law", "nyc", "ny", "llc", "inc", "co", "corp", "deli", "bar", "nails"}
+_STOP = {"the", "and", "of", "nyc", "new", "york", "llc", "inc", "co", "corp", "company", "services"}
+
+
+def free_mail_issue(email: str, business: str) -> str:
+    """'' when a free-mail address reads as the business's contact; else why it reads as a person's own mailbox."""
+    local = email.split("@", 1)[0].lower()
+    letters = re.sub(r"[^a-z]", "", local)
+    words = [w for w in re.findall(r"[a-z0-9]+", re.sub(r"['’]", "", business.lower())) if len(w) >= 3 and w not in _STOP]
+    tokens = set(re.split(r"[^a-z]+", local)) - {""}
+    initials = "".join(w[0] for w in re.findall(r"[a-z]+", business.lower()) if w not in _STOP)
+    if (any(w in letters or (len(w) >= 6 and w[:4] in letters) for w in words)          # the name, or its stem ("bake..." in bkbakeshop)
+            or (len(initials) >= 3 and initials in letters)                             # its initials (abc: Acme Bike Center)
+            or any(b in letters for b in _BUSINESS_PART) or tokens & _BUSINESS_TOKEN):
+        return ""
+    return (f"'{email}' is a free-mail address that names no part of the business ({business[:40]}): it reads as a "
+            "person's own mailbox, not the business's contact")
+
+
 def lead_site_key(website: str) -> str:
     site = domain(website) if website.startswith(("http://", "https://")) else website.strip().lower().split("/")[0]
     return site.removeprefix("www.")
 
 
+def lead_key(row: dict[str, str]) -> str:
+    """The site's domain; for a business with no website (owner, 2026-10-10), its name and city."""
+    site = lead_site_key(row.get("website", ""))
+    if site:
+        return site
+    name = re.sub(r"[^a-z0-9]", "", (row.get("business") or "").lower())
+    return f"name:{name}|{(row.get('city') or '').strip().lower()}" if name else ""
+
+
 def site_duplicate_index(rows: dict[str, dict[str, str]]) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for pid, row in rows.items():
-        key = lead_site_key(row.get("website", ""))
+        key = lead_key(row)
         if key:
             out.setdefault(key, []).append(pid)
     return out

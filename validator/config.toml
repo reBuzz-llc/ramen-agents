@@ -17,7 +17,7 @@ package_page_id = ""            # FILL-ME: the Packages page id
 leads_data_source_id = ""       # FILL-ME: the Leads board's data source id; "" = skip leads
 task_owner_bot = "the-ceo"
 lead_owner_bot = "lead-gen"
-provider_bot = "the-ceo"        # hears about deleted cells and assigns who fixes them
+provider_bot = "the-ceo"        # hears a deleted "How can I help" (its package decision); every other deleted cell goes on the Lead Enricher's list
 upkeep_to_lead_bot = false      # empty cells go in the report, not to Lead Gen as a work list
 provider_gaps_every_days = 3
 silent_bots = []
@@ -31,7 +31,11 @@ own_domains = []                # FILL-ME: your own site's domain(s)
 package_signoff = []            # e.g. ["Regards,", "-- Your Company"]; empty = the sign-off is not checked
 draft_signoff = []              # the Outreach Writer's sign-off lines, e.g. ["Regards,", "Alex", "-- Acme LLC"]; empty = not checked
 draft_whatsapp = ""             # your own wa.me link a draft may end with ("WhatsApp: <link>"), e.g. "https://wa.me/12125550100"; "" = none
-draft_spine_phrases = []        # phrases (regex) every draft keeps from the package email, e.g. ["\\bAlex\\b", "500,000"]
+draft_spine_phrases = []        # phrases (regex) every draft keeps from the package email, e.g. ["\\bAlex\\b", "750,000"]
+draft_proof_figures = []        # dollar figures a draft or Pain point may carry that are not prices (a portfolio line), as digits, e.g. ["750000"]
+whatsapp_signoff = ""           # the last line of a first WhatsApp message (OW11), e.g. "Alex, Acme LLC"; "" = not checked
+own_product_words = []          # your own company, product and package names (regex), e.g. ["\\bacme\\b"]: they belong in 'We propose:', never in the gap (LD21)
+pain_integrated_tools = []      # tools your offer works alongside (regex), e.g. ["door ?dash", "quick ?books"]: a Pain point calling one a problem is a fit, not a gap (LD21)
 message_only_since = ""         # set a date (YYYY-MM-DD) to report, never message, anything made before it
 legacy_kinds = ["package_file", "provider", "task", "package"]
 lead_message_only_since = ""

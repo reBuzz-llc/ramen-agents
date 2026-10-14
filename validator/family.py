@@ -21,15 +21,30 @@ BOTS = Path.home() / "bots"
 REQUESTS = BOTS / "common-data" / "shared-state" / "requests.jsonl"
 
 # Full name -> handle (dashboard only) and folder. The owner's list, in the owner's order.
-FAMILY = {
+_FALLBACK = {
     "The CEO": ("ceoA", "the-ceo"), "Package Designer": ("pacA", "package-designer"), "Scout": ("scoA", "scout"),
     "Lead Gen": ("leaA", "lead-gen"), "Jobless-Bot": ("jobA", "jobless-bot"), "Onion Reader": ("oniA", "onion-reader"),
     "Desk Agent": ("desA", "desk-agent"), "Validator": ("valB", "validator"),
     "Research Analyst": ("anaA", "research-analyst"),        # joined 2026-10-07 (owner)
     "Outreach Writer": ("outA", "outreach-writer"),          # joined 2026-10-07 (owner)
 }
+
+
+def _roster() -> dict[str, tuple[str, str]]:
+    """The family's one roster, common-data/family-roster.toml (the engine shows it in every prompt, 2026-10-10); the list
+    above only when the file cannot be read."""
+    try:
+        import tomllib
+        data = tomllib.loads((Path.home() / "bots" / "common-data" / "family-roster.toml").read_text(encoding="utf-8"))
+        out = {str(m["name"]): (str(m["handle"]), str(m["slug"])) for m in data.get("member", []) if m.get("name")}
+        return out or dict(_FALLBACK)
+    except (OSError, ValueError, KeyError, ImportError):
+        return dict(_FALLBACK)
+
+
+FAMILY = _roster()
 PROVIDER = "The CEO"
-HANDLES = re.compile(r"\b(ceoA|pacA|scoA|leaA|jobA|oniA|desA|valB|anaA|outA)\b")
+HANDLES = re.compile(r"\b(" + "|".join(sorted({h for h, _ in FAMILY.values()} | {"ceoA", "pacA", "scoA", "leaA", "jobA", "oniA", "desA", "valB", "anaA", "outA", "enrA"})) + r")\b")
 EXPIRE_HOURS = 48.0          # the engine's rule: an ask nobody answered in two days is expired, not open
 STATUS_OPENERS = re.compile(
     r"^\s*(checked|noted|reviewed|read |looked|quick update|update:|fyi|heads.?up|just a note|for your information|"

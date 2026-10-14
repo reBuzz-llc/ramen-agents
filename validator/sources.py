@@ -123,6 +123,11 @@ class LeadRow:
     result_date: str = ""    # when the current Result was set
     draft_email: str = ""    # the Outreach Writer's first email for the team to send (owner, 2026-10-07)
     whatsapp: str = ""       # https://wa.me/<digits>, only from a link on the business's own site (owner, 2026-10-07)
+    draft_whatsapp: str = ""  # the Outreach Writer's first WhatsApp message (owner, 2026-10-10)
+    contact_role: str = ""       # "Contact role": who the contact person is (owner, 2026-10-14: the decision-maker ladder)
+    founder_linkedin: str = ""   # "Founder LinkedIn" (owner, 2026-10-14)
+    linkedin_via: str = ""       # "LinkedIn found via": the step it came from, 1 Own site ... 4 Search result
+    map_url: str = ""        # "google map location": a Google Maps link to the business (owner, 2026-10-10)
     status: str = ""         # the team's Status: "Ready to Send Email", "WhatsApp Verified" (checked by hand) ...
 
     @property
@@ -348,10 +353,13 @@ class NotionReader:
         return LeadRow(
             page_id=page_id_of(str(r.get("id", ""))), url=str(r.get("url") or ""), business=val("Business"),
             website=val("Website"), email=val("Business email"), location=val("Location"), industry=val("Industry"),
-            company_size=val("Company size"), pain_point=val("Pain point"), how_we_help=val("How we can help"),
+            company_size=val("Company size"), pain_point=val("Pain point"), how_we_help=val("How can I help") or val("How we can help"),
             evidence=val("Evidence"), stage=val("Stage"), found_on=val("Found on") or None,
-            source_pages=val("Source pages"), found_by=val("Found by"), founded_by=val("Founded by"), email_check=val("Email check"),
+            source_pages=val("Source pages"), found_by=val("Found by"), founded_by=val("Contact person") or val("Founder / CEO") or val("Founded by"),
+            contact_role=val("Contact role"), email_check=val("Email check"),
             result=val("Result"), result_date=val("Result date"), draft_email=val("Draft email"), whatsapp=val("Whatsapp"), status=val("Status"),
+            draft_whatsapp=val("Draft Whatsapp msg"), map_url=val("google map location"),
+            founder_linkedin=val("Founder LinkedIn"), linkedin_via=val("LinkedIn found via"),
             created=str(r.get("created_time") or ""), edited=str(r.get("last_edited_time") or ""),
         )
 

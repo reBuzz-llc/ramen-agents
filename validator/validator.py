@@ -34,7 +34,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from checks import Checker, Flag, Instructions, check_lead, check_lead_email_published, check_package_file, check_package_toggle, check_provider, check_task, duplicate_index, lead_site_key, load_instructions, site_duplicate_index  # noqa: E402
+from checks import Checker, Flag, Instructions, _collect, check_lead, check_lead_email_published, check_package_file, check_package_toggle, check_provider, check_task, duplicate_index, lead_key, lead_site_key, load_instructions, site_duplicate_index  # noqa: E402
 import checks  # noqa: E402
 from judge import Judge, Provider, judge_prompt, parse_verdicts  # noqa: E402
 from email_check import stale, verify_many  # noqa: E402
@@ -65,6 +65,10 @@ DEFAULTS: dict[str, Any] = {
     "own_domains": [],
     "package_signoff": [],            # e.g. ["Regards,", "-- Your Company"]; empty = PK05 is not checked
     "package_allowed_figures": [],    # figures every pitch may carry although no record has them
+    "draft_proof_figures": [],        # dollar figures a draft may carry that are not prices (a portfolio line), e.g. ["750000"]
+    "whatsapp_signoff": "",           # the last line of a first WhatsApp message, e.g. "Alex, Acme LLC"; "" = OW11 not checked
+    "own_product_words": [],          # your own company/product/package names (regex): never the gap in a Pain point
+    "pain_integrated_tools": [],      # tools your offer integrates (regex): calling one a problem is a fit, not a gap
     "model": {"enabled": False, "daily_token_budget": 40000, "max_items_per_run": 8, "max_output_tokens": 400, "chain": [],
               "rejudge_every_days": 7},
     "message_only_since": "",
@@ -124,8 +128,8 @@ def min_details_for(bot: str) -> int:
 # ---- the run ---------------------------------------------------------------------------------
 
 # Which column each per-column rule is about, so a cell the team deleted stops being asked for.
-_COLUMN_RULES = {"LD11": "Founded by", "LD07": "Location", "LD08": "Company size", "LD10": "Evidence", "LD06": "Found by", "LD12": "Source pages",
-                 "LD03": "How we can help"}   # the owner emptied the whole column 2026-09-25 22:29: a verdict, not 28 defects
+_COLUMN_RULES = {"LD11": "Contact person", "LD07": "Location", "LD08": "Company size", "LD10": "Evidence", "LD06": "Found by", "LD12": "Source pages",
+                 "LD03": "How can I help"}   # the owner emptied the whole column 2026-09-25 22:29: a verdict, not 28 defects
 
 
 class _Verdict:
@@ -189,6 +193,10 @@ class Run:
         checks.OUR_WHATSAPP = str(self.s.get("draft_whatsapp") or "").strip().rstrip("/")
         checks.DRAFT_SPINE = [str(x) for x in self.s.get("draft_spine_phrases") or []]
         checks.PROOF_FIGURES = {str(x) for x in self.s.get("package_allowed_figures") or []}
+        checks.DRAFT_PROOF_FIGURES = {str(x).replace(",", "").lstrip("$") for x in self.s.get("draft_proof_figures") or []}
+        checks.WA_MSG_SIGNOFF = str(self.s.get("whatsapp_signoff") or "").strip()
+        checks.OWN_PRODUCT_WORDS = [str(x) for x in self.s.get("own_product_words") or []]
+        checks.INTEGRATED_TOOLS = [str(x) for x in self.s.get("pain_integrated_tools") or []]
         self._process_inbox()
         self._family_check()
         if self.args.inbox:
@@ -261,8 +269,9 @@ class Run:
         if not cleared:
             return
         self.counts["false whatsapp cleared"] = len(cleared)
-        self.posts.append(f"Cleared {len(cleared)} Whatsapp numbers the team marked False; Lead Gen asked to look for others")
-        slug = str(self.s.get("lead_owner_bot", "lead-gen"))
+        # the Lead Enricher fills empty cells, Whatsapp included (2026-10-10); a fleet without one asks Lead Gen
+        slug = "lead-enricher" if (BOTS / "lead-enricher").is_dir() else str(self.s.get("lead_owner_bot", "lead-gen"))
+        self.posts.append(f"Cleared {len(cleared)} Whatsapp numbers the team marked False; {slug} asked to look for others")
         if self.args.dry_run or (BOTS / slug / "workspace" / "STOP").exists():
             return
         try:
@@ -287,7 +296,7 @@ class Run:
             leads = reader.leads(ds, edited_after)
             # the gate's accepted package names, fresh every 10 minutes: an option added to the board ("New Product",
             # 2026-09-30) must not be refused until the next 6-hour sweep
-            self.state["lead_package_names"] = sorted(reader.select_options(ds, "How we can help"))
+            self.state["lead_package_names"] = sorted(reader.select_options(ds, "How can I help"))
         except Exception as exc:  # noqa: BLE001
             self.errors.append(f"leads quick look: {exc}")
             return
@@ -361,20 +370,51 @@ class Run:
             # headlines the CEO rewrites ("Fast-track Your MVP in 6 Weeks"), so they are only an extra
             # allowance for a package published but not yet in the dropdown. Taking them first flagged every row
             # on the board as a wrong package name (2026-09-24).
-            allowed = sorted({*reader.select_options(ds, "How we can help"), *package_names})
+            allowed = sorted({*reader.select_options(ds, "How can I help"), *package_names})
             # the write gate accepts only the board's own options: any other value makes Notion add a new option
-            self.state["lead_package_names"] = sorted(reader.select_options(ds, "How we can help"))
+            self.state["lead_package_names"] = sorted(reader.select_options(ds, "How can I help"))
         except Exception as exc:  # noqa: BLE001
             self.errors.append(f"leads board: {exc}")
             return
         self.counts["lead rows"] = len(leads)
+        if self.full and edited_after is None and not self.args.dry_run:
+            import signals          # Tools on site / Site health / Lead score (owner, 2026-10-14)
+            try:
+                from checks import draft_issues as _di, pain_point_issue as _pi, pain_point_parts as _pp
+                res = signals.run(leads, self.state, api_key=self._notion_key(), data_source=ds,
+                                  api_version=self.s["notion_api_version"], now=self.now,
+                                  draft_ok=lambda ld: bool(ld.draft_email.strip()) and not ld.draft_email.lower().startswith("skip:")
+                                  and not _di(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp, status=ld.status),
+                                  pain_ok=lambda ld: bool(_pp(ld.pain_point)) and not _pi(ld.pain_point))
+                self.notes.append(f"lead signals: {res['read']} sites read, {res['written']} rows written")
+            except (OSError, httpx.HTTPError) as exc:
+                self.errors.append(f"lead signals: {exc}")
+            import refusal_report   # the family's refusal scoreboard and the team's sends, once a day (2026-10-14)
+            if refusal_report.due(self.state, self.now):
+                try:
+                    self.notes.append(f"refusal report: {refusal_report.write(self.state, self.now, leads)}")
+                except OSError as exc:
+                    self.errors.append(f"refusal report: {exc}")
+            import enricher_list    # the Lead Enricher's daily work list (owner, 2026-10-10)
+            if enricher_list.due(self.state, self.now):
+                try:
+                    self.notes.append(f"Lead Enricher list: {enricher_list.write(leads, self.state, self.now)} rows")
+                except OSError as exc:
+                    self.errors.append(f"enricher list: {exc}")
+            import results_digest   # The CEO's weekly steering input (owner, 2026-10-10)
+            if results_digest.due(self.state, self.now):
+                try:
+                    self.notes.append(f"results digest written: {results_digest.write(leads, self.state, self.now)}")
+                except OSError as exc:
+                    self.errors.append(f"results digest: {exc}")
         index: dict[str, dict[str, str]] = {} if self.full else dict(self.state.get("leads_index") or {})
         for ld in leads:
-            index[ld.page_id] = {"business": ld.business, "website": ld.website, "url": ld.url}
+            index[ld.page_id] = {"business": ld.business, "website": ld.website, "url": ld.url,
+                                 "city": ld.location.split(",")[0].strip()}
         dups = site_duplicate_index(index)
         for ld in leads:
             self.checked.add(("lead", ld.page_id))
-            others = [index[p].get("business") or p[:8] for p in dups.get(lead_site_key(ld.website), []) if p != ld.page_id]
+            others = [index[p].get("business") or p[:8] for p in dups.get(lead_key({"website": ld.website, "business": ld.business, "city": ld.location.split(",")[0]}), []) if p != ld.page_id]
             flags = check_lead(self.ck, ld, allowed_packages=allowed, duplicate_of=others)
             # a cell the team just deleted is The CEO's to assign, not a defect to message Lead Gen about
             # owner, 2026-09-29: an EMPTY cell on a row made before the fresh start is not a defect (wrong values still are)
@@ -388,6 +428,7 @@ class Run:
         self._lead_upkeep(leads)
         self._verify_lead_emails(leads)
         self._verify_lead_whatsapp(leads)
+        self._fact_check_enricher(leads)
 
     def _lead_upkeep(self, leads: list) -> None:
         """Blanks are work for Lead Gen; a cell the team emptied means the value was wrong, so The CEO is told and
@@ -425,6 +466,13 @@ class Run:
         for d in up.deletions:
             deleted[d.key] = {"business": d.business, "column": d.column, "was": d.was[:200], "at": self.stamp, "reported": False}
             self.pending_cells[d.key] = deleted[d.key]
+        # owner, 2026-10-10 (a cell the team deleted goes to the Validator): the Validator hands a deleted cell to the Lead
+        # Enricher's list with its old value ruled out; only a deleted package ("How can I help") is still The CEO's call
+        import enricher_list
+        for k, v in deleted.items():
+            if not v.get("reported") and v.get("column", k.split("|")[-1]) in enricher_list.FILLS:
+                v["reported"] = True
+                v["to_enricher"] = True
         unreported = [Deletion(k.split("|")[0], v.get("business", "?"), v.get("column", k.split("|")[-1]), v.get("was", ""))
                       for k, v in deleted.items() if not v.get("reported")]
         if unreported:
@@ -432,7 +480,7 @@ class Run:
             per = Counter(d.column for d in unreported)
             clears = sorted(c for c, n in per.items() if n >= 3)
             names = ", ".join(sorted({f"{d.business}/{d.column}" for d in unreported})[:4])
-            self.notes.append(f"the team deleted {len(unreported)} cell(s): {names} — reported to The CEO to assign")
+            self.notes.append(f"the team deleted {len(unreported)} package cell(s): {names} — reported to The CEO to decide")
             self.counts["cells deleted by the team"] += len(unreported)
             if self.s.get("provider_bot"):
                 self.pending_messages.setdefault(self.s["provider_bot"], []).append(deletion_report(unreported, clears, paused=(BOTS / self.s["lead_owner_bot"] / "workspace" / "STOP").exists()))
@@ -609,7 +657,7 @@ class Run:
             rec = cache.get(key)
             if rec and not stale(str(rec.get("at", "")), recheck, self.now):
                 known.append((ld, _Verdict(rec)))
-            elif ld.email.strip() and ld.website.strip():
+            elif ld.email.strip() and (ld.website.strip() or ld.evidence.strip() or ld.source_pages.strip()):
                 todo.append((ld, key))
         budget = int(self.s.get("email_checks_per_run", 12))
         fetched = verify_many([(k, ld.email, ld.website, tuple(u for u in (ld.evidence, *ld.source_pages.split()) if u))
@@ -625,13 +673,31 @@ class Run:
         if todo:
             self.notes.append(f"email checks: {len(fetched)} site(s) read this run, {max(0, len(todo) - len(fetched))} waiting, {len(cache)} cached")
 
+    def _notion_key(self) -> str:
+        return (BOTS / "common-data" / "keys" / "notion.key").read_text(encoding="utf-8").strip()
+
+    def _fact_check_enricher(self, leads: list) -> None:
+        """EN05: the Lead Enricher's founder, city and size are printed on a page it cites or on the business's site
+        (owner, 2026-10-10: "I expect high accuracy and fact check from it")."""
+        if "EN05" not in self.ins.rules or self.args.dry_run:
+            return
+        import enricher_check
+        sites = {enricher_check._norm(ld.business): ld.website for ld in leads}
+        by_name = {enricher_check._norm(ld.business): ld for ld in leads}
+        for m in enricher_check.run(self.state, sites, budget=int(self.s.get("email_checks_per_run", 12))):
+            ld = by_name.get(enricher_check._norm(m["name"]))
+            col = {"founded_by": "Contact person", "location": "Location", "size": "Company size", "founder_linkedin": "Founder LinkedIn"}[m["field"]]
+            self.current += _collect(self.ck.flag("EN05", "lead", ld.page_id if ld else m["name"], f'lead "{m["name"]}"',
+                                                        ld.url if ld else "", f"{col}: {m['why']}", bot="lead-enricher",
+                                                        when=m["ts"][:10], name=m["name"]))
+
     def _verify_lead_whatsapp(self, leads: list) -> None:
         """LD20: is the row's wa.me number really linked on the business's own site? Every row with a Whatsapp, Lead
         Gen's included (the column is new, 2026-10-07); cached by number and site, re-read after `email_recheck_days`."""
         from email_check import verify_whatsapp
         from checks import check_lead_whatsapp_published
         # a row the team marked "WhatsApp Verified" was confirmed by a person in WhatsApp Web: no page proof needed
-        rows = [ld for ld in leads if ld.whatsapp.strip() and ld.website.strip() and ld.status.strip().lower() not in ("whatsapp verified", "false whatsapp number")]
+        rows = [ld for ld in leads if ld.whatsapp.strip() and (ld.website.strip() or ld.evidence.strip() or ld.source_pages.strip()) and ld.status.strip().lower() not in ("whatsapp verified", "false whatsapp number")]
         if not rows or "LD20" not in self.ins.rules:
             return
         cache: dict[str, Any] = self.state.setdefault("whatsapp_verdicts", {})
