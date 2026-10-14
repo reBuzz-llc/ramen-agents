@@ -1,0 +1,27 @@
+# ramen-agents
+
+> ramen-agents is an open-source family of small web agents that a founder with no budget can run from a laptop on free
+> model tiers and keyless search. It includes a lead finder, a research analyst, a package designer, a scout for free
+> tools and a CEO agent, plus a Validator that checks every write and a local dashboard. A hard fence in the code stops
+> any agent from creating accounts, spending money or collecting personal data. Licence: Apache-2.0.
+
+## Start here
+
+- [README](https://github.com/reBuzz-llc/ramen-agents#readme): what it is, the ten-minute quickstart with no key, the FAQ
+- [The fence](https://github.com/reBuzz-llc/ramen-agents/blob/main/FENCE.md): every rule no agent may break, and the file that enforces it
+- [Contributing](https://github.com/reBuzz-llc/ramen-agents/blob/main/CONTRIBUTING.md): branches, tests, style
+
+## Key facts
+
+- Cost: nothing. The default model chain is free tiers only (Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter free models,
+  Ollama Cloud, then a local Ollama model); search is keyless (SearXNG, DuckDuckGo via MCP, FreeSerp).
+- Quickstart: `pip install -e .` on the engine branch, then `bot new "My Explorer" --fake --dir ./demo-fleet` and
+  `bot --config ./demo-fleet/my-explorer/config.toml demo`. No key, no network.
+- Safety: sign-in pages are blocked (`workspace/denylist.txt`); goals about credentials, spending or self-replication are
+  refused (`src/explorer/policy.py`); the Validator's gate refuses personal or invented data (`validator/gate.py`).
+- Requirements: Python 3.11+. The always-on setup (launch agents, dashboard service) targets macOS.
+- Branches: `engine` (the `bot` program), `fleet` (the agents, the Validator, the dashboard), `main` (docs).
+
+## Optional
+
+- [llms-full.txt](https://github.com/reBuzz-llc/ramen-agents/blob/main/llms-full.txt): the README and the fence in one file

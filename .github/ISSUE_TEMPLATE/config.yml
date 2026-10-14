@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or "how do I…"
+    url: https://github.com/reBuzz-llc/ramen-agents/discussions
+    about: Ask in Discussions; the answer helps the next person too.
+  - name: A way past the fence (security)
+    url: https://github.com/reBuzz-llc/ramen-agents/security/advisories/new
+    about: Please report privately, not as a public issue.
