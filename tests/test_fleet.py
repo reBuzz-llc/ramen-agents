@@ -73,7 +73,7 @@ def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
         (agents / f"{label}.plist").write_text(
             fleet.render_plist(label, Path("/code"), tmp_path / name / "config.toml", tmp_path / name / "workspace", tmp_path / "logs")
         )
-    (agents / "com.rebuzz.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
+    (agents / "com.ramen-agents.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
     (agents / "com.ramen-agents.bot.broken.plist").write_text("not a plist")
     bots = fleet.installed_bots(agents)
     assert [b["label"] for b in bots] == ["com.ramen-agents.bot.jobless-bot", "com.ramen-agents.bot.the-ceo"]
