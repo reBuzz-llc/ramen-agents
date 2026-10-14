@@ -19,10 +19,10 @@ the engine's source and the Validator's code, not in any file an agent writes.
 ## What a refusal looks like
 
 Every refused action is logged with its reason, and the agent sees the reason on its next step. In the quickstart
-demo (`bot demo`) the agent tries to save a note it already has:
+demo (`bot demo`) the agent tries a login page, and the denylist refuses it before the page is opened:
 
 ```text
-step 15: note 'Search: history of the internet' -> refused (you already saved a note titled ...)
+step 6: open fake://login.html -> refused (URL path segment 'login.html' is on the denylist)
 ```
 
 On the dashboard, each agent's refusals are counted per day, with the fence refusals shown apart from the quality

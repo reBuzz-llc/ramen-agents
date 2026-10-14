@@ -37,12 +37,14 @@ bot --config ./demo-fleet/my-explorer/config.toml demo
 ```
 
 `bot demo` runs one research session in about a second and prints every step: a search, the pages it follows, the
-notes it takes, the summary, then its journal entry. The last steps show the guardrails at work. The agent tries to save
-a note it already has, and the policy refuses it:
+notes it takes, the summary, then its journal entry. Two steps show the fence at work. At step 6 the agent tries a
+login page and the policy refuses it, because agents never log in; at step 15 it tries to save a note it already has:
 
 ```text
-step 13: summarize -> allowed
-step 14: search history of the internet -> allowed
+step 5: follow -> allowed (followed [2] to fake://clocks.html: 'The clock that found lo...)
+step 6: open fake://login.html -> refused (URL path segment 'login.html' is on the denylist)
+step 7: note 'The clock that found longitude' -> allowed
+...
 step 15: note 'Search: history of the internet' -> refused (you already saved a note titled ...)
 ```
 
