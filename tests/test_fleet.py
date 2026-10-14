@@ -12,8 +12,8 @@ from explorer.config import load_config
 
 @pytest.fixture(autouse=True)
 def _default_label_prefix(monkeypatch):
-    """The label prefix comes from $BOT_LABEL_PREFIX or ~/.config/ramen-agents/label-prefix on a real machine; these
-    tests pin the default so they pass the same everywhere."""
+    """The labels asserted below use the engine's default prefix, whatever this machine's
+    ~/.config/ramen-agents/label-prefix or $BOT_LABEL_PREFIX says (2026-10-14)."""
     monkeypatch.setattr(fleet, "LABEL_PREFIX", "com.ramen-agents.bot.")
 
 
@@ -73,7 +73,7 @@ def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
         (agents / f"{label}.plist").write_text(
             fleet.render_plist(label, Path("/code"), tmp_path / name / "config.toml", tmp_path / name / "workspace", tmp_path / "logs")
         )
-    (agents / "com.ramen-agents.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
+    (agents / "com.rebuzz.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
     (agents / "com.ramen-agents.bot.broken.plist").write_text("not a plist")
     bots = fleet.installed_bots(agents)
     assert [b["label"] for b in bots] == ["com.ramen-agents.bot.jobless-bot", "com.ramen-agents.bot.the-ceo"]
