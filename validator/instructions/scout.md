@@ -16,7 +16,7 @@ section each, which the owner reads before creating a key.
 - SC06 — At least one source is on the provider's own site (its pricing or docs page), not only a listicle or an awesome-list. [warn]
 - SC07 — Durable free tier only: no one-off trial credit ("$5 free to start"), no pay-as-you-go with no free tier, no free tier that needs a card.
 
-## Model-judged (plain-English questions; used only when use_model = true)
+## Questions for a person reviewing by hand (retired from model judging 2026-10-14: only task rows and package toggles are model-judged; these overlap the exact rules above and would cost a page read per item on the shared free tier)
 
 - Does the free-terms text describe an ongoing monthly or daily allowance rather than a one-time credit?
 
