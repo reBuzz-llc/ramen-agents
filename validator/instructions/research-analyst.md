@@ -18,7 +18,7 @@ blog) and its messages to The CEO. It never writes to the task board or to Notio
 
 - RA05 — No task-board or Notion writes: research is never a task, and the board is for the human team (task, update_task, lead, update_lead, package are refused for this bot).
 
-## Model-judged (plain-English questions; used only when use_model = true)
+## Questions for a person reviewing by hand (retired from model judging 2026-10-14: only task rows and package toggles are model-judged; these overlap the exact rules above and would cost a page read per item on the shared free tier)
 
 - Does the note say only what the cited page says, with your own reading clearly marked as yours?
 

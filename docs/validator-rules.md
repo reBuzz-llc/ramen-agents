@@ -181,9 +181,11 @@ rows, the Package Designer's of packages-page toggles.
 | MJ01 (packages) | Is the audience a specific buyer rather than "businesses"? | Flagged in the sweep |
 | MJ02 (packages) | Does the rationale rest on the cited pages rather than general claims? | Flagged in the sweep |
 
-The Outreach Writer, Research Analyst and Scout files also hold model-judged questions (is the opening line an observed
-gap, does the note say only what its page says, are the free terms an ongoing allowance), but today the judge is put
-only to task rows and packages-page toggles, so those questions are not yet asked.
+The Outreach Writer, Research Analyst and Scout files keep a few plain-English questions (is the opening line an
+observed gap, does the note say only what its page says, are the free terms an ongoing allowance) for a person reviewing
+by hand. They are retired from model judging: the exact rules above already cover most of what they ask, and judging
+them well would mean re-reading the source page for every draft or note, which costs a page of model tokens per item
+on the shared free tier. Only task rows and packages-page toggles are model-judged.
 
 ## Retired
 

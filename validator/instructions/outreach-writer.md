@@ -28,7 +28,7 @@ in draft_whatsapp, and the phrases every draft keeps from the package email in d
 - OW13 — No links except the business's own site. [warn]
 - OW14 — Under 90 words: a greeting to the Contact person (or "<Business> team"), the one gap from "Pain point:", one line of what we do, and an easy question ("Would a 15-minute call this week help?"). [warn]
 
-## Model-judged (plain-English questions; used only when use_model = true)
+## Questions for a person reviewing by hand (retired from model judging 2026-10-14: only task rows and package toggles are model-judged; these overlap the exact rules above and would cost a page read per item on the shared free tier)
 
 - Does the opening line describe something the business's pages have or lack, as observed on pages that were opened -- its site, maps listing, social or review pages (e.g. "your menu is a PDF", "your Google listing has no website link", "I couldn't find online booking on your site"), without inventing a fact or claiming the business said it has a problem?
 
