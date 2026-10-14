@@ -6,9 +6,9 @@ import { BOTS_DIR, findBot } from "@/lib/bots";
 // The installable Mac app for the desk-agent bot. The path is built from constants only, never from
 // the request. Only desk-agent has one; every other slug is a 404. proxy.ts already gates this route
 // to this Mac and the owner's Tailscale login.
-// Renamed rebuzzBot -> Desk Agent (owner, 2026-09-25): the new image first, the old one until it is built.
+// The Desk Agent's app image.
 const DOWNLOADS = path.join(BOTS_DIR, "common-data", "downloads");
-const DMG_NAMES = ["Desk Agent.dmg", "rebuzzBot.dmg"];
+const DMG_NAMES = ["Desk Agent.dmg"];
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/bots/[slug]/download">) {
   const { slug } = await ctx.params;

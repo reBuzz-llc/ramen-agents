@@ -7,6 +7,7 @@
 // `bot --config <config> run --quiet` for a bot that is run by hand. A desktop bot (the Desk Agent) is never run by
 // hand: only its Mac app's launch agent may start it.
 import { execFile, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, open, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -18,7 +19,19 @@ import { agentPids } from "./processes";
 export { agentPids };
 
 const run = promisify(execFile);
-const LABEL_PREFIX = "com.rebuzz.bot.";
+// The launch agents' label prefix, found the way the engine finds it (fleet.py): $BOT_LABEL_PREFIX, else
+// ~/.config/ramen-agents/label-prefix, else the default.
+const LABEL_PREFIX = (() => {
+  const env = (process.env.BOT_LABEL_PREFIX ?? "").trim();
+  if (env) return env;
+  try {
+    const saved = readFileSync(path.join(homedir(), ".config", "ramen-agents", "label-prefix"), "utf8").trim();
+    if (saved) return saved;
+  } catch {
+    /* none saved */
+  }
+  return "com.ramen-agents.bot.";
+})();
 
 export type ControlOp = "run" | "stop" | "restart";
 export type ControlResult = { ok: boolean; note: string; how?: "launchd" | "manual" };
@@ -52,12 +65,11 @@ export async function flags(bot: BotProfile): Promise<string[]> {
   return out;
 }
 
-// The Desk Agent drives the screen, and macOS grants Accessibility to the signed rebuzzBot.app bundle, not to a venv
+// The Desk Agent drives the screen, and macOS grants Accessibility to the signed Desk Agent.app bundle, not to a venv
 // Python: it runs ONLY as that app, under this launch agent. A `bot ... run` started beside it has no GUI permission
 // and takes the pid lock, so the real app exits 3 on every start (owner's dashboard, 2026-09-25 21:09).
-// The app was renamed rebuzzBot.app -> Desk Agent.app (owner, 2026-09-25); the old label is the fallback until the
-// new one is installed.
-const DESKTOP_APP_LABELS = ["com.rebuzz.desk-agent-app", "com.rebuzz.rebuzzbot"];
+// The Desk Agent.app's launch agent.
+const DESKTOP_APP_LABELS = ["com.ramen-agents.desk-agent-app"];
 
 /** True for a bot whose config enables [desktop]: it may only be started through its app's launch agent. */
 async function isDesktopBot(bot: BotProfile): Promise<boolean> {
@@ -69,7 +81,7 @@ async function isDesktopBot(bot: BotProfile): Promise<boolean> {
 }
 
 /** The launch agent whose EXPLORER_CONFIG is this bot's config, as `bot install` writes it; for a desktop bot, the
- * rebuzzBot.app agent. */
+ * Desk Agent.app agent. */
 export async function launchAgent(bot: BotProfile): Promise<{ label: string; plist: string } | null> {
   if (process.platform !== "darwin") return null;
   const dir = path.join(homedir(), "Library", "LaunchAgents");

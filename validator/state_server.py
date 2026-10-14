@@ -11,7 +11,7 @@ in the same shapes the framework's `bot dashboard` uses, built from the Validato
     /api/journal    workspace/latest-report.md
 
 Binds 127.0.0.1 only (the webapp reads over loopback). Standard library only; no writes anywhere.
-Run by launchd (com.rebuzz.validator-state, KeepAlive) or by hand:
+Run by launchd (com.ramen-agents.validator-state, KeepAlive) or by hand:
 
     ~/Projects/bot/.venv/bin/python ~/bots/validator/state_server.py [--port 8793]
 """

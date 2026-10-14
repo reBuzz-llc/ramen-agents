@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <!-- The Validator's quick loop: every 10 minutes read its inbox (reports and blockers from the other bots), verify the cause,
-       answer, escalate to the owner after 2 hours. The 6-hourly sweep stays com.rebuzz.validator. -->
-  <key>Label</key><string>com.rebuzz.validator-inbox</string>
+       answer, escalate to the owner after 2 hours. The 6-hourly sweep stays com.ramen-agents.validator. -->
+  <key>Label</key><string>com.ramen-agents.validator-inbox</string>
   <key>ProgramArguments</key>
   <array>
     <string>__HOME__/Projects/bot/.venv/bin/python</string>

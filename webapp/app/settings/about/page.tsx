@@ -75,7 +75,7 @@ export default async function AboutPage() {
             </span>
           </Row>
           <Row label="Runs as">
-            <span className="font-mono text-xs">com.rebuzz.bot-dashboard</span>
+            <span className="font-mono text-xs">com.ramen-agents.bot-dashboard</span>
           </Row>
           <Row label="Logs">
             <span className="font-mono text-xs">~/bots/webapp/logs</span>

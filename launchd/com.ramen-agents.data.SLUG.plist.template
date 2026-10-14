@@ -4,7 +4,7 @@
 <dict>
   <!-- The bot's data server (bot dashboard): the owner's chat with the bot and the webapp's data. launchd keeps it up and restarts it on a crash. -->
   <key>Label</key>
-  <string>com.rebuzz.data.__SLUG__</string>
+  <string>com.ramen-agents.data.__SLUG__</string>
   <key>ProgramArguments</key>
   <array>
     <string>__HOME__/Projects/bot/.venv/bin/bot</string>

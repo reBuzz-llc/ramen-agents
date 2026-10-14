@@ -4,9 +4,9 @@
 <dict>
   <!-- The bot dashboard (~/bots/webapp), production build, on 127.0.0.1:3000 only.
        Other devices reach it through tailscale serve; lib/access.ts decides who may.
-       After changing the code: cd ~/bots/webapp && npm run build && launchctl kickstart -k gui/$(id -u)/com.rebuzz.bot-dashboard -->
+       After changing the code: cd ~/bots/webapp && npm run build && launchctl kickstart -k gui/$(id -u)/com.ramen-agents.bot-dashboard -->
   <key>Label</key>
-  <string>com.rebuzz.bot-dashboard</string>
+  <string>com.ramen-agents.bot-dashboard</string>
   <key>ProgramArguments</key>
   <array>
     <string>__NODE__</string>

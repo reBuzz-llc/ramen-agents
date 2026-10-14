@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.rebuzz.searxng</string>
+  <key>Label</key><string>com.ramen-agents.searxng</string>
   <!-- Local meta-search for the bots (several keyless engines; see common-data/configs/searxng-settings.yml), 127.0.0.1:8888 only. -->
   <key>ProgramArguments</key>
   <array>

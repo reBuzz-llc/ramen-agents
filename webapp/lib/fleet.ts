@@ -17,7 +17,7 @@ export type FleetBot = {
   slug: string;
   name: string;
   handle: string;
-  online: boolean; // its data server answers -- true for a stopped bot too (com.rebuzz.data.<slug> keeps running)
+  online: boolean; // its data server answers -- true for a stopped bot too (com.ramen-agents.data.<slug> keeps running)
   running: boolean; // its loop is alive and no STOP or PAUSE file is set: what "online" on the map means to the owner
   stopped: boolean; // a STOP file is set (the owner's stop)
   hold: import("./bot").BotHold | null; // a pause or slow-down The CEO set (workspace/HOLD), until it ends

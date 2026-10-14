@@ -38,7 +38,7 @@ This app lives in `~/bots/webapp`, next to the bot folders. The bot code stays i
 
 ## Run it
 
-The dashboard runs as a launch agent, `com.rebuzz.bot-dashboard`: the production build on
+The dashboard runs as a launch agent, `com.ramen-agents.bot-dashboard`: the production build on
 http://127.0.0.1:3000, started at login and restarted if it stops. Logs are in `logs/`.
 
 ```sh
@@ -47,7 +47,7 @@ npm run deploy    # after changing the code: build, then restart the service
 npm run bots      # start any bot data servers that are not running (they are not started at login)
 ```
 
-For development, stop the service first (`launchctl bootout gui/$(id -u)/com.rebuzz.bot-dashboard`),
+For development, stop the service first (`launchctl bootout gui/$(id -u)/com.ramen-agents.bot-dashboard`),
 run `npm run dev`, and bootstrap the plist again when done.
 
 Every bot needs its own `[dashboard] port`; `bot new NAME --persona explorer|ceo --port N` sets one.
@@ -85,7 +85,7 @@ Dynamic Type sizes, glass toolbar and tab bar, Home Screen support). Tokens and 
 
 The kit keeps itself current. `npm run brandkit:check` reads Apple's design updates, the guideline pages the
 kit depends on, Apple Developer news, the WebKit blog and `npm outdated`, and rewrites the kit's status
-section. It runs before every `npm run deploy` and weekly (launch agent `com.rebuzz.brandkit-check`, Mondays
+section. It runs before every `npm run deploy` and weekly (launch agent `com.ramen-agents.brandkit-check`, Mondays
 09:00, with a macOS notification when something needs review). After updating the kit and theme for a
 change, run `npm run brandkit:accept`.
 

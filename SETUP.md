@@ -5,7 +5,7 @@ Each step says what to run and how to tell it worked. Run `sh scripts/check-setu
 ## 1. The engine
 
 ```sh
-git clone -b engine -o starter https://github.com/reBuzz-llc/Starter-Setup ~/Projects/bot   # the folder must be ~/Projects/bot
+git clone -b engine -o starter https://github.com/reBuzz-llc/ramen-agents ~/Projects/bot   # the folder must be ~/Projects/bot
 cd ~/Projects/bot
 python3 -m venv .venv                      # Python 3.11 or newer
 .venv/bin/pip install -e ".[dev]"
@@ -16,14 +16,14 @@ python3 -m venv .venv                      # Python 3.11 or newer
 ## 2. This repository
 
 ```sh
-git clone -b fleet -o starter https://github.com/reBuzz-llc/Starter-Setup ~/bots   # the folder must be ~/bots
+git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots   # the folder must be ~/bots
 cd ~/bots
 sh scripts/setup.sh                        # folders, state link, commit hook, search settings
 ```
 
 ## 3. The local model (last resort when no provider answers)
 
-Install Ollama so that `~/.local/opt/ollama/ollama` exists (or edit `launchd/com.rebuzz.ollama.plist.template` to
+Install Ollama so that `~/.local/opt/ollama/ollama` exists (or edit `launchd/com.ramen-agents.ollama.plist.template` to
 where yours is; skip that agent if the Ollama app already runs its own server), then:
 
 ```sh
