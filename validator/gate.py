@@ -441,7 +441,9 @@ def ceo_message_issues(payload: dict, *, now: dt.datetime | None = None, log: Pa
     to, text = _s(payload.get("to")).strip(), _s(payload.get("text")).strip()
     if not text:
         return []
-    if _PEP.match(text) and not _CONCRETE.search(text):
+    # The CEO often opens with the member's name or a greeting: "Lead Gen, keep up ...", "Hi team, please ensure ..."
+    body = re.sub(r"^\s*(?:(?i:hi|hello|hey|dear)\s+)?(?:[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*){0,2}|(?i:team|all|everyone))\s*[,:!-]\s*", "", text)
+    if (_PEP.match(text) or _PEP.match(body)) and not _CONCRETE.search(text):
         return ["MG06: no concrete ask -- a message to a colleague asks one question or names one deliverable and when "
                 "(\"thanks / keep up / please ensure / I acknowledge\" is not a message). Send nothing, or ask the question."]
     now = now or dt.datetime.now()

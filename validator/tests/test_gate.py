@@ -263,4 +263,6 @@ def test_the_ceo_does_not_ask_again_or_send_pep_talk(tmp_path):
     assert ceo_message_issues({"to": "Research Analyst", "text": "Which POS do NYC bakeries use most?"}, now=now, log=log) == []
     assert ceo_message_issues({"to": "Lead Gen", "text": "Please ensure the drafts are ready."}, now=now, log=log)[0].startswith("MG06")
     assert ceo_message_issues({"to": "Lead Gen", "text": "Keep up the focus on pipeline progression."}, now=now, log=log)[0].startswith("MG06")
+    assert ceo_message_issues({"to": "Lead Gen", "text": "Lead Gen, keep up the focus on pipeline progression."}, now=now, log=log)[0].startswith("MG06")
+    assert ceo_message_issues({"to": "Lead Gen", "text": "Hi team, please ensure the drafts are ready."}, now=now, log=log)[0].startswith("MG06")
     assert ceo_message_issues({"to": "Lead Gen", "text": "Please list 5 dental practices in Queens by Friday."}, now=now, log=log) == []
