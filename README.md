@@ -5,7 +5,7 @@ search.** ramen-agents gives you a lead finder, a research analyst, a package de
 agent that steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account,
 spend money, or collect personal data: that fence is in the code, not in a prompt.
 
-[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [The fence](FENCE.md) · [FAQ](#faq) · [Run it for real](#run-it-for-real) · Apache-2.0
+[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [The fence](FENCE.md) · [FAQ](#faq) · [Run it for real](#run-it-for-real) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
 ---
 

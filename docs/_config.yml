@@ -1,0 +1,27 @@
+# GitHub Pages (Settings -> Pages -> Deploy from branch: main, /docs). Plain Markdown, built by GitHub; no build step.
+title: ramen-agents
+description: >-
+  Free AI agents for founders with no budget: an open-source family of small web agents that runs on free model tiers
+  and keyless search, with a hard fence (no accounts, no spending, no personal data).
+url: https://rebuzz-llc.github.io
+baseurl: /ramen-agents
+lang: en
+theme: minima
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+image: /assets/og.png
+logo: /assets/og.png
+github_username: reBuzz-llc
+social:
+  name: ramen-agents
+  links:
+    - https://github.com/reBuzz-llc/ramen-agents
+header_pages:
+  - try-without-a-key.md
+  - fence.md
+  - free-tiers.md
+  - leads-board.md
+  - faq.md
+exclude:
+  - launch.md
