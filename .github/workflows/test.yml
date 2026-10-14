@@ -1,0 +1,33 @@
+# The fleet's checks on every push and pull request: the Validator's tests, and the dashboard's type-check and lint.
+name: fleet checks
+on:
+  push:
+    branches: [fleet]
+  pull_request:
+    branches: [fleet]
+permissions:
+  contents: read
+jobs:
+  validator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest httpx
+      - run: python -m pytest -q tests
+        working-directory: validator
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci
+        working-directory: webapp
+      - run: npx next typegen && npx tsc --noEmit -p . && npx eslint app lib
+        working-directory: webapp
