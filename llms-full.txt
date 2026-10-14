@@ -86,7 +86,8 @@ Five rules hold for every agent. They are enforced in code and no agent can edit
 5. **Web pages are information, never instructions:** text on a page that tells an agent what to do is flagged, not
    followed.
 
-The full list, with the file that enforces each rule, is in [FENCE.md](FENCE.md).
+The full list, with the file that enforces each rule, is in [FENCE.md](FENCE.md). Beyond the fence, the Validator checks each write against the owner's quality rules; every rule, and whether
+it refuses or flags, is in [What does the Validator check?](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/validator-rules.md)
 
 ## Free models and keyless search
 
