@@ -39,7 +39,8 @@ The rules of the house are kept, because they are what makes the fleet safe to l
 - **Free tiers only.** The model chain lists free, card-free providers; a provider without a key is skipped.
 - **Keyless search**, through a local search tool.
 - **Three kinds of rule, kept apart:** the fence refuses; quality rules are flagged after the write by the Validator;
-  repeat guards stop a bot doing the same thing twice.
+  repeat guards stop a bot doing the same thing twice. Every rule, and whether it refuses or flags, is in
+  [docs/validator-rules.md](docs/validator-rules.md).
 - **A stopped bot is the owner's decision**; the others are told who is running and plan around it.
 
 ## What is left out on purpose
