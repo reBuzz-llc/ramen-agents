@@ -461,6 +461,11 @@ class Controller:
         except KeyboardInterrupt:
             event(self.logger, "stop", reason="keyboard interrupt")
             return 0
+        except Exception as e:
+            # one timed line per crash, so the dashboard can count crashes per day (launchd.err.log lines carry no time)
+            lines = str(e).strip().splitlines()
+            event(self.logger, "run_loop_crashed", exception=type(e).__name__, message=(lines[0] if lines else "")[:300])
+            raise
         finally:
             self.heartbeat.tick(self.cycle_no, "exiting", force=True)
             self.memory.write_markdown_mirrors()
