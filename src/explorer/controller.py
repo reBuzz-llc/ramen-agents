@@ -447,6 +447,8 @@ class Controller:
                     continue
                 self._watchdog()
                 self._auto_fill_from_places()
+                if self._rest_if_idle():
+                    continue
                 self._cycle()
                 done += 1
                 if self.exit_code is not None:
@@ -465,6 +467,53 @@ class Controller:
             self.browser.close()
             if self.desktop is not None:
                 self.desktop.close()
+
+    def _idle_reason(self) -> str:
+        """Why this bot has nothing to do now ("" = it has work); see [agent] idle_when_empty."""
+        cfg, m = self.cfg, self.memory
+        if not cfg.agent.idle_when_empty:
+            return ""
+        try:
+            if self.inbox.unread(1) or m.unseen_owner_messages(1):
+                return ""
+            L = cfg.leads
+            listed = L.enabled and bool(L.decide_glob.strip() or L.draft_queue_column.strip())
+            list_done = ""
+            if listed:
+                if 0 < L.max_updates_per_day <= m.count_actions_today("update_lead"):
+                    list_done = f"today's {L.max_updates_per_day} row updates are done"
+                elif not self._decide_lines():
+                    list_done = "the work list is empty"
+            if self.notion is None or cfg.notion.max_tasks_per_day <= 0:
+                return list_done                         # a list bot (Writer, Enricher): its list is its work
+            if listed and not list_done:
+                return ""
+            # a bot with a task skill (The CEO): its day's task and messages are its work too
+            caps = [("tasks", m.count_tasks_today(), cfg.notion.max_tasks_per_day)]
+            if cfg.messaging.enabled and cfg.messaging.max_per_day > 0:
+                caps.append(("messages", m.count_actions_today("message"), cfg.messaging.max_per_day))
+            if all(n >= cap for _, n, cap in caps):
+                return ", ".join(([list_done] if list_done else []) + ["today's " + " and ".join(f"{name} ({cap})" for name, _, cap in caps) + " are done"])
+        except Exception:  # noqa: BLE001 - a counting problem never stops the work
+            return ""
+        return ""
+
+    def _rest_if_idle(self) -> bool:
+        """With nothing to do, skip the model call and rest up to idle_minutes, waking early for a message or a stop."""
+        reason = self._idle_reason()
+        if not reason:
+            return False
+        event(self.logger, "resting", reason=reason, minutes=self.cfg.agent.idle_minutes)
+        self.heartbeat.tick(self.cycle_no, f"resting: {reason}")
+        end = time.time() + max(1.0, self.cfg.agent.idle_minutes * 60)
+        while time.time() < end and not self.should_stop() and not pause_requested(self.cfg):
+            self._sleep(min(30.0, end - time.time()))
+            try:
+                if self.inbox.unread(1) or self.memory.unseen_owner_messages(1):
+                    break
+            except Exception:  # noqa: BLE001
+                break
+        return True
 
     def _quiet_hold(self) -> bool:
         """While the owner is using the Mac, do nothing that costs GPU or memory. True means held.
