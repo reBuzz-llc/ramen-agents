@@ -306,3 +306,24 @@ def test_three_refused_notes_or_tasks_end_that_type_for_the_episode():
     p2 = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=NotionConfig(enabled=True))
     c2 = ctx(); c2.refused_tasks_in_episode = 3
     assert "no more tasks" in p2.check(Task(type="task", title="x" * 20, details="y" * 320), c2).reason
+
+
+def test_a_malformed_address_is_refused_not_crashed():
+    # Lead Gen died 28 times on 2026-10-27 on "host:host": httpx raised InvalidURL deep inside the robots fetch.
+    policy = make_policy()
+    for url in ("https://www.caswellpowellfilming.com:www.caswellpowellfilming.com", "https://:example.com/x"):
+        v = policy.check(Open(type="open", url=url), ctx())
+        assert not v.allowed and "not a valid web address" in v.reason
+
+
+def test_robots_cache_survives_a_fetch_that_raises():
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        raise ValueError("Invalid port")
+
+    robots = RobotsCache("RoamExplorer/0.1", fetch=fetch)
+    assert robots.can_fetch("https://site.example/a")
+    assert robots.can_fetch("https://site.example/b")
+    assert calls == ["https://site.example/robots.txt"]  # cached as unreadable for the TTL

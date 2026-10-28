@@ -206,6 +206,8 @@ class LightBrowser:
         self.last_source = "text"
         try:
             final, status, ctype, body = self._fetch(url)
+        except httpx.InvalidURL:  # a malformed address such as "host:host" (not a ValueError; crashed Lead Gen 2026-10-27)
+            return self._plain(error_page(url, "that is not a valid web address; copy it exactly from the page's link list"))
         except ValueError as exc:
             return self._plain(error_page(url, str(exc)))
         except httpx.TimeoutException:
@@ -268,7 +270,7 @@ class LightBrowser:
         refuses plain clients is asked again through Chromium, so its robots.txt is still honoured."""
         try:
             _, status, _, body = self._fetch(url, check_redirects=False)
-        except (ValueError, httpx.TimeoutException):
+        except (ValueError, httpx.InvalidURL, httpx.TimeoutException):
             return None
         except httpx.ConnectError as exc:
             detail = str(exc).lower()
