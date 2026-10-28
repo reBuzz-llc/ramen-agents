@@ -196,3 +196,34 @@ def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
                         packages_refused_today={"smb ai customer support agent setup"})
     v = policy.check(PublishPackage(type="publish_package", name="SMB AI Customer Support Agent Setup", title="T", email="e", conclusion=""), ctx)
     assert not v.allowed and "not republished again before tomorrow" in v.reason
+
+
+def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: Path):
+    """creatorCC queue 4, 2026-10-28: The CEO published one package 14 times in a week under four names."""
+    import time
+
+    from explorer.db import Database
+    from explorer.memory import Memory
+    from explorer.policy import package_key
+
+    names = ["24/7 AI Customer Support Agents for NYC Small Businesses – Setup & Management",
+             "AI Customer Support Agents for NYC Small Businesses", "24/7 AI Customer Support Agents for NYC Small Businesses"]
+    assert len({package_key(n) for n in names}) == 1
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
+    now = time.time()
+    day = lambda d: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - d * 86400))  # noqa: E731
+    recent = {package_key(names[0]): day(1)}
+    v = policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now))
+    assert not v.allowed and "published 1 day ago" in v.reason and v.permanent
+    assert policy.check(pub(), ctx(recent_package_publishes=recent, now=now)).allowed                      # a different package
+    assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={package_key(names[2])}, now=now)).allowed
+    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg"))
+    assert off.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now)).allowed            # republish_days = 0
+
+    # the window comes from the actions table: a publish 8 days ago has dropped out
+    mem = Memory(Database(":memory:"), tmp_path)
+    eid = 1
+    for d, n in ((8, names[0]), (2, "Gym AI Solutions Package")):
+        mem.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict) VALUES (?,?,?,?,?,?,?)",
+                       (day(d), 1, eid, "publish_package", f'{{"name": "{n}"}}', "", "allowed"))
+    assert [n for n, _ in mem.published_packages_since(day(7))] == ["Gym AI Solutions Package"]

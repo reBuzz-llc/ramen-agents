@@ -414,6 +414,19 @@ class Memory:
             return 0
         return int(self.db.scalar("SELECT COUNT(*) FROM actions WHERE verdict = 'allowed' AND ts >= ?", (ts,)) or 0)
 
+    def published_packages_since(self, ts: str) -> list[tuple[str, str]]:
+        """(name, ts) of accepted publish_package actions since this ISO timestamp, oldest first."""
+        rows = self.db.query("SELECT ts, payload FROM actions WHERE action_type = 'publish_package' AND verdict = 'allowed' AND ts >= ? ORDER BY ts", (ts,))
+        out = []
+        for r in rows:
+            try:
+                name = str(json.loads(r["payload"] or "{}").get("name") or "")
+            except ValueError:
+                continue
+            if name.strip():
+                out.append((name, str(r["ts"])))
+        return out
+
     def count_actions_today(self, action_type: str) -> int:
         """Accepted actions of one type since local midnight (the daily publish cap)."""
         day = dt.date.today().isoformat()
