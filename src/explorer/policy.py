@@ -520,7 +520,10 @@ class RobotsCache:
         key = f"{parsed.scheme}://{parsed.netloc}"
         entry = self._cache.get(key)
         if entry is None or time.time() - entry[1] > self.ttl:
-            text = self.fetch(key + "/robots.txt")
+            try:
+                text = self.fetch(key + "/robots.txt")
+            except Exception:  # noqa: BLE001 -- an unreadable robots.txt must never end the process
+                text = None
             parser: RobotFileParser | None = None
             if text is not None:
                 parser = RobotFileParser()
@@ -1453,6 +1456,13 @@ class Policy:
     def check_url(self, url: str, ctx: PolicyContext) -> Verdict:
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
+        if scheme in ("http", "https"):
+            try:
+                parsed.port  # "https://host:host" raised deep in httpx and killed the process (2026-10-27)
+            except ValueError:
+                return Verdict.no("that is not a valid web address; copy it exactly from the page's link list")
+            if not parsed.hostname:
+                return Verdict.no("that is not a valid web address; copy it exactly from the page's link list")
         reason = self.static_reason(url, ctx.mode)
         if reason:
             return Verdict.no(reason, permanent=True)

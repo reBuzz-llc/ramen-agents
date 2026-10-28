@@ -262,3 +262,11 @@ def test_the_model_is_told_which_engines_had_nothing(cfg):
     controller.run(max_cycles=1)
     row = controller.memory.db.query("SELECT result FROM actions ORDER BY id")[0]
     assert "(from wikipedia; marginalia had no results)" in row["result"]
+
+
+def test_a_malformed_address_is_an_error_page_not_a_crash():
+    browser, log, _ = make()
+    assert browser.fetch_text("https://www.caswellpowellfilming.com:www.caswellpowellfilming.com/robots.txt") is None
+    page = browser.open("https://www.caswellpowellfilming.com:www.caswellpowellfilming.com")
+    assert not page.ok and "not a valid web address" in page.error
+    assert log == []
