@@ -498,22 +498,29 @@ class Controller:
             return ""
         return ""
 
+    def _day_blocks_in_episode(self, episode_id: int) -> int:
+        return int(self.memory.db.scalar("SELECT COUNT(*) FROM actions WHERE episode_id = ? AND verdict LIKE ?",
+                                         (episode_id, "rejected: %stays blocked until tomorrow%"), default=0) or 0)
+
     def _rest_if_idle(self) -> bool:
         """With nothing to do, skip the model call and rest up to idle_minutes, waking early for a message or a stop."""
         reason = self._idle_reason()
         if not reason:
             return False
         event(self.logger, "resting", reason=reason, minutes=self.cfg.agent.idle_minutes)
+        self._rest(reason)
+        return True
+
+    def _rest(self, reason: str) -> None:
         self.heartbeat.tick(self.cycle_no, f"resting: {reason}")
         end = time.time() + max(1.0, self.cfg.agent.idle_minutes * 60)
         while time.time() < end and not self.should_stop() and not pause_requested(self.cfg):
-            self._sleep(min(30.0, end - time.time()))
             try:
                 if self.inbox.unread(1) or self.memory.unseen_owner_messages(1):
-                    break
+                    break                                    # a message wakes it
             except Exception:  # noqa: BLE001
                 break
-        return True
+            self._sleep(min(30.0, end - time.time()))
 
     def _quiet_hold(self) -> bool:
         """While the owner is using the Mac, do nothing that costs GPU or memory. True means held.
@@ -825,7 +832,11 @@ class Controller:
             self.heartbeat.tick(self.cycle_no, "running", self._current_url(), obs.current_question)
             self.refusal_streak += 1
             streak = self.cfg.policy.max_refusal_streak
-            if verdict.over_budget:
+            if self.cfg.agent.day_block_rest and verdict.tag == "day_block" and self._day_blocks_in_episode(ep["id"]) >= 3:
+                self._close_early(ep, "three actions already refused or done today")
+                event(self.logger, "day_block_rest", episode=ep["id"], minutes=self.cfg.agent.idle_minutes)
+                self._rest("three day-blocked actions this episode")
+            elif verdict.over_budget:
                 self._close_early(ep, "the episode was over budget and you did not summarize")
             elif streak > 0 and self.refusal_streak >= streak:
                 self._close_early(ep, f"{self.refusal_streak} refused actions in a row")
