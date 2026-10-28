@@ -1949,9 +1949,12 @@ class Policy:
                     "Note anything else as 'Possible task: ...' and decide next time"
                 )
             if ctx.tasks_today >= self.notion.max_tasks_per_day:
-                return Verdict.no(
-                    f"you have created {ctx.tasks_today} tasks today, the daily limit; take notes instead"
-                )
+                # The CEO: 971 refused task attempts in a week; with a cap of 1 the day's one task is added to instead
+                # (creatorCC queue 5, 2026-10-28)
+                if self.notion.max_tasks_per_day == 1:
+                    return Verdict.no("today's task exists; add to it with update_task", permanent=True)
+                return Verdict.no(f"you have created {ctx.tasks_today} tasks today, the daily limit; add to one of them with update_task",
+                                  permanent=True)
             return Verdict.ok()
 
         if isinstance(action, UpdateTask):
