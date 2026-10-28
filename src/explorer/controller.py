@@ -70,7 +70,7 @@ from .memory import Memory, now_iso
 from .plan import OwnerWorkPlan, WorkPlan, load_plan, save_plan
 from .model import Model
 from .notion import NotionClient, page_id_from_url
-from .policy import Policy, PolicyContext, Verdict, is_meta_topic, url_domain
+from .policy import Policy, PolicyContext, Verdict, is_meta_topic, package_key, url_domain
 from .presence import QuietDetector
 from .prompts import CONSOLIDATION_PROMPT, DAILY_JOURNAL_PROMPT, Observation, journal_system_prompt, system_prompt
 from .handoff import Inbox, find_package, send_message, send_package
@@ -1526,6 +1526,8 @@ class Controller:
             "paces_today": lambda: memory.count_actions_today("pace_member"),
             "lead_updates_today": lambda: memory.count_actions_today("update_lead"),
             "packages_refused_today": lambda: self._packages_refused_today(),
+            "recent_package_publishes": lambda: self._recent_package_publishes(),
+            "republish_request_keys": lambda: {package_key(n) for n in self._republish_requests()},
             "team": lambda: self.team,
             "providers_in_episode": lambda: memory.count_actions(eid, "provider"),
             "providers_today": lambda: memory.count_actions_today("provider"),
@@ -3550,6 +3552,14 @@ class Controller:
             True, f"updated lead '{str(row['name'])[:60]}' ({', '.join(changed)})", True,
             feedback=f"Lead updated ({', '.join(changed)}). It is fixed now; do not update it again for the same thing.{note}",
         )
+
+    def _recent_package_publishes(self) -> dict[str, str]:
+        """package_key -> when it last went up, within notion.republish_days (the weekly republish rule)."""
+        days = self.cfg.notion.republish_days
+        if days <= 0:
+            return {}
+        since = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - days * 86400))
+        return {package_key(n): ts for n, ts in self.memory.published_packages_since(since)}
 
     def _packages_refused_today(self) -> set[str]:
         """Package names whose publish_package was refused today for a 'today' reason (already replaced / published)."""

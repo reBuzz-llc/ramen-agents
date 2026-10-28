@@ -437,6 +437,10 @@ class NotionConfig:
     # email changed, once a day per package (owner, 2026-10-01: "one offer, one toggle"; 2026-10-03: the card said so
     # while the policy refused it, 100 times in two days). False = a package goes up again only when it is stale.
     package_republish_own: bool = False
+    # A package whose normalised name (package_key) went up in the last this-many days is refused unless
+    # shared-state/republish-requests.json names it. The CEO published one package 14 times in a week under four names
+    # (creatorCC queue 4, 2026-10-28). 0 = off.
+    republish_days: int = 0
     # Money figures the owner's mandated email wording carries (the portfolio line: "$500,000 ... up from $300,000"),
     # allowed in a package email although no package record has them. Every other $ figure must come from the record.
     package_email_allowed_figures: list[str] = field(default_factory=list)

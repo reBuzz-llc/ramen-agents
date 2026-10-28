@@ -366,6 +366,9 @@ class PolicyContext:
     paces_today: int = 0  # pace_member actions accepted today
     lead_updates_today: int = 0  # update_lead actions accepted today
     packages_refused_today: set[str] = field(default_factory=set)  # package names whose republish was refused today
+    # package_key -> ISO time it last went up, within notion.republish_days; and the keys a republish request names
+    recent_package_publishes: dict[str, str] = field(default_factory=dict)
+    republish_request_keys: set[str] = field(default_factory=set)
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
@@ -534,6 +537,14 @@ class RobotsCache:
         if parser is None:
             return True
         return parser.can_fetch(self.user_agent, url)
+
+
+def package_key(name: str) -> str:
+    """A package name for the weekly republish rule: lower case, no "24/7", nothing after a spaced dash ("– Setup &
+    Management"), no punctuation. Four names of one package (2026-10-21..28) come out the same."""
+    text = re.sub(r"\b24\s*/\s*7\b", " ", (name or "").lower())
+    text = re.split(r"\s[–—-]\s", text, maxsplit=1)[0]
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
 PRIORITY_WORK_TYPES = frozenset({"search", "open", "follow", "read", "back", "summarize", "update_lead", "lead", "plan", "package"})  # package: the handoff answers "send me the record"  # plan: the first step of a job  # allowed while a priority ask waits (summarize: the episode must be able to close)
@@ -1060,6 +1071,15 @@ class Policy:
             # 2026-10-10: 118 refused republish attempts of one package in a day, a fresh try every episode. Checked after
             # the headline-to-toggle mapping above: the model names the package by its headline, the record by its name.
             return Verdict.no(f"'{name[:60]}' was refused today already; it is not republished again before tomorrow. Do something else.", permanent=True)
+        key = package_key(name)
+        last = ctx.recent_package_publishes.get(key) if self.notion.republish_days > 0 else None
+        if last and key not in ctx.republish_request_keys:
+            try:
+                ago = max(0, int((ctx.now - time.mktime(time.strptime(last[:19], "%Y-%m-%dT%H:%M:%S"))) // 86400))
+            except ValueError:
+                ago = 0
+            return Verdict.no(f"'{name[:60]}' was published {ago} day{'' if ago == 1 else 's'} ago; a package is republished at most once "
+                              f"a week unless a republish request names it. Do something else.", permanent=True)
         if (self.notion.package_republish_own and name.lower() in on_page
                 and str(on_page[name.lower()].get("day", "")) == time.strftime("%Y-%m-%d")
                 and not str(ctx.republish_reasons.get(name.lower(), "")).startswith(("written in pitch format", "the Package Designer re-sent"))):
