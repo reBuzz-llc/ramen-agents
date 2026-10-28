@@ -3376,7 +3376,8 @@ class Controller:
             f = row.get("fields") or {}
             if not str(self.cfg.browser.places_db).strip():
                 break                                   # no places snapshot configured: nothing to match against
-            place = find_place(name, str(f.get("Location") or ""), Path(str(self.cfg.browser.places_db)).expanduser(), str(f.get("Website") or ""))
+            place = find_place(name, str(f.get("Location") or ""), Path(str(self.cfg.browser.places_db)).expanduser(), str(f.get("Website") or ""),
+                               industry=str(f.get("Industry") or ""), size=str(f.get("Company size") or ""))
             if not place:
                 continue
             fields: dict[str, str] = {}
