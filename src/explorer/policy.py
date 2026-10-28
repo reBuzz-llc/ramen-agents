@@ -1626,7 +1626,7 @@ class Policy:
         if (key and key in ctx.day_blocked_keys) or f"{action.type}:*" in ctx.day_blocked_keys:
             # owner, 2026-10-14 ("do less but more quality work"): a third of all actions were repeats of something
             # already done or refused that day
-            return Verdict.no("that was refused or done already today; it stays blocked until tomorrow. Do something different.")
+            return Verdict.no("that was refused or done already today; it stays blocked until tomorrow. Do something different.", tag="day_block")
 
         budget_left = self.cfg.max_actions_per_episode - ctx.actions_in_episode
         if budget_left <= 0 and action.type != "summarize":

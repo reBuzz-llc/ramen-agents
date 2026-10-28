@@ -70,6 +70,10 @@ class AgentConfig:
     # message is unread. Logged as a "resting" event; it looks again after idle_minutes.
     idle_when_empty: bool = False
     idle_minutes: float = 30.0
+    # Three day-blocked refusals in one episode end it (summarized as usual) and the bot rests idle_minutes before the
+    # next, waking for a message (creatorCC queue 9, 2026-10-28: Package Designer searched one query 90 times after its
+    # day block; Lead Gen 631 day-blocked opens in a week).
+    day_block_rest: bool = False
     # A plan with no step ticked for this many hours ends "stuck" by itself (Package Designer sat 45 hours and 2,192 actions on
     # one plan with nothing done, 2026-10-14). 0 = never.
     plan_stuck_hours: float = 6.0
