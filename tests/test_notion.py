@@ -407,3 +407,25 @@ def test_no_bot_write_carries_the_human_only_result_columns():
     fake = FakeNotion()
     fake.create_row("Maple Diner", {"Website": "https://maplediner.example", "Result": "Client"})
     assert "Result" not in fake.rows[0]
+
+
+def test_one_task_a_day_and_the_rest_goes_into_it(tmp_path):
+    """creatorCC queue 5, 2026-10-28: The CEO made 971 refused task attempts in a week; with a cap of 1 it adds to its task."""
+    import datetime as dt
+
+    from explorer.actions import UpdateTask
+    from explorer.db import Database
+    from explorer.memory import Memory
+
+    policy = make_policy(NotionConfig(enabled=True, database_id="x", max_tasks_per_day=1))
+    assert policy.check(task(), ctx(tasks_today=0)).allowed
+    second = policy.check(task(title="Another batch"), ctx(tasks_today=1))
+    assert not second.allowed and second.permanent and second.reason == "today's task exists; add to it with update_task"
+    upd = policy.check(UpdateTask(type="update_task", title="Draft the pricing page", details_append="two more rows"),
+                       ctx(tasks_today=1, recent_task_titles={"draft the pricing page"}))
+    assert upd.allowed, upd.reason
+    # the count is today's: yesterday's task does not hold today's back
+    mem = Memory(Database(":memory:"), tmp_path)
+    yesterday = (dt.date.today() - dt.timedelta(days=1)).isoformat() + "T23:00:00"
+    mem.db.execute("INSERT INTO tasks (created_at, title, details) VALUES (?, ?, ?)", (yesterday, "old", "d"))
+    assert mem.count_tasks_today() == 0
