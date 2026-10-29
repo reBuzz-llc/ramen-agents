@@ -1075,7 +1075,7 @@ class Policy:
         last = ctx.recent_package_publishes.get(key) if self.notion.republish_days > 0 else None
         asked = ctx.republish_request_keys.get(key)
         # a request lets a key up once: one written before the key's last publish was already served (2026-10-29: three
-        # requests under three spellings of one package let it up three times in four hours)
+        # requests under different spellings of one package let it up again and again within hours)
         if last and not (asked is not None and (not asked or asked[:19] > last[:19])):
             try:
                 ago = max(0, int((ctx.now - time.mktime(time.strptime(last[:19], "%Y-%m-%dT%H:%M:%S"))) // 86400))
