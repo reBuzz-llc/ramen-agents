@@ -370,12 +370,12 @@ def test_whatsapp_drafts_and_map_links(cfg, tmp_path):
         ("1", "Corner Cafe", "corner cafe", "cafe", "http://www.cornercafe.com/", None, "", "12 Main St", "New York", "10003", 0.99, "open", 40.7367, -73.9878, "NY"),
         ("2", "Corner Cafe", "corner cafe", "cafe", "http://www.cornercafe.com/", None, "", "8 Elm Ave", "Brooklyn", "11222", 0.99, "open", 40.7249, -73.9509, "NY"),
         ("3", "Harbor Restaurant", "harbor restaurant", "restaurant", None, None, "", "40 Oak St", "New York", "10009", 0.5, "open", 40.7, -73.9, "NY"),
-        ("4", "Bay Bakery", "bay bakery", "bakery", "http://balthazarbakery.net/", None, "", "1 Main", "Englewood", "07631", 0.95, "open", 40.89, -73.97, "NJ"),
+        ("4", "Bay Bakery", "bay bakery", "bakery", "http://harborloaves.net/", None, "", "1 Main", "Englewood", "07631", 0.95, "open", 40.89, -73.97, "NJ"),
         ("5", "Burger Spot", "burger spot", "burger", None, None, "", "2 Ave", "Clifton", "07011", 0.9, "open", 40.86, -74.16, "NJ")])
     con.commit(); con.close()
     assert map_link("Corner Cafe", "", db, website="https://www.cornercafe.com") is None  # two places of that name: a chain, no guess
     assert map_link("Corner Cafe", "Brooklyn, NY, USA", db) is None  # same: one store's address would misplace the business
-    assert map_link("Bay Bakery", "Englewood, NJ, USA", db, website="https://balthazarbakery.net") is None  # NJ: outside the market
+    assert map_link("Bay Bakery", "Englewood, NJ, USA", db, website="https://harborloaves.net") is None  # NJ: outside the market
     assert map_link("Harbor Restaurant", "New York, NY", db) is None  # below the confidence floor
     assert map_link("Bay Bakery", "New York, NY, USA", db, website="https://baybakery.example") is None  # NJ place, other domain
     assert map_link("Burger Spot", "New York, NY, USA", db) is None  # NJ: outside the market
@@ -624,7 +624,7 @@ def test_daily_journal_is_one_data_led_entry_a_day(cfg):
 
 
 def test_the_third_refusal_of_the_same_action_blocks_it_for_the_day(cfg):
-    """the Validator session, 2026-10-14: the Enricher tried Studio One 138 times in a day. Whatever the reason, the third refusal
+    """the Validator session, 2026-10-14: the Enricher tried one business dozens of times in a day. Whatever the reason, the third refusal
     of the same key is the last one today."""
     from explorer.actions import UpdateLead
     from explorer.policy import PolicyContext, Verdict
