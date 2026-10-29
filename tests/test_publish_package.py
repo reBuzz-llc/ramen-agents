@@ -216,7 +216,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     v = policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now))
     assert not v.allowed and "published 1 day ago" in v.reason and v.permanent
     assert policy.check(pub(), ctx(recent_package_publishes=recent, now=now)).allowed                      # a different package
-    assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={package_key(names[2])}, now=now)).allowed
+    assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={package_key(names[2]): ""}, now=now)).allowed
     off = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg"))
     assert off.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now)).allowed            # republish_days = 0
 
@@ -227,3 +227,33 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
         mem.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict) VALUES (?,?,?,?,?,?,?)",
                        (day(d), 1, eid, "publish_package", f'{{"name": "{n}"}}', "", "allowed"))
     assert [n for n, _ in mem.published_packages_since(day(7))] == ["Gym AI Solutions Package"]
+
+
+def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cfg, tmp_path: Path, monkeypatch):
+    """creatorCC queue 13, 2026-10-29: requests under three spellings of one package let it up three times in four hours."""
+    import json
+    import time
+
+    from explorer.controller import Controller
+    from explorer.policy import package_key
+
+    names = ["24/7 AI Customer Support Agents for NYC Small Businesses", "24/7 AI Customer Support Agents for NYC Small Businesses – Setup & Management",
+             "AI Customer Support Agents for NYC Small Businesses"]
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
+    now = time.time()
+    at = lambda h: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - h * 3600))  # noqa: E731
+    key = package_key(names[0])
+    recent = {key: at(2)}
+    # a request written after the last publish lets it up; one written before that publish was already served
+    assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={key: at(1)}, now=now)).allowed
+    v = policy.check(pub(name=names[2]), ctx(recent_package_publishes=recent, republish_request_keys={key: at(30)}, now=now))
+    assert not v.allowed and "at most once a week" in v.reason
+
+    # publishing one spelling drops the requests for all three
+    path = tmp_path / "republish-requests.json"
+    path.write_text(json.dumps([{"name": n, "reason": "PK04", "requested_at": at(30)} for n in names] + [{"name": "Gym AI Solutions Package", "reason": "PK01"}]))
+    monkeypatch.setattr(Controller, "REPUBLISH_REQUESTS", path)
+    c = Controller.__new__(Controller)
+    assert c._republish_request_keys() == {key: at(30), package_key("Gym AI Solutions Package"): ""}
+    c._drop_republish_request(names[2])
+    assert [d["name"] for d in json.loads(path.read_text())] == ["Gym AI Solutions Package"]
