@@ -116,8 +116,8 @@ export async function jsonlTexts(logsDir: string, from: number): Promise<string[
   const texts = await Promise.all(
     files.map(async (f) => {
       try {
-        if ((await stat(f)).mtimeMs < from) return "";
-        return await readFile(f, "utf8");
+        if ((await stat(/*turbopackIgnore: true*/ f)).mtimeMs < from) return "";
+        return await readFile(/*turbopackIgnore: true*/ f, "utf8");
       } catch {
         return "";
       }

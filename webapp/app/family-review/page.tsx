@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { hm, type Downtime, type Span } from "@/lib/downtime";
 import { OUTPUT_TYPES, type Okr, type Window } from "@/lib/family-stats";
+import type { Provider } from "@/lib/health";
 import { Suspense } from "react";
 import HealthBanner from "../health-banner";
 import { familyReview, teamNumbers, type FamilyRow } from "@/lib/family-review";
@@ -146,8 +147,25 @@ function KeyResults({ okr }: { okr: Okr }) {
   );
 }
 
+/** Today's model providers: calls today and a dot, green answering, red failing, grey before the engine logs health. */
+function Providers({ list }: { list: Provider[] }) {
+  if (!list.length) return null;
+  return (
+    <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-3 text-xs text-muted">
+      <span className="text-ink">Model providers today:</span>
+      {list.map((p) => (
+        <span key={p.host} className="whitespace-nowrap tabular-nums" title={p.ok === null ? "no health logged yet" : p.ok ? "answering" : "failing"}>
+          <span aria-hidden className={`mr-1 inline-block h-2 w-2 rounded-full ${p.ok === null ? "bg-fill-3" : p.ok ? "bg-good" : "bg-bad"}`} />
+          {p.host}: {p.calls}
+          <span className="sr-only">{p.ok === null ? " (no health yet)" : p.ok ? " (answering)" : " (failing)"}</span>
+        </span>
+      ))}
+    </p>
+  );
+}
+
 /** The team's sending, streamed in after the table (a cold read of the Leads board takes a few seconds). */
-async function Team({ okr }: { okr: Okr | null }) {
+async function Team({ okr, providers }: { okr: Okr | null; providers: Provider[] }) {
   const team = await teamNumbers();
   return (
     <section className="mt-5 rounded-xl bg-panel px-4 py-3">
@@ -171,6 +189,7 @@ async function Team({ okr }: { okr: Okr | null }) {
         <p className="mt-1 text-sm text-muted">{team.reason}</p>
       )}
       {okr ? <KeyResults okr={okr} /> : null}
+      <Providers list={providers} />
     </section>
   );
 }
@@ -290,7 +309,7 @@ export default async function FamilyReviewPage(props: { searchParams: Promise<{ 
           </section>
         }
       >
-        <Team okr={data.okr} />
+        <Team okr={data.okr} providers={data.providers} />
       </Suspense>
 
       <section className="mt-5 rounded-xl bg-panel px-4 py-3">

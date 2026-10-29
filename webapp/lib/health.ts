@@ -3,7 +3,7 @@
 //   (a) the Validator's last_run older than 8 h, or its last_full_sweep older than 30 h;
 //   (b) an unplanned reboot (no shutdown logged) in the last 24 h;
 //   (c) a running bot with no accepted action for 2 h of time it was awake: not quiet, not resting, Mac not off.
-//   (d) the provider line waits for valiCC's queue 16.
+//   (d) the main model provider (most calls today) failing for over an hour, from model_calls.json "health".
 // The checks are pure functions over the files' text, so the tests run them on fixtures; health() reads the files.
 // Node imports only.
 
@@ -91,4 +91,44 @@ export function idleIssue(name: string, lastAccepted: string | null, rests: Inte
   if (awake < IDLE_MIN) return null;
   const h = Math.floor(awake / 60);
   return { key: `idle:${name}`, since: lastAccepted, text: `${name} has had no accepted action since ${hhmm(lastAccepted)} (${h} h ${Math.round(awake % 60)} min awake, not resting).` };
+}
+
+export type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: string; first_fail?: string };
+export type Provider = { host: string; calls: number; ok: boolean | null };
+type ModelCalls = { counts?: Record<string, number>; health?: Record<string, ProviderHealth> };
+
+function modelCalls(text: string): ModelCalls {
+  try {
+    return JSON.parse(text) as ModelCalls;
+  } catch {
+    return {};
+  }
+}
+
+/** Failing: its last failure is newer than its last answer (or it never answered). null: no health line for it yet. */
+const failing = (h: ProviderHealth | undefined): boolean | null => (h?.last_fail ? !h.last_ok || h.last_fail > h.last_ok : h?.last_ok ? false : null);
+
+/** Today's providers, most calls first, with a health dot (null while the engine has written no health for it). */
+export function providerStrip(text: string): Provider[] {
+  const m = modelCalls(text);
+  return Object.entries(m.counts ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([host, calls]) => {
+      const f = failing(m.health?.[host]);
+      return { host, calls, ok: f === null ? null : !f };
+    });
+}
+
+/** (d) The main provider (the most calls today) has been failing for over an hour: from first_fail (engine d465e06: set
+ *  on the first failure after a success, cleared by the next), so a Mac-off gap is no outage; a record from before
+ *  that engine falls back to its last answer (or, if it never answered, its last failure). Missing health = no condition. */
+export function providerIssue(text: string, now: number): Issue | null {
+  const m = modelCalls(text);
+  const main = providerStrip(text)[0]?.host;
+  const h = main ? m.health?.[main] : undefined;
+  if (!main || !h || !failing(h)) return null;
+  const since = h.first_fail ?? h.last_ok ?? h.last_fail ?? "";
+  if (!since || ageH(since, now) <= 1) return null;
+  const reason = (h.last_reason ?? "").trim();
+  return { key: "provider", since, text: `The main model provider ${main} has not answered since ${hhmm(since)}${reason ? ` (${reason})` : ""}.` };
 }
