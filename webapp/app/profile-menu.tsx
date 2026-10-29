@@ -149,6 +149,17 @@ export default function ProfileMenu({ identity }: { identity: Identity }) {
               <Icon name="chevron-right" className="h-3.5 w-3.5 text-muted" />
             </Link>
             <Link
+              href="/family-review"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 rounded-[0.875rem] px-2.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-fill-3"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-[8px] text-[#1a0d00]" style={{ background: "#ff6600" }}>
+                <Icon name="check" className="h-4 w-4" />
+              </span>
+              <span className="flex-1">Family review</span>
+              <Icon name="chevron-right" className="h-3.5 w-3.5 text-muted" />
+            </Link>
+            <Link
               href="/requests"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-[0.875rem] px-2.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-fill-3"
