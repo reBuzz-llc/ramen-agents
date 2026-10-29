@@ -1592,7 +1592,7 @@ class Controller:
             "lead_updates_today": lambda: memory.count_actions_today("update_lead"),
             "packages_refused_today": lambda: self._packages_refused_today(),
             "recent_package_publishes": lambda: self._recent_package_publishes(),
-            "republish_request_keys": lambda: {package_key(n) for n in self._republish_requests()},
+            "republish_request_keys": self._republish_request_keys,
             "team": lambda: self.team,
             "providers_in_episode": lambda: memory.count_actions(eid, "provider"),
             "providers_today": lambda: memory.count_actions_today("provider"),
@@ -3132,13 +3132,29 @@ class Controller:
                 out[str(item["name"]).strip().lower()] = str(item.get("reason", "")).strip()[:200]
         return out
 
-    def _drop_republish_request(self, name: str) -> None:
+    def _republish_request_keys(self) -> dict[str, str]:
+        """package_key -> the newest requested_at among the requests for it ("" when a request carries no date)."""
         import json
-        if name.strip().lower() not in self._republish_requests():
+        try:
+            data = json.loads(self.REPUBLISH_REQUESTS.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        out: dict[str, str] = {}
+        for item in data if isinstance(data, list) else []:
+            if isinstance(item, dict) and str(item.get("name", "")).strip():
+                k, at = package_key(str(item["name"])), str(item.get("requested_at") or "")
+                out[k] = max(out.get(k, at), at)
+        return out
+
+    def _drop_republish_request(self, name: str) -> None:
+        """A publish serves every request for its package_key, whatever spelling the request used."""
+        import json
+        key = package_key(name)
+        if key not in {package_key(n) for n in self._republish_requests()}:
             return
         try:
             data = json.loads(self.REPUBLISH_REQUESTS.read_text(encoding="utf-8"))
-            data = [d for d in data if not (isinstance(d, dict) and str(d.get("name", "")).strip().lower() == name.strip().lower())]
+            data = [d for d in data if not (isinstance(d, dict) and package_key(str(d.get("name", ""))) == key)]
             self.REPUBLISH_REQUESTS.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
         except (OSError, ValueError):
             pass
