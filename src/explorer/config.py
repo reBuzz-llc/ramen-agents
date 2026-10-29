@@ -219,7 +219,7 @@ class BrowserConfig:
 
 
 SEARCH_ENGINES = ("corpus", "yc", "searxng", "marginalia", "wikipedia", "hn", "browser", "brave-web", "tavily", "langsearch", "freeserp", "freeserp-sites", "parallel", "duckduckgo-mcp", "places")  # brave-web: old name of browser
-PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind"})
+PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "cooldown_minutes", "calls_per_day", "kind", "reasoning_effort", "max_tokens"})
 
 # OpenAI-compatible providers this project knows how to reach: drop a key at
 # ~/bots/common-data/keys/<name>.key and, when model.auto_discover_providers is on, it joins the

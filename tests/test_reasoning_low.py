@@ -51,3 +51,13 @@ def test_gemini_3_gets_a_low_thinking_level_and_a_2048_cap_and_an_older_model_no
     assert g3["thinkingConfig"] == {"thinkingLevel": "low"} and g3["maxOutputTokens"] == 2048
     lite = _gemini_body("gemini-flash-lite-latest")
     assert "thinkingConfig" not in lite and lite["maxOutputTokens"] == 2048
+
+
+def test_the_shared_config_with_the_new_keys_loads(tmp_path):
+    from explorer.config import load_config
+    (tmp_path / "config.toml").write_text('[model]\nprovider = "remote"\nprovider_chain = ["groq"]\ngemini_thinking_level = "low"\n'
+                                          'gemini_max_output_tokens = 2048\n\n[model.providers.groq]\nbase_url = "https://api.groq.com/openai/v1"\n'
+                                          'model = "openai/gpt-oss-120b"\nreasoning_effort = "low"\nmax_tokens = 1200\n')
+    c = load_config(tmp_path / "config.toml")
+    p = provider_config("groq", c.model)
+    assert (p.reasoning_effort, p.max_tokens, c.model.gemini_thinking_level, c.model.gemini_max_output_tokens) == ("low", 1200, "low", 2048)
