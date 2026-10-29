@@ -60,6 +60,7 @@ keys and two Notion boards.
 
 - Dashboard: http://127.0.0.1:3000 (chat with a bot, stop and start bots, the Work plan page with each bot's refusal rate).
 - Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. Never `launchctl kickstart -k` on a bot.
+- Stopped a bot for good (it has a STOP file)? `sh scripts/disable-bot.sh <slug>` unloads its launchd jobs and marks them disabled, so launchd stops relaunching it every 30 s and a reboot does not load it again. `sh scripts/enable-bot.sh <slug>` undoes that and leaves the STOP file; `restart-bot.sh` is still what runs the bot.
 - A day's review: `~/Projects/bot/.venv/bin/python scripts/review.py --date YYYY-MM-DD`.
 - Push both repositories: `sh scripts/push-all.sh`.
 
