@@ -199,7 +199,7 @@ def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
 
 
 def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: Path):
-    """creatorCC queue 4, 2026-10-28: The CEO published one package 14 times in a week under four names."""
+    """creatorCC queue 4, 2026-10-28: The CEO published one package many times in a week under several names."""
     import time
 
     from explorer.db import Database
