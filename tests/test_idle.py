@@ -31,17 +31,17 @@ def test_a_bot_with_an_empty_work_list_rests_without_a_model_call(cfg):
 
 
 def test_a_row_on_the_list_or_a_message_wakes_it(cfg):
-    assert _enricher(cfg, ["Pylos"])._idle_reason() == ""
+    assert _enricher(cfg, ["Kestrel"])._idle_reason() == ""
     c = _enricher(cfg, [])
-    send_message(cfg.root, "The CEO", "please fill Mokbar's map link")
+    send_message(cfg.root, "The CEO", "please fill Tamarind's map link")
     assert c._idle_reason() == ""
 
 
 def test_the_update_cap_reached_is_rest_too_and_off_by_default(cfg):
-    c = _enricher(cfg, ["Pylos"])
+    c = _enricher(cfg, ["Kestrel"])
     cfg.leads.max_updates_per_day = 1
     c.memory.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict) VALUES (?,?,?,?,?,?,?)",
-                        (time.strftime("%Y-%m-%dT%H:%M:%S"), 1, 1, "update_lead", json.dumps({"name": "Pylos"}), "", "allowed"))
+                        (time.strftime("%Y-%m-%dT%H:%M:%S"), 1, 1, "update_lead", json.dumps({"name": "Kestrel"}), "", "allowed"))
     assert c._idle_reason() == "today's 1 row updates are done"
     cfg.agent.idle_when_empty = False
     assert c._idle_reason() == ""
@@ -61,7 +61,7 @@ def test_the_ceo_rests_when_its_task_and_message_caps_are_both_reached(cfg):
 
 
 def test_a_ceo_with_a_list_rests_only_when_the_list_and_its_caps_are_done(cfg):
-    c = _enricher(cfg, ["BurgerFi"])
+    c = _enricher(cfg, ["Grillhaus"])
     cfg.notion.enabled, cfg.notion.database_id, cfg.notion.max_tasks_per_day = True, "x", 1
     cfg.messaging.enabled, cfg.messaging.max_per_day = True, 1
     c.notion = FakeNotion()
@@ -69,7 +69,7 @@ def test_a_ceo_with_a_list_rests_only_when_the_list_and_its_caps_are_done(cfg):
     c.memory.db.execute("INSERT INTO tasks (created_at, title, details) VALUES (?, ?, ?)", (now, "today's batch", "d"))
     c.memory.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict) VALUES (?,?,?,?,?,?,?)",
                         (now, 1, 1, "message", "{}", "", "allowed"))
-    assert c._idle_reason() == ""                                       # BurgerFi still waits for its package
+    assert c._idle_reason() == ""                                       # Grillhaus still waits for its package
     (cfg.root.parent / "common-data" / "botBox" / "routed" / cfg.root.name / "empty-cells.md").write_text("# rows\n")
     assert c._idle_reason() == "the work list is empty, today's tasks (1) and messages (1) are done"
 
