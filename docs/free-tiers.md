@@ -19,11 +19,12 @@ After the last remote provider comes the local Ollama model, the last resort tha
 free tier first and the scarce ones last. A bot that needs a different order sets `model.provider_first`; it never gets
 its own list.
 
-`bot --config <bot>/config.toml providers` prints the chain with today's calls and tokens per provider, for example:
+`bot --config <bot>/config.toml providers` prints the chain with today's calls and tokens per provider. An example
+(made-up numbers):
 
 ```
 1. zai: KEY - glm-4.5-flash - free model ($0 list price), no card
-     today: decide 1026 calls/6786177 tok; write 430 calls/2568472 tok
+     today: decide 120 calls/800000 tok; write 40 calls/240000 tok
 ```
 
 ## Model providers
