@@ -33,3 +33,16 @@ def test_a_hanging_host_is_benched_for_fifteen_minutes_a_refused_one_for_two():
         m = OpenAICompatModel(ModelConfig(provider="remote", max_retries=0), groq_provider(), "k", transport=httpx.MockTransport(handler), clock=clock)
         m.decide("sys", obs())
         assert m.unavailable_until == 1000.0 + wait
+
+
+def test_first_fail_marks_where_a_run_of_failures_began_and_a_success_clears_it(tmp_path):
+    clock = Clock(1_761_700_000.0)
+    led = CallLedger(tmp_path / "calls.json", clock=clock)
+    led.note_health("gemini", False, "503")
+    first = json.loads((tmp_path / "calls.json").read_text())["health"]["gemini"]["first_fail"]
+    clock.t += 600
+    led.note_health("gemini", False, "503")
+    h = json.loads((tmp_path / "calls.json").read_text())["health"]["gemini"]
+    assert h["first_fail"] == first and h["last_fail"] > first
+    led.note_health("gemini", True)
+    assert "first_fail" not in json.loads((tmp_path / "calls.json").read_text())["health"]["gemini"]

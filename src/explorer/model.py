@@ -280,6 +280,10 @@ class CompatProvider:
     cooldown_minutes: float = 15.0
     calls_per_day: int = 0
     kind: str = "openai"  # "openai" (chat/completions) or "replicate" (predictions API)
+    # gpt-oss hosts take reasoning_effort ("low" cut groq's hidden reasoning from 287 to 24 tokens, 2026-10-29 probe);
+    # max_tokens raises this provider's output cap where its reasoning cannot be turned down (0 = the call's own)
+    reasoning_effort: str = ""
+    max_tokens: int = 0
 
 
 def load_provider_key(provider: CompatProvider) -> str | None:
@@ -327,6 +331,8 @@ def provider_config(name: str, cfg: ModelConfig) -> CompatProvider:
         cooldown_minutes=float(spec.get("cooldown_minutes", 15.0)),
         calls_per_day=int(spec.get("calls_per_day", cfg.calls_per_day)),
         kind=str(spec.get("kind", "openai")),
+        reasoning_effort=str(spec.get("reasoning_effort", "")),
+        max_tokens=int(spec.get("max_tokens", 0) or 0),
     )
 
 
@@ -367,8 +373,11 @@ class GeminiModel:
         body: dict[str, Any] = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": contents,
-            "generationConfig": {"temperature": self.cfg.temperature, "maxOutputTokens": max_tokens},
+            "generationConfig": {"temperature": self.cfg.temperature, "maxOutputTokens": max(max_tokens, self.cfg.gemini_max_output_tokens)},
         }
+        if self.cfg.gemini_thinking_level and self.cfg.gemini_model.startswith("gemini-3"):
+            # its thoughts count against maxOutputTokens: 668 of 700 by default, the reply cut at 28 (2026-10-29 probe)
+            body["generationConfig"]["thinkingConfig"] = {"thinkingLevel": self.cfg.gemini_thinking_level}
         if json_mode:
             body["generationConfig"]["responseMimeType"] = "application/json"
         try:
@@ -553,6 +562,7 @@ class OpenAICompatModel:
         )
 
     def _chat(self, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> str:
+        max_tokens = max(max_tokens, self.provider.max_tokens)
         body: dict[str, Any] = {
             "model": self.provider.model,
             "messages": messages,
@@ -565,6 +575,8 @@ class OpenAICompatModel:
             # glm-4.5-flash thinks by default and its hidden reasoning counts against max_tokens: at 700 a reply came
             # back empty or cut mid-draft (2026-10-29, the Outreach Writer's drafts ending after the greeting)
             body["thinking"] = {"type": "disabled"}
+        if self.provider.reasoning_effort:
+            body["reasoning_effort"] = self.provider.reasoning_effort
         self._pace(messages, max_tokens)
         self.last_usage = None
         try:

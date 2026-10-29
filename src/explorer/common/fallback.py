@@ -99,8 +99,10 @@ class CallLedger:
         now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.clock()))
         if ok:
             row["last_ok"] = now
+            row.pop("first_fail", None)
         else:
             row["last_fail"], row["last_reason"] = now, (reason or "no usable reply")[:200]
+            row.setdefault("first_fail", now)            # when this run of failures began: an outage is measured from it
         self._save_all(data)
 
     def add_usage(self, key: str, kind: str, prompt_tokens: int, completion_tokens: int) -> None:

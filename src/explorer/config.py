@@ -114,6 +114,9 @@ class ModelConfig:
     # More Gemini models tried right after gemini_model when it is busy (503), rate-limited or down,
     # each benched on its own, e.g. ["gemini-flash-lite-latest"]. Same key, same free tier.
     gemini_fallback_models: list[str] = field(default_factory=list)
+    # Gemini 3 thinks inside maxOutputTokens: a level ("low") for gemini-3* models, and an output cap floor (0 = the call's)
+    gemini_thinking_level: str = ""
+    gemini_max_output_tokens: int = 0
     # OpenAI-compatible providers (Groq, Cerebras, ...) for provider_chain, one table each so several
     # free tiers stack: [model.providers.groq] base_url, model (required), api_key_file (default
     # ~/bots/common-data/keys/<name>.key), optional api_key_env, cooldown_minutes (default 15; how long a
