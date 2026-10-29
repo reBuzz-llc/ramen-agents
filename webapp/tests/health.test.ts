@@ -71,7 +71,22 @@ test("(d) provider: healthy, failing under an hour, failing over an hour, health
 test("provider strip: most calls first, a dot only where health is logged", () => {
   const s = providerStrip(calls({ "api.z.ai": { last_ok: "2026-10-29T20:03:00", last_fail: "2026-10-29T21:58:00" } }));
   assert.deepEqual(s, [
-    { host: "api.z.ai", calls: 1014, ok: false },
-    { host: "api.groq.com", calls: 18, ok: null },
+    { host: "api.z.ai", label: "api.z.ai", calls: 1014, ok: false, dot: true },
+    { host: "api.groq.com", label: "api.groq.com", calls: 18, ok: null, dot: true },
   ]);
+});
+
+test("provider strip: the chain's Gemini and the Validator's judge apart; the judge is never the main provider", () => {
+  const text = JSON.stringify({
+    counts: { "generativelanguage.googleapis.com": 500, gemini: 40, "api.z.ai": 30 },
+    health: { gemini: { last_ok: "2026-10-29T21:59:00" }, "api.z.ai": { last_ok: "2026-10-29T20:00:00", last_fail: "2026-10-29T21:59:00", first_fail: "2026-10-29T20:10:00" } },
+  });
+  const s = providerStrip(text);
+  assert.deepEqual(s.map((p) => [p.label, p.calls, p.dot, p.ok]), [
+    ["Gemini (Validator judge)", 500, false, null],
+    ["Gemini", 40, true, true],
+    ["api.z.ai", 30, true, false],
+  ]);
+  // The chain's busiest is Gemini, and it answers: no banner although z.ai has failed for over an hour.
+  assert.equal(providerIssue(text, now), null);
 });
