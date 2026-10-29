@@ -94,7 +94,12 @@ export function idleIssue(name: string, lastAccepted: string | null, rests: Inte
 }
 
 export type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: string; first_fail?: string };
-export type Provider = { host: string; calls: number; ok: boolean | null };
+export type Provider = { host: string; label: string; calls: number; ok: boolean | null; dot: boolean };
+
+// Ledger keys that are not chain providers, with their label: the Validator's judge calls Gemini directly and keeps its
+// own key, with no health record (creatorCC, 2026-10-29); the chain's Gemini calls count under "gemini".
+const SIDE_KEYS: Record<string, string> = { "generativelanguage.googleapis.com": "Gemini (Validator judge)" };
+const LABELS: Record<string, string> = { gemini: "Gemini" };
 type ModelCalls = { counts?: Record<string, number>; health?: Record<string, ProviderHealth> };
 
 function modelCalls(text: string): ModelCalls {
@@ -114,17 +119,18 @@ export function providerStrip(text: string): Provider[] {
   return Object.entries(m.counts ?? {})
     .sort((a, b) => b[1] - a[1])
     .map(([host, calls]) => {
-      const f = failing(m.health?.[host]);
-      return { host, calls, ok: f === null ? null : !f };
+      const side = host in SIDE_KEYS;
+      const f = side ? null : failing(m.health?.[host]);
+      return { host, label: SIDE_KEYS[host] ?? LABELS[host] ?? host, calls, ok: f === null ? null : !f, dot: !side };
     });
 }
 
-/** (d) The main provider (the most calls today) has been failing for over an hour: from first_fail (engine d465e06: set
+/** (d) The main provider (the most calls today among the chain's) has been failing for over an hour: from first_fail (engine d465e06: set
  *  on the first failure after a success, cleared by the next), so a Mac-off gap is no outage; a record from before
  *  that engine falls back to its last answer (or, if it never answered, its last failure). Missing health = no condition. */
 export function providerIssue(text: string, now: number): Issue | null {
   const m = modelCalls(text);
-  const main = providerStrip(text)[0]?.host;
+  const main = providerStrip(text).find((p) => p.dot)?.host;
   const h = main ? m.health?.[main] : undefined;
   if (!main || !h || !failing(h)) return null;
   const since = h.first_fail ?? h.last_ok ?? h.last_fail ?? "";
