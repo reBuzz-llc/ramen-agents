@@ -8,7 +8,7 @@ import { BOTS_DIR, listBots } from "./bots";
 import { workspaceDir } from "./control";
 import { dbPath } from "./episodes";
 import { downtime, jsonlTexts, lastOutput, type Downtime } from "./downtime";
-import { awakeMinutes } from "./health";
+import { awakeMinutes, providerStrip, type Provider } from "./health";
 import { actionStats, agoWords, crashesOf, lastOwnOutput, localIso, OWN_OUTPUT, parseOkr, planSummary, query, type BotStats, type Okr, type PlanSummary } from "./family-stats";
 import { leadResults } from "./lead-results";
 
@@ -22,6 +22,7 @@ export type FamilyReview = {
   report: string; // the Validator's refusal-report.md, as written
   down: { w24: Downtime; w7: Downtime }; // Mac off and bots quiet, so a low day is not read as bad bots
   okr: Okr | null; // this week's objective and key results with the Validator's progress lines
+  providers: Provider[]; // today's model providers, most calls first, with the engine's health dot
 };
 export type TeamNumbers = { ready: boolean; reason: string; sent: number; unsent: number | null; repliesWeek: number };
 
@@ -96,10 +97,11 @@ export async function familyReview(fresh = false): Promise<FamilyReview> {
   if (!fresh && g.__familyReview && Date.now() - g.__familyReview.at < CACHE_MS) return g.__familyReview.data;
   const now = Date.now();
   const bots = await listBots();
-  const [reads, report, okr] = await Promise.all([
+  const [reads, report, okr, providers] = await Promise.all([
     Promise.all(bots.map((b) => rowOf(b, now))).then((r) => r.filter((x): x is Read => x !== null)),
     readFile(path.join(BOTS_DIR, "common-data", "shared-state", "refusal-report.md"), "utf8").catch(() => ""),
     readFile(path.join(BOTS_DIR, "common-data", "botBox", "routed", "the-ceo", "okr-week.md"), "utf8").then(parseOkr, () => null),
+    readFile(path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json"), "utf8").then(providerStrip, () => []),
   ]);
   const down = await downtimes(reads, now);
   // Mac off and quiet in the last 7 days don't count against a bot's last output.
@@ -118,6 +120,7 @@ export async function familyReview(fresh = false): Promise<FamilyReview> {
     report,
     down,
     okr,
+    providers,
   };
   g.__familyReview = { at: now, data };
   return data;
