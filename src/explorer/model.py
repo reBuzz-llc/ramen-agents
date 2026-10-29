@@ -553,7 +553,7 @@ class OpenAICompatModel:
             body["response_format"] = {"type": "json_object"}
         if "api.z.ai" in self.provider.base_url:
             # glm-4.5-flash thinks by default and its hidden reasoning counts against max_tokens: at 700 a reply came
-            # back empty or cut mid-draft (2026-10-29, the Outreach Writer's drafts ending at "Hi Jim")
+            # back empty or cut mid-draft (2026-10-29, the Outreach Writer's drafts ending after the greeting)
             body["thinking"] = {"type": "disabled"}
         self._pace(messages, max_tokens)
         self.last_usage = None

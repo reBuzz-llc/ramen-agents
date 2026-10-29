@@ -230,7 +230,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
 
 
 def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cfg, tmp_path: Path, monkeypatch):
-    """creatorCC queue 13, 2026-10-29: requests under three spellings of one package let it up three times in four hours."""
+    """creatorCC queue 13, 2026-10-29: requests under different spellings of one package let it up again and again within hours."""
     import json
     import time
 
