@@ -19,7 +19,7 @@ export type ResultGroup = { label: string; leads: number; drafted: number; sent:
 export type Pipeline = Omit<ResultGroup, "label">;
 // The Outreach Writer's first emails (2026-10-07): rows at the queue stage get a draft or "skip: <why>" in the draft
 // column, oldest first; it never sends. Null until the board has the column.
-export type DraftCounts = { column: string; stage: string; drafted: number; skipped: number; waiting: number };
+export type DraftCounts = { column: string; stage: string; drafted: number; skipped: number; waiting: number; unsent: number };
 export type LeadResults = { ready: boolean; reason: string; total: number; stages: readonly string[]; pipeline: Pipeline; bySource: ResultGroup[]; byIndustry: ResultGroup[]; drafts: DraftCounts | null;
   // Leads whose own site publishes a WhatsApp link ("Whatsapp" column, owner 2026-10-07); null until the column exists.
   whatsapp: number | null;
@@ -176,11 +176,15 @@ export async function leadResults(): Promise<LeadResults> {
   }
   let drafts: DraftCounts | null = null;
   if (rows.some((p) => column in p)) {
-    drafts = { column, stage, drafted: 0, skipped: 0, waiting: 0 };
+    drafts = { column, stage, drafted: 0, skipped: 0, waiting: 0, unsent: 0 };
     for (const p of rows) {
       const d = text(p[column]).trim();
       if (/^skip\s*:/i.test(d)) drafts.skipped++;
-      else if (d) drafts.drafted++;
+      else if (d) {
+        drafts.drafted++;
+        // A draft the team has not sent yet (no Email Sent, no Result): the family review's "drafts unsent".
+        if (text(p.Status) !== "Email Sent" && !text(p.Result)) drafts.unsent++;
+      }
       else if (text(p.Status) !== "Email Sent" && !text(p.Result)) drafts.waiting++;
     }
   }

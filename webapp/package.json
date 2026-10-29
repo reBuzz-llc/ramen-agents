@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint",
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\"",
     "bots": "${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python scripts/start-data-servers.py",
     "dev:all": "npm run bots && npm run dev",
     "deploy": "next build && launchctl kickstart -k gui/$(id -u)/com.ramen-agents.bot-dashboard",
