@@ -937,8 +937,8 @@ class Controller:
         if "this episode" not in reason and self.DAY_BLOCK.search(reason):
             blocks[f"{action.type}:*" if self.DAY_BLOCK_TYPE.search(reason) else key] = reason[:160]
         elif key and action.type not in ("summarize", "plan"):
-            # the same thing refused three times today is done for the day, whatever the reason (the Enricher's 138
-            # Studio One tries, the writer's 12 on a chain store; 2026-10-14)
+            # the same thing refused three times today is done for the day, whatever the reason (the Enricher's
+            # dozens of tries on one business, the writer's on a chain store; 2026-10-14)
             n = self.day_refusals.get(key, 0) + 1
             self.day_refusals[key] = n
             if n >= self.cfg.policy.day_block_after_refusals > 0:
