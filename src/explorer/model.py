@@ -551,6 +551,10 @@ class OpenAICompatModel:
         }
         if json_mode and self.json_mode_supported:
             body["response_format"] = {"type": "json_object"}
+        if "api.z.ai" in self.provider.base_url:
+            # glm-4.5-flash thinks by default and its hidden reasoning counts against max_tokens: at 700 a reply came
+            # back empty or cut mid-draft (2026-10-29, the Outreach Writer's drafts ending at "Hi Jim")
+            body["thinking"] = {"type": "disabled"}
         self._pace(messages, max_tokens)
         self.last_usage = None
         try:
@@ -605,8 +609,11 @@ class OpenAICompatModel:
         if usage:
             self.last_usage = (int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0))
         try:
-            return str(data["choices"][0]["message"]["content"] or "")
-        except (KeyError, IndexError, TypeError):
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                self.logger.warning("%s stopped at max_tokens (%d); the reply is cut off", self.label, max_tokens)
+            return str(choice["message"]["content"] or "")
+        except (KeyError, IndexError, TypeError, AttributeError):
             self.logger.warning("%s returned no choices", self.label)
             return ""
 
