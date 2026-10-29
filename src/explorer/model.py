@@ -258,6 +258,16 @@ def load_gemini_key(cfg: ModelConfig) -> str | None:
     return load_api_key(cfg.gemini_api_key_env, cfg.gemini_api_key_file)
 
 
+# A host that timed out is benched this long: a provider that accepts the connection and then hangs cost the full read
+# timeout (180 s) every two minutes when it was benched like a refused connection (creatorCC queue 16, 2026-10-29).
+TIMEOUT_BENCH_SECONDS = 900.0
+
+
+def unreachable_wait(exc: BaseException) -> float:
+    """How long to leave a provider alone after a network failure: long after a timeout, short otherwise."""
+    return TIMEOUT_BENCH_SECONDS if isinstance(exc, httpx.TimeoutException) else 120.0
+
+
 @dataclass
 class CompatProvider:
     """One [model.providers.<name>] table: an OpenAI-compatible endpoint and how to reach it."""
@@ -367,7 +377,7 @@ class GeminiModel:
                 f"/models/{self.cfg.gemini_model}:generateContent", headers={"x-goog-api-key": self.api_key}, json=body
             )
         except httpx.HTTPError as exc:
-            raise ProviderUnavailable(f"gemini unreachable: {type(exc).__name__}", 120.0) from exc
+            raise ProviderUnavailable(f"gemini unreachable: {type(exc).__name__}", unreachable_wait(exc)) from exc
         if resp.status_code == 429:
             raise ProviderUnavailable("gemini quota or rate limit (429)", self.cfg.gemini_cooldown_minutes * 60)
         if resp.status_code >= 500:
@@ -560,7 +570,7 @@ class OpenAICompatModel:
         try:
             resp = self.client.post("/chat/completions", json=body)
         except httpx.HTTPError as exc:
-            raise ProviderUnavailable(f"{self.label} unreachable: {type(exc).__name__}", 120.0) from exc
+            raise ProviderUnavailable(f"{self.label} unreachable: {type(exc).__name__}", unreachable_wait(exc)) from exc
         self._read_budget(resp)
         if resp.status_code == 429:
             wait = retry_after_seconds(resp)
@@ -735,7 +745,7 @@ class ReplicateModel:
                 f"/models/{self.provider.model}/predictions", json=body, headers={"Prefer": "wait=55"}
             )
         except httpx.HTTPError as exc:
-            raise ProviderUnavailable(f"{self.label} unreachable: {type(exc).__name__}", 120.0) from exc
+            raise ProviderUnavailable(f"{self.label} unreachable: {type(exc).__name__}", unreachable_wait(exc)) from exc
         if resp.status_code == 429:
             wait = retry_after_seconds(resp) or self.provider.cooldown_minutes * 60
             raise ProviderUnavailable(f"{self.label} rate limit (429)", min(wait, 6 * 3600.0))

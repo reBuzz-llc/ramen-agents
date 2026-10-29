@@ -57,8 +57,9 @@ class CallLedger:
                 data = loaded
         except (OSError, ValueError):
             pass
+        health = data.get("health") if isinstance(data.get("health"), dict) else {}
         if data.get("day") != self._today():
-            return {"day": self._today(), "counts": {}, "usage": {}}
+            return {"day": self._today(), "counts": {}, "usage": {}, "health": health}  # health outlives the day
         counts = data.get("counts") or {}
         usage = data.get("usage") or {}
         return {
@@ -66,6 +67,7 @@ class CallLedger:
             "counts": {str(k): int(v) for k, v in counts.items() if isinstance(v, int)},
             "usage": usage if isinstance(usage, dict) else {},
             "by_bot": data.get("by_bot") if isinstance(data.get("by_bot"), dict) else {},
+            "health": health,
         }
 
     def _load(self) -> dict[str, int]:
@@ -89,6 +91,17 @@ class CallLedger:
         data["counts"][key] = data["counts"].get(key, 0) + 1
         self._save_all(data)
         return data["counts"][key]
+
+    def note_health(self, key: str, ok: bool, reason: str = "") -> None:
+        """A provider's last success, last failure and why, for the dashboard (creatorCC queue 16, 2026-10-29)."""
+        data = self._load_all()
+        row = data["health"].setdefault(key, {})
+        now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.clock()))
+        if ok:
+            row["last_ok"] = now
+        else:
+            row["last_fail"], row["last_reason"] = now, (reason or "no usable reply")[:200]
+        self._save_all(data)
 
     def add_usage(self, key: str, kind: str, prompt_tokens: int, completion_tokens: int) -> None:
         """Tokens one remote call used, by call kind (decide, write, complete), so the owner can see
@@ -151,10 +164,12 @@ class FallbackModel:
         self._capped_logged: set[str] = set()
         self._active: Any | None = self.primaries[0] if self.primaries else None
 
-    def _record_usage(self, provider: Any, kind: str) -> None:
+    def _record_usage(self, provider: Any, kind: str, ok: bool = True) -> None:
         usage = getattr(provider, "last_usage", None)
         if self.ledger is not None and usage:
             self.ledger.add_usage(self.ledger_key(provider), kind, usage[0], usage[1])
+        if self.ledger is not None:
+            self.ledger.note_health(self.ledger_key(provider), ok, "" if ok else str(getattr(provider, "last_error", "") or ""))
 
     @staticmethod
     def ledger_key(provider: Any) -> str:
@@ -207,7 +222,7 @@ class FallbackModel:
             if self._down(provider) or self._capped(provider):
                 continue
             result = provider.decide(system, obs)
-            self._record_usage(provider, "decide")
+            self._record_usage(provider, "decide", result.decision is not None)
             if result.decision is not None or not self._down(provider):
                 self._note(provider)
                 return result
@@ -232,7 +247,7 @@ class FallbackModel:
             if self._down(provider) or self._capped(provider):
                 continue
             result = provider.decide(system, writing_obs)
-            self._record_usage(provider, "write")
+            self._record_usage(provider, "write", result.decision is not None)
             if result.decision is not None:
                 self._note(provider)
                 result.latency += draft.latency
@@ -245,7 +260,7 @@ class FallbackModel:
             if self._down(provider) or self._capped(provider):
                 continue
             text = provider.complete(system, prompt)
-            self._record_usage(provider, "complete")
+            self._record_usage(provider, "complete", bool(text))
             if text or not self._down(provider):
                 self._note(provider)
                 return text
