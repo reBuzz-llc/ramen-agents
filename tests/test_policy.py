@@ -309,7 +309,7 @@ def test_three_refused_notes_or_tasks_end_that_type_for_the_episode():
 
 
 def test_a_malformed_address_is_refused_not_crashed():
-    # Lead Gen died 28 times on 2026-10-27 on "host:host": httpx raised InvalidURL deep inside the robots fetch.
+    # Lead Gen died again and again on "host:host": httpx raised InvalidURL deep inside the robots fetch.
     policy = make_policy()
     for url in ("https://www.caswellpowellfilming.com:www.caswellpowellfilming.com", "https://:example.com/x"):
         v = policy.check(Open(type="open", url=url), ctx())

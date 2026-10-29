@@ -2208,7 +2208,7 @@ class Controller:
     def _dead_ends(self) -> list[str]:
         """Targets this bot was refused on twice or more today for a reason that will not change (a business already on
         the board, a package already on the page, a task already created). A refusal blocks only within an episode; the
-        next episode came back to the same idea (Lead Gen re-listed one bar 14 times and the CEO re-published one
+        next episode came back to the same idea (Lead Gen re-listed one bar many times and the CEO re-published one
         package 40 times in a night, 2026-10-01). Shown so the bot moves on."""
         try:
             import datetime as _dt

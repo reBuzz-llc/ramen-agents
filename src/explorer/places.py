@@ -37,7 +37,7 @@ def find_place(name: str, location: str, db_path: Path | str, website: str = "",
     1. the same name: when the business has a website, the place's must be on the same domain (a same-name place
        elsewhere is the usual trap: Balthazar Bakery matched an Englewood NJ bakery, 2026-10-10); with none, the city
        in `location` must agree; a name found at more than one place anywhere is a chain;
-    2. the same website domain (creatorCC 2b, 2026-10-28: 299 of 686 empty rows match this way, few by name): the two
+    2. the same website domain (creatorCC 2b, 2026-10-28: most empty rows match this way, few by name): the two
        names share a word.
     A domain found at more than one place anywhere is a chain, whichever way the name matched.
     A franchise or a business with several locations (Industry, Company size) gets no link at all."""

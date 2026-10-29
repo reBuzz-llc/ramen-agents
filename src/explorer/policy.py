@@ -1065,7 +1065,7 @@ class Policy:
         if on_page and name.lower() not in on_page:
             head = lambda t: re.split(r"\s[–—-]\s", str(t), maxsplit=1)[0].strip().lower()  # noqa: E731 - "Offer – $99" -> "offer"
             owner = [k for k, v in on_page.items() if head(v.get("title", "")) and head(v.get("title", "")) == head(name)]
-            if len(owner) == 1:  # The CEO named the package by its headline 14 times in a day; PK14 called it a second toggle
+            if len(owner) == 1:  # The CEO named the package by its headline again and again in a day; PK14 called it a second toggle
                 action.name = name = str(on_page[owner[0]].get("name") or owner[0])
         if name.lower() in ctx.packages_refused_today:
             # 2026-10-10: 118 refused republish attempts of one package in a day, a fresh try every episode. Checked after
@@ -1949,7 +1949,7 @@ class Policy:
                     "Note anything else as 'Possible task: ...' and decide next time"
                 )
             if ctx.tasks_today >= self.notion.max_tasks_per_day:
-                # The CEO: 971 refused task attempts in a week; with a cap of 1 the day's one task is added to instead
+                # The CEO: hundreds of refused task attempts in a week; with a cap of 1 the day's one task is added to instead
                 # (creatorCC queue 5, 2026-10-28)
                 if self.notion.max_tasks_per_day == 1:
                     return Verdict.no("today's task exists; add to it with update_task", permanent=True)

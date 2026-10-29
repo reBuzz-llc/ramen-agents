@@ -410,7 +410,7 @@ def test_no_bot_write_carries_the_human_only_result_columns():
 
 
 def test_one_task_a_day_and_the_rest_goes_into_it(tmp_path):
-    """creatorCC queue 5, 2026-10-28: The CEO made 971 refused task attempts in a week; with a cap of 1 it adds to its task."""
+    """creatorCC queue 5, 2026-10-28: The CEO made hundreds of refused task attempts in a week; with a cap of 1 it adds to its task."""
     import datetime as dt
 
     from explorer.actions import UpdateTask
