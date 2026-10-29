@@ -372,6 +372,7 @@ class PolicyContext:
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
     # Toggles really on the page now, by lower-cased name: {"title", "email_sha", "day" (last published, YYYY-MM-DD)}.
     packages_on_page: dict[str, dict] = field(default_factory=dict)
+    page_packages: dict[str, str] = field(default_factory=dict)  # every package on the Packages page: exact name -> toggle title
     task_updates_in_episode: int = 0  # update_task actions accepted this episode
     lead_updates_in_episode: int = 0  # update_lead actions accepted this episode
     recent_lead_names: dict[str, str] = field(default_factory=dict)  # business name (lower) -> site domain, this bot's own leads
@@ -539,12 +540,54 @@ class RobotsCache:
         return parser.can_fetch(self.user_agent, url)
 
 
+_SUFFIX_WORDS = frozenset("setup set up and management managed pricing price priced plan plans monthly month per after demo call".split())
+
+
 def package_key(name: str) -> str:
-    """A package name for the weekly republish rule: lower case, no "24/7", nothing after a spaced dash ("– Setup &
-    Management"), no punctuation. Four names of one package (2026-10-21..28) come out the same."""
+    """A package name for the weekly republish rule: lower case, no "24/7", no price or setup suffix after a spaced dash
+    ("– Setup & Management", "– $1,450"), no punctuation. Four names of one package (2026-10-21..28) come out the same."""
     text = re.sub(r"\b24\s*/\s*7\b", " ", (name or "").lower())
-    text = re.split(r"\s[–—-]\s", text, maxsplit=1)[0]
+    parts = re.split(r"\s[–—-]\s", text, maxsplit=1)
+    # only a price or setup suffix is cut: "Next Office — Dedicated Engineer" and "— Growth Squad" are two offers (2026-10-29)
+    if len(parts) == 2 and (re.search(r"[\d$]", parts[1]) or set(re.findall(r"[a-z]+", parts[1])) <= _SUFFIX_WORDS):
+        text = parts[0]
     return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+# Words every offer on the page shares, dropped before two package names are compared (creatorCC queue 15, 2026-10-29),
+# plus a title's filler ("for", "from $299/month").
+_PACKAGE_FILLER = frozenset("nyc new york ny small business businesses smb smbs package packages for agent agents setup service services "
+                            "the and of to a an with your our per month mo from ai powered solution solutions".split())  # every offer here is AI
+
+
+def package_tokens(text: str) -> set[str]:
+    """The words that tell one package from another: no filler, no figures, plurals folded ("agents" -> "agent")."""
+    out = set()
+    for w in re.findall(r"[a-z]+", re.sub(r"\b24\s*/\s*7\b", " ", (text or "").lower())):
+        if w in _PACKAGE_FILLER:
+            continue
+        w = w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+        if w not in _PACKAGE_FILLER:
+            out.add(w)
+    return out
+
+
+def package_overlap(a: str, b: str) -> float:
+    """Shared words over all words (Jaccard) of two package names or titles; 0 when they share fewer than two words."""
+    x, y = package_tokens(a), package_tokens(b)
+    return len(x & y) / len(x | y) if len(x & y) >= 2 else 0.0
+
+
+def near_duplicate_package(name: str, page: dict[str, str], title: str = "", threshold: float = 0.6) -> str:
+    """The exact name of a package on the page that `name` (or its `title`) is in other words, or "". A name already on
+    the page (by package_key) is that package being improved, never a duplicate of another."""
+    key = package_key(name)
+    if any(package_key(n) == key for n in page):
+        return ""
+    for existing, shown in page.items():
+        if max(package_overlap(name, existing), package_overlap(name, shown), package_overlap(title, shown) if title else 0.0) >= threshold:
+            return existing
+    return ""
 
 
 PRIORITY_WORK_TYPES = frozenset({"search", "open", "follow", "read", "back", "summarize", "update_lead", "lead", "plan", "package"})  # package: the handoff answers "send me the record"  # plan: the first step of a job  # allowed while a priority ask waits (summarize: the episode must be able to close)
@@ -603,6 +646,9 @@ class Policy:
             return Verdict.no("keep the package name under 120 characters")
         if is_meta_topic(name):
             return Verdict.no(meta_topic_reason("package"))
+        same = near_duplicate_package(name, ctx.page_packages)
+        if same:  # 2026-10-29: one offer under four names on the page; the Designer kept making variants
+            return Verdict.no(f"that is '{same}' in other words; improve it under that exact name, or make a different offer", permanent=True)
         if not any(ch.isdigit() for ch in action.price) and not re.search(r"\b(demo|quote|quoted|per deployment)\b", action.price, re.I):
             return Verdict.no("the price must be a real figure or range, like \"$4,000-6,000 fixed\" or \"$3,200/month\"")
         deliverables = [d for d in action.deliverables if d.strip()]
@@ -1071,6 +1117,9 @@ class Policy:
             # 2026-10-10: 118 refused republish attempts of one package in a day, a fresh try every episode. Checked after
             # the headline-to-toggle mapping above: the model names the package by its headline, the record by its name.
             return Verdict.no(f"'{name[:60]}' was refused today already; it is not republished again before tomorrow. Do something else.", permanent=True)
+        same = near_duplicate_package(name, ctx.page_packages, action.title)
+        if same:
+            return Verdict.no(f"that is '{same}' in other words; improve it under that exact name, or make a different offer", permanent=True)
         key = package_key(name)
         last = ctx.recent_package_publishes.get(key) if self.notion.republish_days > 0 else None
         asked = ctx.republish_request_keys.get(key)

@@ -1614,6 +1614,7 @@ class Controller:
             "published_package_names": self._published_package_names,
             "republishable_package_names": self._republishable_package_names,
             "packages_on_page": self._packages_on_page,
+            "page_packages": self._page_packages,
             "republish_reasons": self._stale_toggles,
             "task_updates_in_episode": lambda: memory.count_actions(eid, "update_task"),
             "recent_packages_without_company": memory.recent_package_names_without_company,
@@ -3671,6 +3672,31 @@ class Controller:
                 shown = (info.get("package") or {}).get("name") if isinstance(info.get("package"), dict) else None
                 out[str(name).lower()] = {"name": str(shown or name), "title": str(info.get("title") or ""), "email_sha": str(info.get("email_sha") or ""),
                                           "day": str(info.get("published_at") or "")[:10]}
+        return out
+
+    def _page_packages(self) -> dict[str, str]:
+        """Exact name -> title of every toggle on the Packages page: this bot's own record (The CEO), or, for a bot that
+        hands packages to The CEO, the CEO's record read-only (near-duplicate check, creatorCC queue 15)."""
+        blocks = dict(self._published_blocks())
+        h = self.cfg.handoff
+        if h.enabled and h.to_folder.strip():
+            db = Path(h.to_folder).expanduser() / "workspace" / "explorer.sqlite3"
+            try:
+                con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1)
+                try:
+                    row = con.execute("SELECT value FROM state WHERE key = 'published_package_blocks'").fetchone()
+                finally:
+                    con.close()
+                theirs = json.loads(row[0]) if row and row[0] else {}
+                if isinstance(theirs, dict):
+                    blocks.update(theirs)
+            except (sqlite3.Error, ValueError):
+                pass
+        out: dict[str, str] = {}
+        for name, info in blocks.items():
+            if isinstance(info, dict):
+                shown = (info.get("package") or {}).get("name") if isinstance(info.get("package"), dict) else None
+                out[str(shown or name)] = str(info.get("title") or "")
         return out
 
     def _published_package_names(self) -> set[str]:
