@@ -5,8 +5,8 @@ from explorer.actions import PublishPackage
 from explorer.config import NotionConfig, PolicyConfig, PublishConfig
 from explorer.policy import Denylist, Policy, PolicyContext, near_duplicate_package, package_overlap
 
-SUPPORT = ["AI Customer Support Agents for NYC Small Businesses", "SMB AI Customer Support Agent Setup",
-           "24/7 AI Customer Support Agents for NYC Small Businesses"]
+SUPPORT = ["AI Customer Support Agents for Small Shops", "SMB AI Customer Support Agent Setup",
+           "24/7 AI Customer Support Agents for Small Shops"]
 
 
 def test_the_three_customer_support_names_are_one_offer():
@@ -26,8 +26,8 @@ def test_genuinely_different_packages_do_not_match():
 
 
 def test_a_new_name_for_an_offer_on_the_page_is_refused_and_its_own_name_is_not():
-    page = {SUPPORT[1]: "SMB AI Customer Support Agents for NYC Small Businesses - $299/month",
-            "Gym AI Solutions Package": "Gym AI Solutions Package - Personalized for NYC Gyms"}
+    page = {SUPPORT[1]: "SMB AI Customer Support Agents for Small Shops - $99/month",
+            "Gym AI Solutions Package": "Gym AI Solutions Package - Personalized for Local Gyms"}
     assert near_duplicate_package("AI Customer Support Agent Package for Small Businesses", page) == SUPPORT[1]
     assert near_duplicate_package(SUPPORT[1], page) == ""                      # improving it under its exact name
     assert near_duplicate_package("Website Care Retainer", page) == ""
@@ -40,6 +40,6 @@ def test_a_new_name_for_an_offer_on_the_page_is_refused_and_its_own_name_is_not(
 
 def test_package_key_cuts_a_price_or_setup_suffix_but_keeps_a_named_offer():
     from explorer.policy import package_key
-    assert package_key("24/7 AI Customer Support Agents for NYC Small Businesses – Setup & Management") == package_key("AI Customer Support Agents for NYC Small Businesses")
+    assert package_key("24/7 AI Customer Support Agents for Small Shops – Setup & Management") == package_key("AI Customer Support Agents for Small Shops")
     assert package_key("AI-Powered Website Enhancement for Small Businesses – $1,450") == package_key("AI-Powered Website Enhancement for Small Businesses")
     assert package_key("Next Office — Dedicated Engineer") != package_key("Next Office — Growth Squad")

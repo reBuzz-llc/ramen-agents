@@ -555,7 +555,7 @@ def package_key(name: str) -> str:
 
 
 # Words every offer on the page shares, dropped before two package names are compared (creatorCC queue 15, 2026-10-29),
-# plus a title's filler ("for", "from $299/month").
+# plus a title's filler ("for", "from $99/month").
 _PACKAGE_FILLER = frozenset("nyc new york ny small business businesses smb smbs package packages for agent agents setup service services "
                             "the and of to a an with your our per month mo from ai powered solution solutions".split())  # every offer here is AI
 

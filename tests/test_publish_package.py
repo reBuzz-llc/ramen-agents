@@ -206,8 +206,8 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     from explorer.memory import Memory
     from explorer.policy import package_key
 
-    names = ["24/7 AI Customer Support Agents for NYC Small Businesses – Setup & Management",
-             "AI Customer Support Agents for NYC Small Businesses", "24/7 AI Customer Support Agents for NYC Small Businesses"]
+    names = ["24/7 AI Customer Support Agents for Small Shops – Setup & Management",
+             "AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops"]
     assert len({package_key(n) for n in names}) == 1
     policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
     now = time.time()
@@ -237,8 +237,8 @@ def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cf
     from explorer.controller import Controller
     from explorer.policy import package_key
 
-    names = ["24/7 AI Customer Support Agents for NYC Small Businesses", "24/7 AI Customer Support Agents for NYC Small Businesses – Setup & Management",
-             "AI Customer Support Agents for NYC Small Businesses"]
+    names = ["24/7 AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops – Setup & Management",
+             "AI Customer Support Agents for Small Shops"]
     policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
     now = time.time()
     at = lambda h: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - h * 3600))  # noqa: E731

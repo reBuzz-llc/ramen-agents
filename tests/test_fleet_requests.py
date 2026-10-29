@@ -584,8 +584,8 @@ def test_the_ceo_may_replace_its_own_toggle_once_a_day_and_a_retired_name_is_cal
     sha = hashlib.sha256(email.encode()).hexdigest()
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                 published_package_names={"website care basic", "fixed-price mvp - $30,000"})
-    page = {"website care basic": {"name": "Website Care Basic", "title": "Website Care Basic – $299/month", "email_sha": sha, "day": "2026-09-30"}}
-    pub = lambda **kw: PublishPackage(**{**dict(type="publish_package", name="Website Care Basic", title="Website Care Basic – $299/month",  # noqa: E731
+    page = {"website care basic": {"name": "Website Care Basic", "title": "Website Care Basic – $99/month", "email_sha": sha, "day": "2026-09-30"}}
+    pub = lambda **kw: PublishPackage(**{**dict(type="publish_package", name="Website Care Basic", title="Website Care Basic – $99/month",  # noqa: E731
                                                 email=email, conclusion="Fits shops with stale sites."), **kw})
     ctx = PolicyContext(**base, packages_on_page=page)
     assert "nothing would change" in policy.check(pub(), ctx).reason
@@ -688,7 +688,7 @@ def test_a_package_named_by_its_headline_is_that_package(cfg):
 
     notion = NotionConfig(enabled=True, database_id="db", package_page_id="page", package_republish_own=True)
     policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=notion)
-    page = {"website care basic": {"name": "Website Care Basic", "title": "Care for Your Shop's Website – $299/month", "email_sha": "x", "day": "2026-09-30"}}
+    page = {"website care basic": {"name": "Website Care Basic", "title": "Care for Your Shop's Website – $99/month", "email_sha": "x", "day": "2026-09-30"}}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         published_package_names={"website care basic"}, packages_on_page=page)
     pub = PublishPackage(type="publish_package", name="Care for Your Shop's Website", title="Care for Your Shop's Website – $349/month",
