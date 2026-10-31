@@ -1,8 +1,8 @@
-// Run: npm test. A fake `last reboot shutdown` output and a fixture explorer.jsonl (creatorCC queue 4, 2026-10-29).
+// Run: npm test. A fake `last reboot shutdown` output and a fixture explorer.jsonl (2026-10-29).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
-import { downtime, hm, parseLast } from "../lib/downtime.ts";
+import { downtime, parseLast } from "../lib/downtime.ts";
 // @ts-ignore TS5097
 import { parseOkr } from "../lib/family-stats.ts";
 
@@ -36,7 +36,6 @@ test("24 h: the unplanned off gap starts at the last action; quiet from quiet_ov
   assert.equal(d.off.length, 1);
   assert.equal(d.off[0].from, "2026-10-29T10:04:00");
   assert.equal(d.off[0].note, "no clean shutdown logged");
-  assert.equal(hm(d.offMin), "9 h 1 min");
   assert.equal(d.quiet.length, 1);
   assert.equal(d.quietMin, 160);
   assert.equal(d.quiet[0].note, "Steam is in front");

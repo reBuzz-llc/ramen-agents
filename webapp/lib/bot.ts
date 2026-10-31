@@ -48,30 +48,6 @@ export type BotEvent = {
   [field: string]: string | undefined;
 };
 
-export type Note = {
-  id: number;
-  created_at: string;
-  title: string;
-  body: string;
-  tags: string;
-  source_url: string | null;
-  episode_id: number | null;
-};
-
-export type Question = {
-  id: number;
-  created_at: string;
-  question: string;
-  status: string;
-  answered_at: string | null;
-  answer_note_id: number | null;
-  times_pursued: number;
-};
-
-export type Questions = { open: Question[]; answered: Question[] };
-export type Interest = { topic: string; weight: number };
-export type Journal = { path: string; text: string };
-
 // One bot folder under ~/bots, as the web app sees it.
 export type BotProfile = {
   slug: string;

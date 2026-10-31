@@ -33,7 +33,7 @@ const list = (value: string | undefined) =>
     .filter(Boolean);
 
 /** This Mac's tailnet DNS name and the login it is signed in with, from `tailscale status --json`. */
-export async function tailnet(): Promise<Tailnet> {
+async function tailnet(): Promise<Tailnet> {
   // A failed lookup (no hosts) is kept only briefly: one timeout while Tailscale reconnects must not lock the
   // phone out for a whole minute.
   if (cached && Date.now() - cached.at < (cached.value.hosts.length ? CACHE_MS : FAILED_CACHE_MS)) return cached.value;
@@ -58,7 +58,7 @@ export async function tailnet(): Promise<Tailnet> {
       };
       const dns = (s.Self?.DNSName ?? "").replace(/\.$/, "").toLowerCase();
       const owner = s.Self?.UserID !== undefined ? (s.User?.[String(s.Self.UserID)]?.LoginName ?? null) : null;
-      // MagicDNS serves both the full name and the short machine name (for example my-mac-mini).
+      // MagicDNS serves both the full name and the short machine name (rebuzzs-mac-mini).
       const hosts = dns ? [dns, dns.split(".")[0]] : [];
       value = { hosts, owner: owner ? owner.toLowerCase() : null };
     } catch {
@@ -70,7 +70,7 @@ export async function tailnet(): Promise<Tailnet> {
   return value;
 }
 
-export type Access =
+type Access =
   | { ok: true; via: "local" }
   | { ok: true; via: "tailscale"; user: string; host: string }
   | { ok: false; status: number; reason: string };

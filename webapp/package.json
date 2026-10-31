@@ -7,14 +7,14 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\"",
     "bots": "${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python scripts/start-data-servers.py",
     "dev:all": "npm run bots && npm run dev",
-    "deploy": "next build && launchctl kickstart -k gui/$(id -u)/com.ramen-agents.bot-dashboard",
+    "deploy": "sh scripts/deploy.sh",
     "remote-access": "sh scripts/remote-access.sh",
     "brandkit:check": "node scripts/brandkit-check.mjs",
     "brandkit:accept": "node scripts/brandkit-check.mjs --accept",
-    "predeploy": "node scripts/brandkit-check.mjs --quiet || true"
+    "predeploy": "node scripts/brandkit-check.mjs --quiet || true",
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\""
   },
   "dependencies": {
     "next": "16.3.5",

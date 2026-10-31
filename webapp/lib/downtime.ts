@@ -1,4 +1,4 @@
-// The family review's downtime line (creatorCC queue 4, 2026-10-29): when the Mac was off and when every bot sat quiet,
+// The family review's downtime line (2026-10-29): when the Mac was off and when every bot sat quiet,
 // so a low day is not read as bad bots. Mac-off spans come from `last reboot shutdown`; a reboot with no shutdown just
 // before it was unplanned, and its gap starts at the latest action any bot logged before that boot. Quiet spans come
 // from one running bot's explorer.jsonl ("quiet" reason=..., then "quiet_over" minutes=...): all bots pause together.
@@ -64,7 +64,7 @@ export async function offSpans(events: { kind: "reboot" | "shutdown"; at: number
 
 /** Quiet spans in the window from explorer.jsonl text: each "quiet_over" closes the "quiet" before it (its reason); a
  *  quiet still open at the end runs to now. */
-export function quietSpans(text: string, from: number, now: number): Span[] {
+function quietSpans(text: string, from: number, now: number): Span[] {
   const out: Span[] = [];
   let open: { at: number; reason: string } | null = null;
   for (const line of text.split("\n")) {
@@ -126,9 +126,3 @@ export async function jsonlTexts(logsDir: string, from: number): Promise<string[
   return texts.filter(Boolean);
 }
 
-/** "9 h 1 min", "40 min". */
-export function hm(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h ? `${h} h ${m} min` : `${m} min`;
-}

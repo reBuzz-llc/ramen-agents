@@ -7,7 +7,7 @@ import path from "node:path";
 import { KEYS_DIR } from "./keys";
 
 // verified = false: the key is on file but was not called (a check would spend a credit), so it is not "Ready".
-export type ServiceStatus = { name: string; file: string; usedFor: string; signup: string; present: boolean; updated: string | null; ok: boolean | null; verified?: boolean; detail: string };
+type ServiceStatus = { name: string; file: string; usedFor: string; signup: string; present: boolean; updated: string | null; ok: boolean | null; verified?: boolean; detail: string };
 
 type Service = {
   name: string;

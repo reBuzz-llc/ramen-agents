@@ -9,8 +9,8 @@ const run = promisify(execFile);
 const SQLITE = "/usr/bin/sqlite3";
 
 /** The outputs the review counts when accepted (verdict LIKE 'allowed%'). */
-export const OUTPUT_TYPES = ["lead", "update_lead", "note", "task", "message", "publish_package", "package", "say", "ask"] as const;
-export type OutputType = (typeof OUTPUT_TYPES)[number];
+const OUTPUT_TYPES = ["lead", "update_lead", "note", "task", "message", "publish_package", "package", "say", "ask"] as const;
+type OutputType = (typeof OUTPUT_TYPES)[number];
 
 export type Window = { actions: number; refused: number; refusedShare: number; accepted: Record<OutputType, number> };
 export type BotStats = { w7: Window; w24: Window; lastAction: string | null; crashes: Crashes };
@@ -77,7 +77,7 @@ export function crashCount(logText: string): number {
   return n;
 }
 
-export type LastCrash = { ts: string; exception: string; message: string };
+type LastCrash = { ts: string; exception: string; message: string };
 export type Crashes = { w7: number; w24: number; last: LastCrash | null; total: number; since: string | null };
 
 /** The engine's "run_loop_crashed" lines (engine e831f59 on) in explorer.jsonl text: counts in the last 7 days and 24
@@ -171,7 +171,7 @@ export function parseOkr(md: string): Okr | null {
   return { objective, week: week ? `${week[1].slice(5)} to ${week[2].slice(5)}` : "", krs };
 }
 
-/** Each bot's own output (creatorCC queue 6): the accepted action that is its job, as SQL on the actions table. */
+/** Each bot's own output: the accepted action that is its job, as SQL on the actions table. */
 export const OWN_OUTPUT: Record<string, { label: string; where: string }> = {
   "lead-gen": { label: "lead", where: "action_type = 'lead'" },
   "lead-enricher": { label: "lead update", where: "action_type = 'update_lead'" },

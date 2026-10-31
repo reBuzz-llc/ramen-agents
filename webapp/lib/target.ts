@@ -7,10 +7,10 @@ import path from "node:path";
 import { BOTS_DIR } from "./bots";
 
 const FILE = path.join(BOTS_DIR, "common-data", "knowledge", "target.toml");
-export const TARGET_KEYS = ["market", "market_short", "segment", "trades", "areas"] as const;
-export type TargetKey = (typeof TARGET_KEYS)[number];
-export type Target = Record<TargetKey, string>;
-export const TARGET_MAX = 200;
+const TARGET_KEYS = ["market", "market_short", "segment", "trades", "areas"] as const;
+type TargetKey = (typeof TARGET_KEYS)[number];
+type Target = Record<TargetKey, string>;
+const TARGET_MAX = 200;
 
 const unquote = (v: string) => v.trim().replace(/^"(.*)"$/, "$1").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 const quote = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;

@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-export type Proc = { pid: number; ppid: number; cpu: number; rssKb: number; elapsed: number; args: string };
+type Proc = { pid: number; ppid: number; cpu: number; rssKb: number; elapsed: number; args: string };
 
 /** ps's etime, [[dd-]hh:]mm:ss, in seconds. */
 function parseElapsed(text: string): number {
@@ -18,7 +18,7 @@ function parseElapsed(text: string): number {
   return Number(days) * 86400 + h * 3600 + m * 60 + s;
 }
 
-export async function listProcesses(): Promise<Proc[]> {
+async function listProcesses(): Promise<Proc[]> {
   const { stdout } = await run("/bin/ps", ["-axww", "-o", "pid=,ppid=,pcpu=,rss=,etime=,args="], {
     timeout: 4000,
     maxBuffer: 16 * 1024 * 1024,
@@ -41,20 +41,14 @@ function afterConfig(args: string, configPath: string): string | null {
 }
 
 /** `bot --config <configPath> run` (or `explore`): the agent itself. */
-export function isAgentProcess(args: string, configPath: string): boolean {
+function isAgentProcess(args: string, configPath: string): boolean {
   const after = afterConfig(args, configPath);
   return after !== null && /\bbot\b/.test(args) && /\s(run|explore)(\s|$)/.test(after);
 }
 
-/** `bot --config <configPath> dashboard`: the bot's data server. */
-export function isDataServerProcess(args: string, configPath: string): boolean {
-  const after = afterConfig(args, configPath);
-  return after !== null && /\sdashboard(\s|$)/.test(after);
-}
-
 /** The process holding the bot's run lock (workspace/explorer.pid), when it is alive. Catches agents that
  * are not a `bot ... run` command line, such as the Desk Agent.app bundle running the Desk Agent. */
-export async function lockHolder(pidFile: string, procs: Proc[]): Promise<Proc | null> {
+async function lockHolder(pidFile: string, procs: Proc[]): Promise<Proc | null> {
   let pid: number;
   try {
     pid = Number((await readFile(/*turbopackIgnore: true*/ pidFile, "utf8")).trim());

@@ -1,6 +1,6 @@
 import { health } from "@/lib/health-read";
 
-/** One red line when something needs a human (creatorCC queue 5); nothing when all is well. Streamed in a Suspense
+/** One red line when something needs a human; nothing when all is well. Streamed in a Suspense
  *  boundary by its pages, so the reads never hold the page up. */
 export default async function HealthBanner({
   className = "",
