@@ -58,7 +58,7 @@ async function tailnet(): Promise<Tailnet> {
       };
       const dns = (s.Self?.DNSName ?? "").replace(/\.$/, "").toLowerCase();
       const owner = s.Self?.UserID !== undefined ? (s.User?.[String(s.Self.UserID)]?.LoginName ?? null) : null;
-      // MagicDNS serves both the full name and the short machine name (rebuzzs-mac-mini).
+      // MagicDNS serves both the full name and the short machine name (for example my-mac-mini).
       const hosts = dns ? [dns, dns.split(".")[0]] : [];
       value = { hosts, owner: owner ? owner.toLowerCase() : null };
     } catch {
