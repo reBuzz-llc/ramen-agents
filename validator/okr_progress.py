@@ -1,4 +1,4 @@
-"""Progress lines under The CEO's weekly key results (owner, 2026-10-14, via creatorCC: The CEO reads okr-week.md in every
+"""Progress lines under The CEO's weekly key results (owner, 2026-10-14: The CEO reads okr-week.md in every
 prompt; the owner writes the objective, the Validator measures it on the Leads board).
 
 Each full sweep rewrites ONE line "   Progress (<timestamp>): ..." under each numbered key result and never touches the
