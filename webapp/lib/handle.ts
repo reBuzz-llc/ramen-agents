@@ -10,7 +10,7 @@
 // Notion, because "You are The CEO" carries a role that "ceoA" does not and they address one another by
 // exact name. Pure and dependency-free, so the server can stamp it on a profile and the browser can use it.
 
-export type Kind = "agent" | "bot";
+type Kind = "agent" | "bot";
 
 // Handles chosen instead of the first three letters, where those would mislead or clash (owner, 2026-10-07 and
 // 2026-10-10): Research Analyst is anaA, Lead Enricher is enrA ("lea" is Lead Gen's).

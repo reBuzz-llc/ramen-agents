@@ -14,7 +14,8 @@ import { CODE_ROOT } from "./bots";
 
 const run = promisify(execFile);
 
-export const KEYS_DIR = path.resolve(process.env.EXPLORER_KEYS_DIR ?? path.join(homedir(), "bots", "common-data", "keys"));
+// turbopackIgnore: the keys folder is read at request time only; it must never be traced into or bundled with the build.
+export const KEYS_DIR = path.resolve(/*turbopackIgnore: true*/ process.env.EXPLORER_KEYS_DIR ?? path.join(homedir(), "bots", "common-data", "keys"));
 
 export type ProviderInfo = {
   name: string;
@@ -42,7 +43,7 @@ export function findProvider(cat: ProviderCatalog, name: string): ProviderInfo |
 }
 
 /** The provider's key file, only if it lies inside the shared keys folder. */
-export function safeKeyPath(p: ProviderInfo): string | null {
+function safeKeyPath(p: ProviderInfo): string | null {
   const file = path.resolve(p.keyFile.replace(/^~(?=\/)/, homedir()));
   return path.dirname(file) === KEYS_DIR && /^[a-z0-9._-]+\.key$/i.test(path.basename(file)) ? file : null;
 }

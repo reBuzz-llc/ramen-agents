@@ -20,7 +20,7 @@ const STATE_COOLDOWN_MS = 30 * 60 * 1000;
 // is still silent then, something is genuinely wrong.
 const STUCK_AFTER_MS = Number(process.env.ALERTS_STUCK_AFTER_MS) || 15 * 60 * 1000;
 
-export const ALERT_TYPES = {
+const ALERT_TYPES = {
   task: { label: "Notion task created", detail: "A bot added a task to your Notion board", notify: true, tile: "bg-sys-indigo", icon: "check" },
   package: { label: "Service package ready", detail: "The Package Designer handed a package to another bot", notify: true, tile: "bg-sys-orange", icon: "sparkles" },
   provider: { label: "Free provider or tool found", detail: "The Scout recorded a free AI provider, search tool, data source or verification tool", notify: true, tile: "bg-sys-purple", icon: "key" },
@@ -31,9 +31,9 @@ export const ALERT_TYPES = {
   notion: { label: "Notion refused a write", detail: "Notion is full or the bots lost access: nothing new reaches your boards", notify: true, tile: "bg-sys-red", icon: "flag" },
   message: { label: "Bot-to-bot message", detail: "One bot sent research or tips to another", notify: false, tile: "bg-sys-teal", icon: "chat" },
 } as const;
-export type AlertType = keyof typeof ALERT_TYPES;
+type AlertType = keyof typeof ALERT_TYPES;
 
-export type Alert = { id: string; type: AlertType; bot: string; botName: string; title: string; body: string; at: string; read: boolean; href: string | null };
+type Alert = { id: string; type: AlertType; bot: string; botName: string; title: string; body: string; at: string; read: boolean; href: string | null };
 type Store = {
   alerts: Alert[];
   prefs: Partial<Record<AlertType, boolean>>;
@@ -88,7 +88,7 @@ function save(): Promise<void> {
   return cache.writing;
 }
 
-export function notifyOn(s: Store, type: AlertType): boolean {
+function notifyOn(s: Store, type: AlertType): boolean {
   return s.prefs[type] ?? ALERT_TYPES[type].notify;
 }
 
@@ -111,7 +111,7 @@ const trimQuote = (t: string | undefined, n = 140) => (t ?? "").replace(/\s+/g, 
 const NOTION_FULL = /free blocks|restricted_resource|upgrade its plan/i;
 const NOTION_COOLDOWN_MS = 12 * 3600 * 1000;
 
-export const NOTION_OK_TITLE = "Notion is writable again";
+const NOTION_OK_TITLE = "Notion is writable again";
 
 function notionTrouble(e: BotEvent): { type: AlertType; title: string; body: string; href: string | null } | null {
   // The engine's all-clear (bot-creator's pause guard): the newest "notion" alert then takes the banner down.
@@ -132,7 +132,7 @@ function notionTrouble(e: BotEvent): { type: AlertType; title: string; body: str
 }
 
 function fromEvent(bot: BotProfile, e: BotEvent): { type: AlertType; title: string; body: string; href: string | null } | null {
-  const page = `/bots/${bot.slug}`;
+  const page = `/work-plan#${bot.slug}`; // its card; the bot pages are gone (owner, 2026-10-30)
   const notion = notionTrouble(e);
   if (notion) return notion;
   switch (e.kind) {
@@ -147,7 +147,7 @@ function fromEvent(bot: BotProfile, e: BotEvent): { type: AlertType; title: stri
         type: "provider",
         title: e.label ? `Found a free ${e.label}` : "Found a free tool or provider",
         body: [e.name, e.base_url].filter(Boolean).join(" · "),
-        href: !e.category || e.category === "model" ? "/settings/providers" : `/bots/${bot.slug}`,
+        href: !e.category || e.category === "model" ? "/settings/providers" : `/work-plan#${bot.slug}`,
       };
     case "action":
       if (e.action === "say" && e.ok === "True" && e.result?.startsWith("told the owner:"))
@@ -221,7 +221,7 @@ async function checkBot(s: Store, bot: BotProfile): Promise<void> {
     if (prev.running && !state.running && !stopFlag) next.stopSince = now;
     if (state.running || stopFlag) next.stopSince = null;
     if (next.stopSince && now - next.stopSince > STOP_GRACE_MS && cooled("stopped")) {
-      await add(s, bot, "stopped", "Stopped unexpectedly", "It stopped without a STOP flag and has not restarted. Open its dashboard to run it.", `/bots/${bot.slug}`);
+      await add(s, bot, "stopped", "Stopped unexpectedly", "It stopped without a STOP flag and has not restarted. Restart it with scripts/restart-bot.sh.", `/work-plan#${bot.slug}`);
       mark("stopped");
       next.stopSince = null;
     }
@@ -242,7 +242,7 @@ let bots: BotProfile[] = [];
 let botsAt = 0;
 let running = false;
 
-export async function tick(): Promise<void> {
+async function tick(): Promise<void> {
   if (running) return;
   running = true;
   try {

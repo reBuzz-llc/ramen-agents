@@ -14,11 +14,11 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
-export type TomlValue = string | number | boolean | string[];
+type TomlValue = string | number | boolean | string[];
 
 /** Reads the top-level string, integer, boolean and string-array keys of each [section]. Not a full
  * TOML parser: enough for names, ports, backends and the quiet-mode app lists. */
-export function readToml(text: string): Map<string, TomlValue> {
+function readToml(text: string): Map<string, TomlValue> {
   const out = new Map<string, TomlValue>();
   let section = "";
   let pending: { key: string; buf: string } | null = null;
@@ -173,7 +173,7 @@ export async function fetchState(bot: BotProfile, timeoutMs = 2000): Promise<Bot
 }
 
 /** The live HOLD The CEO set on this bot, or null (none, unreadable, or already past its end). */
-export async function readHold(bot: BotProfile): Promise<BotHold | null> {
+async function readHold(bot: BotProfile): Promise<BotHold | null> {
   try {
     const h = JSON.parse(await readFile(/*turbopackIgnore: true*/ path.join(path.dirname(bot.configPath), "workspace", "HOLD"), "utf8")) as Record<string, unknown>;
     const until = Number(h.until) * 1000;

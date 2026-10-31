@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const CLI = "/Applications/Tailscale.app/Contents/MacOS/Tailscale";
 
-export type RemoteStatus = {
+type RemoteStatus = {
   installed: boolean;
   state: "running" | "stopped" | "needs-login" | "not-installed" | "unknown";
   dnsName: string | null;

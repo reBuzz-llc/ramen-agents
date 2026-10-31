@@ -1,4 +1,4 @@
-// The family review (creatorCC builds this table by hand each review; owner, 2026-10-28): per running bot, its actions,
+// The family review (a review table built by hand each review, 2026-10-28): per running bot, its actions,
 // refusals, accepted outputs, last action, plan in hand and crashes, for the last 7 days and 24 hours; then the
 // Validator's refusal report and the team's sending. Read-only; one read per bot, side by side, cached a minute.
 import { readFile, stat } from "node:fs/promises";
@@ -14,7 +14,7 @@ import { leadResults } from "./lead-results";
 
 /** The last accepted output of the bot's own kind; `late` when over 24 h old and the Mac was on and the bots not quiet
  *  for most of that time. */
-export type LastOutput = { label: string; at: string | null; ago: string; late: boolean } | null;
+type LastOutput = { label: string; at: string | null; ago: string; late: boolean } | null;
 export type FamilyRow = { slug: string; name: string; handle: string; stats: BotStats | null; plan: PlanSummary; output: LastOutput; error: string };
 export type FamilyReview = {
   at: string;

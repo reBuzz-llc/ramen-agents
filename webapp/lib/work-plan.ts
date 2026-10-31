@@ -3,7 +3,7 @@
 //   - the owner's future goal and current rules for it, one line each, in common-data/work-plan.json, which this
 //     app writes and the engine reads into every decide prompt ("## The owner's work plan");
 //   - today's score: accepted outputs against the tokens the bot spent, from model_calls.json and its actions table.
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { BotProfile } from "./bot";
 import { BOTS_DIR } from "./bots";
@@ -14,9 +14,9 @@ import { capabilitiesOf, type Capabilities } from "./capabilities";
 import { fillTarget, readTarget } from "./target";
 import { localIso, sq } from "./summary";
 
-export const MAX_GOAL = 200;
-export const MAX_RULE = 160;
-export const MAX_RULES = 8;
+const MAX_GOAL = 200;
+const MAX_RULE = 160;
+const MAX_RULES = 8;
 
 const PLAN_FILE = path.join(BOTS_DIR, "common-data", "work-plan.json");
 const CALLS_FILE = path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json");
@@ -31,7 +31,15 @@ export type OwnerPlan = { goal: string; rules: Rule[] };
 // Time on a job is WORKING time: the gaps between the bot's own actions, each capped at IDLE_CAP_MIN, so a night with
 // the Mac off or the bots paused for a game does not count. Estimates are the bot's own, written with the plan
 // (plan.json "estimate_min", per step too) -- absent until the engine writes them.
-export type PlanStep = { text: string; done: boolean; doneAt: string | null; estimateMin: number | null; spentMin: number | null };
+type PlanStep = {
+  text: string;
+  done: boolean;
+  doneAt: string | null;
+  estimateMin: number | null;
+  spentMin: number | null;
+  activeMin: number | null; // the engine's active minutes on this step (macBot1 2d43ea0), null before it writes them
+  actionsEngine: number | null;
+};
 export type BotPlan = {
   task: string;
   source: string;
@@ -44,6 +52,12 @@ export type BotPlan = {
   spentMin: number; // working minutes since the plan started (until it ended, when done or stuck)
   actions: number; // the bot's actions in that time
   note: string; // why it ended stuck (the bot's reason, or the engine's overrun note)
+  // The engine's own measures (macBot1 2d43ea0, refreshed once a cycle): active minutes (gaps capped at twice the
+  // cycle), actions, and active minutes to the first ticked step (null until a step is ticked). Null before it writes them.
+  activeMin: number | null;
+  actionsEngine: number | null;
+  firstStepMin: number | null;
+  measured: boolean;
   workedSince: number; // accepted actions after a done or stuck plan ended: the bot moved on, the plan is history
 };
 
@@ -61,6 +75,7 @@ export type WorkCard = {
   flags: Flags; // the Validator's open findings on this agent's outputs
   capabilities: Capabilities; // what it can and cannot do, from its config (the back of its card)
   score: Score;
+  stopped: boolean; // the owner's STOP file is there: the page folds these away
 };
 
 type PlanDoc = { version: 1; updatedAt: string | null; bots: Record<string, OwnerPlan> };
@@ -88,7 +103,7 @@ function cleanOwner(raw: unknown, previous?: OwnerPlan): OwnerPlan {
   return { goal: line(r.goal, MAX_GOAL), rules };
 }
 
-export async function readOwnerPlans(): Promise<PlanDoc> {
+async function readOwnerPlans(): Promise<PlanDoc> {
   try {
     const raw = JSON.parse(await readFile(/*turbopackIgnore: true*/ PLAN_FILE, "utf8")) as { updatedAt?: unknown; bots?: unknown };
     const bots: Record<string, OwnerPlan> = {};
@@ -167,6 +182,8 @@ async function readBotPlan(bot: BotProfile): Promise<BotPlan | null> {
               estimateMin: minutes(r.estimate_min),
               spentMin: null as number | null,
               engineActual: typeof r.actual_min === "number" ? Math.round(r.actual_min) : null,
+              activeMin: minutes(r.active_min),
+              actionsEngine: typeof r.actions === "number" ? Math.round(r.actions) : null,
             };
           })
           .filter((s) => s.text)
@@ -202,6 +219,10 @@ async function readBotPlan(bot: BotProfile): Promise<BotPlan | null> {
       actions: stamps.length,
       note: line(raw.note, 300),
       workedSince: status !== "active" && updated ? await acceptedSince(bot, updated) : 0,
+      activeMin: minutes(raw.active_min),
+      actionsEngine: typeof raw.actions === "number" ? Math.round(raw.actions) : null,
+      firstStepMin: minutes(raw.first_step_min),
+      measured: typeof raw.active_min === "number",
     };
   } catch {
     return null;
@@ -284,6 +305,7 @@ export async function workCards(bots: BotProfile[]): Promise<{ cards: WorkCard[]
       flags: flags[bot.slug] ?? { errors: 0, warns: 0 },
       capabilities: await capabilitiesOf(bot).catch(() => ({ state: "Unknown", can: [], cannot: [] })),
       score: await scoreOf(bot, tokens[bot.name]),
+      stopped: await workspaceDir(bot).then((ws) => stat(/*turbopackIgnore: true*/ path.join(ws, "STOP")).then(() => true, () => false)),
     })),
   );
   return { cards, updatedAt: doc.updatedAt };
@@ -308,57 +330,9 @@ export async function attentionSince(bots: BotProfile[], since: string): Promise
   return out;
 }
 
-export type DetailKind = "outputs" | "refused" | "flags";
-export type DetailItem = { at: string; kind: string; title: string; detail: string; tone: "good" | "bad" | "warn" };
-
-/** What stands behind a scoreboard number for one agent today: its outputs, its refused actions (with the reason), or
- * the Validator's open flags on it. Newest first, capped. */
-export async function scoreDetails(bot: BotProfile, kind: DetailKind): Promise<DetailItem[]> {
-  if (kind === "flags") {
-    try {
-      const raw = JSON.parse(await readFile(/*turbopackIgnore: true*/ FLAGS_FILE, "utf8")) as Record<string, Record<string, unknown>>;
-      return Object.values(raw)
-        .filter((f) => f && f.status === "open" && f.bot === bot.slug)
-        .map((f) => ({
-          at: String(f.first_seen ?? ""),
-          kind: String(f.rule ?? "flag"),
-          title: line(f.label, 240) || String(f.rule ?? "Flag"),
-          detail: line(f.detail, 600),
-          tone: (f.severity === "error" ? "bad" : "warn") as DetailItem["tone"],
-        }))
-        .sort((a, b) => (a.at < b.at ? 1 : -1))
-        .slice(0, 100);
-    } catch {
-      return [];
-    }
-  }
-  const since = `${localIso(Date.now()).slice(0, 10)}T00:00:00`;
-  const types = OUTPUT_TYPES.map((t) => sq(t)).join(",");
-  const where =
-    kind === "outputs" ? `verdict = 'allowed' AND action_type IN (${types})` : `verdict != 'allowed'`;
-  try {
-    const rows = await query(
-      await dbPath(bot),
-      `SELECT ts, action_type, verdict, result, thought FROM actions WHERE ts >= ${sq(since)} AND ${where} ORDER BY id DESC LIMIT 100`,
-    );
-    return rows.map((r) => {
-      const verdict = String(r.verdict ?? "");
-      return kind === "outputs"
-        ? { at: String(r.ts), kind: String(r.action_type), title: line(r.result, 240) || String(r.action_type), detail: line(r.thought, 400), tone: "good" as const }
-        : {
-            at: String(r.ts),
-            kind: String(r.action_type),
-            title: line(verdict.replace(/^(rejected|failed):\s*/, ""), 300),
-            detail: line(r.thought, 400),
-            tone: (verdict.startsWith("failed") ? "warn" : "bad") as DetailItem["tone"],
-          };
-    });
-  } catch {
-    return [];
-  }
-}
-
-export type PastStep = { text: string; done: boolean; estimateMin: number | null; actualMin: number | null };
+export type PastStep = { text: string; done: boolean; activeMin: number | null; actions: number | null };
+/** A finished plan as the engine archived it. The active-time fields come from macBot1 a2b80a5 (2026-10-15); older
+ *  lines have none of them, and the page shows "—" for those rather than a guess. */
 export type PastJob = {
   slug: string;
   name: string;
@@ -366,16 +340,20 @@ export type PastJob = {
   status: string;
   started: string | null;
   ended: string | null;
-  estimateMin: number | null;
-  actualMin: number | null;
   note: string;
   steps: PastStep[];
+  activeMin: number | null; // minutes of steady work on it (gaps capped at twice the bot's cycle), not hours open
+  actions: number | null;
+  openMin: number | null; // wall clock, for reference only
+  firstStepMin: number | null; // active minutes to the first ticked step
+  closedBy: "bot" | "engine" | null;
+  closedReason: string;
 };
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
 
 /** Finished jobs from every agent's workspace/plan-history.jsonl (the engine appends one line when a plan ends; the
- * file is append-only and survives fresh starts), newest first: the estimate-against-actual record the owner reads. */
+ * file is append-only and survives fresh starts), newest first. */
 export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob[]> {
   const all: PastJob[] = [];
   for (const bot of bots) {
@@ -396,7 +374,7 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
       const steps = Array.isArray(r.steps)
         ? r.steps.slice(0, 20).map((x) => {
             const st = (x ?? {}) as Record<string, unknown>;
-            return { text: line(st.text, 200), done: st.done === true, estimateMin: num(st.estimate_min), actualMin: num(st.actual_min) };
+            return { text: line(st.text, 200), done: st.done === true, activeMin: num(st.active_min), actions: num(st.actions) };
           })
         : [];
       all.push({
@@ -406,10 +384,14 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
         status: line(r.status, 20),
         started: typeof r.started === "string" ? r.started : null,
         ended: typeof r.ended === "string" ? r.ended : null,
-        estimateMin: num(r.estimate_min),
-        actualMin: num(r.actual_min),
         note: line(r.note, 300),
         steps,
+        activeMin: num(r.active_min),
+        actions: num(r.actions),
+        openMin: num(r.open_min),
+        firstStepMin: num(r.first_step_min),
+        closedBy: r.closed_by === "engine" ? "engine" : r.closed_by === "bot" ? "bot" : null,
+        closedReason: line(r.closed_reason, 160),
       });
     }
   }

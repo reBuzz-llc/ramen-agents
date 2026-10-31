@@ -9,12 +9,13 @@ import { lastOutput, jsonlTexts, offSpans, parseLast } from "./downtime";
 import { dbPath } from "./episodes";
 import { lastActionBefore } from "./family-review";
 import { query } from "./family-stats";
-import { idleIssue, providerIssue, rebootIssue, restIntervals, validatorIssue, type Issue } from "./health";
+import { idleIssue, providerIssue, rebootIssue, restIntervals, validatorHealthIssues, type Issue } from "./health";
 
 const CACHE_MS = 60 * 1000;
 const g = globalThis as { __health?: { at: number; issues: Issue[] } };
 const VALIDATOR_STATE = path.join(BOTS_DIR, "validator", "workspace", "state.json");
-export const MODEL_CALLS = path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json");
+const VALIDATOR_HEALTH = path.join(BOTS_DIR, "common-data", "shared-state", "validator-health.json");
+const MODEL_CALLS = path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json");
 
 async function running() {
   const bots = await listBots();
@@ -32,9 +33,10 @@ export async function health(): Promise<Issue[]> {
   if (g.__health && Date.now() - g.__health.at < CACHE_MS) return g.__health.issues;
   const now = Date.now();
   const from7 = now - 7 * 86400e3;
-  const [bots, stateText, lastText, callsText] = await Promise.all([
+  const [bots, stateText, healthText, lastText, callsText] = await Promise.all([
     running(),
     readFile(VALIDATOR_STATE, "utf8").catch(() => "{}"),
+    readFile(VALIDATOR_HEALTH, "utf8").catch(() => null),
     lastOutput(),
     readFile(MODEL_CALLS, "utf8").catch(() => "{}"),
   ]);
@@ -52,7 +54,7 @@ export async function health(): Promise<Issue[]> {
       return idleIssue(b.bot.name, last, restIntervals(texts.join("\n"), now), offIv, now);
     }),
   );
-  const issues = [validatorIssue(stateText, now), rebootIssue(off24), providerIssue(callsText, now), ...idle].filter((x): x is Issue => x !== null);
+  const issues = [...validatorHealthIssues(healthText, stateText, now), rebootIssue(off24), providerIssue(callsText, now), ...idle].filter((x): x is Issue => x !== null);
   g.__health = { at: now, issues };
   return issues;
 }

@@ -1,4 +1,4 @@
-// Server-side only: what Lead Gen's daily candidate lists achieve, per source (owner, 2026-10-05: are the city
+// Server-side only: what Lead Gen's daily candidate lists achieve, per source (owner, 2026-10-05: are the NYC city
 // list and FreeSerp worth it?). Reads the files scripts/candidates-feed.py writes (common-data/botBox/routed/lead-gen/
 // candidates-<market>-DATE.md, a "## From ..." section per source) and Lead Gen's own database: a candidate is
 // "visited" when Lead Gen opened a page on its site after the list came out, and a "lead" when an accepted lead or
@@ -37,7 +37,7 @@ function sourceOf(heading: string): string {
   if (/no website/i.test(heading)) return "City open data, no website";
   if (/freeserp/i.test(heading)) return "FreeSerp";
   if (/overture/i.test(heading)) return "Overture Maps";
-  if (/open data|city/i.test(heading)) return "City open data";
+  if (/open data|nyc|city/i.test(heading)) return "City open data";
   return heading.replace(/^##\s*From\s*/i, "").slice(0, 40) || "Candidates";
 }
 

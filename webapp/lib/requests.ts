@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "./bots";
 
-export type FleetRequest = {
+type FleetRequest = {
   id: string;
   from: string;
   to: string;
@@ -23,7 +23,7 @@ export type FleetRequest = {
 };
 
 /** Mirrors EXPIRE_HOURS in src/explorer/fleet_requests.py, so the badge here and the bots agree. */
-export const EXPIRE_HOURS = 48;
+const EXPIRE_HOURS = 48;
 
 type Event = {
   kind?: string;

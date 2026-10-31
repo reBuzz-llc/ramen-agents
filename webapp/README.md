@@ -1,40 +1,29 @@
 # Bot dashboard (Next.js)
 
-A read-only page for every bot on this Mac. The name in the top-left corner is a profile switcher:
-it lists each bot under `~/bots` with a live status dot, and each bot has its own address,
-`/bots/<folder-name>`. The home page opens the bot you viewed last.
+The family's dashboard on this Mac, at http://127.0.0.1:3000. Four entries in the menu:
 
-Each bot page shows status, the current question and page, what it runs on this Mac, the latest
-screenshot, the live activity log, notes, open questions, interests, and today's journal.
+- **Home (`/`):** the office world, a pixel room where each bot sits at its desk, rests or sleeps by what it is doing
+  now (`app/world-view.tsx`, `lib/world.ts`). Click a member for its panel: Info, Screen (its page over the
+  shoulder) and Feed, plus the owner's Pause, Stop, Start and Bring back (`/api/controls`, `lib/owner-controls.ts`).
+  The bulletin board carries The CEO's proposals (`/api/ceo-proposals`) and the decisions waiting for the owner.
+  A World / List switch shows the same board as cards instead (`app/family-board.tsx`).
+- **Work plan (`/work-plan`):** each bot's goal and rules, past jobs, leads and checks.
+- **Settings (`/settings`):** Appearance, AI providers, Notifications, Reports (the team's week and the
+  Validator's reports), Remote access and About.
+- **Notifications:** the bell, from `lib/alerts.ts` (started in `instrumentation.ts`).
 
 This app lives in `~/bots/webapp`, next to the bot folders. The bot code stays in `~/Projects/bot`.
 
 ## How it gets the data
 
-- `lib/bots.ts` finds bots by reading `~/bots/*/config.toml` (name, bio, `[dashboard] port`).
-- `/api/bots` lists them with a status summary.
-- `/api/bots/<slug>/<endpoint>` forwards GET requests to that bot's own data server
-  (`bot dashboard`, `src/explorer/dashboard.py`). No write endpoints are forwarded, so this app
-  cannot chat with a bot through its data server.
-- `POST /api/bots/<slug>/control` with `{"op": "run" | "stop"}` backs the Run and Stop buttons
-  (`lib/control.ts`). Stop writes the bot's STOP file, like `bot stop`, so launchd keeps it down.
-  Run clears STOP and PAUSE, then starts the bot with `launchctl kickstart` when it has a launch
-  agent, or as a detached `bot --config <config> run --quiet` when it is run by hand (log in
-  `workspace/logs/manual.out`). It only accepts JSON from this app's own page on 127.0.0.1.
-- `/bots/<slug>/persona` edits the bot's bio (`[agent] bio` in config.toml), its goals and its
-  persona (`persona.md`), through `GET` and `PUT /api/bots/<slug>/persona` (`lib/persona.ts`). Goals
-  are the persona's `## ...goal...` section, or a new `## Goals` section at the end. A save refuses to
-  overwrite a file that changed since the page loaded, and keeps the previous version in
-  `workspace/backups/`. A bot reads its persona only when it starts, so the page offers a restart.
-- Screenshot history: a bot keeps only `workspace/screenshots/current.png`. While this app runs,
-  `lib/screenshots.ts` (started from `instrumentation.ts`) copies each new version into
-  `workspace/screenshots/history/` with the page address, keeping the newest 50
-  (`SCREENSHOT_HISTORY_MAX`). `/api/bots/<slug>/screenshots` lists them for Previous / Next.
-- `/api/bots/<slug>/machine` is answered by this app itself (`lib/machine.ts`). It reads `ps`,
-  `lsof` and `lsappinfo` to show the bot's browser (Chromium through Playwright, or the Tor text
-  reader), its agent, supervisor, driver and data server processes, whether it is connected to
-  Ollama or Tor right now, the app in front, and the quiet-mode apps. Raw command lines are never
-  sent to the page.
+- `lib/bots.ts` finds bots by reading `~/bots/*/config.toml`; `/api/bots` lists them with a status summary from
+  each bot's data server (the Work plan's status dots).
+- `/api/board` (`lib/board-read.ts`, `lib/board.ts`) is the live board: each bot's newest heartbeat and today's
+  actions from its own database (read-only), the tail of its `logs/explorer.jsonl`, its plan, and its STOP,
+  PAUSE, RESTARTING and RETIRED.md markers.
+- `/api/shoulder` reads the bot's latest trace and `screenshots/current.png` for the Screen tab.
+- Old addresses (`/bots/...`, `/chatroom`, `/requests`, `/send-today`, `/family-review`) redirect to `/`
+  (`lib/removed-routes.ts`).
 
 ## Run it
 
@@ -53,19 +42,9 @@ run `npm run dev`, and bootstrap the plist again when done.
 Every bot needs its own `[dashboard] port`; `bot new NAME --persona explorer|ceo --port N` sets one.
 `BOTS_DIR` and `BOT_CODE_ROOT` override `~/bots` and `~/Projects/bot`.
 
-## Team (Persona page, bots with Notion)
-
-Who a bot may assign Notion tasks to. The panel lists the people in the Notion workspace (read with
-the integration token in `common-data/keys/notion.key`, on the server only; Notion's API does not list
-guests) and saves the chosen ones, with a role and details each and one default, to
-`common-data/team.json`. Every bot with `[notion] enabled` reads that file at each new episode
-(`src/explorer/team.py`), so a change takes effect without a restart: the model is shown the list,
-a task naming anyone else is refused, and an unassigned task goes to the default person.
-`TEAM_FILE` overrides the path (tests).
-
 ## Settings
 
-The profile button at the top right opens Appearance and Settings (`/settings`):
+The profile button at the top right opens Settings (`/settings`):
 
 - **Appearance:** Automatic, Light or Dark (cookie `theme`) and the Liquid Glass clear-to-tinted slider (cookie
   `glass`), both applied without a reload.
@@ -75,13 +54,15 @@ The profile button at the top right opens Appearance and Settings (`/settings`):
   browser, and only from this app's own page (`lib/keys.ts`, `app/api/settings/keys`). Restart a bot after
   changing its keys.
 - **Remote access:** Tailscale state, the tailnet address, what it forwards to, and who may open it.
+- **Notifications:** what the bell watches for.
+- **Reports:** the team's numbers and key results, the Validator's refusal report and its near-duplicate packages.
 - **About:** versions, the Apple design kit's freshness with a Check now button, and the bot code's latest commit.
 
 ## Apple theme
 
 The look follows `applebrandkit.md`: Apple's iOS 27 Liquid Glass design translated to the web (system colors,
 Dynamic Type sizes, glass toolbar and tab bar, Home Screen support). Tokens and glass utilities live in
-`app/globals.css`; shared pieces in `app/ui.tsx` and `app/app-chrome.tsx`.
+`app/globals.css`; shared pieces in `app/ui.tsx` and `app/page-shell.tsx`.
 
 The kit keeps itself current. `npm run brandkit:check` reads Apple's design updates, the guideline pages the
 kit depends on, Apple Developer news, the WebKit blog and `npm outdated`, and rewrites the kit's status
@@ -102,5 +83,5 @@ and starts bots through launchd. Other devices reach it through Tailscale instea
 Who may use it (`proxy.ts`, `lib/access.ts`): requests from this Mac, and forwarded requests whose
 `Tailscale-User-Login` is the account this Mac is signed in with. Set `DASHBOARD_ALLOWED_USERS`
 (comma-separated logins) in the launch agent to allow others, and `DASHBOARD_HOSTS` for extra host
-names. Everyone else gets "Not allowed". Run, Stop, Restart and persona saves also require the page's
+names. Everyone else gets "Not allowed". The owner's controls and every save also require the page's
 own origin (`lib/same-origin.ts`). Undo remote access with `tailscale serve reset`.

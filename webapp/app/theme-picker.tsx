@@ -16,7 +16,7 @@ function readChoice(): ThemeChoice {
 }
 
 /** The current appearance choice, kept in step across every picker on the page. */
-export function useThemeChoice(): [ThemeChoice, (c: ThemeChoice) => void] {
+function useThemeChoice(): [ThemeChoice, (c: ThemeChoice) => void] {
   const [choice, setChoice] = useState<ThemeChoice>("system");
   useEffect(() => {
     const sync = () => setChoice(readChoice());

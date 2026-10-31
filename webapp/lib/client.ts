@@ -2,7 +2,7 @@
 // own origin, which lib/same-origin.ts checks.
 import { errorText } from "./format";
 
-export type Sent<T> = { ok: boolean; status: number; body: T | null; error: string | null };
+type Sent<T> = { ok: boolean; status: number; body: T | null; error: string | null };
 
 export async function sendJson<T>(url: string, method: "POST" | "PUT", payload: unknown): Promise<Sent<T>> {
   try {

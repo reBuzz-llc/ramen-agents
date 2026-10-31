@@ -22,7 +22,7 @@ export function useVisibleInterval(fn: () => void, everyMs: number): void {
   }, [everyMs]);
 }
 
-export type Poll<T> = { data: T | null; error: string | null; at: number; reload: () => void };
+type Poll<T> = { data: T | null; error: string | null; at: number; reload: () => void };
 
 /** Poll a JSON endpoint of this app (a path under /api/), keeping the last good data when a request fails. */
 export function usePoll<T>(path: string, everyMs: number): Poll<T> {

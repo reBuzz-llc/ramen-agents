@@ -1,8 +1,8 @@
-// Run: npm test. One fixture per health-banner condition (creatorCC queue 5, 2026-10-29).
+// Run: npm test. One fixture per health-banner condition (2026-10-29).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
-import { awakeMinutes, idleIssue, providerIssue, providerStrip, rebootIssue, restIntervals, validatorIssue } from "../lib/health.ts";
+import { awakeMinutes, idleIssue, providerIssue, providerStrip, rebootIssue, restIntervals, validatorHealthIssues, validatorIssue } from "../lib/health.ts";
 
 const now = new Date("2026-10-29T22:00:00").getTime();
 const t = (iso: string) => new Date(iso).getTime();
@@ -89,4 +89,32 @@ test("provider strip: the chain's Gemini and the Validator's judge apart; the ju
   ]);
   // The chain's busiest is Gemini, and it answers: no banner although z.ai has failed for over an hour.
   assert.equal(providerIssue(text, now), null);
+});
+
+test("validator-health.json: a failed job is a line; a recovered job clears; no file falls back to state.json", () => {
+  const now = new Date(2026, 9, 31, 9, 0, 0).getTime();
+  const file = (jobs: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ version: 1, last_run: "2026-10-31T08:50:00", mode: "inbox", last_full_sweep: "2026-10-31T04:24:22", jobs, ...extra });
+  const failed = validatorHealthIssues(
+    file({
+      "map fill": { ok: false, error: "TypeError: can't subtract offset-naive and offset-aware datetimes", at: "2026-10-31T04:24:22" },
+      "enricher list": { ok: true, error: "", at: "2026-10-31T04:24:22" },
+      run: { ok: true, error: "", at: "2026-10-31T08:50:00" },
+    }),
+    "{}",
+    now,
+  );
+  assert.deepEqual(failed, [
+    { key: "validator-job:map fill", since: "2026-10-31T04:24:22", text: "The Validator's map fill failed at 04:24: TypeError: can't subtract offset-naive and offset-aware datetimes." },
+  ]);
+  // the next full sweep ran it fine: the line is gone
+  assert.deepEqual(validatorHealthIssues(file({ "map fill": { ok: true, error: "", at: "2026-10-31T08:40:00" } }), "{}", now), []);
+  // last_run read from the file: 10 h old is a line, whatever state.json says
+  const stale = validatorHealthIssues(file({}, { last_run: "2026-10-30T23:00:00" }), JSON.stringify({ last_run: "2026-10-31T08:59:00" }), now);
+  assert.equal(stale.length, 1);
+  assert.match(stale[0].text, /^The Validator has not run since 10-30 23:00/);
+  // no file (or unreadable): state.json as before
+  assert.equal(validatorHealthIssues(null, JSON.stringify({ last_run: "2026-10-30T20:00:00" }), now)[0]?.key, "validator");
+  assert.deepEqual(validatorHealthIssues(null, JSON.stringify({ last_run: "2026-10-31T08:59:00", last_full_sweep: "2026-10-31T04:00:00" }), now), []);
+  assert.equal(validatorHealthIssues("not json", JSON.stringify({ last_run: "2026-10-30T20:00:00" }), now)[0]?.key, "validator");
 });

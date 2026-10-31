@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 /** Put text on the clipboard. The async Clipboard API only exists in secure contexts (https or localhost);
  * over the plain-http Tailscale address it is missing, so fall back to a hidden textarea and execCommand,
  * which Safari on iOS also accepts inside a tap. */
-export async function copyText(text: string): Promise<boolean> {
+async function copyText(text: string): Promise<boolean> {
   if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(text);

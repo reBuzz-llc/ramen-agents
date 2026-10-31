@@ -58,7 +58,7 @@ keys and two Notion boards.
 
 ## Day to day
 
-- Dashboard: http://127.0.0.1:3000 (chat with a bot, stop and start bots, the Work plan page with each bot's refusal rate, the Family review page, a red line at the top when something needs you).
+- Dashboard: http://127.0.0.1:3000 (the office world: each agent at its desk, resting or asleep by what it is doing now; click one to see its screen and feed and to pause, stop or start it; the bulletin board for your decisions and The CEO's proposals; the Work plan page with each bot's refusal rate; Settings › Reports; a red line at the top when something needs you).
 - Keeping the family healthy on free tiers (resting, repeat limits, provider health, the dashboard checks): [docs/staying-healthy.md](docs/staying-healthy.md).
 - Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. Never `launchctl kickstart -k` on a bot.
 - Stopped a bot for good (it has a STOP file)? `sh scripts/disable-bot.sh <slug>` unloads its launchd jobs and marks them disabled, so launchd stops relaunching it every 30 s and a reboot does not load it again. `sh scripts/enable-bot.sh <slug>` undoes that and leaves the STOP file; `restart-bot.sh` is still what runs the bot.

@@ -140,11 +140,11 @@ Turn these on when drafts come back cut off or empty. The model log then shows t
 
 The problem: emails stopped right after "Hi …" because the model had spent the whole cap thinking.
 
-## The dashboard: health banner and Family review
+## The dashboard: health banner, the world and Reports
 
 There is no setting: both are part of the dashboard.
 
-**Health banner:** a red line at the top of every bot page when something needs a person, and nothing when all is
+**Health banner:** a red line at the top of the home page when something needs a person, and nothing when all is
 well. It appears when:
 
 - the Validator has not run for 8 hours, or has not done a full sweep for 30 hours;
@@ -153,18 +153,15 @@ well. It appears when:
   do not count);
 - the main model provider (the one with the most calls today) has been failing for over an hour.
 
-**Family review** (menu → Family review) gives one row per running bot, for the last 24 hours or 7 days:
+**The world** (the home page) shows each running bot at its desk, resting on the sofa, or asleep in the corner when
+it is stopped, with a line over the room for how long the Mac was off and the bots were quiet in the last 24 hours, so a
+slow day is not mistaken for bad bots. Click a bot for its panel: what it is doing, its last 7 days (actions, the
+share refused, outputs by type), the page it has open, its recent work, and Pause, Stop and Start. A World / List
+switch shows the same board as cards.
 
-- actions, and the share refused;
-- accepted outputs by type;
-- the last action, and the last output of the bot's own kind (red past 24 hours unless the Mac was off or the bots
-  were paused);
-- the plan in hand;
-- crashes.
-
-Above the table, a line says how long the Mac was off and the bots were quiet, so a slow day is not mistaken for bad
-bots. Below it come your team's sending numbers, the week's key results if you keep `common-data/botBox/routed/the-ceo/okr-week.md`, and today's model
-providers, each with a green or red dot.
+**Settings › Reports** has your team's sending numbers, the week's key results if you keep
+`common-data/botBox/routed/the-ceo/okr-week.md`, today's model providers (each with a green or red dot), and the
+Validator's reports.
 
 The problem: a check-in meant opening every bot's log by hand, and a low day looked the same as a broken one.
 

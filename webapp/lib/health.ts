@@ -1,4 +1,4 @@
-// The health banner (creatorCC queue 5, 2026-10-29): one red line at the top of the dashboard when something needs a
+// The health banner (2026-10-29): one red line at the top of the dashboard when something needs a
 // human, nothing when all is well. Each condition is one short sentence with the time it started:
 //   (a) the Validator's last_run older than 8 h, or its last_full_sweep older than 30 h;
 //   (b) an unplanned reboot (no shutdown logged) in the last 24 h;
@@ -30,6 +30,35 @@ export function validatorIssue(stateText: string, now: number): Issue | null {
     return { key: "validator", since: run, text: `The Validator has not run since ${hhmm(run)}${sweep ? ` (last full sweep ${hhmm(sweep)})` : ""}.` };
   if (sweep && ageH(sweep, now) > VALIDATOR_SWEEP_H) return { key: "validator", since: sweep, text: `The Validator's last full sweep was ${hhmm(sweep)}, over ${VALIDATOR_SWEEP_H} h ago.` };
   return null;
+}
+
+/** (a) from the Validator's own shared-state/validator-health.json (written after every run): the same
+ *  last_run / last_full_sweep conditions read from it, plus one line per board job whose last result failed, "The
+ *  Validator's <job> failed at HH:MM: <error>", which clears when the job next succeeds. Without the file (or when it
+ *  cannot be read) the conditions come from its state.json as before. */
+export function validatorHealthIssues(healthText: string | null, stateText: string, now: number): Issue[] {
+  let h: { last_run?: unknown; last_full_sweep?: unknown; jobs?: Record<string, { ok?: unknown; error?: unknown; at?: unknown }> } | null = null;
+  if (healthText) {
+    try {
+      h = JSON.parse(healthText);
+    } catch {
+      h = null;
+    }
+  }
+  if (!h || typeof h !== "object") {
+    const v = validatorIssue(stateText, now);
+    return v ? [v] : [];
+  }
+  const out: Issue[] = [];
+  const v = validatorIssue(JSON.stringify({ last_run: h.last_run ?? "", last_full_sweep: h.last_full_sweep ?? "" }), now);
+  if (v) out.push(v);
+  for (const [name, j] of Object.entries(h.jobs ?? {})) {
+    if (!j || j.ok !== false) continue;
+    const at = typeof j.at === "string" ? j.at : "";
+    const error = String(j.error ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+    out.push({ key: `validator-job:${name}`, since: at, text: `The Validator's ${name} failed${at ? ` at ${at.slice(11, 16)}` : ""}${error ? `: ${error}` : ""}.` });
+  }
+  return out;
 }
 
 /** (b) Unplanned reboots in the last 24 h, from the downtime spans ("no clean shutdown logged"). */
@@ -93,11 +122,11 @@ export function idleIssue(name: string, lastAccepted: string | null, rests: Inte
   return { key: `idle:${name}`, since: lastAccepted, text: `${name} has had no accepted action since ${hhmm(lastAccepted)} (${h} h ${Math.round(awake % 60)} min awake, not resting).` };
 }
 
-export type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: string; first_fail?: string };
+type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: string; first_fail?: string };
 export type Provider = { host: string; label: string; calls: number; ok: boolean | null; dot: boolean };
 
 // Ledger keys that are not chain providers, with their label: the Validator's judge calls Gemini directly and keeps its
-// own key, with no health record (creatorCC, 2026-10-29); the chain's Gemini calls count under "gemini".
+// own key, with no health record (2026-10-29); the chain's Gemini calls count under "gemini".
 const SIDE_KEYS: Record<string, string> = { "generativelanguage.googleapis.com": "Gemini (Validator judge)" };
 const LABELS: Record<string, string> = { gemini: "Gemini" };
 type ModelCalls = { counts?: Record<string, number>; health?: Record<string, ProviderHealth> };

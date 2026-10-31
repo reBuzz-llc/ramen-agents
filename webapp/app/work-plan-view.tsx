@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BotSummary } from "@/lib/bot";
 import type { Identity } from "@/lib/identity";
 import { ago } from "@/lib/format";
@@ -11,13 +10,12 @@ import type { Change } from "@/lib/changes";
 import type { LeadResults, Pipeline, ResultGroup } from "@/lib/lead-results";
 import type { TestRun } from "@/lib/test-runs";
 import type { CeoMeasure } from "@/lib/ceo-measure";
-import type { DetailItem, DetailKind, OwnerPlan, PastJob, RefusalDay, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
+import type { OwnerPlan, PastJob, RefusalDay, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
+import { partition, pastLine, readHash, type Tab } from "@/lib/work-plan-rows";
 import { sendJson } from "@/lib/client";
 import { Avatar } from "./bot-switcher";
-import { PAGE_WIDTH } from "./chrome-shell";
 import { useLeaveGuard, useNow, usePoll } from "./hooks";
-import ProfileMenu from "./profile-menu";
-import Sheet from "./sheet";
+import PageShell from "./page-shell";
 import { markWorkPlanSeen } from "./work-plan-shortcut";
 import { compact, Segmented } from "./summary-parts";
 import { buttonClass, Icon, Spinner } from "./ui";
@@ -32,52 +30,16 @@ const input =
 /** Minutes as "45m" or "2h 10m". */
 const dur = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`);
 
-/** Estimate against actual working time, as data (owner, 2026-09-30: "est time - actual time = useful data"):
- * "est 30m · actual 45m · 15m over", the difference red when over and green when under. */
-function TimeTag({ spent, estimate, className = "", stacked = false }: { spent: number | null; estimate: number | null; className?: string; stacked?: boolean }) {
-  if (spent === null && estimate === null) return null;
-  const diff = spent !== null && estimate !== null ? estimate - spent : null;
-  const parts = [
-    estimate !== null ? `est ${dur(estimate)}` : null,
-    spent !== null ? `actual ${dur(spent)}` : null,
-    diff === null ? null : diff === 0 ? "on estimate" : diff > 0 ? `${dur(diff)} under` : `${dur(-diff)} over`,
-  ].filter(Boolean);
-  // Over the estimate in red, under (or on) it in green (owner, 2026-09-30); the estimate and actual stay grey.
-  const tone = diff === null ? "" : diff < 0 ? "font-semibold text-bad" : "font-semibold text-good";
-  const last = parts.length - 1;
-  // Beside a checklist step: one figure per line, so the column stays narrow and the step keeps its width (owner, 2026-10-10).
-  if (stacked)
-    return (
-      <span className={`flex shrink-0 flex-col items-end text-right leading-tight text-muted tabular-nums ${className}`} title="Working time: gaps between the bot's actions, pauses over 5 minutes left out">
-        {parts.map((p, i) => (
-          <span key={i} className={`whitespace-nowrap ${diff !== null && i === last ? tone : ""}`}>
-            {p}
-          </span>
-        ))}
-      </span>
-    );
-  return (
-    <span className={`shrink-0 text-muted tabular-nums ${className}`} title="Working time: gaps between the bot's actions, pauses over 5 minutes left out">
-      {parts.map((p, i) => (
-        <span key={i}>
-          {i ? " · " : ""}
-          <span className={diff !== null && i === last ? tone : ""}>{p}</span>
-        </span>
-      ))}
-    </span>
-  );
-}
-
 const same = (a: OwnerPlan, b: OwnerPlan) =>
   a.goal === b.goal && a.rules.length === b.rules.length && a.rules.every((r, i) => r.id === b.rules[i].id && r.text === b.rules[i].text);
 const tidy = (p: OwnerPlan): OwnerPlan => ({ goal: p.goal.trim(), rules: p.rules.map((r) => ({ ...r, text: r.text.trim() })).filter((r) => r.text) });
 
 /**
- * One grid of every agent (owner, 2026-09-26): what it is working through now (the engine's checklist), the goal and
- * rules the owner sets for it in one line each (read by the engine into every step), and a scoreboard of today's
- * accepted outputs against the tokens spent. Minimal on purpose: single-line inputs, no long text.
+ * Every agent on one line (owner, 2026-09-26; folded 2026-10-30): tap a line for what it is working through now (the
+ * engine's checklist) and the goal and rules the owner sets for it in one line each (read by the engine into every
+ * step). Past jobs, the Leads numbers and the checks are their own tabs.
  */
-export default function WorkPlanView({ identity, backHref, backLabel }: { identity: Identity; backHref: string; backLabel: string }) {
+export default function WorkPlanView({ identity }: { identity: Identity }) {
   const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[]; candidates?: CandidateFunnel; changes?: Change[]; results?: LeadResults; tests?: TestRun[]; ceo?: CeoMeasure }>("work-plan", 15000);
   const fleet = usePoll<BotSummary[]>("bots", 15000);
   const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
@@ -100,22 +62,22 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
   }, []);
 
   const cards = useMemo(() => feed.data?.cards ?? [], [feed.data]);
-  // Best value first: outputs per million tokens, then outputs; a bot that spent nothing today sorts last.
-  const board = useMemo(
-    () =>
-      [...cards].sort(
-        (a, b) => (b.score.perMillion ?? -1) - (a.score.perMillion ?? -1) || b.score.outputs - a.score.outputs || a.name.localeCompare(b.name),
-      ),
-    [cards],
-  );
+  const { running, stopped } = useMemo(() => partition(cards), [cards]);
+  const slugs = useMemo(() => cards.map((c) => c.slug).join(" "), [cards]);
 
-  // The page grew to a dozen panels (owner, 2026-10-10: "this page is too long"): three tabs, the open one in the address
-  // (#leads, #checks); #target opens the Agents tab, where the browser scrolls to the target panel.
-  const [tab, setTab] = useState<Tab>("agents");
+  // Folded rows, one open at a time (owner, 2026-10-30: "the Work plan page is too long"). The tab and the open row live
+  // in the address: #past, #leads, #checks, or #<slug> (the world's nameplates link there).
+  const [tab, setTab] = useState<Tab>("plan");
+  const [open, setOpen] = useState<string | null>(null);
+  const [showStopped, setShowStopped] = useState(false);
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.slice(1) as Tab;
-      setTab(TABS.some((t) => t.key === h) ? h : "agents");
+      const h = readHash(window.location.hash, slugs.split(" "));
+      setTab(h.tab);
+      if (h.open) {
+        setOpen(h.open);
+        if (stopped.some((c) => c.slug === h.open)) setShowStopped(true);
+      }
     };
     const t = setTimeout(read, 0);
     window.addEventListener("hashchange", read);
@@ -123,49 +85,54 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
       clearTimeout(t);
       window.removeEventListener("hashchange", read);
     };
-  }, []);
+  }, [slugs, stopped]);
+  const go = (hash: string) => window.history.replaceState(window.history.state, "", hash ? `#${hash}` : window.location.pathname);
   const pickTab = (t: Tab) => {
     setTab(t);
-    window.history.replaceState(window.history.state, "", t === "agents" ? window.location.pathname : `#${t}`);
+    go(t === "plan" ? (open ?? "") : t);
   };
 
   return (
-    <>
-      <header className="pt-safe fixed inset-x-0 top-0 z-30">
-        <div className="scroll-edge-top pointer-events-none absolute inset-x-0 top-0 h-[calc(env(safe-area-inset-top)+5.5rem)]" aria-hidden />
-        <div className={`relative mx-auto flex ${PAGE_WIDTH} items-center gap-2 px-3 pt-2 pb-2 sm:px-5`}>
-          <div className="flex min-w-0 flex-1 items-center">
-            <Link href={backHref} className="glass pressable flex h-11 min-w-0 items-center gap-1 rounded-full pr-4 pl-2.5 text-sm font-semibold text-ink">
-              <Icon name="chevron-left" className="h-4 w-4 shrink-0" />
-              <span className="truncate">{backLabel}</span>
-            </Link>
-          </div>
-          <div className="hidden h-11 shrink-0 items-center px-5 text-base font-semibold text-ink sm:flex">Work plan</div>
-          <div className="flex h-11 min-w-0 flex-1 items-center justify-end">
-            <ProfileMenu identity={identity} />
-          </div>
-        </div>
-      </header>
+    <PageShell identity={identity} title="Work plan">
+        <h1 className="pt-2 text-3xl font-bold text-ink">Work plan</h1>
 
-      <main className={`mx-auto ${PAGE_WIDTH} px-4 pt-[calc(env(safe-area-inset-top)+4.5rem)] pb-[calc(env(safe-area-inset-bottom)+2.5rem)] sm:px-6 sm:pb-10`}>
-        <div className="mb-5 pt-2">
-          <h1 className="text-3xl font-bold text-ink">Work plan</h1>
-          <p className="mt-0.5 text-sm text-muted">What each agent is doing, the goal and rules you set for it, and how much it got done today.</p>
-        </div>
-
-        {feed.error && !feed.data ? <p className="rounded-xl bg-sys-red/10 p-4 text-sm text-bad">{feed.error}</p> : null}
+        {feed.error && !feed.data ? <p className="mt-3 rounded-xl bg-sys-red/10 p-4 text-sm text-bad">{feed.error}</p> : null}
         {!feed.data && !feed.error ? (
-          <p className="flex items-center gap-2 text-sm text-muted">
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted">
             <Spinner /> Loading…
           </p>
         ) : null}
 
         {feed.data ? (
           <>
-            <div className="mb-4">
+            <div className="mt-3 mb-3">
               <Segmented label="Work plan section" options={TABS} value={tab} onChange={pickTab} />
             </div>
-            {/* Every tab stays mounted and is only hidden, so an unsaved goal or target edit survives a switch. */}
+            {/* Every tab and row stays mounted and is only hidden, so an unsaved goal or target edit survives a switch. */}
+            <div hidden={tab !== "plan"}>
+              <p className="mb-2 text-xs text-muted">Each agent reads its goal and rules on its next step. “Can do” flips a card to what the agent can and cannot do.</p>
+              <TargetPanel />
+              <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {running.map((c) => (
+                  <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+                ))}
+              </ul>
+              {stopped.length ? (
+                <div className="mt-3">
+                  <button type="button" onClick={() => setShowStopped((v) => !v)} className={buttonClass("plain", "sm")} aria-expanded={showStopped}>
+                    {showStopped ? "Hide stopped" : `Show stopped (${stopped.length})`}
+                  </button>
+                  <ul className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" hidden={!showStopped}>
+                    {stopped.map((c) => (
+                      <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+            <div hidden={tab !== "past"}>
+              <PastList jobs={feed.data.past ?? []} />
+            </div>
             <div hidden={tab !== "leads"}>
               {feed.data.results ? <HowWeSend results={feed.data.results} /> : null}
               {feed.data.results ? <ResultsPanel results={feed.data.results} /> : null}
@@ -176,167 +143,89 @@ export default function WorkPlanView({ identity, backHref, backLabel }: { identi
               {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
               <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} />
             </div>
-            <div hidden={tab !== "agents"}>
-              <TargetPanel />
-              <Board rows={board} status={status} />
-              <ul className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {/* Same order as the scoreboard, so a row there and its card here line up. */}
-                {board.map((c) => (
-                  <li key={c.slug} className="min-w-0">
-                    {/* Keyed on the saved values: a change to the file (a save, or an edit elsewhere) starts the card afresh,
-                        while polls that bring the same values leave an edit in progress alone. */}
-                    <AgentCard key={JSON.stringify(c.owner)} card={c} tone={status.get(c.slug)} onDirty={markDirty} />
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-5">
-                <PastJobs jobs={feed.data.past ?? []} />
-              </div>
-            </div>
           </>
         ) : null}
-      </main>
-    </>
+    </PageShell>
   );
 }
 
-// The target sits on the Agents tab with the goals it shapes (owner, 2026-10-10: "target and task can be on 1 tab").
-type Tab = "agents" | "leads" | "checks";
 const TABS: { key: Tab; label: string }[] = [
-  { key: "agents", label: "Agents and target" },
+  { key: "plan", label: "Work plan" },
+  { key: "past", label: "Past jobs" },
   { key: "leads", label: "Leads" },
   { key: "checks", label: "Checks" },
 ];
 
-/** Today's scoreboard: every number opens what stands behind it. */
-function Board({ rows, status }: { rows: WorkCard[]; status: Map<string, ReturnType<typeof summaryStatus>> }) {
-  const [detail, setDetail] = useState<Opened | null>(null);
+/** A card in the grid, with its #slug anchor: the address /work-plan#<slug> (the world's nameplates) scrolls to it and
+ *  outlines it. Keyed on the saved values: a change to the file starts the card afresh, while polls that bring the same
+ *  values leave an edit in progress alone. */
+function CardSlot({ card, tone, target, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; target: boolean; onDirty: (slug: string, on: boolean) => void }) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (target) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [target]);
   return (
-    <section className="rounded-xl bg-panel px-4 pt-3.5 pb-3">
-      <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-ink">Scoreboard · today</h2>
-        <span className="text-xs text-muted">Tap a number to see what is behind it</span>
-      </header>
-      <Scoreboard rows={rows} status={status} onOpen={setDetail} />
-      <DetailSheet opened={detail} onClose={() => setDetail(null)} />
-    </section>
+    <li ref={ref} id={card.slug} className={`min-w-0 scroll-mt-24 rounded-xl ${target ? "ring-2 ring-[#ff6600]" : ""}`}>
+      <AgentCard key={JSON.stringify(card.owner)} card={card} tone={tone} onDirty={onDirty} />
+    </li>
   );
 }
 
-/** Finished jobs, estimate against actual (owner, 2026-09-30: "est time - actual time = useful data for me"): a total
- * per agent on top, then each job, its steps one tap away. Red = over the estimate, green = under. */
-function PastJobs({ jobs }: { jobs: PastJob[] }) {
+/** Past jobs, one line each, newest first, 20 at a time (owner, 2026-10-30): bot, task, when it ran, how it ended,
+ *  active minutes. Tap a line for its steps. */
+function PastList({ jobs }: { jobs: PastJob[] }) {
+  const [shown, setShown] = useState(20);
   const [open, setOpen] = useState<number | null>(null);
-  const diffCell = (est: number | null, act: number | null) => {
-    if (est === null || act === null) return <span className="text-muted">–</span>;
-    const d = est - act;
-    return <span className={`font-semibold ${d < 0 ? "text-bad" : "text-good"}`}>{d === 0 ? "on est" : d > 0 ? `${dur(d)} under` : `${dur(-d)} over`}</span>;
-  };
-  const byAgent = new Map<string, { name: string; jobs: number; withEst: number; est: number; act: number; over: number; under: number }>();
-  for (const j of jobs) {
-    const a = byAgent.get(j.slug) ?? { name: j.name, jobs: 0, withEst: 0, est: 0, act: 0, over: 0, under: 0 };
-    a.jobs++;
-    if (j.estimateMin !== null && j.actualMin !== null) {
-      a.withEst++;
-      a.est += j.estimateMin;
-      a.act += j.actualMin;
-      if (j.actualMin > j.estimateMin) a.over++;
-      else a.under++;
-    }
-    byAgent.set(j.slug, a);
-  }
+  if (!jobs.length) return <p className="text-sm text-muted">No finished jobs yet.</p>;
   return (
-    <section className="mt-5 rounded-xl bg-panel px-4 pt-3.5 pb-3">
-      <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-ink">Past jobs</h2>
-        <span className="text-xs text-muted">Estimate against actual working time</span>
-      </header>
-      {!jobs.length ? (
-        <p className="mt-2 text-sm text-muted">No finished jobs yet. Each job lands here when its agent finishes it or ends it stuck, with its estimate and the time it really took.</p>
-      ) : (
-        <>
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[34rem] text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="py-1.5 pr-3 font-medium">Agent</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Jobs</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Over / under</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Estimated</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Actual</th>
-                  <th className="py-1.5 text-right font-medium">Difference</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {[...byAgent.entries()].map(([slug, a]) => (
-                  <tr key={slug}>
-                    <td className="py-2 pr-3 font-medium text-ink">{a.name}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{a.jobs}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">
-                      <span className="text-bad">{a.over}</span> / <span className="text-good">{a.under}</span>
-                    </td>
-                    <td className="py-2 pr-3 text-right text-muted tabular-nums">{a.withEst ? dur(a.est) : "–"}</td>
-                    <td className="py-2 pr-3 text-right text-muted tabular-nums">{a.withEst ? dur(a.act) : "–"}</td>
-                    <td className="py-2 text-right tabular-nums">{a.withEst ? diffCell(a.est, a.act) : <span className="text-muted">no estimates</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ol className="mt-3 divide-y divide-line border-t border-line">
-            {jobs.map((j, i) => (
-              <li key={i} className="py-2">
-                <button type="button" onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-start gap-3 text-left" aria-expanded={open === i}>
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${j.status === "done" ? "bg-sys-green" : j.status === "stuck" ? "bg-sys-orange" : "bg-sys-gray"}`} role="img" aria-label={j.status} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm break-words text-ink">{j.task || "(untitled job)"}</span>
-                    <span className="block text-xs text-muted">
-                      {j.name} · {j.status}
-                      {j.ended ? ` · ended ${j.ended.replace("T", " ").slice(0, 16)}` : ""}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right text-xs tabular-nums">
-                    <span className="block text-muted">
-                      {j.estimateMin !== null ? `est ${dur(j.estimateMin)} · ` : ""}
-                      {j.actualMin !== null ? `actual ${dur(j.actualMin)}` : ""}
-                    </span>
-                    {diffCell(j.estimateMin, j.actualMin)}
-                  </span>
-                </button>
-                {open === i ? (
-                  <div className="mt-2 ml-5 space-y-1">
-                    {j.note ? <p className="text-xs break-words text-muted">{j.note}</p> : null}
-                    {j.steps.map((st, k) => (
-                      <div key={k} className="flex items-start gap-2 text-xs">
-                        <span className={`min-w-0 flex-1 break-words ${st.done ? "text-ink" : "text-muted"}`}>
-                          {st.done ? "✓ " : "○ "}
-                          {st.text}
-                        </span>
-                        <span className="shrink-0 text-muted tabular-nums">
-                          {st.estimateMin !== null ? `est ${dur(st.estimateMin)} · ` : ""}
-                          {st.actualMin !== null ? `actual ${dur(st.actualMin)} · ` : ""}
-                        </span>
-                        <span className="shrink-0 tabular-nums">{diffCell(st.estimateMin, st.actualMin)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </>
-      )}
-    </section>
+    <>
+      <ol className="divide-y divide-line rounded-xl bg-panel px-4">
+        {jobs.slice(0, shown).map((j, i) => {
+          const l = pastLine(j);
+          return (
+            <li key={i} className="py-2">
+              <button type="button" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i} className="flex w-full items-baseline gap-3 text-left text-sm">
+                <span className={`h-2 w-2 shrink-0 self-center rounded-full ${l.ended === "done" ? "bg-sys-green" : l.ended === "stuck" ? "bg-sys-orange" : "bg-sys-gray"}`} aria-hidden />
+                <span className="w-24 shrink-0 truncate font-medium text-ink sm:w-32">{l.bot}</span>
+                <span className="min-w-0 flex-1 truncate text-ink">{l.task}</span>
+                <span className="hidden shrink-0 text-xs text-muted tabular-nums md:inline">{l.when}</span>
+                <span className="w-16 shrink-0 text-right text-xs text-muted">{l.ended}</span>
+                <span className="hidden w-28 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{l.active}</span>
+              </button>
+              {open === i ? (
+                <div className="mt-1.5 ml-5 space-y-1 text-xs">
+                  <p className="text-muted md:hidden">
+                    {l.when} · {l.active}
+                  </p>
+                  {j.note ? <p className="break-words text-muted">{j.note}</p> : null}
+                  {j.steps.map((st, k) => (
+                    <p key={k} className={`break-words ${st.done ? "text-ink" : "text-muted"}`}>
+                      {st.done ? "✓ " : "○ "}
+                      {st.text}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+      {jobs.length > shown ? (
+        <button type="button" onClick={() => setShown((n) => n + 20)} className={`${buttonClass("plain", "sm")} mt-2`}>
+          More ({jobs.length - shown} older)
+        </button>
+      ) : null}
+    </>
   );
 }
 
 type TargetDoc = { market: string; market_short: string; segment: string; trades: string; areas: string };
 const TARGET_FIELDS: { key: keyof TargetDoc; label: string; hint: string }[] = [
-  { key: "market", label: "Market", hint: "e.g. Springfield" },
-  { key: "market_short", label: "Short name", hint: "e.g. SPR" },
+  { key: "market", label: "Market", hint: "e.g. New York" },
+  { key: "market_short", label: "Short name", hint: "e.g. NYC" },
   { key: "segment", label: "Segment", hint: "e.g. small businesses" },
   { key: "trades", label: "Trades", hint: "e.g. restaurants, shops, clinics" },
-  { key: "areas", label: "Areas", hint: "e.g. Downtown, Northside, Riverside" },
+  { key: "areas", label: "Areas", hint: "e.g. Brooklyn, Manhattan, Queens" },
 ];
 
 /** The family's target market, one line each (common-data/knowledge/target.toml): every agent's card follows it on its
@@ -373,7 +262,7 @@ function TargetPanel() {
       !hasFeed &&
       !window.confirm(
         `There is no open-data feed for "${market}" yet, so Lead Gen's daily list will come from FreeSerp's index of business websites only ` +
-          `(the Overture places data covers only the area its snapshot was built for). Save anyway?`,
+          `(the Overture places data covers New York City only). Save anyway?`,
       )
     )
       return;
@@ -387,11 +276,12 @@ function TargetPanel() {
     setBusy(false);
   }
   return (
-    <section id="target" className="mb-5 scroll-mt-24 rounded-xl bg-panel px-4 pt-3.5 pb-4">
-      <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-ink">Target</h2>
-        <span className="text-xs text-muted">Where the family works: the only place it is set</span>
-      </header>
+    <details id="target" className="group mb-2 scroll-mt-24 rounded-xl bg-panel px-4 py-2.5">
+      <summary className="flex cursor-pointer list-none items-center gap-3 text-sm">
+        <Icon name="chevron-right" className="h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
+        <span className="font-semibold text-ink">Target</span>
+        <span className="min-w-0 flex-1 truncate text-muted">{saved ? [saved.market, saved.segment].filter(Boolean).join(" · ") || "not set" : "…"}</span>
+      </summary>
       {!draft ? (
         <p className="mt-2 flex items-center gap-2 text-sm text-muted">
           <Spinner /> Loading…
@@ -448,7 +338,7 @@ function TargetPanel() {
           </>
         ) : null}
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -567,7 +457,7 @@ function TestRunsPanel({ runs }: { runs: TestRun[] }) {
 /** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
  * people send from the business mailbox. */
 // The routine lives on the Leads board itself, in the board's description (owner, 2026-10-10); rows are not assigned per person.
-const SEND_GUIDE = ""; // FILL-ME: your Leads board's Notion URL (its description holds the team's steps); "" hides the link
+const SEND_GUIDE = "https://app.notion.com/p/3e3d905fccff80f1af6afe3c063ed179";
 
 function HowWeSend({ results }: { results: LeadResults }) {
   const team = results.sending.team;
@@ -585,7 +475,7 @@ function HowWeSend({ results }: { results: LeadResults }) {
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink/90">
         <li>On the Leads board, filter to rows with a Draft email and an empty Status (WhatsApp statuses count as empty).</li>
         <li>Read the draft against the business&apos;s own site and fix anything wrong. A draft starting &quot;skip:&quot; needs nothing.</li>
-        <li>Send it from the business mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
+        <li>Send it from Anna&apos;s mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
         <li>Set Status to &quot;Email Sent&quot;.</li>
         <li>
           When they answer, set Result (Replied, Meeting, Client, Not interested, Bounced) and Result date. This is the only way the
@@ -593,15 +483,11 @@ function HowWeSend({ results }: { results: LeadResults }) {
         </li>
       </ol>
       <p className="mt-2 text-xs text-muted">
-        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts. {SEND_GUIDE ? (
-          <>
-            The full step-by-step is the{" "}
-            <a href={SEND_GUIDE} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
-              Leads board&apos;s description
-            </a>
-            .
-          </>
-        ) : null}
+        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts. The full step-by-step is the{" "}
+        <a href={SEND_GUIDE} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+          Leads board&apos;s description
+        </a>
+        .
       </p>
     </section>
   );
@@ -847,130 +733,6 @@ function RefusalPanel({ stats, changes }: { stats: RefusalStats[]; changes: Chan
   );
 }
 
-type Opened = { slug: string; name: string; kind: DetailKind };
-
-/** A scoreboard number as a button: tap it to see what stands behind it. */
-function Num({ onClick, label, children, className = "" }: { onClick: () => void; label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} title={label} className={`pressable hit -mx-1.5 rounded-md px-1.5 tabular-nums underline decoration-line decoration-dotted underline-offset-4 hover:bg-fill-3 hover:decoration-current ${className}`}>
-      {children}
-    </button>
-  );
-}
-
-const DETAIL_TITLE: Record<DetailKind, string> = { outputs: "Outputs today", refused: "Refused today", flags: "Validator flags (open)" };
-
-function DetailSheet({ opened, onClose }: { opened: Opened | null; onClose: () => void }) {
-  const [items, setItems] = useState<DetailItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const key = opened ? `${opened.slug}:${opened.kind}` : "";
-  useEffect(() => {
-    if (!opened) return;
-    let live = true;
-    fetch(`/api/work-plan/details?bot=${opened.slug}&kind=${opened.kind}`, { cache: "no-store" })
-      .then(async (r) => {
-        const body = (await r.json()) as unknown;
-        if (!live) return;
-        if (r.ok && Array.isArray(body)) setItems(body as DetailItem[]);
-        else setError((body as { error?: string })?.error ?? `HTTP ${r.status}`);
-      })
-      .catch((err: unknown) => live && setError(err instanceof Error ? err.message : "request failed"));
-    return () => {
-      live = false;
-      setItems(null);
-      setError(null);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one load per opened number
-  }, [key]);
-  const dot = { good: "bg-sys-green", bad: "bg-sys-red", warn: "bg-sys-orange" };
-  return (
-    <Sheet open={opened !== null} onClose={onClose} title={opened ? `${opened.name} · ${DETAIL_TITLE[opened.kind]}` : ""}>
-      {error ? <p className="text-sm text-bad">{error}</p> : null}
-      {!items && !error ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <Spinner /> Loading…
-        </p>
-      ) : null}
-      {items && !items.length ? <p className="text-sm text-muted">Nothing here yet today.</p> : null}
-      {items?.length ? (
-        <ol className="divide-y divide-line">
-          {items.map((it, i) => (
-            <li key={i} className="flex gap-3 py-2.5">
-              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[it.tone]}`} aria-hidden />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-3 text-xs text-muted">
-                  <span className="font-mono">{it.kind}</span>
-                  <span className="shrink-0 tabular-nums">{it.at.replace("T", " ").slice(0, 16)}</span>
-                </div>
-                <p className="mt-0.5 text-sm break-words text-ink">{it.title}</p>
-                {it.detail ? <p className="mt-0.5 text-xs break-words text-muted">Why: {it.detail}</p> : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      {items && items.length >= 100 ? <p className="mt-2 text-xs text-muted">Showing the latest 100.</p> : null}
-    </Sheet>
-  );
-}
-
-function Scoreboard({ rows, status, onOpen }: { rows: WorkCard[]; status: Map<string, ReturnType<typeof summaryStatus>>; onOpen: (o: Opened) => void }) {
-  return (
-    <div className="mt-2">
-      <p className="text-xs text-muted">outputs = leads, lead fixes, tasks, packages, provider finds</p>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full min-w-[38rem] text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted">
-              <th className="py-1.5 pr-3 font-medium">Agent</th>
-              <th className="py-1.5 pr-3 text-right font-medium">Outputs</th>
-              <th className="py-1.5 pr-3 text-right font-medium">Refused</th>
-              <th className="py-1.5 pr-3 text-right font-medium" title="The Validator's open findings: errors / warnings">Flags</th>
-              <th className="py-1.5 pr-3 text-right font-medium">Tokens</th>
-              <th className="py-1.5 text-right font-medium">Per 1M tokens</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {rows.map((c) => {
-              const st = status.get(c.slug);
-              const refusedShare = c.score.allowed + c.score.refused ? c.score.refused / (c.score.allowed + c.score.refused) : 0;
-              return (
-                <tr key={c.slug}>
-                  <td className="py-2 pr-3">
-                    <span className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${st ? TONE_DOT[st.tone] : "bg-sys-gray"}`} role="img" aria-label={st?.label ?? "unknown"} />
-                      <span className="truncate font-medium text-ink">{c.name}</span>
-                      <span className="font-mono text-[11px] text-muted">{c.handle}</span>
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-right font-semibold text-ink tabular-nums">
-                    <Num onClick={() => onOpen({ slug: c.slug, name: c.name, kind: "outputs" })} label={`${c.name}: see today's ${c.score.outputs} outputs`}>
-                      {c.score.outputs}
-                    </Num>
-                  </td>
-                  <td className={`py-2 pr-3 text-right tabular-nums ${refusedShare > 0.5 ? "font-semibold text-bad" : "text-muted"}`} title={`${Math.round(refusedShare * 100)}% of today's actions refused`}>
-                    <Num onClick={() => onOpen({ slug: c.slug, name: c.name, kind: "refused" })} label={`${c.name}: see today's ${c.score.refused} refused actions and why`}>
-                      {c.score.refused}
-                    </Num>
-                  </td>
-                  <td className="py-2 pr-3 text-right tabular-nums" title={`${c.flags.errors} errors, ${c.flags.warns} warnings open`}>
-                    <Num onClick={() => onOpen({ slug: c.slug, name: c.name, kind: "flags" })} label={`${c.name}: see the Validator's open flags`}>
-                      <span className={c.flags.errors ? "font-semibold text-bad" : "text-muted"}>{c.flags.errors}</span>
-                      <span className="text-muted"> / {c.flags.warns}</span>
-                    </Num>
-                  </td>
-                  <td className="py-2 pr-3 text-right text-muted tabular-nums">{c.score.tokens === null ? "–" : compact(c.score.tokens)}</td>
-                  <td className="py-2 text-right font-semibold text-ink tabular-nums">{c.score.perMillion === null ? "–" : c.score.perMillion}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; onDirty: (slug: string, on: boolean) => void }) {
   const [saved, setSaved] = useState<OwnerPlan>(card.owner);
   const [draft, setDraft] = useState<OwnerPlan>(card.owner);
@@ -1009,9 +771,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
           <span className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg ${tone ? TONE_DOT[tone.tone] : "bg-sys-gray"}`} role="img" aria-label={tone?.label ?? "unknown"} />
         </span>
         <span className="min-w-0 flex-1">
-          <Link href={`/bots/${card.slug}`} className="block truncate text-base font-semibold text-ink hover:underline">
-            {card.name}
-          </Link>
+          <span className="block truncate text-base font-semibold text-ink">{card.name}</span>
           <span className="block truncate text-xs text-muted">
             {card.score.outputs} output{card.score.outputs === 1 ? "" : "s"} today · {card.score.refused} refused
             {card.score.tokens !== null ? ` · ${compact(card.score.tokens)} tokens` : ""}
@@ -1057,13 +817,17 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
           <>
             <p className="text-sm font-medium break-words text-ink">{plan.task || "(untitled job)"}</p>
             {plan.doneWhen ? <p className="mt-0.5 text-xs break-words text-muted">Done when: {plan.doneWhen}</p> : null}
-            {/* Working time (gaps between the bot's actions, pauses left out) against the bot's own estimate. */}
+            {/* Progress, not estimate against actual (owner, 2026-10-15): steps ticked, how soon the first one was in
+                active minutes (the engine's measure, pauses left out), and how many actions it has taken. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
               <span>
-                Job: <TimeTag spent={plan.spentMin} estimate={plan.estimateMin} className="inline" /> over {plan.actions} action{plan.actions === 1 ? "" : "s"}
+                {plan.steps.filter((s) => s.done).length} of {plan.steps.length} steps
+              </span>
+              {plan.measured ? <span>· {plan.firstStepMin === null ? "no step yet" : `first step after ${dur(plan.firstStepMin)} active`}</span> : null}
+              <span>
+                · {plan.actionsEngine ?? plan.actions} action{(plan.actionsEngine ?? plan.actions) === 1 ? "" : "s"}
               </span>
               {plan.started ? <span>· started {ago(plan.started, now)}</span> : null}
-              {plan.estimateMin === null ? <span>· no estimate yet</span> : null}
             </p>
             {plan.note ? (
               <p className={`mt-1 rounded-md px-2 py-1 text-xs break-words ${plan.status === "stuck" ? "bg-sys-orange/10 text-sys-orange" : "bg-fill-3 text-muted"}`}>{plan.note}</p>
@@ -1079,7 +843,11 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
                     {s.done ? <Icon name="check" className="h-2.5 w-2.5" /> : null}
                   </span>
                   <span className={`min-w-0 flex-1 break-words ${s.done ? "text-muted line-through" : "text-ink"}`}>{s.text}</span>
-                  <TimeTag spent={s.spentMin} estimate={s.estimateMin} className="mt-0.5 text-xs" stacked />
+                  {s.activeMin !== null ? (
+                    <span className="mt-0.5 shrink-0 text-xs text-muted tabular-nums">
+                      {dur(s.activeMin)} active{s.actionsEngine !== null ? ` · ${s.actionsEngine} actions` : ""}
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>
