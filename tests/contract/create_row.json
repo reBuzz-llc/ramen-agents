@@ -1,0 +1,299 @@
+{
+ "description": "Board API contract: create row (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "a new lead: the row as stored, from the same transaction",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen",
+     "Idempotency-Key": "lead-gen-2026-10-14-acmedental"
+    },
+    "body": {
+     "title": "Acme Dental",
+     "cells": {
+      "Website": "https://acmedental.example",
+      "Business email": "front@acmedental.example",
+      "Evidence": "https://acmedental.example/contact",
+      "Location": "Manhattan, NY, USA",
+      "Industry": "Dental practice",
+      "Source pages": "https://acmedental.example/contact",
+      "Email check": "deliverable, checked 2026-10-14"
+     }
+    }
+   },
+   "response": {
+    "status": 201,
+    "body": {
+     "id": "row_acme_dental",
+     "external": {
+      "notion_page_id": null,
+      "id": null
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Dental",
+      "Website": "https://acmedental.example",
+      "Business email": "front@acmedental.example",
+      "Evidence": "https://acmedental.example/contact",
+      "Location": "Manhattan, NY, USA",
+      "Industry": "Dental practice",
+      "Source pages": "https://acmedental.example/contact",
+      "Email check": "deliverable, checked 2026-10-14"
+     },
+     "meta": {
+      "created_time": "2026-10-14T10:00:00.000Z",
+      "last_edited_time": "2026-10-14T10:00:00.000Z",
+      "last_edited_by": {
+       "actor": "Lead Gen",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "the same Idempotency-Key within 24 h answers the first result again",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen",
+     "Idempotency-Key": "lead-gen-2026-10-14-acmedental"
+    },
+    "body": {
+     "title": "Acme Dental",
+     "cells": {
+      "Website": "https://acmedental.example",
+      "Business email": "front@acmedental.example",
+      "Evidence": "https://acmedental.example/contact",
+      "Location": "Manhattan, NY, USA",
+      "Industry": "Dental practice",
+      "Source pages": "https://acmedental.example/contact",
+      "Email check": "deliverable, checked 2026-10-14"
+     }
+    }
+   },
+   "response": {
+    "status": 201,
+    "body": {
+     "id": "row_acme_dental",
+     "external": {
+      "notion_page_id": null,
+      "id": null
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Dental",
+      "Website": "https://acmedental.example",
+      "Business email": "front@acmedental.example",
+      "Evidence": "https://acmedental.example/contact",
+      "Location": "Manhattan, NY, USA",
+      "Industry": "Dental practice",
+      "Source pages": "https://acmedental.example/contact",
+      "Email check": "deliverable, checked 2026-10-14"
+     },
+     "meta": {
+      "created_time": "2026-10-14T10:00:00.000Z",
+      "last_edited_time": "2026-10-14T10:00:00.000Z",
+      "last_edited_by": {
+       "actor": "Lead Gen",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "same website domain as a row on the board",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "body": {
+     "title": "Acme Bakery Queens",
+     "cells": {
+      "Website": "https://www.acmebakery.example/queens"
+     }
+    }
+   },
+   "response": {
+    "status": 409,
+    "body": {
+     "error": {
+      "code": "duplicate_row",
+      "message": "acmebakery.example is already on the board as Acme Bakery",
+      "existing_id": "row_acme_bakery"
+     }
+    }
+   }
+  },
+  {
+   "name": "no website: same title and city is a duplicate",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "body": {
+     "title": "Joe's Pizza",
+     "cells": {
+      "Location": "Brooklyn, NY, USA",
+      "Evidence": "https://listings.example/joes"
+     }
+    }
+   },
+   "response": {
+    "status": 409,
+    "body": {
+     "error": {
+      "code": "duplicate_row",
+      "message": "Joe's Pizza in Brooklyn is already on the board",
+      "existing_id": "row_joes_pizza"
+     }
+    }
+   }
+  },
+  {
+   "name": "an option the select does not have",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "body": {
+     "title": "Acme Gym",
+     "cells": {
+      "Website": "https://acmegym.example",
+      "How can I help": "Gym Growth Pack"
+     }
+    }
+   },
+   "response": {
+    "status": 422,
+    "body": {
+     "error": {
+      "code": "not_an_option",
+      "message": "'Gym Growth Pack' is not an option of How can I help",
+      "options": [
+       "POS & Ordering",
+       "Website Care"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "name": "an agent key writing a people-only column",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "body": {
+     "title": "Acme Spa",
+     "cells": {
+      "Website": "https://acmespa.example",
+      "Result": "Replied"
+     }
+    }
+   },
+   "response": {
+    "status": 403,
+    "body": {
+     "error": {
+      "code": "forbidden_column",
+      "message": "Result is written by people only"
+     }
+    }
+   }
+  },
+  {
+   "name": "create a task (The CEO): details as its first section",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/tasks/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_ceo"
+    },
+    "body": {
+     "title": "Outreach: review 12 first-email drafts",
+     "cells": {
+      "Priority": "P2",
+      "Dead Line": "2026-10-16"
+     },
+     "sections": {
+      "details": "Read each Draft email on the Leads board, best Lead score first ..."
+     }
+    }
+   },
+   "response": {
+    "status": 201,
+    "body": {
+     "id": "row_task_77",
+     "external": {
+      "notion_page_id": null,
+      "id": "TASK-77"
+     },
+     "archived": false,
+     "cells": {
+      "Task": "Outreach: review 12 first-email drafts",
+      "Status": "Not started",
+      "Priority": "P2",
+      "Dead Line": "2026-10-16",
+      "Assign": []
+     },
+     "meta": {
+      "created_time": "2026-10-14T11:00:00.000Z",
+      "last_edited_time": "2026-10-14T11:00:00.000Z",
+      "last_edited_by": {
+       "actor": "The CEO",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "The CEO setting Assign: a people-only column",
+   "operation": "create_row",
+   "request": {
+    "method": "POST",
+    "path": "/v1/boards/tasks/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_ceo"
+    },
+    "body": {
+     "title": "Outreach: review drafts",
+     "cells": {
+      "Assign": [
+       "usr_member_1"
+      ]
+     }
+    }
+   },
+   "response": {
+    "status": 403,
+    "body": {
+     "error": {
+      "code": "forbidden_column",
+      "message": "Assign is set by people only"
+     }
+    }
+   }
+  }
+ ]
+}

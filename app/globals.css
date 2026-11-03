@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/* Light by default; dark from the reader's own setting, as plain variables (an @theme inside a media query is hoisted
+   by Tailwind 4 and would force dark for everyone). */
+@theme {
+  --color-bg: rgb(250 249 247);
+  --color-panel: rgb(255 255 255);
+  --color-ink: rgb(24 22 20);
+  --color-muted: rgb(104 98 92);
+  --color-line: rgb(229 225 220);
+  /* The brand: one colour, #ff6600. Fills use it; text on it is near-black (white fails contrast,
+     2.9:1); orange text on a light page uses a deeper shade (#ff6600 there is 2.8:1, #b34700 is 5.2:1). */
+  --color-accent: #ff6600;
+  --color-on-accent: #1a0d00;
+  --color-accent-ink: #b34700;
+  --color-accent-hover: color-mix(in srgb, #ff6600 88%, black);
+  --color-accent-ring: color-mix(in srgb, #ff6600 60%, transparent);
+  --color-accent-tint: color-mix(in srgb, #ff6600 14%, transparent);
+  --color-good: rgb(22 128 61);
+  --color-bad: rgb(190 40 40);
+  --color-on-status: #ffffff; /* text on the green / red buttons */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* One type scale (applebrandkit.md 4.2, web translation): 13 px is the smallest text anywhere (Footnote), so the
+     "xs" step is 13, not Tailwind's 12; body 15-16, titles 22-28. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+}
+/* Dark: the reader's setting, unless they chose Light or Dark in Settings → Appearance (data-theme on <html>). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: rgb(20 17 15);
+    --color-panel: rgb(30 27 24);
+    --color-ink: rgb(246 241 233);
+    --color-muted: rgb(170 162 152);
+    --color-line: rgb(56 51 46);
+    --color-accent-ink: #ff6600; /* 6.4:1 on the dark page */
+    --color-good: rgb(80 200 120);
+    --color-bad: rgb(240 110 110);
+    --color-on-status: #10140f; /* the dark theme's lighter green and red need dark text */
+  }
+}
+html[data-theme="dark"] {
+  --color-bg: rgb(20 17 15);
+  --color-panel: rgb(30 27 24);
+  --color-ink: rgb(246 241 233);
+  --color-muted: rgb(170 162 152);
+  --color-line: rgb(56 51 46);
+  --color-accent-ink: #ff6600;
+  --color-good: rgb(80 200 120);
+  --color-bad: rgb(240 110 110);
+  --color-on-status: #10140f;
+  color-scheme: dark;
+}
+html[data-theme="light"] { color-scheme: light; }
+/* Settings → Appearance → Larger text: every rem-sized step grows by 12.5%. */
+html[data-text="large"] { font-size: 112.5%; }
+html { color-scheme: light dark; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); }
+::selection { background: color-mix(in srgb, #ff6600 28%, transparent); }
+:where(button, a, summary, select, label, [role="option"]) { touch-action: manipulation; }
+/* Phones and tablets take the root size from the reader's own text-size setting (applebrandkit.md 4.3); Larger text in
+   Settings still adds its 12.5% on top. Touch screens only: on macOS Safari the keyword is macOS's smaller body size. */
+@media (pointer: coarse) {
+  @supports (font: -apple-system-body) {
+    html { font: -apple-system-body; }
+    html[data-text="large"] { font-size: 112.5%; }
+  }
+}
+/* Increase Contrast: deeper text colours and stronger separators, in both themes (applebrandkit.md 3.3). */
+@media (prefers-contrast: more) {
+  :root:not([data-theme="dark"]) {
+    --color-muted: rgb(72 67 62);
+    --color-line: rgb(170 163 155);
+    --color-accent-ink: #8f3900;
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-muted: rgb(206 199 190);
+    --color-line: rgb(110 102 94);
+  }
+}
+@media (prefers-contrast: more) {
+  html[data-theme="dark"] {
+    --color-muted: rgb(206 199 190);
+    --color-line: rgb(110 102 94);
+  }
+}
+
+/* One focus style everywhere: a ring in the brand colour for keyboard focus only (not on a mouse click), following each
+   control's rounded corners. The browser's own outline goes only where this ring replaces it. */
+:where(a, button, input, select, textarea, summary, [role="option"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent-ring);
+  outline-offset: 2px;
+}
+:where(a, button, input, select, textarea, summary):focus:not(:focus-visible) {
+  outline: none;
+}
+/* Text fields show where you type with the brand border, mouse or keyboard. */
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  border-color: var(--color-accent);
+}
+
+/* Click feedback: everything clickable reacts in 100 ms. */
+:where(button, a[class*="rounded"], summary, [role="option"]) {
+  transition: transform 100ms ease, opacity 100ms ease, background-color 100ms ease, border-color 100ms ease;
+}
+:where(button:not(:disabled), a[class*="rounded"], summary, [role="option"]):active {
+  transform: scale(0.96);
+}
+/* Reduce Motion: state changes stay, movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  :where(button, a, summary, [role="option"]):active { transform: none !important; }
+}
+
+/* The profile menu opening from its button. */
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}

@@ -1,0 +1,74 @@
+{
+ "description": "Board API contract: sections (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "replace a draft section: the old one removed, the new one at the end",
+   "operation": "replace_section",
+   "request": {
+    "method": "PUT",
+    "path": "/v1/rows/row_joes_pizza/sections/Draft email",
+    "headers": {
+     "Authorization": "Bearer peek_test_writer"
+    },
+    "body": {
+     "text": "Hi Joe,\n\nI couldn't find online ordering ...\n\nRegards,\nAlex\n-- Acme LLC"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "row": "row_joes_pizza",
+     "section": "Draft email",
+     "lines": 6
+    }
+   }
+  },
+  {
+   "name": "append to a task's details: added, never replaced",
+   "operation": "append_line",
+   "request": {
+    "method": "POST",
+    "path": "/v1/rows/row_task_77/sections/details/lines",
+    "headers": {
+     "Authorization": "Bearer peek_test_ceo"
+    },
+    "body": {
+     "lines": [
+      "2026-10-15: 4 of 12 drafts reviewed so far."
+     ]
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "row": "row_task_77",
+     "section": "details",
+     "lines": 4
+    }
+   }
+  },
+  {
+   "name": "a section longer than 200 lines",
+   "operation": "replace_section",
+   "request": {
+    "method": "PUT",
+    "path": "/v1/rows/row_joes_pizza/sections/Draft email",
+    "headers": {
+     "Authorization": "Bearer peek_test_writer"
+    },
+    "body": {
+     "text": "x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\n"
+    }
+   },
+   "response": {
+    "status": 413,
+    "body": {
+     "error": {
+      "code": "too_large",
+      "message": "a section holds at most 200 lines"
+     }
+    }
+   }
+  }
+ ]
+}

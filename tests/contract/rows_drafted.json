@@ -1,0 +1,77 @@
+{
+ "description": "Board API contract: rows drafted (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "a draft that is not 'skip:', Status empty or not yet reviewed, best score first",
+   "operation": "rows_drafted",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/drafted",
+    "headers": {
+     "Authorization": "Bearer peek_test_ceo"
+    },
+    "query": {
+     "draft": "Draft email",
+     "status": "Status",
+     "not_reviewed": "WhatsApp Verified,Waiting response for WhatsApp verification",
+     "score": "Lead score"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_joes_pizza",
+       "external": {
+        "notion_page_id": null,
+        "id": null
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Joe's Pizza",
+        "Website": "",
+        "Business email": "joespizzanyc@gmail.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "Hi Joe,\n\nI couldn't find online ordering for Joe's Pizza ...\n\nRegards,\nAlex\n-- Acme LLC",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://listings.example/joes-pizza",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Brooklyn, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 74,
+        "ID": "LEAD-103"
+       },
+       "meta": {
+        "created_time": "2026-10-12T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,263 @@
+{
+ "description": "Board API contract: sweep (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "full sweep, page 1: 100 rows a page, stable cursor over id",
+   "operation": "full sweep",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "limit": "2"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_acme_bakery",
+       "external": {
+        "notion_page_id": "00000000-0000-4000-8000-000000000101",
+        "id": "LEAD-101"
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Bakery",
+        "Website": "https://acmebakery.example",
+        "Business email": "hello@acmebakery.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 61,
+        "ID": "LEAD-101"
+       },
+       "meta": {
+        "created_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      },
+      {
+       "id": "row_acme_salon",
+       "external": {
+        "notion_page_id": null,
+        "id": null
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Salon",
+        "Website": "https://acmesalon.example",
+        "Business email": "book@acmesalon.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Hair salon",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [],
+        "Site health": "",
+        "Lead score": null,
+        "ID": "LEAD-102"
+       },
+       "meta": {
+        "created_time": "2026-10-10T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ],
+     "next_cursor": "row_acme_salon"
+    }
+   },
+   "note": "limit 2 here to keep the fixture short"
+  },
+  {
+   "name": "full sweep, page 2",
+   "operation": "full sweep",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "limit": "2",
+     "cursor": "row_acme_salon"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_joes_pizza",
+       "external": {
+        "notion_page_id": null,
+        "id": null
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Joe's Pizza",
+        "Website": "",
+        "Business email": "joespizzanyc@gmail.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "Hi Joe,\n\nI couldn't find online ordering for Joe's Pizza ...\n\nRegards,\nAlex\n-- Acme LLC",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://listings.example/joes-pizza",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Brooklyn, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 74,
+        "ID": "LEAD-103"
+       },
+       "meta": {
+        "created_time": "2026-10-12T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "quick look: rows edited after a time",
+   "operation": "quick look",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "edited_after": "2026-10-14T08:00:00.000Z"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_acme_bakery",
+       "external": {
+        "notion_page_id": "00000000-0000-4000-8000-000000000101",
+        "id": "LEAD-101"
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Bakery",
+        "Website": "https://acmebakery.example",
+        "Business email": "hello@acmebakery.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 61,
+        "ID": "LEAD-101"
+       },
+       "meta": {
+        "created_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ],
+     "next_cursor": null
+    }
+   }
+  }
+ ]
+}

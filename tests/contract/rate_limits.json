@@ -1,0 +1,29 @@
+{
+ "description": "Board API contract: rate limits (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "over the per-key limit",
+   "operation": "any",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "query": {
+     "title": "Acme Bakery"
+    }
+   },
+   "response": {
+    "status": 429,
+    "body": {
+     "error": {
+      "code": "rate_limited",
+      "message": "5 requests a second per key; retry after the given seconds"
+     }
+    }
+   },
+   "note": "response header Retry-After: 1"
+  }
+ ]
+}
