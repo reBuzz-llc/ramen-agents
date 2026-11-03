@@ -1,12 +1,12 @@
 #!/bin/sh
-# Copies the seven production variables from this Mac's .env.local to the clipboard, as NAME=value lines, so they can be
+# Copies the production variables from this Mac's .env.local to the clipboard, as NAME=value lines, so they can be
 # pasted into Vercel (Project → Settings → Environment Variables → paste into the first Key field: Vercel splits a
 # pasted .env block into rows). Prints the names only; the values never reach the terminal, a log or a repo.
 # Development-only variables (TEAMS_DEV_LOGIN, NOTION_TOKEN_FILE, NOTION_*_DATA_SOURCE, PGLITE_DIR) are left out.
 set -eu
 cd "$(dirname "$0")/.."
 [ -f .env.local ] || { echo "no .env.local here"; exit 1; }
-NAMES="DATABASE_URL DATABASE_URL_UNPOOLED NEON_BRANCH NEON_AUTH_BASE_URL NEON_AUTH_JWKS_URL NEON_AUTH_COOKIE_SECRET TEAMS_ENCRYPTION_KEY"
+NAMES="DATABASE_URL DATABASE_URL_UNPOOLED NEON_BRANCH NEON_AUTH_BASE_URL NEON_AUTH_JWKS_URL NEON_AUTH_COOKIE_SECRET TEAMS_ENCRYPTION_KEY NEXT_PUBLIC_APP_URL"
 out=""
 missing=""
 for n in $NAMES; do
