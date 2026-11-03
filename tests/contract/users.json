@@ -1,0 +1,63 @@
+{
+ "description": "Board API contract: users (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "a person: name and kind, never an email",
+   "operation": "user(id)",
+   "request": {
+    "method": "GET",
+    "path": "/v1/users/usr_member_1",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "usr_member_1",
+     "name": "Sam",
+     "kind": "person"
+    }
+   }
+  },
+  {
+   "name": "an agent",
+   "operation": "user(id)",
+   "request": {
+    "method": "GET",
+    "path": "/v1/users/agt_outreach_writer",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "agt_outreach_writer",
+     "name": "Outreach Writer",
+     "kind": "agent"
+    }
+   }
+  },
+  {
+   "name": "listing users is not served to a key",
+   "operation": "user list",
+   "request": {
+    "method": "GET",
+    "path": "/v1/users",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    }
+   },
+   "response": {
+    "status": 404,
+    "body": {
+     "error": {
+      "code": "not_found",
+      "message": "there is no user listing for API keys"
+     }
+    }
+   }
+  }
+ ]
+}

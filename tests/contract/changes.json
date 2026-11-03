@@ -1,0 +1,41 @@
+{
+ "description": "Board API contract: changes (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "changes after a sequence number, with the new values",
+   "operation": "change feed",
+   "request": {
+    "method": "GET",
+    "path": "/v1/changes",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "after": "1040"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "changes": [
+      {
+       "seq": 1041,
+       "board": "leads",
+       "row": "row_acme_bakery",
+       "actor": {
+        "actor": "Lead Enricher",
+        "kind": "agent"
+       },
+       "at": "2026-10-14T12:00:00.000Z",
+       "cells": {
+        "Contact person": "Maria",
+        "Contact role": "Owner"
+       }
+      }
+     ],
+     "next": 1041
+    }
+   }
+  }
+ ]
+}

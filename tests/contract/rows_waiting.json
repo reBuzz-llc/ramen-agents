@@ -1,0 +1,123 @@
+{
+ "description": "Board API contract: rows waiting (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "Draft email empty, best Lead score first, then unscored oldest first",
+   "operation": "rows_waiting",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/waiting",
+    "headers": {
+     "Authorization": "Bearer peek_test_writer"
+    },
+    "query": {
+     "empty": "Draft email",
+     "score": "Lead score",
+     "limit": "15"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_acme_bakery",
+       "external": {
+        "notion_page_id": "00000000-0000-4000-8000-000000000101",
+        "id": "LEAD-101"
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Bakery",
+        "Website": "https://acmebakery.example",
+        "Business email": "hello@acmebakery.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 61,
+        "ID": "LEAD-101"
+       },
+       "meta": {
+        "created_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      },
+      {
+       "id": "row_acme_salon",
+       "external": {
+        "notion_page_id": null,
+        "id": null
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Salon",
+        "Website": "https://acmesalon.example",
+        "Business email": "book@acmesalon.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Hair salon",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [],
+        "Site health": "",
+        "Lead score": null,
+        "ID": "LEAD-102"
+       },
+       "meta": {
+        "created_time": "2026-10-10T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ]
+    }
+   },
+   "note": "Joe's Pizza has a draft and is left out; Acme Bakery (61) comes before unscored Acme Salon"
+  }
+ ]
+}

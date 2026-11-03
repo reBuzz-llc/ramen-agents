@@ -1,0 +1,115 @@
+{
+ "description": "Board API contract: filtered (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "Status equals False Whatsapp Number",
+   "operation": "filtered query",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "where": "Status:eq:False Whatsapp Number"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "Email Sent AND Sent by empty (AND of two where)",
+   "operation": "filtered query",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "where": [
+      "Status:eq:Email Sent",
+      "Sent by:empty"
+     ]
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "Sent by not empty",
+   "operation": "filtered query",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "where": "Sent by:not_empty"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "tasks edited since the week's start",
+   "operation": "filtered query",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/tasks/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "edited_after": "2026-10-13T00:00:00.000Z"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "an operator the API does not serve",
+   "operation": "filtered query",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "query": {
+     "where": "Lead score:gt:50"
+    }
+   },
+   "response": {
+    "status": 400,
+    "body": {
+     "error": {
+      "code": "bad_query",
+      "message": "where takes eq, empty or not_empty"
+     }
+    }
+   }
+  }
+ ]
+}

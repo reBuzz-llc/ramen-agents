@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.data/
+*.tsbuildinfo
+next-env.d.ts
+# Secrets live only in the environment, never in the repo.
+.env
+.env.*
+.neon
+.vercel
+.env*
+!.env.example

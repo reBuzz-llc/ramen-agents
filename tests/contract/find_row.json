@@ -1,0 +1,96 @@
+{
+ "description": "Board API contract: find row (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "title equals, case-insensitive, first match",
+   "operation": "find_row(title)",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "query": {
+     "title": "acme BAKERY"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [
+      {
+       "id": "row_acme_bakery",
+       "external": {
+        "notion_page_id": "00000000-0000-4000-8000-000000000101",
+        "id": "LEAD-101"
+       },
+       "archived": false,
+       "cells": {
+        "Business": "Acme Bakery",
+        "Website": "https://acmebakery.example",
+        "Business email": "hello@acmebakery.example",
+        "Whatsapp": "",
+        "Status": "",
+        "How can I help": "POS & Ordering",
+        "Draft email": "",
+        "Draft Whatsapp msg": "",
+        "Evidence": "https://acmebakery.example/menu",
+        "Contact person": "",
+        "Contact role": "",
+        "Email check": "deliverable, checked 2026-10-14",
+        "Industry": "Bakery",
+        "Pain point": "",
+        "Location": "Queens, NY, USA",
+        "google map location": "",
+        "Result": "",
+        "Result date": "",
+        "Reviewed by": [],
+        "Sent by": [],
+        "Source pages": "https://acmebakery.example/menu",
+        "Company size": "",
+        "Founder LinkedIn": "",
+        "LinkedIn found via": "",
+        "Tools on site": [
+         "Wix"
+        ],
+        "Site health": "https · phone-ready · © 2019 · PDF menu",
+        "Lead score": 61,
+        "ID": "LEAD-101"
+       },
+       "meta": {
+        "created_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_time": "2026-10-14T09:00:00.000Z",
+        "last_edited_by": {
+         "actor": "Lead Gen",
+         "kind": "agent"
+        }
+       }
+      }
+     ],
+     "next_cursor": null
+    }
+   }
+  },
+  {
+   "name": "no such row",
+   "operation": "find_row(title)",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/rows",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    },
+    "query": {
+     "title": "Nobody & Sons"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "rows": [],
+     "next_cursor": null
+    }
+   }
+  }
+ ]
+}

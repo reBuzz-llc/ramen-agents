@@ -1,0 +1,152 @@
+{
+ "description": "Board API contract: schema (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "leads board schema: columns, types, options and write rule",
+   "operation": "schema()",
+   "request": {
+    "method": "GET",
+    "path": "/v1/boards/leads/schema",
+    "headers": {
+     "Authorization": "Bearer peek_test_leadgen"
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "board": "leads",
+     "columns": [
+      {
+       "name": "Business",
+       "type": "title",
+       "rule": "once"
+      },
+      {
+       "name": "Website",
+       "type": "url",
+       "rule": "once"
+      },
+      {
+       "name": "Business email",
+       "type": "email",
+       "rule": "once"
+      },
+      {
+       "name": "Whatsapp",
+       "type": "url",
+       "rule": "fill-only"
+      },
+      {
+       "name": "Status",
+       "type": "select",
+       "options": [
+        "Ready to Send Email",
+        "Email Sent",
+        "WhatsApp Verified",
+        "Waiting response for WhatsApp verification",
+        "False Whatsapp Number"
+       ],
+       "rule": "human"
+      },
+      {
+       "name": "How can I help",
+       "type": "select",
+       "options": [
+        "POS & Ordering",
+        "Website Care"
+       ],
+       "rule": "agent"
+      },
+      {
+       "name": "Draft email",
+       "type": "rich_text",
+       "rule": "fill-only"
+      },
+      {
+       "name": "Contact person",
+       "type": "rich_text",
+       "rule": "fill-only"
+      },
+      {
+       "name": "Contact role",
+       "type": "select",
+       "options": [
+        "Founder",
+        "Owner",
+        "CEO / President",
+        "Principal / Partner",
+        "General Manager",
+        "Practice / Office Manager",
+        "Operations",
+        "Marketing",
+        "Franchise Development",
+        "Executive Director",
+        "Other"
+       ],
+       "rule": "fill-only"
+      },
+      {
+       "name": "Result",
+       "type": "select",
+       "options": [
+        "Not contacted",
+        "Emailed",
+        "Replied",
+        "Meeting",
+        "Client",
+        "Not interested",
+        "Bounced"
+       ],
+       "rule": "human"
+      },
+      {
+       "name": "Reviewed by",
+       "type": "people",
+       "rule": "human"
+      },
+      {
+       "name": "Sent by",
+       "type": "people",
+       "rule": "validator-once"
+      },
+      {
+       "name": "Source pages",
+       "type": "rich_text",
+       "rule": "append"
+      },
+      {
+       "name": "Founder LinkedIn",
+       "type": "url",
+       "rule": "fill-only"
+      },
+      {
+       "name": "Tools on site",
+       "type": "multi_select",
+       "options": [
+        "Wix",
+        "Toast"
+       ],
+       "rule": "validator"
+      },
+      {
+       "name": "Lead score",
+       "type": "number",
+       "rule": "validator"
+      },
+      {
+       "name": "ID",
+       "type": "unique_id",
+       "rule": "system"
+      },
+      {
+       "name": "Created time",
+       "type": "created_time",
+       "rule": "system"
+      }
+     ]
+    }
+   },
+   "note": "excerpt: the full list is every column of peek-board-schema.md"
+  }
+ ]
+}

@@ -1,0 +1,489 @@
+{
+ "description": "Board API contract: update row (docs/design/board-api.md)",
+ "cases": [
+  {
+   "name": "fill empty cells; Source pages lines are merged and deduplicated",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Contact person": "Maria",
+      "Contact role": "Owner",
+      "Source pages": "https://acmebakery.example/about\nhttps://acmebakery.example/menu"
+     }
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "row_acme_bakery",
+     "external": {
+      "notion_page_id": "00000000-0000-4000-8000-000000000101",
+      "id": "LEAD-101"
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Bakery",
+      "Website": "https://acmebakery.example",
+      "Business email": "hello@acmebakery.example",
+      "Whatsapp": "",
+      "Status": "",
+      "How can I help": "POS & Ordering",
+      "Draft email": "",
+      "Draft Whatsapp msg": "",
+      "Evidence": "https://acmebakery.example/menu",
+      "Contact person": "Maria",
+      "Contact role": "Owner",
+      "Email check": "deliverable, checked 2026-10-14",
+      "Industry": "Bakery",
+      "Pain point": "",
+      "Location": "Queens, NY, USA",
+      "google map location": "",
+      "Result": "",
+      "Result date": "",
+      "Reviewed by": [],
+      "Sent by": [],
+      "Source pages": "https://acmebakery.example/menu\nhttps://acmebakery.example/about",
+      "Company size": "",
+      "Founder LinkedIn": "",
+      "LinkedIn found via": "",
+      "Tools on site": [
+       "Wix"
+      ],
+      "Site health": "https · phone-ready · © 2019 · PDF menu",
+      "Lead score": 61,
+      "ID": "LEAD-101"
+     },
+     "meta": {
+      "created_time": "2026-10-14T09:00:00.000Z",
+      "last_edited_time": "2026-10-14T12:00:00.000Z",
+      "last_edited_by": {
+       "actor": "Lead Enricher",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "fill-only: a cell that already has a value",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Location": "Astoria, NY, USA"
+     }
+    }
+   },
+   "response": {
+    "status": 409,
+    "body": {
+     "error": {
+      "code": "filled",
+      "message": "Location already has a value",
+      "current": "Queens, NY, USA"
+     }
+    }
+   }
+  },
+  {
+   "name": "once: a column written only at create",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Website": "https://other.example"
+     }
+    }
+   },
+   "response": {
+    "status": 409,
+    "body": {
+     "error": {
+      "code": "filled",
+      "message": "Website is set when the row is made",
+      "current": "https://acmebakery.example"
+     }
+    }
+   }
+  },
+  {
+   "name": "a number the team marked False Whatsapp Number",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Whatsapp": "https://wa.me/12125550100"
+     }
+    }
+   },
+   "response": {
+    "status": 422,
+    "body": {
+     "error": {
+      "code": "refused_value",
+      "message": "12125550100 was checked by the team and is not on WhatsApp"
+     }
+    }
+   }
+  },
+  {
+   "name": "a person's LinkedIn profile with no Contact person on the row or in the write",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_salon",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Founder LinkedIn": "https://www.linkedin.com/in/someone-acme",
+      "LinkedIn found via": "4 Search result"
+     }
+    }
+   },
+   "response": {
+    "status": 422,
+    "body": {
+     "error": {
+      "code": "needs_contact_person",
+      "message": "a /in/ profile needs a Contact person, on the row or in the same write"
+     }
+    }
+   }
+  },
+  {
+   "name": "the same profile with the Contact person in the same write",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_salon",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Contact person": "Dana Lee",
+      "Founder LinkedIn": "https://www.linkedin.com/in/dana-lee-acme",
+      "LinkedIn found via": "1 Own site"
+     }
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "row_acme_salon",
+     "external": {
+      "notion_page_id": null,
+      "id": null
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Salon",
+      "Website": "https://acmesalon.example",
+      "Business email": "book@acmesalon.example",
+      "Whatsapp": "",
+      "Status": "",
+      "How can I help": "POS & Ordering",
+      "Draft email": "",
+      "Draft Whatsapp msg": "",
+      "Evidence": "https://acmebakery.example/menu",
+      "Contact person": "Dana Lee",
+      "Contact role": "",
+      "Email check": "deliverable, checked 2026-10-14",
+      "Industry": "Hair salon",
+      "Pain point": "",
+      "Location": "Queens, NY, USA",
+      "google map location": "",
+      "Result": "",
+      "Result date": "",
+      "Reviewed by": [],
+      "Sent by": [],
+      "Source pages": "https://acmebakery.example/menu",
+      "Company size": "",
+      "Founder LinkedIn": "https://www.linkedin.com/in/dana-lee-acme",
+      "LinkedIn found via": "1 Own site",
+      "Tools on site": [],
+      "Site health": "",
+      "Lead score": null,
+      "ID": "LEAD-102"
+     },
+     "meta": {
+      "created_time": "2026-10-10T09:00:00.000Z",
+      "last_edited_time": "2026-10-14T12:05:00.000Z",
+      "last_edited_by": {
+       "actor": "Lead Enricher",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "set a select (set_choice): Contact role must be an option",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_salon",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "cells": {
+      "Contact role": "Boss"
+     }
+    }
+   },
+   "response": {
+    "status": 422,
+    "body": {
+     "error": {
+      "code": "not_an_option",
+      "message": "'Boss' is not an option of Contact role"
+     }
+    }
+   }
+  },
+  {
+   "name": "Sent by: only the Validator's key",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_writer"
+    },
+    "body": {
+     "cells": {
+      "Sent by": [
+       "usr_member_1"
+      ]
+     }
+    }
+   },
+   "response": {
+    "status": 403,
+    "body": {
+     "error": {
+      "code": "forbidden_column",
+      "message": "Sent by is set by the Validator only"
+     }
+    }
+   }
+  },
+  {
+   "name": "Sent by with the Validator's key, once",
+   "operation": "update_row",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "body": {
+     "cells": {
+      "Sent by": [
+       "usr_member_1"
+      ]
+     }
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "row_acme_bakery",
+     "external": {
+      "notion_page_id": "00000000-0000-4000-8000-000000000101",
+      "id": "LEAD-101"
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Bakery",
+      "Website": "https://acmebakery.example",
+      "Business email": "hello@acmebakery.example",
+      "Whatsapp": "",
+      "Status": "Email Sent",
+      "How can I help": "POS & Ordering",
+      "Draft email": "",
+      "Draft Whatsapp msg": "",
+      "Evidence": "https://acmebakery.example/menu",
+      "Contact person": "",
+      "Contact role": "",
+      "Email check": "deliverable, checked 2026-10-14",
+      "Industry": "Bakery",
+      "Pain point": "",
+      "Location": "Queens, NY, USA",
+      "google map location": "",
+      "Result": "",
+      "Result date": "",
+      "Reviewed by": [],
+      "Sent by": [
+       {
+        "id": "usr_member_1",
+        "name": "Sam",
+        "kind": "person"
+       }
+      ],
+      "Source pages": "https://acmebakery.example/menu",
+      "Company size": "",
+      "Founder LinkedIn": "",
+      "LinkedIn found via": "",
+      "Tools on site": [
+       "Wix"
+      ],
+      "Site health": "https · phone-ready · © 2019 · PDF menu",
+      "Lead score": 61,
+      "ID": "LEAD-101"
+     },
+     "meta": {
+      "created_time": "2026-10-14T09:00:00.000Z",
+      "last_edited_time": "2026-10-14T13:00:00.000Z",
+      "last_edited_by": {
+       "actor": "Validator",
+       "kind": "agent"
+      }
+     }
+    }
+   },
+   "note": "the row's Status was already Email Sent, set by Sam in the app"
+  },
+  {
+   "name": "clear one cell: only Whatsapp, only the Validator",
+   "operation": "update_row (clear)",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "body": {
+     "clear": [
+      "Whatsapp"
+     ]
+    }
+   },
+   "response": {
+    "status": 200,
+    "body": {
+     "id": "row_acme_bakery",
+     "external": {
+      "notion_page_id": "00000000-0000-4000-8000-000000000101",
+      "id": "LEAD-101"
+     },
+     "archived": false,
+     "cells": {
+      "Business": "Acme Bakery",
+      "Website": "https://acmebakery.example",
+      "Business email": "hello@acmebakery.example",
+      "Whatsapp": "",
+      "Status": "",
+      "How can I help": "POS & Ordering",
+      "Draft email": "",
+      "Draft Whatsapp msg": "",
+      "Evidence": "https://acmebakery.example/menu",
+      "Contact person": "",
+      "Contact role": "",
+      "Email check": "deliverable, checked 2026-10-14",
+      "Industry": "Bakery",
+      "Pain point": "",
+      "Location": "Queens, NY, USA",
+      "google map location": "",
+      "Result": "",
+      "Result date": "",
+      "Reviewed by": [],
+      "Sent by": [],
+      "Source pages": "https://acmebakery.example/menu",
+      "Company size": "",
+      "Founder LinkedIn": "",
+      "LinkedIn found via": "",
+      "Tools on site": [
+       "Wix"
+      ],
+      "Site health": "https · phone-ready · © 2019 · PDF menu",
+      "Lead score": 61,
+      "ID": "LEAD-101"
+     },
+     "meta": {
+      "created_time": "2026-10-14T09:00:00.000Z",
+      "last_edited_time": "2026-10-14T13:05:00.000Z",
+      "last_edited_by": {
+       "actor": "Validator",
+       "kind": "agent"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "clear with any other key",
+   "operation": "update_row (clear)",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_enricher"
+    },
+    "body": {
+     "clear": [
+      "Whatsapp"
+     ]
+    }
+   },
+   "response": {
+    "status": 403,
+    "body": {
+     "error": {
+      "code": "missing_scope",
+      "message": "clearing a cell needs the board:validate scope"
+     }
+    }
+   }
+  },
+  {
+   "name": "clear any column but Whatsapp",
+   "operation": "update_row (clear)",
+   "request": {
+    "method": "PATCH",
+    "path": "/v1/rows/row_acme_bakery",
+    "headers": {
+     "Authorization": "Bearer peek_test_validator"
+    },
+    "body": {
+     "clear": [
+      "Contact person"
+     ]
+    }
+   },
+   "response": {
+    "status": 403,
+    "body": {
+     "error": {
+      "code": "forbidden_column",
+      "message": "only Whatsapp can be cleared through the API"
+     }
+    }
+   }
+  }
+ ]
+}

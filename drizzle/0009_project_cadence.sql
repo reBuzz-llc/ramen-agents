@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "cadence_history" jsonb DEFAULT '[]'::jsonb NOT NULL;
