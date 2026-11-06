@@ -3,7 +3,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { newToken, sha256 } from "./crypto";
 import type { Db } from "./db";
-import { apiKeys } from "./db/schema";
+import { apiKeyDays, apiKeys } from "./db/schema";
 
 export type Scope = "board:read" | "board:write" | "board:import" | "board:validate" | "assets:write";
 export type ApiKey = { id: string; tenantId: string; name: string; scopes: Scope[] };
@@ -78,4 +78,14 @@ export async function replaceKey(db: Db, tenantId: string, name: string, scopes:
     const k = await mintKey(tx as unknown as Db, tenantId, name, scopes);
     return { ...k, revoked: old.length };
   });
+}
+
+/** Each key's reads today (api_key_days, UTC day): requests, the 304s among them and the bytes answered, by key id. */
+export async function keyDays(db: Db, tenantId: string, day = new Date().toISOString().slice(0, 10)) {
+  const rows = await db
+    .select({ keyId: apiKeyDays.keyId, requests: apiKeyDays.requests, notModified: apiKeyDays.notModified, bytes: apiKeyDays.bytes })
+    .from(apiKeyDays)
+    .innerJoin(apiKeys, eq(apiKeys.id, apiKeyDays.keyId))
+    .where(and(eq(apiKeys.tenantId, tenantId), eq(apiKeyDays.day, day)));
+  return new Map(rows.map((r) => [r.keyId, { requests: r.requests, notModified: r.notModified, bytes: Number(r.bytes) }]));
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "files" ADD COLUMN "store" text DEFAULT 'neon' NOT NULL;

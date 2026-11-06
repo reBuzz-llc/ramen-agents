@@ -7,7 +7,17 @@ import { btnDanger, btnOutline, control, fieldLabel, helper, sectionTitle } from
 import { PendingButton } from "../../ui";
 
 type Scope = { scope: string; label: string };
-export type KeyRow = { id: string; name: string; scopes: string[]; createdAt: string; lastUsedAt: string | null; revokedAt: string | null };
+export type KeyRow = {
+  id: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  /** Today's reads through this key: requests, the 304s among them, and the bytes answered. */
+  today?: { requests: number; notModified: number; bytes: number } | null;
+};
+const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "never");
 
@@ -134,6 +144,12 @@ export default function KeysView({ keys, scopes, defaults }: { keys: KeyRow[]; s
                   <p className="text-sm text-muted">
                     {k.scopes.join(" · ")} · made {day(k.createdAt)} · last used {day(k.lastUsedAt)}
                   </p>
+                  {k.today ? (
+                    <p className="text-sm text-muted tabular-nums">
+                      Today: {k.today.requests} reads, {mb(k.today.bytes)}
+                      {k.today.notModified ? ` · ${k.today.notModified} with nothing new` : ""}
+                    </p>
+                  ) : null}
                 </div>
                 <button type="button" className={`${btnDanger} ml-auto shrink-0`} onClick={() => void revoke(k)}>
                   Revoke

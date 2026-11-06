@@ -190,6 +190,27 @@
       "when": 1793956438104,
       "tag": "0026_asset_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793967175991,
+      "tag": "0027_api_key_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793970447430,
+      "tag": "0028_local_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793974019428,
+      "tag": "0029_files_store",
+      "breakpoints": true
     }
   ]
 }

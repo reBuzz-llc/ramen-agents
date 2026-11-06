@@ -1,7 +1,7 @@
-import { answer, answerTask, body, botActor, fail, failed, keyed, queryOf } from "@/lib/board-api";
-import { listLeads, writeLead } from "@/lib/leads";
+import { answer, answerTask, body, botActor, fail, failed, keyed, metered, notModified, queryOf } from "@/lib/board-api";
+import { boardRev, fieldsOf, listLeads, writeLead } from "@/lib/leads";
+import { sha256 } from "@/lib/crypto";
 import { listTasks, writeTask } from "@/lib/tasks";
-import { NextResponse } from "next/server";
 
 type Ctx = { params: Promise<{ board: string }> };
 const boardOf = async (ctx: Ctx) => {
@@ -12,23 +12,30 @@ const noBoard = () => fail(404, "not_found", "the boards here are: leads, tasks"
 
 // GET: leads changed after ?since=<rev> (0 or none for all), in rev order, with the filters in lib/board-api queryOf.
 // Answers {leads, next, more}: ask again with since=next. The tasks board: tasks changed after ?since=<rev>, with
-// ?status= and ?archived=true, as {tasks, next, more}.
+// ?status= and ?archived=true, as {tasks, next, more}. Egress: ?fields= (a list of cells, "slim"
+// or "all"; see lib/leads fieldsOf) picks the lead cells; every answer has an ETag on the board's newest rev and the
+// query, so a reader sending it back as If-None-Match gets 304 and no body when nothing changed; x-peek-bytes says the
+// size, and each key's day is counted in api_key_days.
 export async function GET(req: Request, ctx: Ctx) {
   const board = await boardOf(ctx);
   if (!board) return noBoard();
   const k = await keyed(req, "board:read");
   if ("res" in k) return k.res;
   const url = new URL(req.url);
+  const etag = `W/"${board}-${await boardRev(k.d, k.key.tenantId, board)}-${sha256(url.search).slice(0, 12)}"`;
+  if (req.headers.get("if-none-match") === etag) return notModified(k.d, k.key, etag);
   if (board === "tasks") {
     const p = url.searchParams;
     const since = p.get("since") ? Number(p.get("since")) : undefined;
     const limit = p.get("limit") ? Number(p.get("limit")) : undefined;
     if ([since, limit].some((n) => n !== undefined && !Number.isFinite(n))) return fail(400, "bad_query", "since and limit are numbers");
-    return NextResponse.json(await listTasks(k.d, k.key.tenantId, { since, limit, status: p.get("status") ?? undefined, archived: p.get("archived") === "true" }));
+    return metered(k.d, k.key, await listTasks(k.d, k.key.tenantId, { since, limit, status: p.get("status") ?? undefined, archived: p.get("archived") === "true" }), { etag });
   }
   const q = queryOf(url);
   if ([q.since, q.limit, q.minScore].some((n) => n !== undefined && !Number.isFinite(n))) return fail(400, "bad_query", "since, limit and min_score are numbers");
-  return NextResponse.json(await listLeads(k.d, k.key.tenantId, q));
+  const f = fieldsOf(url.searchParams.get("fields"));
+  if (!f.ok) return fail(400, "bad_query", f.message);
+  return metered(k.d, k.key, await listLeads(k.d, k.key.tenantId, q, f.keys), { etag });
 }
 
 // POST {actor, fields, source_url?}: a new lead. The same website domain (or, with none, name and city) is refused as

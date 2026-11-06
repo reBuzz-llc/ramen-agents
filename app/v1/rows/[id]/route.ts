@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { answer, body, botActor, fail, failed, keyed } from "@/lib/board-api";
+import { answer, body, botActor, fail, failed, keyed, metered } from "@/lib/board-api";
 import { getLead, writeLead } from "@/lib/leads";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -10,7 +9,7 @@ export async function GET(req: Request, ctx: Ctx) {
   if ("res" in k) return k.res;
   const { id } = await ctx.params;
   const lead = await getLead(k.d, k.key.tenantId, { id });
-  return lead ? NextResponse.json({ lead }) : fail(404, "not_found", `no lead ${id}`);
+  return lead ? metered(k.d, k.key, { lead }) : fail(404, "not_found", `no lead ${id}`);
 }
 
 // PATCH {actor, fields, fill_only?, source_url?}: the given fields; answers the row as stored with what was written

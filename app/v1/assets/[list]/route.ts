@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { checkPackages, checkRates, keyMayNotPublish, latest, listPackages, listRates, listSections, packageJson, rateJson, savePackages, saveRates, sectionJson } from "@/lib/assets";
-import { body, fail, failed, keyed } from "@/lib/board-api";
+import { body, fail, failed, keyed, metered } from "@/lib/board-api";
 
-// The Asset page's lists for your agents. GET with any board:read key (the Validator's
+// The Asset page's lists for the family's machines. GET with any board:read key (the Validator's
 // price guard, the Writer's offer reader): {rates: [{id, position, line, offer, price, updated_at, updated_by}]} or
 // {packages: [{id, position, name, price, offer, buyer, deliverables, status, updated_at, updated_by}]}, in the page's
 // order, with the list's updated_at; ?status=published for the published packages only. PUT with the owner's
@@ -25,16 +25,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ list: string }>
   if ("res" in k) return k.res;
   if (list === "rates") {
     const rows = await listRates(k.d, k.key.tenantId);
-    return NextResponse.json({ rates: rows.map(rateJson), updated_at: latest(rows) });
+    return metered(k.d, k.key, { rates: rows.map(rateJson), updated_at: latest(rows) });
   }
   if (list === "sections") {
     const rows = await listSections(k.d, k.key.tenantId);
-    return NextResponse.json({ sections: rows.map(sectionJson), updated_at: latest(rows) });
+    return metered(k.d, k.key, { sections: rows.map(sectionJson), updated_at: latest(rows) });
   }
   const status = new URL(req.url).searchParams.get("status");
   if (status && status !== "published" && status !== "draft") return fail(400, "bad_request", "status is published or draft");
   const rows = await listPackages(k.d, k.key.tenantId, (status as "published" | "draft" | null) ?? undefined);
-  return NextResponse.json({ packages: rows.map(packageJson), updated_at: latest(rows) });
+  return metered(k.d, k.key, { packages: rows.map(packageJson), updated_at: latest(rows) });
 }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ list: string }> }) {

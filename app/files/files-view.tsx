@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { btnOutline, btnPrimary, btnText, control } from "@/lib/ui-classes";
 
-export type FileItem = { id: string; name: string; size: number; type: string; tag: string; uploader: string; at: string; attachedTo: number; canChange: boolean };
+export type FileItem = { id: string; name: string; size: number; type: string; tag: string; uploader: string; at: string; attachedTo: number; canChange: boolean; pending?: string };
 type Upload = { key: string; name: string; progress: number; error: string; done: boolean };
 
 const ACCEPT = "application/pdf,image/png,image/jpeg";
@@ -201,18 +201,23 @@ function FileRowView({ f, onPreview }: { f: FileItem; onPreview: () => void }) {
               {size(f.size)} · {f.uploader || "someone"} · {when(f.at)}
               {f.attachedTo ? ` · on ${f.attachedTo} ${f.attachedTo === 1 ? "lead" : "leads"}` : ""}
             </p>
+            {f.pending ? <p className="text-xs font-medium text-sys-orange">Stored on {f.pending}, copy pending: it opens here once copied.</p> : null}
           </>
         )}
         {error ? <p className="text-xs text-bad">{error}</p> : null}
       </div>
       {!editing ? (
         <div className="flex flex-wrap items-center gap-x-3">
-          <button type="button" onClick={onPreview} className={btnText}>
-            Preview
-          </button>
-          <a href={`/api/files/${f.id}/download`} className={btnText}>
-            Download
-          </a>
+          {f.pending ? null : (
+            <>
+              <button type="button" onClick={onPreview} className={btnText}>
+                Preview
+              </button>
+              <a href={`/api/files/${f.id}/download`} className={btnText}>
+                Download
+              </a>
+            </>
+          )}
           {f.canChange ? (
             <>
               <button type="button" onClick={() => (setEditing("name"), setValue(f.name))} className={btnText}>
