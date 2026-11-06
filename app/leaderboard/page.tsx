@@ -2,11 +2,10 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { publicReason } from "@/lib/errors";
 import { monthStartDate, OUTCOMES, standings, weightsOf } from "@/lib/leaderboard";
-import { boardPages, taskPages } from "@/lib/notion";
+import { scoreFacts } from "@/lib/lead-queue";
 import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import { teamNow, type NowRow } from "@/lib/shift-notes";
-import type { NotionPage } from "@/lib/queue";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { startDayOf, weekStartDate } from "@/lib/week";
 
@@ -22,19 +21,19 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
   const period: Period = (await props.searchParams).p === "month" ? "month" : "week";
   const from = period === "month" ? monthStartDate() : weekStartDate(new Date(), startDayOf(who.settings));
   const d = await db();
-  // The team's rows and both boards at once.
+  // The team's rows and the board's leads and tasks at once.
   const [{ people, clicks, shiftRows }, boards, now] = await Promise.all([
     weekRows(d, who.tenantId, from),
-    Promise.all([boardPages(d, who.tenantId), taskPages(d, who.tenantId)]).then(
-      ([pages, tasks]) => ({ pages, tasks, error: "" }),
-      (err) => ({ pages: [] as NotionPage[], tasks: [] as NotionPage[], error: publicReason(err, "home") }),
+    scoreFacts(d, who.tenantId, from).then(
+      ({ leads, tasks }) => ({ leads, tasks, error: "" }),
+      (err) => ({ leads: [], tasks: [], error: publicReason(err, "home") }),
     ),
     // Who is working right now: for the owner and managers only.
     can(who.role, "week.team") ? teamNow(d, who.tenantId, who.settings) : Promise.resolve(null),
   ]);
-  const { pages, tasks, error: boardError } = boards;
+  const { leads, tasks, error: boardError } = boards;
   const w = weightsOf(who.settings.points);
-  const board = standings(scoreboard(people, clicks, pages, tasks, shiftRows, from), w);
+  const board = standings(scoreboard(people, clicks, leads, tasks, shiftRows, from), w);
   const top = Math.max(1, ...board.map((r) => r.points));
   const medal = (rank: number) => (rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "");
 

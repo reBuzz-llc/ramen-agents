@@ -1,69 +1,62 @@
 // "This week", per person, and the weekly statement. Attribution: a lead belongs to the
-// person in its "Sent by" cell on the board (the Validator fills it from Notion's last-edited-by when Status turns Email
-// Sent); a click on "I sent it" here counts too. A lead's later Result counts for that same person. Tasks done come from
-// the task board: Status "Done" with the person in "Assign", edited this week. Pure functions, tested apart from Notion.
+// person in its "Sent by" cell on the board (the store fills it with the person who marks it Email Sent); a click on
+// "I sent it" counts too. A lead's later Result counts for that same person. Tasks done: Status "Done" with the person
+// among the assignees, last changed this week. Read from the portal's own board: lib/lead-queue.ts scoreFacts. Pure functions, tested apart from the database.
 import { and, eq, gte } from "drizzle-orm";
 import type { Db } from "./db";
 import { outcomes, shifts, users } from "./db/schema";
 import { roundShift } from "./cadence";
-import { peopleOf, STATUS_SENT, text, type NotionPage } from "./queue";
 
 export type Person = { id: string; name: string; email: string; role: string; notionUserId: string | null };
 export type PersonWeek = { userId: string; name: string; role: string; sent: number; replies: number; meetings: number; clients: number; tasksDone: number; minutes: number };
+/** A lead as the scoreboard needs it. `notionPageId`: clicks made while the queue still read Notion carry that id. */
+export type LeadFact = { id: string; notionPageId: string | null; emailStatus: string | null; sentBy: string[]; sentAt: Date | null; result: string | null; resultDate: string | null; updatedAt: Date };
+export type TaskFact = { status: string; assignees: string[]; updatedAt: Date };
 
 const REACHED: Record<string, number> = { Replied: 1, "Not interested": 1, Meeting: 2, Client: 3 };
+const SENT = "Email Sent";
 
-/** The ramen-agents user behind a Notion person: by Notion user id first, else by email. */
-export function personFor(people: Person[], notion: { id: string; email: string }): Person | undefined {
-  return people.find((p) => p.notionUserId && p.notionUserId === notion.id) ?? (notion.email ? people.find((p) => p.email === notion.email) : undefined);
+/** The ramen-agents user behind a name in a Sent by or assignee cell: by name, else by email (no case). */
+export function personNamed(people: Person[], who: string): Person | undefined {
+  const k = who.trim().toLowerCase();
+  if (!k) return undefined;
+  return people.find((p) => p.name.trim().toLowerCase() === k) ?? people.find((p) => p.email.toLowerCase() === k);
 }
 
 export function scoreboard(
   people: Person[],
   clicks: { userId: string | null; pageId: string; at: Date }[],
-  leads: NotionPage[],
-  tasks: NotionPage[],
+  leads: LeadFact[],
+  tasks: TaskFact[],
   shiftRows: { userId: string; startedAt: Date; endedAt: Date | null }[],
   from: Date,
   now = new Date(),
   step = 0, // settings.updates.rounding: each shift rounded (start down, end up) for the totals; raw times stay stored
 ): PersonWeek[] {
-  // Who sent each lead: the board's "Sent by", else the person who clicked "I sent it" here.
-  const sender = new Map<string, string>();
-  const sentAt = new Map<string, Date>();
-  for (const c of clicks) {
-    if (c.userId && !sender.has(c.pageId)) {
-      sender.set(c.pageId, c.userId);
-      sentAt.set(c.pageId, c.at);
-    }
-  }
-  for (const page of leads) {
-    const by = peopleOf(page.properties["Sent by"]).map((n) => personFor(people, n)).find(Boolean);
-    if (by) sender.set(page.id, by.id);
-    if (text(page.properties.Status) === STATUS_SENT && page.last_edited_time && !sentAt.has(page.id)) sentAt.set(page.id, new Date(page.last_edited_time));
-  }
+  // A click by lead id, or by the Notion page id it had before the queue moved over.
+  const click = new Map<string, { userId: string; at: Date }>();
+  for (const c of clicks) if (c.userId && !click.has(c.pageId)) click.set(c.pageId, { userId: c.userId, at: c.at });
   const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: p.name || p.email, role: p.role, sent: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
-  for (const page of leads) {
-    const who = sender.get(page.id);
+  for (const l of leads) {
+    const c = click.get(l.id) ?? (l.notionPageId ? click.get(l.notionPageId) : undefined);
+    const who = l.sentBy.map((n) => personNamed(people, n)).find(Boolean)?.id ?? c?.userId;
     const row = who ? rows.get(who) : undefined;
     if (!row) continue;
-    const when = sentAt.get(page.id);
-    if (text(page.properties.Status) === STATUS_SENT && when && when >= from) row.sent++;
-    const result = text(page.properties.Result);
-    const resultAt = new Date(text(page.properties["Result date"]) || page.last_edited_time || 0);
-    const level = REACHED[result] ?? 0;
+    // When it was sent: the board's Sent at, else the click, else (an imported row) its result date.
+    const when = l.sentAt ?? c?.at ?? (l.resultDate ? new Date(`${l.resultDate}T00:00:00`) : null);
+    if (l.emailStatus === SENT && when && when >= from) row.sent++;
+    const level = REACHED[l.result ?? ""] ?? 0;
+    const resultAt = l.resultDate ? new Date(`${l.resultDate}T00:00:00`) : l.updatedAt;
     if (level && resultAt >= from) {
       row.replies++;
       if (level >= 2) row.meetings++;
       if (level >= 3) row.clients++;
     }
   }
-  for (const task of tasks) {
-    if (text(task.properties.Status) !== "Done" || new Date(task.last_edited_time ?? 0) < from) continue;
-    for (const n of peopleOf(task.properties.Assign)) {
-      const p = personFor(people, n);
-      if (p) rows.get(p.id)!.tasksDone++;
-    }
+  for (const t of tasks) {
+    if (t.status !== "Done" || t.updatedAt < from) continue;
+    const done = new Set(t.assignees.map((a) => personNamed(people, a)?.id).filter(Boolean) as string[]);
+    for (const id of done) rows.get(id)!.tasksDone++;
   }
   for (const s of shiftRows) {
     const row = rows.get(s.userId);

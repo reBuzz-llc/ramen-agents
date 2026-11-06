@@ -5,7 +5,7 @@ import { newToken, sha256 } from "./crypto";
 import type { Db } from "./db";
 import { apiKeys } from "./db/schema";
 
-export type Scope = "board:read" | "board:write" | "board:import" | "board:validate";
+export type Scope = "board:read" | "board:write" | "board:import" | "board:validate" | "assets:write";
 export type ApiKey = { id: string; tenantId: string; name: string; scopes: Scope[] };
 
 /** The scopes, in the order Settings > API keys lists them, with what each lets a key do. */
@@ -14,6 +14,7 @@ export const SCOPES: readonly { scope: Scope; label: string }[] = [
   { scope: "board:write", label: "Write cells (a person's edit still wins)" },
   { scope: "board:validate", label: "Raise and resolve flags (the Validator)" },
   { scope: "board:import", label: "Import rows as they are (a backfill)" },
+  { scope: "assets:write", label: "Replace the Asset page's rates and packages (the owner's key)" },
 ];
 export const isScope = (s: unknown): s is Scope => SCOPES.some((x) => x.scope === s);
 

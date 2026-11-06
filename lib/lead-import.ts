@@ -9,6 +9,7 @@ import { leadImports, leads } from "./db/schema";
 import { placeOf } from "./lead-filters";
 import { HOME_STATES, SOCIAL, type MappedRow } from "./lead-import-map";
 import { domainOf, writeLead } from "./leads";
+import { e164 } from "./phone";
 
 export { autoMap, BATCH, FIELD_LABEL, IMPORT_FIELDS, isMapsExport, keyOf, listItems, mapRows, MAX_FILE_BYTES, MAX_ROWS, parseCsv, SOCIAL, type ImportField, type MappedRow } from "./lead-import-map";
 
@@ -119,7 +120,7 @@ export function leadFields(r: MappedRow, o: FieldOpts): Record<string, unknown> 
     source_pages: [social, mapLink].filter(Boolean).join("\n") || null,
     business_email: r.business_email,
     whatsapp: r.whatsapp,
-    phone: r.phone,
+    phone: r.phone ? e164(r.phone) : r.phone,
     location: location || null,
     address: r.address,
     industry: r.industry,

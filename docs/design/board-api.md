@@ -161,6 +161,10 @@ What runs now, read against the design above. The engine and the Validator still
   `POST /v1/rows/{id}/flags` `{actor, rule, detail}` answers `{flag: {id, rule, detail, status, first_seen, resolved_at, actor}}`
   (one per rule: an open one keeps its id and takes the new detail, a resolved one reopens);
   `PATCH /v1/rows/{id}/flags/{flagId}` `{actor, resolved: true}` answers `{flag}`; `GET /v1/rows/{id}/flags` answers `{flags}`.
+- **Phone**: `phone` is an ordinary cell next to `whatsapp`, written by bots and people under person wins
+  (not a team-only field). Every write stores it in E.164 (`"+17188760861"`): a US number in any common shape gets `+1`,
+  a number with a country code keeps it, an extension is dropped, and text that is not a number is kept as written.
+  Rows answer it as `phone`; the board shows it as a tap-to-call link.
 - **Lists:** `PUT /v1/lists/send-next` (board:write) keeps the Validator's send-next list as sent, for the Send next tab.
 - **The one exception to the team's fields:** a key with `board:validate` may clear `whatsapp_status`, and only while it
   reads "False Whatsapp Number". Every other bot write to email status, WhatsApp status, result or result date is refused.

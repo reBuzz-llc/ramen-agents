@@ -62,7 +62,7 @@ describe("the dry run and the import", () => {
     const r = await runImport(db, tenantId, who, all(mapRows(t.slice(1), autoMap(t[0]))), "mined.csv", { now: new Date("2026-11-02T18:00:00Z") });
     expect([r.created, r.skipped, r.rejected]).toEqual([3, 3, 1]);
     const acme = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Acme Bakery")!;
-    expect(acme).toMatchObject({ website: "https://acmebakery.example", business_email: "hello@acmebakery.example", whatsapp: "https://wa.me/17185550100", phone: "(718) 555-0100", city: "Queens", industry: "Bakery", contact_person: "Maria Lopez", contact_role: "Owner", found_by: "import: owner file 2026-11-02", email_status: null });
+    expect(acme).toMatchObject({ website: "https://acmebakery.example", business_email: "hello@acmebakery.example", whatsapp: "https://wa.me/17185550100", phone: "+17185550100", city: "Queens", industry: "Bakery", contact_person: "Maria Lopez", contact_role: "Owner", found_by: "import: owner file 2026-11-02", email_status: null });
     const h = await historyOf(db, tenantId, acme.id);
     expect(h.every((x) => x.actor.kind === "person" && x.actor.name === "Olu Ade" && x.outcome === "applied")).toBe(true);
     expect(h.map((x) => x.column).sort()).toEqual(["business", "business_email", "contact_person", "contact_role", "evidence", "found_by", "industry", "location", "notes", "phone", "website", "whatsapp"]);
@@ -144,7 +144,7 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     expect(b.id).toBe(a.id);
     expect([a.created, b.created]).toEqual([3, 2]);
     const lead = (await listLeads(db, tenantId, { city: "Staten Island" })).leads[0];
-    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+1 718-555-4178", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
+    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+17185554178", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
     const nj = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Hoboken Linen")!;
     expect(nj).toMatchObject({ state: "NJ", location: "Hoboken, NJ, USA" });
     const kids = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Bronx Kids Wear")!;

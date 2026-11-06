@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { devLoginEnabled, me, signedInWithoutAccess } from "@/lib/auth";
 import { neonAuth } from "@/lib/neon-auth";
@@ -42,6 +43,13 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
           <p className="mt-2 text-xs text-muted">On an empty database the first person to sign in becomes the owner of the company &quot;My team&quot; (rename it in Settings later).</p>
         </form>
       ) : null}
+      <p className="mt-8 text-sm text-muted">
+        New here?{" "}
+        <Link href="/guide" className="font-medium text-accent-ink underline">
+          The guide
+        </Link>{" "}
+        shows what you do here, step by step.
+      </p>
     </div>
   );
 }

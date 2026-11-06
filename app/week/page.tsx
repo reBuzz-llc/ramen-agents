@@ -2,8 +2,7 @@ import { pageMe } from "@/lib/page-me";
 import { publicReason } from "@/lib/errors";
 import { db } from "@/lib/db";
 import Link from "next/link";
-import { boardPages, taskPages } from "@/lib/notion";
-import type { NotionPage } from "@/lib/queue";
+import { scoreFacts } from "@/lib/lead-queue";
 import { can } from "@/lib/roles";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { projectName, projectsOf, type Project } from "@/lib/projects";
@@ -18,17 +17,17 @@ export default async function WeekPage() {
   const startDay = startDayOf(who.settings);
   const from = weekStartDate(new Date(), startDay);
   const step = who.settings.updates?.rounding ?? 0;
-  // The team's rows and both boards at once.
+  // The team's rows and the board's leads and tasks at once.
   const [{ people, clicks, shiftRows }, boards, projectList] = await Promise.all([
     weekRows(d, who.tenantId, from),
-    Promise.all([boardPages(d, who.tenantId), taskPages(d, who.tenantId)]).then(
-      ([pages, tasks]) => ({ pages, tasks, error: "" }),
-      (err) => ({ pages: [] as NotionPage[], tasks: [] as NotionPage[], error: publicReason(err, "week") }),
+    scoreFacts(d, who.tenantId, from).then(
+      ({ leads, tasks }) => ({ leads, tasks, error: "" }),
+      (err) => ({ leads: [], tasks: [], error: publicReason(err, "week") }),
     ),
     projectsOf(d, who.tenantId),
   ]);
-  const { pages, tasks, error: boardError } = boards;
-  const all = scoreboard(people, clicks, pages, tasks, shiftRows, from, new Date(), step);
+  const { leads, tasks, error: boardError } = boards;
+  const all = scoreboard(people, clicks, leads, tasks, shiftRows, from, new Date(), step);
   const rows = can(who.role, "week.team") ? all : all.filter((r) => r.userId === who.userId);
   const kr = who.settings.keyResults ?? {};
   const total = (k: "sent" | "replies" | "meetings" | "tasksDone") => all.reduce((t, r) => t + r[k], 0);
@@ -43,13 +42,13 @@ export default async function WeekPage() {
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">This week</h1>
       <p className="mt-1 text-sm text-muted">Since {WEEKDAYS[startDay]} {weekStart(new Date(), startDay)}.{step ? ` Hours are rounded to ${step} minutes per shift.` : ""} A reply or meeting counts for the person who sent that lead.</p>
       {boardError ? <p className="mt-4 rounded-lg bg-panel p-3 text-sm text-muted">{boardError}</p> : null}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.label} className="rounded-xl border border-line bg-panel p-4">
             <p className="text-xs text-muted">{t.label}</p>
-            <p className="text-3xl font-semibold tabular-nums">
-              {t.value}
-              {t.target ? <span className="text-base font-normal text-muted"> / {t.target}</span> : null}
+            <p className="flex flex-wrap items-baseline gap-x-1.5 text-2xl font-semibold tabular-nums lg:text-3xl">
+              <span>{t.value}</span>
+              {t.target ? <span className="whitespace-nowrap text-base font-normal text-muted">/ {t.target}</span> : null}
             </p>
           </div>
         ))}

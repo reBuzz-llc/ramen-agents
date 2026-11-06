@@ -6,8 +6,9 @@
 //   node --env-file=.env.local scripts/api-key.mjs dashboard                  # board:read only
 //   node --env-file=.env.local scripts/api-key.mjs backfill board:import       # extra scopes after the name
 //   node --env-file=.env.local scripts/api-key.mjs validator --tenant team   # the company's slug (default team, the first company)
+//   node --env-file=.env.local scripts/api-key.mjs owner assets:write          # PUT /v1/assets/* (the owner's key)
 import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import pg from "pg";
@@ -24,8 +25,8 @@ if (!name || !/^[a-z][a-z0-9-]{1,30}$/.test(name)) {
 // The dashboard only reads (Reports, The CEO's measure): its key never writes.
 const base = name === "dashboard" ? ["board:read"] : ["board:read", "board:write"];
 const scopes = [...new Set([...base, ...(name === "validator" ? ["board:validate"] : []), ...extra])];
-if (scopes.some((s) => !["board:read", "board:write", "board:import", "board:validate"].includes(s))) {
-  console.error("scopes are board:read, board:write, board:import and board:validate");
+if (scopes.some((s) => !["board:read", "board:write", "board:import", "board:validate", "assets:write"].includes(s))) {
+  console.error("scopes are board:read, board:write, board:import, board:validate and assets:write");
   process.exit(2);
 }
 const url = (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || "").trim();
@@ -46,7 +47,10 @@ try {
   writeFileSync(file, `${token}\n`, { mode: 0o600 });
   chmodSync(file, 0o600);
   await client.query("commit");
-  console.log(`${name}: key written to ${file} (${scopes.join(" ")})${revoked.rowCount ? `; ${revoked.rowCount} earlier key(s) revoked` : ""}`);
+  // On stderr, and the file read back: a `> peek-<name>.key` redirect once put this line in the key file in place of
+  // the key (2026-11-05, the dashboard's key). Run the script without redirecting it; it writes the file itself.
+  if (readFileSync(file, "utf8").trim() !== token) throw new Error(`${file} does not hold the new key after writing it; run the script without redirecting its output`);
+  console.error(`${name}: key written to ${file} (${scopes.join(" ")})${revoked.rowCount ? `; ${revoked.rowCount} earlier key(s) revoked` : ""}`);
 } catch (err) {
   await client.query("rollback").catch(() => {});
   console.error("api-key: failed:", err instanceof Error ? err.message : err);

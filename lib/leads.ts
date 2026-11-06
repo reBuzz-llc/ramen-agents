@@ -6,9 +6,11 @@
 // - an import (the backfill's key) copies Notion as it is, past those rules, and is idempotent on the Notion page id.
 // Readers follow `rev`: listLeads(since = the last rev seen) returns what changed after it, in order.
 import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "./db";
 import { claims, leadCells, leadFlags, leads, users } from "./db/schema";
 import { placeOf } from "./lead-filters";
+import { e164 } from "./phone";
 
 type Kind = "text" | "number" | "list" | "date" | "json";
 type Prop = keyof typeof leads.$inferSelect;
@@ -28,6 +30,7 @@ export const FIELDS: Field[] = [
   { key: "founder_linkedin", prop: "founderLinkedin", kind: "text" },
   { key: "linkedin_via", prop: "linkedinVia", kind: "text" },
   { key: "whatsapp", prop: "whatsapp", kind: "text" },
+  { key: "phone", prop: "phone", kind: "text" },
   { key: "map_link", prop: "mapLink", kind: "text" },
   { key: "pain_point", prop: "painPoint", kind: "text" },
   { key: "package", prop: "package", kind: "text" },
@@ -44,7 +47,6 @@ export const FIELDS: Field[] = [
   { key: "result_date", prop: "resultDate", kind: "date", human: true },
   { key: "sent_by", prop: "sentBy", kind: "list" },
   { key: "found_by", prop: "foundBy", kind: "text" },
-  { key: "phone", prop: "phone", kind: "text" },
   { key: "notes", prop: "notes", kind: "text" },
   { key: "address", prop: "address", kind: "text" },
   { key: "listing", prop: "listing", kind: "json" },
@@ -92,6 +94,7 @@ function normalise(f: Field, v: unknown): { value: unknown } | { error: string }
     if (typeof v !== "string" && typeof v !== "number") return { error: `${f.key} is text` };
     const s = String(v).trim();
     if (s.length > MAX_TEXT) return { error: `${f.key} is longer than ${MAX_TEXT} characters` };
+    if (f.key === "phone") return { value: e164(s) || null };
     return { value: s || null };
   }
   if (f.kind === "number") {
@@ -399,33 +402,74 @@ export async function historyOf(db: Db, tenantId: string, leadId: string, limit 
  *  to a cell whose earlier applied change was a bot's ("Corrected by the team"). */
 export async function boardOf(db: Db, tenantId: string, userId: string) {
   return db
+    .select(boardColumns(userId))
+    .from(leads)
+    .where(and(eq(leads.tenantId, tenantId), eq(leads.archived, false)))
+    .orderBy(sql`${leads.leadScore} desc nulls last`, desc(leads.updatedAt));
+}
+
+/** A long cell cut in the database to what a table cell shows; the drawer reads the whole lead. */
+const cut = (c: AnyPgColumn, n = 160) => sql<string | null>`left(${c}, ${sql.raw(String(n))})`;
+
+/** For the Table tab: the board's columns and every other
+ *  cell, long text cut to its first 160 characters (a draft's to 120), in the board's order. */
+export async function tableOf(db: Db, tenantId: string, userId: string) {
+  return db
     .select({
-      id: leads.id,
-      business: leads.business,
-      website: leads.website,
-      city: leads.city,
-      state: leads.state,
-      industry: leads.industry,
-      contactPerson: leads.contactPerson,
-      contactRole: leads.contactRole,
-      package: leads.package,
-      leadScore: leads.leadScore,
-      emailStatus: leads.emailStatus,
-      whatsappStatus: leads.whatsappStatus,
-      result: leads.result,
-      sentBy: leads.sentBy,
-      hasDraft: sql<boolean>`${leads.draftEmail} is not null and ${leads.draftEmail} not ilike 'skip:%'`,
-      updatedAt: leads.updatedAt,
-      takenBy: sql<string | null>`(select coalesce(nullif(u.name, ''), u.email) from ${claims} c join ${users} u on u.id = c.user_id where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text)`,
-      mine: sql<boolean>`exists (select 1 from ${claims} c where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text and c.user_id = ${userId})
-        or exists (select 1 from ${leadCells} m where m.lead_id = "leads"."id" and m.actor_user_id = ${userId} and m.outcome = 'applied')`,
-      openFlags: sql<number>`(select count(*)::int from ${leadFlags} f where f.lead_id = "leads"."id" and f.status = 'open')`,
-      corrected: sql<boolean>`exists (select 1 from ${leadCells} p where p.lead_id = "leads"."id" and p.actor_kind = 'person' and p.outcome = 'applied'
-        and exists (select 1 from ${leadCells} b where b.lead_id = p.lead_id and b."column" = p."column" and b.actor_kind = 'bot' and b.outcome = 'applied' and b.id < p.id))`,
+      ...boardColumns(userId),
+      location: leads.location,
+      businessEmail: leads.businessEmail,
+      emailCheck: leads.emailCheck,
+      size: leads.size,
+      founderLinkedin: leads.founderLinkedin,
+      linkedinVia: leads.linkedinVia,
+      whatsapp: leads.whatsapp,
+      phone: leads.phone,
+      mapLink: leads.mapLink,
+      painPoint: cut(leads.painPoint),
+      draftEmail: cut(leads.draftEmail, 120),
+      draftWhatsapp: cut(leads.draftWhatsapp, 120),
+      evidence: cut(leads.evidence),
+      sourcePages: cut(leads.sourcePages),
+      toolsOnSite: leads.toolsOnSite,
+      siteHealth: cut(leads.siteHealth),
+      resultDate: leads.resultDate,
+      sentAt: leads.sentAt,
+      foundBy: leads.foundBy,
+      notes: cut(leads.notes),
+      createdAt: leads.createdAt,
     })
     .from(leads)
     .where(and(eq(leads.tenantId, tenantId), eq(leads.archived, false)))
     .orderBy(sql`${leads.leadScore} desc nulls last`, desc(leads.updatedAt));
+}
+
+/** The board's list columns, shared by the Board and Table tabs. */
+function boardColumns(userId: string) {
+  return {
+    id: leads.id,
+    business: leads.business,
+    website: leads.website,
+    city: leads.city,
+    state: leads.state,
+    industry: leads.industry,
+    contactPerson: leads.contactPerson,
+    contactRole: leads.contactRole,
+    package: leads.package,
+    leadScore: leads.leadScore,
+    emailStatus: leads.emailStatus,
+    whatsappStatus: leads.whatsappStatus,
+    result: leads.result,
+    sentBy: leads.sentBy,
+    hasDraft: sql<boolean>`${leads.draftEmail} is not null and ${leads.draftEmail} not ilike 'skip:%'`,
+    updatedAt: leads.updatedAt,
+    takenBy: sql<string | null>`(select coalesce(nullif(u.name, ''), u.email) from ${claims} c join ${users} u on u.id = c.user_id where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text)`,
+    mine: sql<boolean>`exists (select 1 from ${claims} c where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text and c.user_id = ${userId})
+      or exists (select 1 from ${leadCells} m where m.lead_id = "leads"."id" and m.actor_user_id = ${userId} and m.outcome = 'applied')`,
+    openFlags: sql<number>`(select count(*)::int from ${leadFlags} f where f.lead_id = "leads"."id" and f.status = 'open')`,
+    corrected: sql<boolean>`exists (select 1 from ${leadCells} p where p.lead_id = "leads"."id" and p.actor_kind = 'person' and p.outcome = 'applied'
+      and exists (select 1 from ${leadCells} b where b.lead_id = p.lead_id and b."column" = p."column" and b.actor_kind = 'bot' and b.outcome = 'applied' and b.id < p.id))`,
+  };
 }
 
 

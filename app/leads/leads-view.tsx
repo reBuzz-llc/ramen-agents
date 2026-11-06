@@ -1,15 +1,20 @@
 "use client";
 // The Leads board, the team's working board. Board tab: a filterable table (status, borough,
-// industry group, score, draft, role, Mine, Corrected by the team) with status chips; a row opens the drawer, where a
+// industry group, score, draft, role, Mine, Corrected by the team) with status chips; Table tab: the same filters over
+// every cell as a grid (lead-table.tsx); a row in either opens the drawer, where a
 // person edits any cell (saved as that person into the lead's history), takes the next step with one click, takes the
 // lead, and copies a draft. Send next tab: the Validator's pick of what to send next, with take, copy and mark sent.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { industryGroup } from "@/lib/lead-filters";
+import { withAttachments } from "@/lib/attachment-line";
+import { telHref } from "@/lib/phone";
 import { CONTACT_ROLES, DRAWER_ORDER, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
 import type { SendNext } from "@/lib/send-next";
 import { control, Field } from "../ui";
+import { CHIP, Chip } from "./chip";
+import LeadTable, { type TableRow } from "./lead-table";
 
 export type BoardRow = {
   id: string;
@@ -62,19 +67,6 @@ function matches(r: BoardRow, f: F) {
   if (f.corrected && !r.corrected) return false;
   if (f.flagged && !r.openFlags) return false;
   return true;
-}
-
-const CHIP: Record<ReturnType<typeof tone>, string> = {
-  good: "bg-good/15 text-good",
-  bad: "bg-bad/15 text-bad",
-  go: "bg-accent-tint text-accent-ink",
-  wait: "bg-line text-ink",
-  none: "",
-};
-
-function Chip({ status }: { status: string | null }) {
-  if (!status) return null;
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${CHIP[tone(status)]}`}>{status}</span>;
 }
 
 /** A status chip with a small × at its end: pressing it empties that status, and with it the cells
@@ -152,7 +144,7 @@ function Toggle({ label, on, set }: { label: string; on: boolean; set: (v: boole
   );
 }
 
-export default function LeadsView({ rows, next, me, tab, canImport = false, openId = null }: { rows: BoardRow[]; next: SendNext; me: Me; tab: "board" | "send"; canImport?: boolean; openId?: string | null }) {
+export default function LeadsView({ rows, next, me, tab, canImport = false, openId = null }: { rows: TableRow[]; next: SendNext; me: Me; tab: "board" | "table" | "send"; canImport?: boolean; openId?: string | null }) {
   const [f, setF] = useState<F>(NONE);
   // ?open=<id> (the bots' link <peek>/leads/<id> lands here): that lead's drawer, open
   const [open, setOpen] = useState<string | null>(openId);
@@ -169,9 +161,13 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
     }),
     [rows],
   );
+  // The Table tab takes the window's full width; the title, tabs and filters keep the page's width
+  // so they line up with the top bar.
+  const wide = tab === "table";
+  const narrow = wide ? "mx-auto max-w-[61.5rem]" : "";
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div data-wide={wide || undefined}>
+      <div className={`flex flex-wrap items-center justify-between gap-3 ${narrow}`}>
         <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Leads</h1>
         {canImport ? (
           <Link href="/leads/import" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
@@ -182,17 +178,18 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
           </Link>
         ) : null}
       </div>
-      <p className="mt-1 text-[0.9375rem] text-muted">Every business on the board, with where it stands. Open one to see its details, its history and what to do next.</p>
-      <nav className="mt-4 flex gap-1 border-b border-line text-sm" aria-label="Leads views">
+      <p className={`mt-1 text-[0.9375rem] text-muted ${narrow}`}>Every business on the board, with where it stands. Open one to see its details, its history and what to do next.</p>
+      <nav className={`mt-4 flex gap-1 border-b border-line text-sm ${narrow}`} aria-label="Leads views">
         {(
           [
             ["board", "Board", rows.length],
+            ["table", "Table", rows.length],
             ["send", "Send next", next.rows.length],
           ] as const
         ).map(([key, label, n]) => (
           <Link
             key={key}
-            href={key === "board" ? "/leads" : "/leads?tab=send"}
+            href={key === "board" ? "/leads" : `/leads?tab=${key}`}
             aria-current={tab === key ? "page" : undefined}
             className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 ${tab === key ? "border-accent font-semibold" : "border-transparent text-muted hover:text-ink"}`}
           >
@@ -203,10 +200,10 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
       {tab === "send" ? (
         <SendNextView next={next} me={me} onOpen={setOpen} />
       ) : rows.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted">No leads here yet. They arrive when the Notion board is copied over (the backfill).</p>
+        <p className={`mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted ${narrow}`}>No leads here yet. They arrive when the Notion board is copied over (the backfill).</p>
       ) : (
         <>
-          <div className="mt-4 space-y-3 rounded-2xl border border-line bg-panel/50 p-4">
+          <div className={`mt-4 space-y-3 rounded-2xl border border-line bg-panel/50 p-4 ${narrow}`}>
             <Field label="Search">
               <input type="search" value={f.q} onChange={(e) => on("q")(e.target.value)} placeholder="business, contact, industry, city" enterKeyHint="search" className={control} />
             </Field>
@@ -253,51 +250,55 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
               </div>
             </div>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-panel">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted">
-                <tr className="border-b border-line">
-                  <th className="px-3 py-2 font-normal">Business</th>
-                  <th className="px-3 py-2 font-normal">Where</th>
-                  <th className="px-3 py-2 font-normal">Contact</th>
-                  <th className="px-3 py-2 text-right font-normal">Score</th>
-                  <th className="px-3 py-2 font-normal">Status</th>
-                  <th className="px-3 py-2 font-normal">Draft</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {shown.slice(0, 500).map((r) => (
-                  <tr key={r.id} onClick={() => setOpen(r.id)} className="cursor-pointer hover:bg-accent-tint">
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => setOpen(r.id)} className="text-left font-medium hover:underline">
-                        {r.business}
-                      </button>
-                      <span className="block text-xs text-muted">
-                        {r.industry ?? ""}
-                        {r.takenBy ? ` · taken by ${r.takenBy}` : ""}
-                      </span>
-                      {r.openFlags ? <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-2 text-xs text-bad">{r.openFlags === 1 ? "1 flag" : `${r.openFlags} flags`}</span> : null}
-                    </td>
-                    <td className="px-3 py-2 text-muted">{[r.city, r.state].filter(Boolean).join(", ")}</td>
-                    <td className="px-3 py-2">
-                      {r.contactPerson ?? <span className="text-muted">-</span>}
-                      {r.contactRole ? <span className="block text-xs text-muted">{r.contactRole}</span> : null}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.leadScore ?? <span className="text-muted">-</span>}</td>
-                    <td className="px-3 py-2">
-                      <span className="flex flex-wrap gap-1">
-                        <Chip status={r.result && r.result !== "Emailed" ? r.result : r.emailStatus} />
-                        <Chip status={r.whatsappStatus} />
-                        {!r.emailStatus && !r.whatsappStatus && !r.result ? <span className="text-xs text-muted">New</span> : null}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs">{r.hasDraft ? "yes" : <span className="text-muted">-</span>}</td>
+          {tab === "table" ? (
+            <LeadTable rows={shown} onOpen={setOpen} />
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-panel">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-muted">
+                  <tr className="border-b border-line">
+                    <th className="px-3 py-2 font-normal">Business</th>
+                    <th className="px-3 py-2 font-normal">Where</th>
+                    <th className="px-3 py-2 font-normal">Contact</th>
+                    <th className="px-3 py-2 text-right font-normal">Score</th>
+                    <th className="px-3 py-2 font-normal">Status</th>
+                    <th className="px-3 py-2 font-normal">Draft</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {shown.length > 500 ? <p className="p-3 text-xs text-muted">Showing the first 500; narrow the filters to see the rest.</p> : null}
-          </div>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {shown.slice(0, 500).map((r) => (
+                    <tr key={r.id} onClick={() => setOpen(r.id)} className="cursor-pointer hover:bg-accent-tint">
+                      <td className="px-3 py-2">
+                        <button type="button" onClick={() => setOpen(r.id)} className="text-left font-medium hover:underline">
+                          {r.business}
+                        </button>
+                        <span className="block text-xs text-muted">
+                          {r.industry ?? ""}
+                          {r.takenBy ? ` · taken by ${r.takenBy}` : ""}
+                        </span>
+                        {r.openFlags ? <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-2 text-xs text-bad">{r.openFlags === 1 ? "1 flag" : `${r.openFlags} flags`}</span> : null}
+                      </td>
+                      <td className="px-3 py-2 text-muted">{[r.city, r.state].filter(Boolean).join(", ")}</td>
+                      <td className="px-3 py-2">
+                        {r.contactPerson ?? <span className="text-muted">-</span>}
+                        {r.contactRole ? <span className="block text-xs text-muted">{r.contactRole}</span> : null}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.leadScore ?? <span className="text-muted">-</span>}</td>
+                      <td className="px-3 py-2">
+                        <span className="flex flex-wrap gap-1">
+                          <Chip status={r.result && r.result !== "Emailed" ? r.result : r.emailStatus} />
+                          <Chip status={r.whatsappStatus} />
+                          {!r.emailStatus && !r.whatsappStatus && !r.result ? <span className="text-xs text-muted">New</span> : null}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs">{r.hasDraft ? "yes" : <span className="text-muted">-</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {shown.length > 500 ? <p className="p-3 text-xs text-muted">Showing the first 500; narrow the filters to see the rest.</p> : null}
+            </div>
+          )}
         </>
       )}
       {open ? <Drawer id={open} me={me} choices={choices} onClose={() => setOpen(null)} /> : null}
@@ -328,8 +329,6 @@ async function claim(id: string, action: "accept" | "release"): Promise<{ ok: bo
   }
 }
 
-/** A copied draft names its attachments at the end, so whoever sends by hand knows what to attach. */
-const withAttachments = (draft: string, names: string[]) => (names.length ? `${draft.trimEnd()}\n\nAttachments: ${names.join(", ")}` : draft);
 
 function Clip() {
   return (
@@ -562,6 +561,8 @@ const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "source_pag
 const SELECT: Record<string, string[]> = { contact_role: CONTACT_ROLES, linkedin_via: LINKEDIN_VIA, email_status: EMAIL_STATUSES, whatsapp_status: WHATSAPP_STATUSES, result: RESULTS };
 const REASON: Record<string, string> = { person_wins: "a person changed it last", human_only: "the team's field", filled: "already filled" };
 
+export const GUIDE_HINT_KEY = "peek.guide-hint-seen";
+
 function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Choices; onClose: () => void }) {
   const router = useRouter();
   const [data, setData] = useState<{ lead: Lead; history: Change[]; flags?: Flag[]; attachments?: Attached[] } | null>(null);
@@ -571,6 +572,20 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
   const [showEmpty, setShowEmpty] = useState(false);
   const [taken, setTaken] = useState(false);
   const [done, setDone] = useState<{ key: string; label: string }[]>([]);
+  // the first drawer this browser opens shows one line pointing at the guide's sending steps
+  const [hint, setHint] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (localStorage.getItem(GUIDE_HINT_KEY)) return;
+        localStorage.setItem(GUIDE_HINT_KEY, new Date().toISOString());
+        setHint(true);
+      } catch {
+        /* private window or storage off: no hint, nothing breaks */
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     let live = true;
     fetch(`/api/leads/${id}`)
@@ -641,6 +656,20 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
     <div className="fixed inset-0 z-40 flex justify-end">
       <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-ink/30" />
       <aside role="dialog" aria-modal="true" aria-label={String(lead?.business ?? "Lead")} className="relative h-full w-full max-w-xl overflow-y-auto bg-bg p-5 shadow-xl">
+        {hint ? (
+          <p role="note" className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-accent bg-accent-tint px-3 py-2 text-sm">
+            <span>
+              First lead? How to send it by hand and record it:{" "}
+              <Link href="/guide#send" className="font-medium text-accent-ink underline">
+                the guide
+              </Link>
+              .
+            </span>
+            <button type="button" aria-label="Hide this hint" onClick={() => setHint(false)} className="min-h-6 shrink-0 px-1 text-muted hover:text-ink">
+              ×
+            </button>
+          </p>
+        ) : null}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {lead ? (
@@ -892,7 +921,11 @@ function Cell({ k, value, busy, choices, onSave, copyAs }: { k: string; value: u
         ) : (
           <>
             {v ? (
-              isUrl(v) ? (
+              k === "phone" && telHref(v) ? (
+                <a href={telHref(v)!} className="text-accent-ink tabular-nums hover:underline">
+                  {v}
+                </a>
+              ) : isUrl(v) ? (
                 <a href={v} target="_blank" rel="noreferrer" className="text-accent-ink hover:underline">
                   {v}
                 </a>

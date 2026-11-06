@@ -7,9 +7,8 @@ import { projectsOf } from "./projects";
 import { daysOf, memberStatement, statementLines, type DayLine, type ShiftLike } from "./rates";
 import { notesSince } from "./shift-notes";
 import { minutesByProject } from "./timesheet";
-import { boardPages, taskPages } from "./notion";
-import type { NotionPage } from "./queue";
-import { scoreboard, weekRows, type PersonWeek, type Statement } from "./scoreboard";
+import { scoreFacts } from "./lead-queue";
+import { scoreboard, weekRows, type LeadFact, type PersonWeek, type Statement, type TaskFact } from "./scoreboard";
 import { settingsOf } from "./tenants";
 
 export type WeekStatement = { week: PersonWeek; statement: Statement; weekStart: string; approved: { by: string; at: string } | null; days: DayLine[] };
@@ -24,10 +23,10 @@ export async function statementFor(db: Db, tenantId: string, userId: string, wee
   const from = new Date(`${weekStart}T00:00:00`);
   const to = new Date(from.getTime() + 7 * 86400e3);
   const { people, clicks, shiftRows } = await weekRows(db, tenantId, from);
-  let leads: NotionPage[] = [];
-  let tasks: NotionPage[] = [];
+  let leads: LeadFact[] = [];
+  let tasks: TaskFact[] = [];
   try {
-    [leads, tasks] = await Promise.all([boardPages(db, tenantId), taskPages(db, tenantId)]);
+    ({ leads, tasks } = await scoreFacts(db, tenantId, from));
   } catch {
     /* no board yet: hours only */
   }

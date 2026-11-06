@@ -1,7 +1,8 @@
 "use client";
 // The top bar: the daily work on the left (Clock, Our queue, Leads), everything else in the profile menu on the
 // right. The page you are on is marked: accent text, the brand orange underline and aria-current="page" in the bar; a
-// filled row in the menu, and a ring on the profile button while you are on one of its pages.
+// filled row in the menu, and a ring on the profile button while you are on one of its pages. Below 380 px the wordmark
+// steps aside (Clock is home) and, with large text, the links scroll inside the bar, so the page never scrolls sideways.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -13,11 +14,13 @@ export const NAV = [
   { href: "/queue", label: "Our queue" },
   { href: "/leads", label: "Leads" },
   { href: "/files", label: "Files" },
+  { href: "/asset", label: "Asset" }, // what we sell: rates and packages
 ] as const;
 /** The profile menu: looking back and setting up. */
 export const MENU = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/week", label: "This week" },
+  { href: "/guide", label: "Guide" }, // the team's step-by-step guide
   { href: "/settings", label: "Settings" },
   { href: "/privacy", label: "Privacy" },
 ] as const;
@@ -31,21 +34,28 @@ export function currentNav(path: string): string | null {
 
 export default function NavLinks({ who }: { who: { name: string; email: string; role: string; tenantName: string } }) {
   const current = currentNav(usePathname() ?? "/");
+  const links = useRef<HTMLDivElement>(null);
+  // When the links scroll inside the bar, the current one is brought into view.
+  useEffect(() => {
+    links.current?.querySelector<HTMLElement>("[aria-current=page]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [current]);
   return (
     <>
-      {NAV.map((n) => {
-        const on = current === n.href;
-        return (
-          <Link
-            key={n.href}
-            href={n.href}
-            aria-current={on ? "page" : undefined}
-            className={`-mb-px inline-flex min-h-12 shrink-0 items-center border-b-2 whitespace-nowrap ${on ? "border-accent font-semibold text-accent-ink" : "border-transparent text-muted hover:text-ink"}`}
-          >
-            {n.label}
-          </Link>
-        );
-      })}
+      <div ref={links} className="-mb-px flex min-w-0 items-center gap-x-3 max-[379px]:gap-x-2.5 overflow-x-auto [scrollbar-width:none] sm:gap-x-5">
+        {NAV.map((n) => {
+          const on = current === n.href;
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              aria-current={on ? "page" : undefined}
+              className={`inline-flex min-h-12 shrink-0 items-center border-b-2 whitespace-nowrap ${on ? "border-accent font-semibold text-accent-ink" : "border-transparent text-muted hover:text-ink"}`}
+            >
+              {n.label}
+            </Link>
+          );
+        })}
+      </div>
       <ProfileMenu who={who} current={current} />
     </>
   );
@@ -99,7 +109,7 @@ function ProfileMenu({ who, current }: { who: { name: string; email: string; rol
         </svg>
       </button>
       {open ? (
-        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-line bg-panel p-1.5 shadow-xl motion-safe:animate-[menu-in_120ms_ease-out]">
+        <div role="menu" className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-line bg-panel p-1.5 shadow-xl motion-safe:animate-[menu-in_120ms_ease-out]">
           <div className="px-3 py-2">
             <p className="truncate font-semibold">{name}</p>
             <p className="truncate text-xs text-muted">

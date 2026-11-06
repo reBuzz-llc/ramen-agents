@@ -522,3 +522,47 @@ export const leadImports = pgTable(
   },
   (t) => [index("lead_imports_tenant").on(t.tenantId, t.at)],
 );
+
+// The Asset page: what the company sells, edited by the owner and managers, so the owner's Notion
+// "What we have" page can retire. A rate is one line as Notion's Rates block had it ("Offer: price"); a package is the
+// offer the CEO publishes. `position` is the owner's order on the page (1 first).
+export const assetRates = pgTable(
+  "asset_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    line: text("line").notNull(),
+    updatedBy: text("updated_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("asset_rates_tenant").on(t.tenantId, t.position)],
+);
+
+export const assetPackages = pgTable(
+  "asset_packages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+    price: text("price").notNull().default(""),
+    offer: text("offer").notNull().default(""),
+    buyer: text("buyer").notNull().default(""),
+    deliverables: text("deliverables").array().notNull().default(sql`'{}'::text[]`),
+    status: text("status").notNull().default("draft"),
+    // The ready-to-send email the Outreach Writer builds a package's first email on (as the Notion toggle had it).
+    email: text("email").notNull().default(""),
+    // A bot's handover: who handed it over and when, with its reasons and the pages it read. Only
+    // POST /v1/assets/packages/drafts sets these; the page and the owner's PUT keep them as they are.
+    why: text("why").notNull().default(""),
+    sources: text("sources").array().notNull().default(sql`'{}'::text[]`),
+    handedOverBy: text("handed_over_by"),
+    handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
+    updatedBy: text("updated_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("asset_packages_tenant").on(t.tenantId, t.position)],
+);
