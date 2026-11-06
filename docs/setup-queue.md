@@ -71,8 +71,15 @@ is git-ignored. Any subset works; more keys mean more fallbacks. Limits and what
 
 ## 9. Optional: the team portal
 
-- [ ] The `portal` branch is a web app where people take leads and tasks, record what they sent, and the agents read
-      it. It needs a Postgres database (a free Neon project works). Its own `README.md` and `SETUP.md` explain it.
+- [ ] The `portal` branch is a web app where people take leads and tasks and record what they sent. It needs a
+      Postgres database (a free Neon project works). Its own `README.md` and `SETUP.md` explain it.
+- [ ] Three keys, minted in the portal's checkout (each script writes its file in `common-data/keys/`, mode 600):
+      `node --env-file=.env.local scripts/api-key.mjs engine board:read board:write` (the agents, `portal-engine.key`),
+      `... api-key.mjs validator` (`portal-validator.key`) and `... api-key.mjs dashboard` (read only,
+      `portal-dashboard.key`).
+- [ ] Point the family at it in `common-data/configs/common.toml`: `[leads]` then `portal_url = "https://..."`. From
+      then on the agents, the Validator and the dashboard read and write leads in the portal, not Notion; the
+      dashboard keeps a cache and pulls only what changed. `python3 scripts/setup-check.py --probe` tests each key.
 - [ ] Its database's safety net: a nightly standby copy to a second free database, local mode for an outage, and
       the dashboard's "Other free tiers" warnings. All in [portal-database.md](portal-database.md).
 

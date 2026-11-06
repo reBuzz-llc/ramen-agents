@@ -5,7 +5,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "./bots";
+import { fromNotion, fromPortal, type LeadRow } from "./lead-rows";
 import { notionBoards } from "./notion-boards";
+import { leadsSource, portalLeads } from "./portal";
 
 const KEYS = path.join(BOTS_DIR, "common-data", "keys", "notion.key");
 const TEAM = path.join(BOTS_DIR, "common-data", "team.json");
@@ -63,8 +65,15 @@ export async function ceoMeasure(): Promise<CeoMeasure> {
   };
   try {
     const boards = await notionBoards();
-    if (!boards.tasks || !boards.leads) return { ok: false, reason: "The task board or Leads board id is not set in the-ceo/config.toml.", weeks: [], openTasks: 0 };
-    const [tasks, leads] = await Promise.all([queryAll(boards.tasks, key), queryAll(boards.leads, key)]);
+    // Tasks stay on Notion; the leads come from the store the fleet uses (lib/portal.ts).
+    const src = await leadsSource();
+    if (!boards.tasks || (src.store === "notion" && !boards.leads)) return { ok: false, reason: "The task board or Leads board id is not set in the-ceo/config.toml.", weeks: [], openTasks: 0 };
+    const [tasks, leads] = await Promise.all([
+      queryAll(boards.tasks, key),
+      src.store === "portal"
+        ? portalLeads(src.url).then((ls) => ls.map(fromPortal))
+        : queryAll(boards.leads, key).then((ps) => ps.map((p): LeadRow => fromNotion(p.properties ?? {}, String(p.last_edited_time ?? "")))),
+    ]);
     let openTasks = 0;
     for (const t of tasks) {
       const status = named(t.properties?.Status);
@@ -77,8 +86,8 @@ export async function ceoMeasure(): Promise<CeoMeasure> {
       if (w >= 0) weeks[w].tasksDone++;
     }
     for (const l of leads) {
-      if (!ANSWERED.has(named(l.properties?.Result))) continue;
-      const w = weekOf(named(l.properties?.["Result date"]) || String(l.last_edited_time));
+      if (!ANSWERED.has(l.result)) continue;
+      const w = weekOf(l.resultDate || l.edited);
       if (w >= 0) weeks[w].leadsAnswered++;
     }
     const data = { ok: true, reason: "", weeks, openTasks };
