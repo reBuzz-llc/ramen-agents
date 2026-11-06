@@ -7,7 +7,7 @@ import type { BotCard, Screen } from "./board";
 
 export const TILE = 16;
 export const COLS = 24; // five desks a row (10-31: with the owner's three starts, 9 bots ran and the CEO had no desk)
-export const ROWS = 13;
+export const ROWS = 19; // the room grew 6 rows for the desks' big screens: two desk rows, an aisle, then the lounge
 
 /** What a character does for a state word. */
 type Anim = "working" | "idle" | "resting" | "quiet" | "blocked" | "lost";
@@ -32,10 +32,15 @@ export const restUntil = (state: { word: string }) => /until (\d{2}:\d{2})/.exec
 export type Pt = { x: number; y: number }; // tiles
 export const MAX_DESKS = 10; // a desk for every family member
 const DESK_COLS = [2, 6, 10, 14, 18];
-const DESK_ROWS = [4, 8]; // desks; the member sits on the row above, facing the room
+const DESK_ROWS = [7, 14]; // desks; the member sits on the row above, facing the room, its big screen behind it
 
 export const DESK_W = 44; // px: a wide desk, the monitor on the left facing the room, the member on the right
-export const MONITOR = { x: 2, y: -22, w: 26, h: 16 }; // px from the desk's top-left corner
+export const MONITOR = { x: 2, y: -22, w: 26, h: 16 }; // px from the desk's top-left corner (the small monitor, unused)
+/** A desk's big screen (its four lines and the footer, in JetBrains Mono): on two posts behind the seat, its bottom just
+ *  above the seated member's head; px from the desk's top-left corner. The name rides on a tab on top of the frame. */
+export const SCREEN = { x: -8, y: -64, w: 56, h: 44 };
+/** The lounge (sofa, rug, mats, the sleeping-corner sign) sits LOUNGE rows lower than in the 13-row room. */
+export const LOUNGE = 6;
 export const NAMEPLATE = { x: 15, y: 5, w: 14, h: 6 };
 
 /** Desk i (0..9): its top-left tile, and the seat (where the member sits, behind it, beside the monitor). */
@@ -48,14 +53,14 @@ export function desk(i: number): { desk: Pt; seat: Pt } {
 // The web terminal stands against the right wall at the middle aisle, beside the corridor every walk already uses
 // (queue 27: on the left wall each visit crossed the whole room along that aisle and back). A member stands one tile
 // left of it, reached from either desk row by its aisle and the corridor, never across a desk.
-export const TERMINAL: Pt = { x: 21, y: 5 };
-export const sofaSeat = (i: number): Pt => ({ x: 1 + (i % 5), y: 11 });
+export const TERMINAL: Pt = { x: 21, y: 9 };
+export const sofaSeat = (i: number): Pt => ({ x: 1 + (i % 5), y: 11 + LOUNGE });
 /** Mat i in the sleeping corner, which grows with the stopped count: four along the bottom right, then two more to their
  *  left (as far as the sofa allows), then a second row above. */
 export function bedSpot(i: number): Pt {
-  if (i < 4) return { x: 16 + i * 2, y: 11.5 };
-  if (i < 7) return { x: 14 - (i - 4) * 2, y: 11.5 };
-  return { x: 10 + ((i - 7) % 7) * 2, y: 10.25 - Math.floor((i - 7) / 7) * 1.5 };
+  if (i < 4) return { x: 16 + i * 2, y: 11.5 + LOUNGE };
+  if (i < 7) return { x: 14 - (i - 4) * 2, y: 11.5 + LOUNGE };
+  return { x: 10 + ((i - 7) % 7) * 2, y: 10.25 + LOUNGE - Math.floor((i - 7) / 7) * 1.5 };
 }
 export const BULLETIN = { x: 10, y: 0, w: 4, h: 2 };
 export const MAILBOX = { x: 20, y: 0, w: 1, h: 2 }; // on the back wall, left of the door, where the mail arrives
@@ -67,13 +72,13 @@ export const DOOR = { x: 21, y: 0, w: 2, h: 2 };
 // shortest paths the one with the fewest turns wins, so walks keep to the aisles.
 const STEP = 0.25;
 const GX = COLS * 4; // x: 0 .. 23.75
-const GY0 = 2; // y: 2 .. 12.75, below the wall
-const GY = 44;
+const GY0 = 2; // y: 2 .. ROWS - 0.25, below the wall
+const GY = (ROWS - GY0) * 4;
 type Box = { x0: number; y0: number; x1: number; y1: number; spots: Pt[] };
 const PLANTS: Box[] = [
   { x0: -0.1, y0: 4.9, x1: 1.0, y1: 6.2, spots: [] },
-  { x0: -0.1, y0: 9.9, x1: 1.0, y1: 11.2, spots: [] },
-  { x0: 22.9, y0: 7.4, x1: 24, y1: 8.6, spots: [] },
+  { x0: -0.1, y0: 9.9 + LOUNGE, x1: 1.0, y1: 11.2 + LOUNGE, spots: [] },
+  { x0: 22.9, y0: 11.4, x1: 24, y1: 12.6, spots: [] },
 ];
 
 function boxes(beds: Pt[]): Box[] {
@@ -82,8 +87,8 @@ function boxes(beds: Pt[]): Box[] {
     const { desk: d, seat } = desk(i);
     out.push({ x0: d.x - 0.2, y0: d.y - 1.5, x1: d.x + 3.0, y1: d.y + 1.0, spots: [seat] }); // the desk and its chair
   }
-  out.push({ x0: 21.9, y0: 4.0, x1: 24, y1: 6.2, spots: [] }); // the terminal cabinet
-  out.push({ x0: 0.7, y0: 10.4, x1: 6.3, y1: 11.7, spots: Array.from({ length: 5 }, (_, i) => sofaSeat(i)) }); // one sofa, five places
+  out.push({ x0: 21.9, y0: 8.0, x1: 24, y1: 10.2, spots: [] }); // the terminal cabinet
+  out.push({ x0: 0.7, y0: 10.4 + LOUNGE, x1: 6.3, y1: 11.7 + LOUNGE, spots: Array.from({ length: 5 }, (_, i) => sofaSeat(i)) }); // one sofa, five places
   for (const b of beds) out.push({ x0: b.x - 0.85, y0: b.y - 0.35, x1: b.x + 0.85, y1: b.y + 0.45, spots: [b] });
   return [...out, ...PLANTS];
 }
@@ -684,4 +689,19 @@ export function nowLines(c: Pick<BotCard, "slug" | "state" | "last" | "output" |
   const fresh = c.model ? `${providerOf(c.model.label)}${c.modelAgo ? ` · ${c.modelAgo}` : ""}` : "";
   const win = c.window.total ? `30 min: ${c.window.allowed}/${c.window.total} ok` : "30 min: no actions";
   return { word: c.state.word, lines: [made, second, fresh, win].filter(Boolean), refused: c.refusedShare };
+}
+
+/** A desk's big screen: the member's name (on the tab), its state word (a badge on the tab unless working), the four
+ *  lines (nowLines), the orange square before line 2 when that line is its page or search, and the refused share for
+ *  the footer's meter. The background follows the monitor's mode: dark while resting, red-tinted while blocked. */
+export type DeskScreen = { mode: Monitor["mode"]; name: string; word: string; lines: string[]; mark: "web" | "search" | ""; share: number | null };
+export function deskScreen(c: Parameters<typeof nowLines>[0] & Pick<BotCard, "name">, o: { noise?: boolean } = {}): DeskScreen {
+  const mon = monitorOf(c, { noise: o.noise });
+  const now = nowLines(c);
+  const anim = animOf(c.state);
+  const working = !["resting", "quiet", "blocked", "lost", "idle"].includes(anim) && !!c.last;
+  const page = working && !c.item && !(c.slug === "research-analyst" && c.questions[0]);
+  const mark = page && c.last?.screen?.kind === "web" ? "web" : page && c.last?.screen?.kind === "search" ? "search" : "";
+  const word = anim === "resting" ? "resting" : c.state.word;
+  return { mode: mon.mode, name: c.name, word, lines: now.lines, mark, share: now.refused };
 }

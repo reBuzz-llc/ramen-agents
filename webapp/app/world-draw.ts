@@ -1,7 +1,7 @@
 // Pixel drawing for the office world: everything is drawn here with rectangles, no image assets,
 // so there is no licence to keep. Coordinates are logical pixels (16 per tile); the caller scales the context so a
 // logical pixel is a whole number of device pixels, and text is drawn as vector text at that scale, so it stays sharp.
-import { BULLETIN, COLS, DESK_W, DOOR, MAILBOX, MONITOR, NAMEPLATE, ROWS, TILE, type Accessory, type DayPhase, type Look, type Monitor } from "@/lib/world";
+import { BULLETIN, COLS, DESK_W, DOOR, LOUNGE, MAILBOX, NAMEPLATE, ROWS, SCREEN, TILE, type Accessory, type DayPhase, type DeskScreen, type Look } from "@/lib/world";
 
 export const W = COLS * TILE;
 export const H = ROWS * TILE;
@@ -107,7 +107,7 @@ export function drawRoom(c: Ctx, o: { day?: DayPhase; flash?: boolean; quiet?: b
   }
   // web terminal against the right wall at the middle aisle, beside the corridor
   const tx = 22 * TILE + 1;
-  const ty = 4 * TILE + 2;
+  const ty = 8 * TILE + 2; // in the aisle between the desk rows
   r(c, tx + 1, ty, 14, 30, "#2b2f36");
   r(c, tx + 3, ty + 3, 10, 9, "#14161a");
   const glow = Math.floor(o.t / 400) % 3;
@@ -115,13 +115,13 @@ export function drawRoom(c: Ctx, o: { day?: DayPhase; flash?: boolean; quiet?: b
   text(c, "WEB", tx + 8, ty + 20, { size: 4, color: "#fffaf0" });
   r(c, tx + 3, ty + 28, 10, 2, "#1a1c20");
   // rug by the sofa, and plants
-  r(c, 1 * TILE, 10 * TILE + 6, 5 * TILE, 4, "#e7d3b0");
-  plant(c, 0 * TILE + 2, 10 * TILE + 2);
+  r(c, 1 * TILE, (10 + LOUNGE) * TILE + 6, 5 * TILE, 4, "#e7d3b0");
+  plant(c, 0 * TILE + 2, (10 + LOUNGE) * TILE + 2);
   plant(c, 0 * TILE + 2, 5 * TILE + 2);
-  plant(c, 23 * TILE + 1, 7 * TILE + 8);
+  plant(c, 23 * TILE + 1, 11 * TILE + 8);
   // sleeping corner sign
-  r(c, 12 * TILE, 9 * TILE + 6, 12 * TILE, 9, "#efe7f7");
-  text(c, "stopped by the owner", 18 * TILE, 9 * TILE + 13, { size: 5, bold: false, color: "#5b4f6b" });
+  r(c, 12 * TILE, (9 + LOUNGE) * TILE + 6, 12 * TILE, 9, "#efe7f7");
+  text(c, "stopped by the owner", 18 * TILE, (9 + LOUNGE) * TILE + 13, { size: 5, bold: false, color: "#5b4f6b" });
 }
 
 /** The "shh" sign on the door while the family is quiet, drawn over the dimmed room. */
@@ -141,7 +141,7 @@ function plant(c: Ctx, x: number, y: number) {
 
 /** A desk with its monitor facing the room (what the member is working on, see monitorOf), a keyboard by the seat and a
  *  nameplate with the member's handle. */
-export function drawDesk(c: Ctx, dx: number, dy: number, handle: string, m: Monitor, t: number, lamp = false, hover = false) {
+export function drawDesk(c: Ctx, dx: number, dy: number, handle: string, lamp = false) {
   const x = dx * TILE;
   const y = dy * TILE;
   r(c, x + 1, y + 13, DESK_W, 2, "rgba(60,40,20,0.25)"); // shadow on the floor
@@ -156,13 +156,7 @@ export function drawDesk(c: Ctx, dx: number, dy: number, handle: string, m: Moni
   r(c, x + DESK_W - 1, y - 12, 1, 9, "#3a3a3a");
   r(c, x + DESK_W - 3, y - 14, 5, 3, lamp ? "#ffd66b" : "#5b5b5b");
   r(c, x + DESK_W - 3, y - 4, 4, 1, "#3a3a3a");
-  // monitor: a wide frame on a stand, the screen inside
-  const mx = x + MONITOR.x;
-  const my = y + MONITOR.y;
-  r(c, mx, my, MONITOR.w, MONITOR.h, "#26282e");
-  r(c, mx + 11, my + MONITOR.h, 4, 3, "#26282e");
-  r(c, mx + 8, my + MONITOR.h + 2, 10, 1, "#26282e");
-  drawScreen(c, mx + 1, my + 1, MONITOR.w - 2, MONITOR.h - 2, m, hover ? t : -1);
+  // the keyboard (the screen stands behind the seat: drawDeskScreen)
   r(c, x + 30, y - 3, 10, 2, "#e3e3e3");
   // nameplate
   r(c, x + NAMEPLATE.x, y + NAMEPLATE.y, NAMEPLATE.w, NAMEPLATE.h, "#fffaf0");
@@ -198,107 +192,16 @@ function fit(c: Ctx, s: string, w: number): string {
   return `${s.slice(0, lo).trimEnd()}…`;
 }
 
-/** Two lines of a text in width w: the first cut at a word, the second ending in an ellipsis if still too long. */
-function twoLines(c: Ctx, s: string, w: number, size: number): [string, string] {
-  c.font = `bold ${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  if (c.measureText(s).width <= w) return [s, ""];
-  const words = s.split(" ");
-  let first = "";
-  while (words.length && c.measureText(`${first}${first ? " " : ""}${words[0]}`).width <= w) first = `${first}${first ? " " : ""}${words.shift()}`;
-  if (!first) return [fit(c, s, w), ""];
-  return [first, words.join(" ")];
-}
 
-/** One line of tiny text inside [x, x+w]: cut with an ellipsis, or scrolling when the desk is hovered (t >= 0). */
-function line(c: Ctx, s: string, x: number, y: number, w: number, t: number, o: { size?: number; color?: string; bold?: boolean } = {}) {
-  if (!s) return;
-  const size = o.size ?? 2.6;
-  c.font = `${o.bold ? "bold " : ""}${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  const tw = c.measureText(s).width;
-  c.save();
-  c.beginPath();
-  c.rect(x, y - size, w, size + 1.2);
-  c.clip();
-  c.fillStyle = o.color ?? INK;
-  c.textAlign = "left";
-  c.textBaseline = "alphabetic";
-  if (tw <= w) c.fillText(s, x, y);
-  else if (t < 0) c.fillText(fit(c, s, w), x, y); // still: cut with an ellipsis
-  else {
-    // hovered: the whole text scrolls by
-    const gap = 8;
-    const off = ((t / 90) % (tw + gap)) | 0;
-    c.fillText(s, x - off, y);
-    c.fillText(s, x - off + tw + gap, y);
-  }
-  c.restore();
-}
 
-function drawScreen(c: Ctx, x: number, y: number, w: number, h: number, m: Monitor, t: number) {
-  switch (m.mode) {
-    case "web":
-      r(c, x, y, w, h, "#ffffff");
-      r(c, x, y, w, 4, "#dfe3ea");
-      r(c, x + 1, y + 1, 2, 2, "#d63b3b");
-      line(c, m.bar, x + 4, y + 3.2, w - 5, t, { size: 2.6, bold: true });
-      {
-        const [l1, l2] = t >= 0 ? [m.lines[0] ?? "", ""] : twoLines(c, m.lines[0] ?? "", w - 2, 2.6);
-        line(c, l1, x + 1, y + 7.5, w - 2, t, { size: 2.6, bold: true });
-        if (l2) line(c, l2, x + 1, y + 10.5, w - 2, -1, { size: 2.6, bold: true });
-        else r(c, x + 1, y + 9.5, w - 6, 1, "#c9ced8");
-        r(c, x + 1, y + 12, w - 3, 1, "#c9ced8");
-      }
-      return;
-    case "search":
-      r(c, x, y, w, h, "#ffffff");
-      line(c, "search", x + 2, y + 3.4, w - 3, t, { size: 2.4, color: "#5b6b9a", bold: true });
-      r(c, x + 1, y + 5, w - 2, 6, BRAND);
-      r(c, x + 2, y + 6, w - 4, 4, "#ffffff");
-      line(c, m.lines[0] ?? "", x + 3, y + 9, w - 6, t, { size: 2.6 });
-      return;
-    case "doc":
-      r(c, x, y, w, h, "#f4f1ea");
-      r(c, x + 1, y + 2, 7, 10, "#ffffff");
-      r(c, x + 6, y + 2, 2, 2, "#d9d4c8");
-      for (let i = 0; i < 3; i++) r(c, x + 2, y + 5 + i * 2, 5, 1, "#b9b2a3");
-      line(c, m.bar, x + 9, y + 4.5, w - 10, t, { size: 2.4, color: "#7a6a52", bold: true });
-      {
-        const [l1, l2] = t >= 0 ? [m.lines[0] ?? "", ""] : twoLines(c, m.lines[0] ?? "", w - 10, 2.6);
-        line(c, l1, x + 9, y + 8.5, w - 10, t, { size: 2.6, bold: true });
-        if (l2) line(c, l2, x + 9, y + 11.5, w - 10, -1, { size: 2.6, bold: true });
-      }
-      return;
-    case "dark":
-      r(c, x, y, w, h, "#0e1014");
-      r(c, x + 3, y + 4, 5, 5, "#5b6b9a");
-      r(c, x + 5, y + 5, 1, 2, "#0e1014");
-      r(c, x + 5, y + 6, 2, 1, "#0e1014");
-      if (m.bar) text(c, m.bar, x + 16, y + 8.5, { size: 3.6, color: "#8a93b0" });
-      return;
-    case "alert":
-      r(c, x, y, w, h, "#d63b3b");
-      text(c, "!", x + w / 2, y + h - 3, { size: 9, color: "#ffffff" });
-      return;
-    case "static":
-      for (let i = 0; i < w; i += 2)
-        for (let j = 0; j < h; j += 2) {
-          const v = (Math.sin(i * 12.9898 + j * 78.233 + Math.floor(t / 70)) * 43758.5453) % 1;
-          const g = 60 + Math.floor(Math.abs(v) * 180);
-          r(c, x + i, y + j, 2, 2, `rgb(${g},${g},${g})`);
-        }
-      return;
-    default:
-      r(c, x, y, w, h, "#3a4048");
-  }
-}
 
 /** The sofa: back first (behind whoever sits on it), the front after. */
 export function drawSofaBack(c: Ctx) {
-  r(c, 1 * TILE - 4, 11 * TILE - 10, 5 * TILE + 8, 10, BRAND_DARK);
+  r(c, 1 * TILE - 4, (11 + LOUNGE) * TILE - 10, 5 * TILE + 8, 10, BRAND_DARK);
 }
 export function drawSofaFront(c: Ctx) {
   const x = 1 * TILE - 4;
-  const y = 11 * TILE;
+  const y = (11 + LOUNGE) * TILE;
   r(c, x, y, 5 * TILE + 8, 9, BRAND);
   for (let i = 0; i < 5; i++) r(c, x + 5 + i * 16, y + 1, 14, 2, "#ff8a3d");
   r(c, x - 3, y - 6, 5, 15, BRAND_DARK);
@@ -567,4 +470,94 @@ export function drawPaper(c: Ctx, from: { x: number; y: number }, to: { x: numbe
   const flip = Math.floor(k * 10) % 2;
   r(c, x - 3, y - 2, 6, flip ? 4 : 3, "#fffaf0");
   r(c, x - 3, y - 2, 6, 1, "#c9ced8");
+}
+
+/** The face inside the screens and on their name tabs: JetBrains Mono once the page has loaded it. */
+let screenFace = "ui-monospace, Menlo, monospace";
+export function setScreenFace(family: string) {
+  if (family.trim()) screenFace = `${family.trim()}, ui-monospace, Menlo, monospace`;
+}
+
+/** A desk's big screen, on two posts behind the seat: the name on a tab on top of the frame (a state other than working
+ *  rides on it as an orange badge), then the four lines and the refused share over a thin meter, every word in JetBrains
+ *  Mono at 14 CSS px with normal line spacing (the size in room px from the canvas scale, rounded to whole backing
+ *  pixels, capped where a narrow canvas cannot hold 14 px). Hovered, a long line scrolls. */
+export function drawDeskScreen(c: Ctx, dx: number, dy: number, m: DeskScreen, t: number, o: { hover?: boolean; cssPerRoom?: number; k?: number } = {}) {
+  const w = SCREEN.w;
+  const h = SCREEN.h;
+  const x = Math.round(dx * TILE + SCREEN.x);
+  const y = Math.round(dy * TILE + SCREEN.y);
+  const k = o.k ?? 1;
+  const s = Math.min(5.6, Math.round((14 / (o.cssPerRoom ?? 2.5)) * k) / k);
+  const lh = Math.round(s * 1.3 * k) / k;
+  const face = (bold = false) => `${bold ? "bold " : ""}${s}px ${screenFace}`;
+  const write = (str: string, tx: number, ty: number, tw: number, color: string, bold = false, scroll = -1) => {
+    if (!str) return;
+    c.font = face(bold);
+    c.save();
+    c.beginPath();
+    c.rect(tx, ty - lh, tw, lh + 1);
+    c.clip();
+    c.fillStyle = color;
+    c.textAlign = "left";
+    c.textBaseline = "alphabetic";
+    const width = c.measureText(str).width;
+    if (width <= tw) c.fillText(str, tx, ty);
+    else if (scroll < 0) c.fillText(fit(c, str, tw), tx, ty);
+    else {
+      const off = ((scroll / 90) % (width + 8)) | 0;
+      c.fillText(str, tx - off, ty);
+      c.fillText(str, tx - off + width + 8, ty);
+    }
+    c.restore();
+  };
+  const dark = m.mode === "dark";
+  // the name tab, and the state badge on it when not working
+  c.font = face(true);
+  const badge = m.word === "working" ? "" : fit(c, m.word, w * 0.5);
+  const badgeW = badge ? Math.ceil(c.measureText(badge).width) + 4 : 0;
+  const name = fit(c, m.name, w - 4 - (badge ? badgeW + 2 : 0));
+  const nameW = Math.ceil(c.measureText(name).width) + 5;
+  const tabW = Math.min(w + 2, nameW + (badge ? badgeW + 2 : 0));
+  const tabH = Math.ceil(lh) + 1;
+  r(c, x - 1, y - tabH - 1, tabW + 1, tabH + 1, "#26282e");
+  r(c, x, y - tabH, tabW - 1, tabH, "#fbfaf6");
+  write(name, x + 2, y - Math.ceil(lh * 0.28), nameW - 3, INK, true, o.hover ? t : -1);
+  if (badge) {
+    r(c, x + nameW, y - tabH + 1, badgeW, tabH - 2, BRAND);
+    write(badge, x + nameW + 2, y - Math.ceil(lh * 0.28), badgeW - 2, INK, true);
+  }
+  // the posts down to the floor behind the seat, the frame and the glass
+  r(c, x + 8, y + h, 2, 6, "#4a4f57");
+  r(c, x + w - 10, y + h, 2, 6, "#4a4f57");
+  r(c, x - 1, y - 1, w + 2, h + 2, "#26282e");
+  const ix = x + 2;
+  const iy = y + 2;
+  const iw = w - 4;
+  const ih = h - 4;
+  r(c, ix, iy, iw, ih, dark ? "#1b2030" : m.mode === "alert" ? "#fde8e6" : m.mode === "dim" ? "#e6e3dc" : "#fbfaf6");
+  if (m.mode === "static") {
+    for (let i = 0; i < iw; i += 2)
+      for (let j = 0; j < ih; j += 2) {
+        const v = (Math.sin(i * 12.9898 + j * 78.233 + Math.floor(t / 70)) * 43758.5453) % 1;
+        const g = 60 + Math.floor(Math.abs(v) * 180);
+        r(c, ix + i, iy + j, 2, 2, `rgb(${g},${g},${g})`);
+      }
+  }
+  const ink = dark ? "#e6e9f2" : m.mode === "alert" ? "#8a1c13" : INK;
+  const soft = dark ? "#aab3cc" : "#4d4d4d";
+  let row = iy + 1 + lh * 0.8;
+  m.lines.forEach((ln, i) => {
+    const marked = i === 1 && m.mark;
+    if (marked) r(c, ix + 1, Math.round(row - s * 0.62), 3, 3, m.mark === "web" ? "#d63b3b" : BRAND);
+    const lx = marked ? ix + 5 : ix + 1;
+    write(ln, lx, row, ix + iw - 1 - lx, i === 1 ? ink : soft, i === 1, i === 1 && o.hover ? t : -1);
+    row += lh;
+  });
+  // the footer: the refused share over a thin meter
+  if (m.share !== null) {
+    write(`${Math.round(m.share * 100)}% refused`, ix + 1, iy + ih - 3, iw - 2, soft);
+    r(c, ix + 1, iy + ih - 2, iw - 2, 1, dark ? "#3a4258" : "#e2dccf");
+    r(c, ix + 1, iy + ih - 2, Math.max(1, Math.round((iw - 2) * Math.min(1, m.share))), 1, BRAND);
+  }
 }
