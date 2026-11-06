@@ -58,7 +58,7 @@ async function neonStorage(): Promise<Storage> {
 export function localDir() {
   return process.env.FILES_DIR?.trim() || path.join(process.cwd(), ".data", "files");
 }
-export const localPath = (key: string) => path.join(localDir(), key.replace(/[^a-zA-Z0-9._/-]/g, "_").replace(/\.\.+/g, "_"));
+export const localPath = (key: string) => path.join(/*turbopackIgnore: true*/ localDir(), key.replace(/[^a-zA-Z0-9._/-]/g, "_").replace(/\.\.+/g, "_"));
 
 function localStorage(): Storage {
   return {
@@ -71,23 +71,23 @@ function localStorage(): Storage {
     },
     async size(key) {
       try {
-        return (await stat(localPath(key))).size;
+        return (await stat(/*turbopackIgnore: true*/ localPath(key))).size;
       } catch {
         return null;
       }
     },
     async remove(key) {
-      await rm(localPath(key), { force: true });
+      await rm(/*turbopackIgnore: true*/ localPath(key), { force: true });
     },
   };
 }
 
 export async function writeLocal(key: string, bytes: Uint8Array) {
   const p = localPath(key);
-  await mkdir(path.dirname(p), { recursive: true });
-  await writeFile(p, bytes);
+  await mkdir(/*turbopackIgnore: true*/ path.dirname(p), { recursive: true });
+  await writeFile(/*turbopackIgnore: true*/ p, bytes);
 }
-export const readLocal = (key: string) => readFile(localPath(key));
+export const readLocal = (key: string) => readFile(/*turbopackIgnore: true*/ localPath(key));
 
 /** The storage in use, or null on the live app before the bucket is set up. */
 export async function storage(): Promise<Storage | null> {
