@@ -14,7 +14,8 @@
     "brandkit:check": "node scripts/brandkit-check.mjs",
     "brandkit:accept": "node scripts/brandkit-check.mjs --accept",
     "predeploy": "node scripts/brandkit-check.mjs --quiet || true",
-    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\""
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\"",
+    "test:world-screens": "PLAYWRIGHT_SKIP_BROWSER_GC=1 ${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python -m unittest scripts/world-screens-check.py"
   },
   "dependencies": {
     "next": "16.3.5",

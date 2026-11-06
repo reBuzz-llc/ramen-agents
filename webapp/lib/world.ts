@@ -709,3 +709,12 @@ export function deskScreen(c: Parameters<typeof nowLines>[0] & Pick<BotCard, "na
   const word = anim === "resting" ? "resting" : c.state.word;
   return { mode: mon.mode, name: c.name, word, lines: now.lines, mark, share: now.refused };
 }
+
+/** A desk's HTML screen box by its CSS width: "full" (the four lines and the footer, 14 px) from 120 px, "compact" (the
+ *  tab and the item over up to three 13 px lines) from 80 px, "tiny" under that (phone width: the box keeps its size in
+ *  the room and the item takes the 13 px lines that fit). */
+export function screenForm(width: number, height: number): { form: "full" | "compact" | "tiny"; lines: number } {
+  if (width >= 120) return { form: "full", lines: 4 };
+  if (width >= 80) return { form: "compact", lines: 3 };
+  return { form: "tiny", lines: Math.max(1, Math.floor((height - 8) / (13 * 1.2))) };
+}

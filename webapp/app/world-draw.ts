@@ -493,11 +493,17 @@ export function setScreenFace(family: string) {
  *  rides on it as an orange badge), then the four lines and the refused share over a thin meter, every word in JetBrains
  *  Mono at 14 CSS px with normal line spacing (the size in room px from the canvas scale, rounded to whole backing
  *  pixels, capped where a narrow canvas cannot hold 14 px). Hovered, a long line scrolls. */
-export function drawDeskScreen(c: Ctx, dx: number, dy: number, m: DeskScreen, t: number, o: { hover?: boolean; cssPerRoom?: number; k?: number } = {}) {
+export function drawDeskScreen(c: Ctx, dx: number, dy: number, m: DeskScreen, t: number, o: { hover?: boolean; cssPerRoom?: number; k?: number; postsOnly?: boolean } = {}) {
   const w = SCREEN.w;
   const h = SCREEN.h;
   const x = Math.round(dx * TILE + SCREEN.x);
   const y = Math.round(dy * TILE + SCREEN.y);
+  if (o.postsOnly) {
+    // the screen itself is an HTML box over the canvas (sharp text at any window size); the canvas keeps the posts
+    r(c, x + 8, y + h, 2, 6, "#4a4f57");
+    r(c, x + w - 10, y + h, 2, 6, "#4a4f57");
+    return;
+  }
   const k = o.k ?? 1;
   const s = Math.min(5.6, Math.round((14 / (o.cssPerRoom ?? 2.5)) * k) / k);
   const lh = Math.round(s * 1.3 * k) / k;

@@ -60,3 +60,11 @@ test("the last model call comes from the newest trace, not the log's switch line
   await writeFile(path.join(ws, "traces", "2026-01-06", "130500-6-search.json"), JSON.stringify({ model: "gemini/flash" }));
   assert.deepEqual(await lastTraceModel(ws), { label: "gemini/flash", ts: "2026-01-06T13:05:00" });
 });
+
+test("a desk's HTML screen box by its width: full from 120 px, compact from 80 px, tiny below", async () => {
+  // @ts-ignore TS5097
+  const { screenForm } = await import("../lib/world.ts");
+  assert.deepEqual(screenForm(155, 110), { form: "full", lines: 4 });
+  assert.deepEqual(screenForm(95, 68), { form: "compact", lines: 3 });
+  assert.deepEqual(screenForm(57, 43), { form: "tiny", lines: 2 });
+});
