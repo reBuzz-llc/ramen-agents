@@ -209,6 +209,17 @@ export function drawSofaFront(c: Ctx) {
 }
 
 /** A bed mat in the sleeping corner; a retired bot's is grey, with a little "R" tag. */
+/** A short line under a sleeper's mat ("owner 12:32: <reason>"), cut to `w` room px with an ellipsis. */
+export function drawMatNote(c: Ctx, s: string, cx: number, y: number, w: number) {
+  c.font = "3.5px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const t = fit(c, s, w);
+  c.fillStyle = "#5b4f6b";
+  c.textAlign = "center";
+  c.textBaseline = "alphabetic";
+  c.fillText(t, cx, y);
+  c.textAlign = "left";
+}
+
 export function drawMat(c: Ctx, cx: number, cy: number, retired = false) {
   r(c, cx - 13, cy - 5, 26, 11, retired ? "#b8b8b8" : "#cdbfe0");
   r(c, cx - 13, cy - 5, 7, 11, "#fffaf0");

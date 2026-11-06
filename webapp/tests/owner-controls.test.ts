@@ -123,3 +123,18 @@ test("a retired bot: Start refused, Bring back recreates its launch agents from 
   assert.equal(await has(path.join(ws, "..", "RETIRED-until-2026-10-31.md")), true);
   assert.equal(await has(path.join(root, "ran-restart-bot.sh")), true);
 });
+
+test("the owner's Stop says so in the STOP file and the log, with or without a reason; a failed Start puts the same line back", async () => {
+  const { ws, ctx } = await fixture();
+  await control(ctx, "stop", { reason: "  too many repeats today " });
+  assert.equal(await readFile(path.join(ws, "STOP"), "utf8"), "Owner: too many repeats today\n");
+  await control(ctx, "start");
+  assert.equal(await has(path.join(ws, "STOP")), false); // Start clears it
+  await control(ctx, "stop"); // no reason: never an empty file
+  assert.equal(await readFile(path.join(ws, "STOP"), "utf8"), "Owner: stopped from the dashboard 14:00\n");
+  const log = (await readFile(ctx.log, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(log.filter((l: { action: string }) => l.action === "stop").map((l: { reason: string }) => l.reason), ["Owner: too many repeats today", "Owner: stopped from the dashboard 14:00"]);
+  const failed = await control({ ...ctx, alive: async () => false }, "start");
+  assert.equal(failed.ok, false);
+  assert.equal(await readFile(path.join(ws, "STOP"), "utf8"), "Owner: stopped from the dashboard 14:00\n");
+});

@@ -84,7 +84,7 @@ const TEMPLATE_BOTS = ["lead-gen", "research-analyst", "package-designer", "lead
  *  (enable-bot.sh loads them). Throws a plain reason when no template is found. */
 async function recreateAgents(ctx: Ctx): Promise<string> {
   const dir = ctx.agents ?? path.join(process.env.HOME ?? "", "Library", "LaunchAgents");
-  const have = new Set(await readdir(dir).catch(() => [] as string[]));
+  const have = new Set(await readdir(/*turbopackIgnore: true*/ dir).catch(() => [] as string[]));
   const src = TEMPLATE_BOTS.find((b) => b !== ctx.slug && have.has(`com.ramen-agents.bot.${b}.plist`) && have.has(`com.ramen-agents.data.${b}.plist`));
   if (!src) throw new Error("no other bot's launch agents to copy from");
   const made: string[] = [];
@@ -102,13 +102,20 @@ async function recreateAgents(ctx: Ctx): Promise<string> {
   return made.length ? `recreated ${made.join(", ")} from ${src}'s` : "launch agents already there";
 }
 
-/** Start: remove STOP, enable, restart, then check the loop; on failure put STOP back and say why. */
+/** The STOP file's first line for the owner's Stop: "Owner: <reason>", or "Owner: stopped from the dashboard HH:MM"
+ *  without one, so a STOP is never an empty file that reads as a stray. owner-controls.jsonl records the same text. */
+export function ownerStopLine(reason: string, now: number): string {
+  return `Owner: ${reason || `stopped from the dashboard ${localIso(now).slice(11, 16)}`}`;
+}
+
+/** Start: remove STOP, enable, restart, then check the loop; on failure put the same STOP back and say why. */
 async function start(ctx: Ctx): Promise<Result> {
   const stop = path.join(ctx.ws, "STOP");
+  const was = await readFile(stop, "utf8").catch(() => "");
   await rm(stop, { force: true });
   const e = await script(ctx.scripts, "enable-bot.sh", ctx.slug, 30_000);
   const fail = async (why: string, more = ""): Promise<Result> => {
-    await writeFile(stop, "");
+    await writeFile(stop, was || ownerStopLine("", ctx.now ?? Date.now()) + "\n");
     return { ok: false, text: `did not start: ${why}. STOP put back.${more ? ` ${more}` : ""}` };
   };
   if (!e.ok) return fail("enable-bot.sh failed", e.text);
@@ -123,7 +130,7 @@ async function start(ctx: Ctx): Promise<Result> {
 /** Do one action and log it; the result line is what happened (the scripts' output for stop and start). */
 export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFor; reason?: string } = {}): Promise<Result & { until?: string }> {
   const now = ctx.now ?? Date.now();
-  const reason = (opts.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  let reason = (opts.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
   let res: Result & { until?: string };
   if (action === "pause") {
     const until = pauseUntil(opts.choice ?? "2h", now).slice(0, 16);
@@ -133,7 +140,8 @@ export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFo
     await rm(path.join(ctx.ws, "PAUSE"), { force: true });
     res = { ok: true, text: "Pause lifted; it picks up on its next step." };
   } else if (action === "stop") {
-    await writeFile(path.join(ctx.ws, "STOP"), "");
+    reason = ownerStopLine(reason, now); // the STOP file and the log say the same
+    await writeFile(path.join(ctx.ws, "STOP"), `${reason}\n`);
     const d = await script(ctx.scripts, "disable-bot.sh", ctx.slug, 30_000);
     res = { ok: d.ok, text: `STOP written. ${d.text}`.trim() };
   } else if (action === "start") {
@@ -147,7 +155,7 @@ export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFo
     else {
       try {
         const made = await recreateAgents(ctx);
-        await writeFile(path.join(ctx.ws, "STOP"), ""); // start() removes it again
+        await writeFile(path.join(ctx.ws, "STOP"), `${ownerStopLine("bring back", now)}\n`); // start() removes it again
         const st = await start(ctx);
         if (st.ok) await rename(retired, path.join(ctx.ws, "..", `RETIRED-until-${localIso(now).slice(0, 10)}.md`));
         res = { ok: st.ok, text: `${made}. ${st.text}` };

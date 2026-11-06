@@ -17,7 +17,9 @@ import { ownerDecisions } from "./owner-decisions";
 import { describe, readBoard as readProposals } from "./ceo-proposals";
 
 // retired: the owner retired it (RETIRED.md in its folder, no launch agents): drawn on its own mat, "Bring back".
-export type Stopped = { slug: string; name: string; since: string; retired?: boolean };
+// by: whose STOP it is (the dashboard's Stop writes "Owner: <reason>" as its first line; anything else is a script's), at:
+// the STOP file's time (HH:MM), reason: that first line without the "Owner: "
+export type Stopped = { slug: string; name: string; since: string; retired?: boolean; reason?: string; by?: "owner" | "script"; at?: string };
 // week: the Validator's shared-state/team-numbers.json (drafts waiting, Email Sent and replies this week), for the
 // world's mailbox; counts: the decisions and open CEO proposals, for its bulletin board.
 export type Week = { drafts: number; sent: number; replies: number; at: string } | null;
@@ -123,7 +125,11 @@ async function read(): Promise<Board> {
         const restart = await stat(/*turbopackIgnore: true*/ path.join(ws, "RESTARTING")).catch(() => null);
         const restarting = !!restart && now - restart.mtimeMs < 5 * 60e3;
         if (stop && !restarting) {
-          stopped.push({ slug: bot.slug, name: bot.name, since: localIso(stop.mtimeMs).slice(0, 10) });
+          const text = await readFile(/*turbopackIgnore: true*/ path.join(ws, "STOP"), "utf8").catch(() => "");
+          const line = text.split(/\r?\n/).map((l) => l.trim()).find(Boolean)?.slice(0, 160) ?? "";
+          const reason = line.replace(/^Owner:\s*/i, "");
+          const by = /^Owner:/i.test(line) ? ("owner" as const) : line ? ("script" as const) : undefined;
+          stopped.push({ slug: bot.slug, name: bot.name, since: localIso(stop.mtimeMs).slice(0, 10), at: localIso(stop.mtimeMs).slice(11, 16), ...(reason ? { reason } : {}), ...(by ? { by } : {}) });
           return null;
         }
         const db = await dbPath(bot).catch(() => null);
