@@ -1,9 +1,9 @@
-// Mint a board API key for one of the family's machines and write it to the fleet's common-data/keys/peek-<name>.key
+// Mint a board API key for one of the family's machines and write it to the fleet's common-data/keys/portal-<name>.key
 // (chmod 600, like the other keys). The token is never printed; Peek keeps only its SHA-256. Minting a name again
 // revokes that name's earlier keys, so the file on disk is always the one live key.
 //
-//   node --env-file=.env.local scripts/api-key.mjs engine                     # board:read board:write
-//   node --env-file=.env.local scripts/api-key.mjs dashboard                  # board:read only
+//   node --env-file=.env.local scripts/api-key.mjs engine                     # board:read board:write (the agents)
+//   node --env-file=.env.local scripts/api-key.mjs dashboard                  # board:read only (the fleet's dashboard)
 //   node --env-file=.env.local scripts/api-key.mjs backfill board:import       # extra scopes after the name
 //   node --env-file=.env.local scripts/api-key.mjs validator --tenant team   # the company's slug (default team, the first company)
 //   node --env-file=.env.local scripts/api-key.mjs owner assets:write          # PUT /v1/assets/* (the owner's key)
@@ -34,7 +34,8 @@ if (!url) {
   console.error("no DATABASE_URL: run with --env-file=.env.local");
   process.exit(2);
 }
-const file = path.join(process.env.PEEK_KEYS_DIR || path.join(homedir(), "bots", "common-data", "keys"), `peek-${name}.key`);
+// The fleet reads common-data/keys/portal-<name>.key (portal-engine, portal-validator, portal-dashboard).
+const file = path.join(process.env.PORTAL_KEYS_DIR || process.env.PEEK_KEYS_DIR || path.join(homedir(), "bots", "common-data", "keys"), `portal-${name}.key`);
 const token = `peek_${randomBytes(32).toString("base64url")}`;
 const client = new pg.Client({ connectionString: url });
 await client.connect();
@@ -47,7 +48,7 @@ try {
   writeFileSync(file, `${token}\n`, { mode: 0o600 });
   chmodSync(file, 0o600);
   await client.query("commit");
-  // On stderr, and the file read back: a `> peek-<name>.key` redirect once put this line in the key file in place of
+  // On stderr, and the file read back: a `> portal-<name>.key` redirect once put this line in the key file in place of
   // the key (2026-11-05, the dashboard's key). Run the script without redirecting it; it writes the file itself.
   if (readFileSync(file, "utf8").trim() !== token) throw new Error(`${file} does not hold the new key after writing it; run the script without redirecting its output`);
   console.error(`${name}: key written to ${file} (${scopes.join(" ")})${revoked.rowCount ? `; ${revoked.rowCount} earlier key(s) revoked` : ""}`);

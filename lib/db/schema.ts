@@ -341,7 +341,7 @@ export const leadCells = pgTable(
 
 /** A machine's key to the board API (the engine, the Validator, the backfill), stored as SHA-256 only. The key fixes the
  *  company; its scopes say what it may do: board:read, board:write, board:import (the backfill: an upsert that keeps
- *  Notion's values as they are). Minted with scripts/api-key.mjs into the fleet's common-data/keys/peek-<name>.key. */
+ *  Notion's values as they are). Minted with scripts/api-key.mjs into the fleet's common-data/keys/portal-<name>.key. */
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),

@@ -83,8 +83,10 @@ a response; the detail goes to the server log only.
   the bots apart.
 - Scopes: `board:read`, `board:write`, and `board:validate`. The last is Validator-only and covers clearing a cell and
   setting Sent by.
-- Each bot reads its own key: config `[board] kind = "notion" | "peek"`, `base_url`, and `key_file`
-  (`common-data/keys/peek-<slug>.key`, chmod 600 like the other keys).
+- The family finds the portal through one setting, `[leads] portal_url` in the fleet's `common-data/configs/common.toml`
+  (unset: the Leads board stays on Notion). Each reader has its own key file, chmod 600 like the other keys:
+  `common-data/keys/portal-engine.key` (the agents), `portal-validator.key` (the Validator) and `portal-dashboard.key`
+  (the dashboard, read only).
 - People use the app's own session. The API never accepts a session cookie, and the app pages never accept an API key.
 - Only board data crosses this API. Hours, pay, timesheets, screenshots and people's emails never reach an agent key.
 
@@ -148,7 +150,7 @@ What runs now, read against the design above. The engine and the Validator still
 - **Rules in the store (lib/leads.ts):** person wins (a bot never replaces a cell a person changed last; refused and
   recorded), human only (email status, WhatsApp status, result, result date), fill only when the writer asks, one row
   per website domain (or name and city). The backfill's import key copies Notion as it is, past the rules.
-- **Machine API** (Bearer key from `the fleet's common-data/keys/peek-<name>.key`, minted with `scripts/api-key.mjs`):
+- **Machine API** (Bearer key from the fleet's `common-data/keys/portal-<name>.key`, minted with `scripts/api-key.mjs`):
   - `GET /v1/boards/leads/rows?since=<rev>&limit=&email_status=&whatsapp_status=&city=&industry=&min_score=&has_draft=&has_role=`
     answers `{leads, next, more}`;
   - `POST /v1/boards/leads/rows` `{actor, fields, source_url?}` creates;
