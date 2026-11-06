@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { leads } from "@/lib/db/schema";
 import { canChange, listFiles } from "@/lib/files";
 import { pageMe } from "@/lib/page-me";
-import { storage } from "@/lib/storage";
+import { storage, storeName } from "@/lib/storage";
 import FilesView, { type FileItem } from "./files-view";
 
 export const metadata = { title: "Files · ramen-agents" };
@@ -17,6 +17,7 @@ export default async function FilesPage() {
     storage(),
     d.selectDistinct({ p: leads.package }).from(leads).where(sql`${leads.tenantId} = ${who.tenantId} and ${leads.package} is not null`),
   ]);
+  const current = storeName();
   const items: FileItem[] = rows.map((f) => ({
     id: f.id,
     name: f.name,
@@ -27,6 +28,7 @@ export default async function FilesPage() {
     at: f.createdAt.toISOString(),
     attachedTo: f.attachedTo,
     canChange: canChange({ userId: who.userId, role: who.role }, f),
+    pending: f.store !== current ? (f.store === "neon" ? "Neon" : f.store) : "",
   }));
   return <FilesView files={items} packages={pkgs.map((x) => x.p!).filter(Boolean).sort()} ready={!!st} />;
 }

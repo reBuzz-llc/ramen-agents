@@ -1,5 +1,7 @@
-// Where the team's files live: Neon Object Storage, the "files" bucket in neon.ts, reached with the
-// AWS-standard variables `neon deploy` writes (AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).
+// Where the team's files live: an S3-compatible bucket reached with the AWS-standard variables
+// (AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) and FILES_BUCKET, for example Neon Object
+// Storage or Supabase Storage. FILES_STORE names it ("neon", "supabase"): each upload records it, so files can move
+// from one store to another (scripts/files-copy.mjs).
 // The browser uploads straight to the bucket with a short presigned PUT (a 25 MB PDF does not fit through a Vercel
 // function), and downloads with a short presigned GET; the app only signs. Without those variables: on this Mac in
 // development, and in the tests, a local folder (.data/files, or FILES_DIR) stands in, served by /api/files/local;
@@ -88,6 +90,13 @@ export async function writeLocal(key: string, bytes: Uint8Array) {
   await writeFile(/*turbopackIgnore: true*/ p, bytes);
 }
 export const readLocal = (key: string) => readFile(/*turbopackIgnore: true*/ localPath(key));
+
+/** The name of the store in use, recorded on each upload: FILES_STORE ("supabase" once Files moved;
+ *  "neon" before) when an S3 store is set up, "local" for the stand-in folder. */
+export function storeName(): string {
+  if (neonConfigured()) return process.env.FILES_STORE?.trim() || "neon";
+  return "local";
+}
 
 /** The storage in use, or null on the live app before the bucket is set up. */
 export async function storage(): Promise<Storage | null> {

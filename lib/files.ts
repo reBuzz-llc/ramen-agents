@@ -1,6 +1,7 @@
 // The team's files: what may be uploaded, who may change what, and the history of every action.
 // The bytes live in storage (lib/storage.ts); these rows are the app's record. Everyone on the team uploads and attaches;
 // renaming, retagging and deleting are for the owner and managers, and for the uploader on their own file.
+import { storeName } from "./storage";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
@@ -36,7 +37,7 @@ export async function startUpload(db: Db, tenantId: string, who: Who, input: { n
   if (!name.toLowerCase().endsWith(`.${ext}`) && !(ext === "jpg" && /\.jpe?g$/i.test(name))) name = `${name}.${ext}`;
   const id = randomUUID();
   const key = `${tenantId}/${id}.${ext}`;
-  const [f] = await db.insert(files).values({ id, tenantId, key, name, size: Math.round(input.size), contentType: input.type, tag: clean(input.tag ?? "").slice(0, 60), uploadedBy: who.userId }).returning();
+  const [f] = await db.insert(files).values({ id, tenantId, key, name, size: Math.round(input.size), contentType: input.type, tag: clean(input.tag ?? "").slice(0, 60), uploadedBy: who.userId, store: storeName() }).returning();
   return { ok: true as const, file: f };
 }
 

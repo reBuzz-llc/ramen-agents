@@ -324,7 +324,7 @@ export const leadCells = pgTable(
     column: text("column").notNull(),
     old: jsonb("old"),
     new: jsonb("new"),
-    /** "person" (a Peek user, by userId) or "bot" (an agent or job, through an API key). */
+    /** "person" (a the portal user, by userId) or "bot" (an agent or job, through an API key). */
     actorKind: text("actor_kind").notNull(),
     actorName: text("actor_name").notNull(),
     actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -352,6 +352,39 @@ export const apiKeys = pgTable("api_keys", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
+
+/** Sign-in codes (local or outage mode): the portal running on the owner's own machine behind a tunnel, or while the
+ *  hosted sign-in is out, has no Neon Auth, so the owner issues a person a one-time code (shown once, kept hashed, 14 days). A person
+ *  signs in with their email and a live code; issuing a new code revokes the older ones. Used only with PEEK_LOCAL_MODE=1. */
+export const localCodes = pgTable(
+  "local_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull().unique(),
+    issuedBy: text("issued_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [index("local_codes_user").on(t.userId)],
+);
+
+/** What each API key pulled, day by day (to keep within a free tier's data transfer): the
+ *  requests and the bytes answered, so the team sees who pulls what. */
+export const apiKeyDays = pgTable(
+  "api_key_days",
+  {
+    keyId: uuid("key_id").notNull().references(() => apiKeys.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    requests: integer("requests").notNull().default(0),
+    notModified: integer("not_modified").notNull().default(0),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.keyId, t.day] })],
+);
 
 /** A list a machine hands the board, kept as it was sent: today "send-next", the Validator's pick of the leads to send
  *  next (pushed with its key, PUT /v1/lists/send-next), shown on the Leads page's Send next tab. */
@@ -388,7 +421,7 @@ export const leadFlags = pgTable(
 /**
  * The team's tasks, moved from Notion's "Tasks
  * Tracker" like the Leads board: written only through lib/tasks.ts, every change in `task_cells`, `rev` from its own
- * sequence. `assignees` keeps the names as given (Notion's people, or a Peek user's name); `projects` the Notion
+ * sequence. `assignees` keeps the names as given (Notion's people, or a the portal user's name); `projects` the Notion
  * relation ids the backfill copies; `checklist` the "Done when" items a person ticks. `standing` marks The CEO's
  * persistent send task: pinned at the top of the queue, never done.
  */
@@ -475,6 +508,9 @@ export const files = pgTable(
     contentType: text("content_type").notNull(),
     tag: text("tag").notNull().default(""),
     status: text("status").notNull().default("pending"),
+    /** Which object store holds the bytes (files can move from one store to another): "neon",
+     *  "supabase" or "local"; a file whose store is not the one in use reads "copy pending" until files-copy moves it. */
+    store: text("store").notNull().default("neon"),
     uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

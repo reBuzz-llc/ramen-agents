@@ -11,6 +11,8 @@ import { btnOutline, btnText, control, fieldLabel } from "@/lib/ui-classes";
 import { PendingForm } from "../../ui";
 import AddMember, { CopySignIn, RemoveMember } from "../add-member";
 import SectionHead from "../section-head";
+import LocalCode from "../local-code";
+import { localMode } from "@/lib/local-codes";
 
 export const metadata = { title: settingsTitle("people") };
 
@@ -65,6 +67,7 @@ export default async function People(props: PageProps<"/settings/people">) {
                   <span className={`${badge} bg-bg text-muted capitalize`}>{p.role}</span>
                 )}
               </div>
+              {localMode() && p.active && can(who.role, "users.manage") ? <LocalCode userId={p.id} label={p.name || p.email} /> : null}
               {(invited && can(who.role, "users.add")) || (p.active && can(who.role, "users.add") && canRemove(me, p)) ? (
                 <div className="flex flex-wrap items-center gap-x-4">
                   {invited && can(who.role, "users.add") ? <CopySignIn email={p.email} name={p.name} ownerName={who.name} /> : null}

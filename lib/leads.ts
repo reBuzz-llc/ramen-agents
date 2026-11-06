@@ -1,4 +1,4 @@
-// The Leads board in Peek's own database. Every
+// The Leads board in the portal's own database. Every
 // write goes through writeLead, which enforces the store's rules and records each cell in lead_cells:
 // - person wins: a bot never replaces a cell whose last change was a person's; the attempt is kept, refused;
 // - human only: email status, WhatsApp status, result and result date are the team's; a bot writing one is refused;
@@ -8,7 +8,7 @@
 import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "./db";
-import { claims, leadCells, leadFlags, leads, users } from "./db/schema";
+import { claims, leadCells, leadFlags, leads, tasks, users } from "./db/schema";
 import { placeOf } from "./lead-filters";
 import { e164 } from "./phone";
 
@@ -158,6 +158,34 @@ export function toApi(r: typeof leads.$inferSelect): Lead {
     bot_whatsapp: r.botWhatsapp ?? null,
   });
   return out;
+}
+
+/** toApi for a list read: the same keys, but only the cells in `keys` (the status, identity and dates always). */
+function toApiPartial(r: typeof leads.$inferSelect, keys: Set<string>): Lead {
+  const out: Lead = { id: r.id, notion_page_id: r.notionPageId, rev: Number(r.rev) };
+  for (const f of FIELDS) if (keys.has(f.key)) out[f.key] = r[f.prop] ?? null;
+  const status = [...(r.emailStatus?.split(", ") ?? []), ...(r.whatsappStatus?.split(", ") ?? [])];
+  Object.assign(out, {
+    status: status.length ? status : null,
+    domain: r.domain,
+    city: r.city,
+    state: r.state,
+    sent_at: r.sentAt?.toISOString() ?? null,
+    archived: r.archived,
+    created_at: r.createdAt.toISOString(),
+    updated_at: r.updatedAt.toISOString(),
+    last_edited_by: r.lastActorName ? { actor: r.lastActorName, kind: r.lastActorKind } : null,
+  });
+  if (keys.has("bot_draft")) out.bot_draft = r.botDraft ?? null;
+  if (keys.has("bot_whatsapp")) out.bot_whatsapp = r.botWhatsapp ?? null;
+  return out;
+}
+
+/** The board's newest change (its highest rev), for a list read's ETag: nothing new, nothing sent. */
+export async function boardRev(db: Db, tenantId: string, board: "leads" | "tasks"): Promise<number> {
+  const t = board === "leads" ? leads : tasks;
+  const [r] = await db.select({ rev: sql<number>`coalesce(max(${t.rev}), 0)` }).from(t).where(eq(t.tenantId, tenantId));
+  return Number(r?.rev ?? 0);
 }
 
 /**
@@ -365,7 +393,26 @@ export type LeadQuery = {
 
 /** Leads in `rev` order after `since` (0 for all), with the filters given: {leads, next}. `next` is the last rev
  *  returned (ask again with since = next), or the same `since` when nothing changed; `more` says a page was cut. */
-export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}) {
+/** The long cells a list read leaves out unless asked for (egress): drafts, pain point, evidence,
+ *  the listing, notes, the bot's kept drafts. A lead's own read (GET /v1/rows/<id>) always has every cell. */
+export const LONG_FIELDS = ["draft_email", "draft_whatsapp", "pain_point", "evidence", "listing_evidence", "source_pages", "site_health", "notes", "listing", "bot_draft", "bot_whatsapp"] as const;
+const LIST_EXTRA = ["bot_draft", "bot_whatsapp"] as const;
+/** The cells a list read answers: ?fields=a,b (any of the board's keys, plus bot_draft and bot_whatsapp), "slim" (all
+ *  but LONG_FIELDS), "all"; none given: the default, "all" until PEEK_SLIM_DEFAULT=1 is set (the readers ask for
+ *  their long cells first, so no bot takes a missing draft for an empty one). Unknown names are refused. */
+export function fieldsOf(param: string | null | undefined, slimDefault = process.env.PEEK_SLIM_DEFAULT === "1"): { ok: true; keys: Set<string> } | { ok: false; message: string } {
+  const every = [...FIELDS.map((f) => f.key), ...LIST_EXTRA];
+  const v = (param ?? "").trim();
+  if (!v) return { ok: true, keys: new Set(slimDefault ? every.filter((k) => !(LONG_FIELDS as readonly string[]).includes(k)) : every) };
+  if (v === "all") return { ok: true, keys: new Set(every) };
+  if (v === "slim") return { ok: true, keys: new Set(every.filter((k) => !(LONG_FIELDS as readonly string[]).includes(k))) };
+  const asked = v.split(",").map((s) => s.trim()).filter(Boolean);
+  const bad = asked.filter((k) => !every.includes(k));
+  if (bad.length) return { ok: false, message: `unknown field: ${bad.join(", ")}` };
+  return { ok: true, keys: new Set(asked) };
+}
+
+export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}, keys?: Set<string>) {
   const limit = Math.min(Math.max(Math.floor(q.limit ?? 100), 1), 500);
   const since = Math.max(Math.floor(q.since ?? 0), 0);
   const where: SQL[] = [eq(leads.tenantId, tenantId), gt(leads.rev, since)];
@@ -377,9 +424,20 @@ export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}) {
   if (typeof q.minScore === "number" && Number.isFinite(q.minScore)) where.push(gte(leads.leadScore, q.minScore));
   if (q.hasDraft !== undefined) where.push(q.hasDraft ? and(isNotNull(leads.draftEmail), sql`${leads.draftEmail} not ilike 'skip:%'`)! : or(isNull(leads.draftEmail), sql`${leads.draftEmail} ilike 'skip:%'`)!);
   if (q.hasRole !== undefined) where.push(q.hasRole ? isNotNull(leads.contactRole) : isNull(leads.contactRole));
-  const rows = await db.select().from(leads).where(and(...where)).orderBy(asc(leads.rev)).limit(limit + 1);
+  // Only the columns asked for travel (no select *): the row's identity and status always, the cells by `keys`.
+  const want = keys ?? new Set([...FIELDS.map((f) => f.key), ...LIST_EXTRA]);
+  const cols: Record<string, unknown> = { id: leads.id, notionPageId: leads.notionPageId, rev: leads.rev, domain: leads.domain, city: leads.city, state: leads.state, sentAt: leads.sentAt, archived: leads.archived, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lastActorName: leads.lastActorName, lastActorKind: leads.lastActorKind, emailStatus: leads.emailStatus, whatsappStatus: leads.whatsappStatus };
+  for (const f of FIELDS) if (want.has(f.key)) cols[f.prop] = leads[f.prop as keyof typeof leads.$inferSelect & keyof typeof leads];
+  if (want.has("bot_draft")) cols.botDraft = leads.botDraft;
+  if (want.has("bot_whatsapp")) cols.botWhatsapp = leads.botWhatsapp;
+  const rows = (await db
+    .select(cols as never)
+    .from(leads)
+    .where(and(...where))
+    .orderBy(asc(leads.rev))
+    .limit(limit + 1)) as unknown as (typeof leads.$inferSelect)[];
   const page = rows.slice(0, limit);
-  return { leads: page.map(toApi), next: page.length ? Number(page[page.length - 1].rev) : since, more: rows.length > limit };
+  return { leads: page.map((r) => toApiPartial(r, want)), next: page.length ? Number(page[page.length - 1].rev) : since, more: rows.length > limit };
 }
 
 export async function getLead(db: Db, tenantId: string, target: { id?: string; notionPageId?: string }) {
