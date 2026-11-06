@@ -142,6 +142,8 @@ The problem: emails stopped right after "Hi …" because the model had spent the
 
 ## The dashboard: health banner, the world and Reports
 
+The desk screens, daily goals and the Allowance panel are described in [dashboard.md](dashboard.md).
+
 There is no setting: both are part of the dashboard.
 
 **Health banner:** a red line at the top of the home page when something needs a person, and nothing when all is
@@ -178,3 +180,7 @@ reboot does not load them again. It refuses a bot without a STOP file. `enable-b
 `restart-bot.sh` is still what runs the bot.
 
 The problem: a stopped bot's error log grew to megabytes of the same line in a few weeks.
+
+A Stop from the dashboard writes `Owner: <reason>` (or `Owner: stopped from the dashboard HH:MM`) as the STOP file's
+first line, so a stop you made is never an empty file; `restart-bot.sh` refuses it, and also refuses a bot whose last
+dashboard action was your Stop. See [dashboard.md](dashboard.md#stopping-and-starting-an-agent).

@@ -19,6 +19,10 @@ After the last remote provider comes the local Ollama model, the last resort tha
 free tier first and the scarce ones last. A bot that needs a different order sets `model.provider_first`; it never gets
 its own list.
 
+**Use every free tier.** An allowance you do not use today is gone tomorrow. The dashboard's **Allowance** panel shows each
+provider's calls and tokens today against its tier, and what is left, so you can see which free tier sits idle and
+move it up the chain (see [dashboard.md](dashboard.md#allowance-use-every-free-tier)).
+
 `bot --config <bot>/config.toml providers` prints the chain with today's calls and tokens per provider. An example
 (made-up numbers):
 
@@ -63,5 +67,7 @@ Our daily caps for the keyed backups are set in `web-bots.toml`: `langsearch_per
 1. Check that its free tier needs no card and is not a time-limited trial.
 2. Create the key yourself and save it as `common-data/keys/<name>.key` (`chmod 600`).
 3. Add a `[model.providers.<name>]` table to `web-bots.toml` with `base_url`, `model`, `api_key_file` and a
-   conservative `calls_per_day`, then add `<name>` to `provider_chain` in the place its free tier deserves.
+   conservative `calls_per_day`, then add `<name>` to `provider_chain` in the place its free tier deserves. If the free
+   tier is counted in tokens, add `tokens_per_day` or `tokens_per_month` from its pricing page; the Allowance panel
+   then shows tokens left too (a monthly tier as today's fair share).
 4. Run `bot --config <bot>/config.toml providers` to confirm it answers, and watch its line for a day before trusting it.

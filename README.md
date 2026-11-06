@@ -58,9 +58,9 @@ keys and two Notion boards.
 
 ## Day to day
 
-- Dashboard: http://127.0.0.1:3000 (the office world: each agent at its desk, resting or asleep by what it is doing now; click one to see its screen and feed and to pause, stop or start it; the bulletin board for your decisions and The CEO's proposals; the Work plan page with each bot's refusal rate; Settings › Reports; a red line at the top when something needs you).
+- Dashboard: http://127.0.0.1:3000. The office world: each agent at its desk with a big screen showing what it is doing, its output against its daily goal (`common-data/daily-goals.json`), which model answered and how much the rules let through. Click one to pause, stop or start it; Stop takes an optional reason that shows on its mat. The bulletin board holds your decisions and The CEO's proposals; the List view has the **Allowance** panel, how much of every free tier is used and left today. Also: the Work plan page with each bot's refusal rate, Settings › Reports, and a red line at the top when something needs you. What every part shows: [docs/dashboard.md](docs/dashboard.md).
 - Keeping the family healthy on free tiers (resting, repeat limits, provider health, the dashboard checks): [docs/staying-healthy.md](docs/staying-healthy.md).
-- Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. Never `launchctl kickstart -k` on a bot.
+- Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. It refuses a bot you stopped (a STOP file, or Stop as your last action on the dashboard), and says so when launchd does not have the bot instead of claiming it restarted. Never `launchctl kickstart -k` on a bot.
 - Stopped a bot for good (it has a STOP file)? `sh scripts/disable-bot.sh <slug>` unloads its launchd jobs and marks them disabled, so launchd stops relaunching it every 30 s and a reboot does not load it again. `sh scripts/enable-bot.sh <slug>` undoes that and leaves the STOP file; `restart-bot.sh` is still what runs the bot.
 - A day's review: `~/Projects/bot/.venv/bin/python scripts/review.py --date YYYY-MM-DD`.
 - Push both repositories: `sh scripts/push-all.sh`.
