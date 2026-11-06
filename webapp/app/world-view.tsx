@@ -22,6 +22,7 @@ import {
   newSim,
   MONITOR,
   deskScreen,
+  screenForm,
   SCREEN,
   nowLines,
   NAMEPLATE,
@@ -79,7 +80,7 @@ import {
 
 const STORM_MS = 60_000;
 const NOISE_MS = 4000; // the monitor shows static for the first seconds of a model failure
-const MAX_CSS = 1040;
+const MAX_CSS = 2400; // the world fits the window's width: a wide window gives bigger screens
 
 type Hit = { kind: "member" | "sleeper"; slug: string; x: number; y: number };
 type Window = { kind: "member" | "sleeper"; slug: string } | { kind: "bulletin" } | { kind: "mailbox" };
@@ -90,6 +91,9 @@ export default function World({ data }: { data: Board }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState({ k: 2, dpr: 1, css: 640 });
+  // which desk each member's screen stands at, in tiles (from the animation loop, only when it changes): its HTML box
+  const [slots, setSlots] = useState<Record<string, { x: number; y: number }>>({});
+  const slotsKey = useRef("");
   // the screens' face: JetBrains Mono, loaded by the layout as --font-screen; the canvas uses it once the browser has it
   useEffect(() => {
     const family = getComputedStyle(document.documentElement).getPropertyValue("--font-screen");
@@ -233,18 +237,25 @@ export default function World({ data }: { data: Board }) {
       simStep(S, t, dt, { quiet: quietNow, still });
       const card = (slug: string) => d.cards.find((m) => m.slug === slug);
       // desks: one per member that holds one, with its live monitor
+      const slotsNow: Record<string, { x: number; y: number }> = {};
       for (const m of S.members.values()) {
         const c0 = card(m.slug);
         const dk = desk(m.desk).desk;
+        slotsNow[m.slug] = { x: dk.x, y: dk.y };
         const storm = stormStart.current.get(m.slug);
         const handle = c0?.handle || c0?.name.slice(0, 5) || m.slug.slice(0, 5);
         const hover = hoverDesk.current === m.desk;
         // the big screen behind the seat (drawn before the member who sits in front of it), then the desk
         if (c0) {
           const big = deskScreen(c0, { noise: storm !== undefined && t - storm < NOISE_MS });
-          items.push({ key: dk.y * TILE + SCREEN.y + SCREEN.h, draw: () => drawDeskScreen(c, dk.x, dk.y, big, t, { hover, cssPerRoom: scale.css / W, k: scale.k }) });
+          items.push({ key: dk.y * TILE + SCREEN.y + SCREEN.h, draw: () => drawDeskScreen(c, dk.x, dk.y, big, t, { hover, cssPerRoom: scale.css / W, k: scale.k, postsOnly: true }) });
         }
         items.push({ key: dk.y * TILE + 12, draw: () => drawDesk(c, dk.x, dk.y, handle, day.lamps) });
+      }
+      const slotKey = JSON.stringify(slotsNow);
+      if (slotKey !== slotsKey.current) {
+        slotsKey.current = slotKey;
+        setSlots(slotsNow);
       }
       for (const g of figures(S, t, { quiet: quietNow, still })) {
         const m = S.members.get(g.slug)!;
@@ -447,6 +458,7 @@ export default function World({ data }: { data: Board }) {
               {sound ? "Sound: on" : "Sound: off"}
             </button>
           </div>
+          <div className="relative" style={{ width: cssW, maxWidth: "100%" }}>
           <canvas
             ref={canvas}
             width={W * scale.k}
@@ -470,6 +482,16 @@ export default function World({ data }: { data: Board }) {
           onPointerLeave={() => (hoverDesk.current = null)}
             onKeyDown={onKey}
           />
+          <ScreenLayer
+            slots={slots}
+            cards={data.cards}
+            f={cssW / W}
+            onOpen={(slug) => {
+              setWin({ kind: "member", slug });
+              move("member");
+            }}
+          />
+          </div>
           {wide ? null : tabbed}
         </div>
       </div>
@@ -876,6 +898,84 @@ function NowBlock({ now }: { now: ReturnType<typeof nowLines> }) {
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+/** The desks' screens as HTML over the canvas, so their text stays sharp at any window size (canvas text at 14 px
+ *  came out at about 7 px and blurred). Each box stands at its desk's room coordinates times the canvas's CSS scale:
+ *  the name tab on top (a state other than working as an orange badge), the four lines and the refused share over a
+ *  meter, in JetBrains Mono at 14 px (13 px in the narrow forms, never smaller). By width (screenForm): full, compact
+ *  (the tab and the item; the four lines on hover or focus) or tiny (phone). The whole box opens the member's card. */
+function ScreenLayer({ slots, cards, f, onOpen }: { slots: Record<string, { x: number; y: number }>; cards: Board["cards"]; f: number; onOpen: (slug: string) => void }) {
+  const w = SCREEN.w * f;
+  const h = SCREEN.h * f;
+  const { form, lines: fit } = screenForm(w, h);
+  const compact = form !== "full";
+  const tiny = form === "tiny";
+  return (
+    <div className="pointer-events-none absolute inset-0" style={{ fontFamily: "var(--font-screen), ui-monospace, Menlo, monospace" }}>
+      {cards.map((c) => {
+        const at = slots[c.slug];
+        if (!at) return null;
+        const sc = deskScreen(c);
+        const lines = sc.lines;
+        const dark = sc.mode === "dark";
+        const bg = dark ? "#1b2030" : sc.mode === "alert" ? "#fde8e6" : sc.mode === "dim" ? "#e6e3dc" : "#fbfaf6";
+        const ink = dark ? "#e6e9f2" : sc.mode === "alert" ? "#8a1c13" : "#1a0d00";
+        const soft = dark ? "#aab3cc" : "#4d4d4d";
+        const pct = sc.share === null ? null : Math.round(sc.share * 100);
+        const mark = sc.mark === "web" ? "#d63b3b" : sc.mark === "search" ? "#ff6600" : "";
+        const row = (l: string, i: number, all = false) => (
+          <p key={i} className={`truncate leading-[1.2] ${i === 1 ? "font-bold" : ""}`} style={{ color: i === 1 ? ink : soft }} title={all ? undefined : l}>
+            {i === 1 && mark ? <span aria-hidden className="mr-1 inline-block size-[7px] align-middle" style={{ background: mark }} /> : null}
+            {l}
+          </p>
+        );
+        return (
+          <button
+            key={c.slug}
+            type="button"
+            onClick={() => onOpen(c.slug)}
+            aria-label={`${c.name}, ${sc.word}: ${lines.join(", ")}. Open its card.`}
+            className="group pointer-events-auto absolute text-left focus-visible:outline-2 focus-visible:outline-[#ff6600]"
+            style={{ left: (at.x * TILE + SCREEN.x) * f, top: (at.y * TILE + SCREEN.y) * f, width: w, ...(tiny ? { height: h } : { minHeight: h }) }}
+          >
+            <span className="absolute bottom-full left-[-2px] mb-[2px] flex max-w-[calc(100%+4px)] items-stretch border-2 border-[#26282e] bg-[#fbfaf6] font-bold text-[#1a0d00]" style={{ fontSize: compact ? 13 : 14, lineHeight: 1.25 }}>
+              <span className="truncate px-1" style={tiny && sc.word !== "working" ? { boxShadow: "inset 0 -3px 0 #ff6600" } : undefined}>
+                {c.name}
+              </span>
+              {sc.word !== "working" && !tiny ? <span className="shrink-0 truncate bg-[#ff6600] px-1 text-[#1a0d00]">{sc.word}</span> : null}
+            </span>
+            <span className={`block overflow-hidden border-2 border-[#26282e] ${tiny ? "h-full px-1 py-0.5" : "px-1.5 py-1"}`} style={{ background: bg, fontSize: compact ? 13 : 14, ...(tiny ? {} : { minHeight: h }) }}>
+              {compact ? (
+                <span className="font-bold leading-[1.2] [overflow-wrap:normal]" style={{ color: ink, display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: tiny ? fit : 3, overflow: "hidden" }}>
+                  {mark ? <span aria-hidden className="mr-1 inline-block size-[7px] align-middle" style={{ background: mark }} /> : null}
+                  {lines[1] ?? lines[0] ?? ""}
+                </span>
+              ) : (
+                lines.map((l, i) => row(l, i))
+              )}
+              {!compact && pct !== null ? (
+                <>
+                  <span className="block truncate leading-[1.2]" style={{ color: soft }}>
+                    {pct}% refused
+                  </span>
+                  <span className="mt-0.5 block h-[3px] w-full" style={{ background: dark ? "#3a4258" : "#e2dccf" }}>
+                    <span className="block h-full bg-[#ff6600]" style={{ width: `${pct}%` }} />
+                  </span>
+                </>
+              ) : null}
+            </span>
+            {compact ? (
+              <span className="absolute top-full left-0 z-20 mt-1 hidden w-[220px] max-w-[80vw] border-2 border-[#26282e] px-2 py-1 text-[13px] shadow-lg group-hover:block group-focus-visible:block" style={{ background: bg }}>
+                {lines.map((l, i) => row(l, i, true))}
+                {pct !== null ? <span className="block leading-[1.2]" style={{ color: soft }}>{pct}% refused</span> : null}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
