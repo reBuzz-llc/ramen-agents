@@ -1,0 +1,38 @@
+// Run: npm test. A member's dialogue opens with four lines: output and goal, the item it is on, provider and freshness,
+// the last 30 minutes' allowed actions.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+// @ts-ignore TS5097
+import { subjectOf } from "../lib/board.ts";
+// @ts-ignore TS5097
+import { nowLines } from "../lib/world.ts";
+
+test("the item a write names", () => {
+  assert.equal(subjectOf("update_lead", JSON.stringify({ name: "Sunrise Bakery", draft_email: "Hi…", email: null })), "Sunrise Bakery · Draft email");
+  assert.equal(subjectOf("provider", JSON.stringify({ name: "Example AI" })), "Example AI");
+  assert.equal(subjectOf("message", JSON.stringify({ to: "The CEO", text: "Done." })), "to The CEO: Done.");
+  assert.equal(subjectOf("update_lead", "not json"), "");
+});
+
+const card = {
+  slug: "outreach-writer",
+  state: { word: "working", tone: "good", why: "" },
+  last: { ts: "", words: "opened example.com", ago: "1 min ago", screen: { kind: "web", domain: "example.com", title: "Example" } },
+  output: { label: "draft", today: 7 },
+  actionsToday: 20,
+  refusedShare: 0.25,
+  item: "Sunrise Bakery · Draft email",
+  modelAgo: "2 min ago",
+  window: { allowed: 9, total: 15 },
+  goal: 10,
+  model: { label: "api.z.ai/glm-4.5-flash", ts: "" },
+  questions: [],
+};
+
+test("the four lines, data-true", () => {
+  assert.deepEqual(nowLines(card as never), { word: "working", lines: ["7 drafts today · goal 10", "Sunrise Bakery · Draft email", "z.ai · 2 min ago", "30 min: 9/15 ok"], refused: 0.25 });
+  // no item: its page; no goal: no goal; no actions in the window: says so
+  assert.deepEqual(nowLines({ ...card, item: "", goal: null, window: { allowed: 0, total: 0 } } as never).lines, ["7 drafts today", "example.com · Example", "z.ai · 2 min ago", "30 min: no actions"]);
+  // resting: until when and why
+  assert.equal(nowLines({ ...card, state: { word: "resting until 14:40", tone: "muted", why: "work list empty" } } as never).lines[1], "until 14:40 · work list empty");
+});

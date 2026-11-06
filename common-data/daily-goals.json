@@ -1,0 +1,8 @@
+{
+  "_note": "Example daily goals: each agent's own outputs a day, shown on its dialogue as '7 leads today · goal 10'. Edit the numbers; leave an agent out to show no goal. Keys starting with _ are ignored.",
+  "lead-gen": 10,
+  "research-analyst": 3,
+  "scout": 1,
+  "package-designer": 1,
+  "the-ceo": 3
+}

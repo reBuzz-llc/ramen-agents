@@ -22,6 +22,7 @@ import {
   newSim,
   MONITOR,
   monitorOf,
+  nowLines,
   NAMEPLATE,
   newBubbles,
   nextPrompt,
@@ -522,10 +523,12 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
   let links: { href: string; label: string }[] = [];
   let slug: string | null = null;
   let grey = false;
+  let now: ReturnType<typeof nowLines> | null = null;
   if (win?.kind === "member") {
     const c = data.cards.find((x) => x.slug === win.slug);
     if (c) {
       const d = dialogue(c);
+      now = nowLines(c);
       title = d.title;
       lines = span === "today" ? d.lines : week7Lines(data.week7?.[c.slug]);
       links = [{ href: d.href, label: "Goal and rules" }];
@@ -549,13 +552,13 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
       : [data.team?.ready ? `${data.team.unsent ?? "—"} drafts waiting to be sent.` : "The Leads board numbers are not in yet."];
   }
   return (
-    <div className="rounded-xl border-4 border-[#1a0d00] bg-white px-4 py-3 font-mono text-sm text-[#1a0d00] shadow-[0_3px_0_#1a0d00] dark:bg-[#fffaf0]" aria-live="polite">
+    <div className="rounded-xl border-4 border-[#1a0d00] bg-white px-4 py-3 font-sans text-sm text-[#1a0d00] shadow-[0_3px_0_#1a0d00] dark:bg-[#fffaf0]" aria-live="polite">
       {win && title ? (
         <div className="flex gap-3">
           {slug ? <Portrait slug={slug} grey={grey} /> : null}
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <p className="font-bold">{title}</p>
+              <p className="font-mono font-bold">{title}</p>
               {win.kind === "member" ? (
                 <span role="group" aria-label="Period" className="ml-auto flex gap-1 text-xs">
                   {(["today", "week"] as const).map((k) => (
@@ -576,6 +579,7 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
                 ×
               </button>
             </div>
+            {now ? <NowBlock now={now} /> : null}
             {target ? (
               <Controls
                 name={data.cards.find((c) => c.slug === target)?.name ?? data.stopped.find((s) => s.slug === target)?.name ?? target}
@@ -833,5 +837,29 @@ function BoxButton({ onClick, children, disabled = false }: { onClick: () => voi
     <button type="button" onClick={onClick} disabled={disabled} className="rounded-md px-2.5 py-1 text-xs font-bold text-[#1a0d00] disabled:opacity-50" style={{ background: "#ff6600" }}>
       {children}
     </button>
+  );
+}
+
+/** The member's four lines (output and goal, the item it is on, provider and freshness, the last 30 minutes' allowed
+ *  actions) in JetBrains Mono at 14 px, and its refused share over a thin meter. */
+function NowBlock({ now }: { now: ReturnType<typeof nowLines> }) {
+  const pct = now.refused === null ? null : Math.round(now.refused * 100);
+  return (
+    <div className="mt-2 rounded-lg bg-[#fbf6ee] px-3 py-2 text-[14px] leading-normal" style={{ fontFamily: "var(--font-screen), ui-monospace, Menlo, monospace" }}>
+      {now.word !== "working" ? <p className="mb-1 inline-block rounded-md bg-[#ff6600] px-2 py-0.5 font-bold text-[#1a0d00]">{now.word}</p> : null}
+      {now.lines.map((l, i) => (
+        <p key={i} className={`truncate ${i === 1 ? "font-bold" : ""}`} title={l}>
+          {l}
+        </p>
+      ))}
+      {pct !== null ? (
+        <>
+          <p className="mt-1">{pct}% refused</p>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#e6dfd3]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Share of actions refused today">
+            <div className="h-full rounded-full bg-[#ff6600]" style={{ width: `${pct}%` }} />
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

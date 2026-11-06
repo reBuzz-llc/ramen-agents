@@ -272,6 +272,13 @@ export type BotCard = {
   interests: string[]; // its strongest interests (up to 3)
   model: { label: string; ts: string } | null; // the provider/model its last call used, from the log (never the configured fallback)
   feed: FeedItem[];
+  // what the member's dialogue shows first: the row or item it is on (its newest naming write of the last hour, e.g.
+  // "Sunrise Bakery · Draft email"; "" = its page or search), its last model call's age, the last 30 minutes'
+  // allowed/all actions, and its daily goal when common-data/daily-goals.json names one
+  item: string;
+  modelAgo: string;
+  window: { allowed: number; total: number };
+  goal: number | null;
 };
 
 /** The provider and model the bot's last call used: the newest "using <label>" line (the engine logs one on each switch),
@@ -361,6 +368,50 @@ const json = <T>(v: unknown, dflt: T): T => {
   }
 };
 
+// What a member is on, by the write that names it. The Lead Gen and anyone not listed show their page or search; the
+// Analyst its open question.
+const SUBJECT: Record<string, string[]> = {
+  "outreach-writer": ["update_lead"],
+  "lead-enricher": ["update_lead"],
+  scout: ["provider"],
+  "package-designer": ["package", "message"],
+  "the-ceo": ["update_task", "message", "propose"],
+};
+const CELLS: Record<string, string> = {
+  draft_email: "Draft email",
+  draft_whatsapp: "Draft WhatsApp",
+  pain_point: "Pain point",
+  how_we_help: "How can I help",
+  email: "Email",
+  website: "Website",
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  location: "Location",
+  industry: "Industry",
+  founded_by: "Founded by",
+  contact_role: "Contact role",
+  size: "Size",
+  evidence: "Evidence",
+};
+
+/** The item a write names: "<lead> · <cells it filled>", a provider's or package's name, "to <peer>: <text>", a task. */
+export function subjectOf(type: string, payload: string | null): string {
+  let p: Record<string, unknown> = {};
+  try {
+    p = JSON.parse(payload ?? "{}") as Record<string, unknown>;
+  } catch {
+    return "";
+  }
+  const name = one(p.name);
+  if (type === "update_lead") {
+    const cells = Object.keys(CELLS).filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== "").map((k) => CELLS[k]);
+    return name ? [name, cells.slice(0, 2).join(", ")].filter(Boolean).join(" · ") : "";
+  }
+  if (type === "message") return p.to ? `to ${one(p.to)}: ${one(p.text)}` : "";
+  if (type === "update_task" || type === "propose") return one(p.title ?? p.task ?? p.change ?? p.name ?? "");
+  return name;
+}
+
 /** Everything on one bot's card. `own` is its own-output SQL (null: no kind of its own; the feed then skips it). */
 export async function boardBot(
   bot: { slug: string; name: string; handle: string },
@@ -371,6 +422,20 @@ export async function boardBot(
   restarting = false,
 ): Promise<BotCard> {
   const today = `${localIso(now).slice(0, 10)}T00:00:00`;
+  const types = SUBJECT[bot.slug] ?? [];
+  const since = localIso(now - 30 * 60_000).slice(0, 19);
+  const hourAgo = localIso(now - 60 * 60_000).slice(0, 19);
+  const subjectSql = `SELECT (SELECT json_object('t', action_type, 'p', payload) FROM actions WHERE verdict LIKE 'allowed%' AND ts >= '${hourAgo}'${
+    types.length ? ` AND action_type IN (${types.map((t) => `'${t}'`).join(",")})` : " AND 0"
+  } ORDER BY id DESC LIMIT 1) AS subj, (SELECT json_array(COALESCE(SUM(verdict LIKE 'allowed%'), 0), COUNT(*)) FROM actions WHERE ts >= '${since}') AS win`;
+  const [extra, goals] = await Promise.all([
+    db ? sqlite(db, subjectSql).catch(() => []) : Promise.resolve([]),
+    readFile(/*turbopackIgnore: true*/ path.join(ws, "..", "..", "common-data", "daily-goals.json"), "utf8").then((t) => JSON.parse(t) as Record<string, unknown>, () => ({}) as Record<string, unknown>),
+  ]);
+  const x = (extra[0] ?? {}) as Record<string, unknown>;
+  const subj = json<{ t: string; p: string | null } | null>(x.subj, null);
+  const win = json<[number, number]>(x.win, [0, 0]);
+  const goal = Number(goals[bot.slug]);
   const [rows, jsonl, plan, blocks, paused, hold] = await Promise.all([
     // an engine before cb57a61 has no stall_minutes column: ask again without it
     db ? sqlite(db, cardSql(today, own?.where ?? "0")).catch(() => sqlite(db, cardSql(today, own?.where ?? "0", false))).catch(() => []) : Promise.resolve([]),
@@ -396,6 +461,7 @@ export async function boardBot(
     ),
   ]);
   const r = rows[0] ?? {};
+  const model = lastModel(jsonl);
   const hb = json<Hb | null>(r.hb, null);
   const h = hourly(json(r.hours, []));
   const last = json<{ ts: string; t: string; p: string; r: string | null } | null>(r.last, null);
@@ -414,8 +480,12 @@ export async function boardBot(
     hours: h.hours,
     questions: json<string[]>(r.questions, []).map((x) => clip(one(x), 160)),
     interests: json<string[]>(r.interests, []).map((x) => clip(one(x), 60)),
-    model: lastModel(jsonl),
+    model,
     feed: feed.map((f) => ({ slug: bot.slug, name: bot.name, ts: f.ts, words: actionWords(f.t, f.p) })),
+    item: subj ? clip(subjectOf(subj.t, subj.p), 160) : "",
+    modelAgo: model ? ago(model.ts, now) : "",
+    window: { allowed: Number(win[0]) || 0, total: Number(win[1]) || 0 },
+    goal: Number.isFinite(goal) && goal > 0 ? goal : null,
   };
 }
 

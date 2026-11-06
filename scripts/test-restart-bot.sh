@@ -6,8 +6,9 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'pkill -KILL -f "$tmp/bots/" 2>/dev/null; rm -rf "$tmp"' EXIT
-export RESTART_BOTS_DIR="$tmp/bots" RESTART_WAIT=2 RESTART_TERM_WAIT=2 RESTART_LAUNCHCTL="$tmp/launchctl"
-printf '#!/bin/sh\necho "$*" >> "%s/launchctl.log"\n' "$tmp" > "$tmp/launchctl"
+export RESTART_BOTS_DIR="$tmp/bots" RESTART_WAIT=2 RESTART_TERM_WAIT=2 RESTART_LAUNCHCTL="$tmp/launchctl" RESTART_CONTROLS="$tmp/owner-controls.jsonl"
+# the fake answers "list <label>" with failure when $tmp/unloaded-<label> exists (a job launchd does not have)
+printf '#!/bin/sh\necho "$*" >> "%s/launchctl.log"\n[ "$1" = list ] && [ -f "%s/unloaded-$2" ] && exit 113\nexit 0\n' "$tmp" "$tmp" > "$tmp/launchctl"
 chmod +x "$tmp/launchctl"
 fails=0
 check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
@@ -57,6 +58,19 @@ check "dry run: no STOP, loop alive"   '[ ! -f "$tmp/bots/e/workspace/STOP" ] &&
 
 fake f none; run d f
 check "two bots: one line each"        '[ "$(echo "$out" | wc -l | tr -d " ")" = 2 ] && [ $code -eq 1 ]'
+
+fake l stop; touch "$tmp/unloaded-com.ramen-agents.bot.l"; run l
+check "not loaded: said so, exit 1"   'case "$out" in *"l: exited on STOP; NOT loaded in launchd: run enable-bot.sh l"*) true;; *) false;; esac && [ $code -eq 1 ]'
+check "not loaded: STOP removed"       '[ ! -f "$tmp/bots/l/workspace/STOP" ]'
+
+fake m none; : > "$tmp/launchctl.log"
+printf '%s\n' '{"who":"Owner","bot":"m","action":"start","ts":"2026-01-06T10:00:00"}' '{"who":"Owner","bot":"m","action":"stop","reason":"","ts":"2026-01-06T12:32:22"}' > "$tmp/owner-controls.jsonl"
+run m
+check "dashboard stop: refused"        'case "$out" in *"m: the owner stopped it on the dashboard (2026-01-06T12:32:22), refused"*) true;; *) false;; esac && [ $code -eq 1 ]'
+check "dashboard stop: no launchctl"   '[ ! -s "$tmp/launchctl.log" ] && [ ! -f "$tmp/bots/m/workspace/STOP" ]'
+printf '%s\n' '{"who":"Owner","bot":"m","action":"start","ts":"2026-01-06T13:00:00"}' >> "$tmp/owner-controls.jsonl"
+fake m stop; run m
+check "after the owner's start: runs"  'case "$out" in *"m: exited on STOP; restarted"*) true;; *) false;; esac && [ $code -eq 0 ]'
 
 echo "$fails failed"
 [ $fails -eq 0 ]

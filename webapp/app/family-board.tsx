@@ -1,5 +1,6 @@
 "use client";
 
+import AllowanceView from "./allowance-view";
 import Link from "next/link";
 import type { BotCard, Tone } from "@/lib/board";
 import type { Board } from "@/lib/board-read";
@@ -39,6 +40,17 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
     }, 0);
     return () => clearTimeout(t);
   }, []);
+  // "#allowance": the List view at the Allowance (a link from anywhere)
+  useEffect(() => {
+    const go = () => {
+      if (window.location.hash !== "#allowance") return;
+      setView("list");
+      setTimeout(() => document.getElementById("allowance")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400);
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+  }, []);
   const pick = (v: View) => {
     setView(v);
     try {
@@ -77,6 +89,7 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
           <Card key={c.slug} c={c} hour={hour} />
         ))}
       </div>
+      {view === "list" ? <AllowanceView /> : null}
       {view === "list" && data.stopped.length ? (
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-fill-3/50 px-3 py-2 text-xs text-muted">
           {data.stopped.map((s) => (

@@ -19,6 +19,7 @@ bots="${RESTART_BOTS_DIR:-$HOME/bots}"
 wait_s="${RESTART_WAIT:-120}"
 term_s="${RESTART_TERM_WAIT:-15}"
 lctl="${RESTART_LAUNCHCTL:-launchctl}"
+controls="${RESTART_CONTROLS:-$bots/common-data/shared-state/owner-controls.jsonl}"
 dry=no
 [ "${1:-}" = "--dry-run" ] && { dry=yes; shift; }
 [ $# -gt 0 ] || { echo "usage: restart-bot.sh [--dry-run] <slug>..." >&2; exit 2; }
@@ -45,6 +46,16 @@ for slug in "$@"; do
         status=1
         continue
     fi
+    # The owner's dashboard Stop (owner-controls.jsonl) stands even when its STOP file has gone: an empty STOP can be
+    # cleaned up by another script before a restart. Only the owner's Start (or bring back) on the dashboard lifts it.
+    last="$(grep -s "\"bot\":\"$slug\"" "$controls" | grep -E '"action":"(stop|start|bringback)"' | tail -1)"
+    case "$last" in
+    *'"action":"stop"'*)
+        echo "$slug: the owner stopped it on the dashboard ($(printf '%s' "$last" | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p')), refused; only the owner starts it again" >&2
+        status=1
+        continue
+        ;;
+    esac
     if [ "$dry" = yes ]; then
         pids="$(loop_pids "$slug" | tr '\n' ' ')"
         loop="no running loop"
@@ -77,7 +88,13 @@ for slug in "$@"; do
         ;;
     esac
     # the supervisor exits 0 on a STOP; launchd then needs a kickstart to run it again
-    "$lctl" kickstart "gui/$uid/$label" 2>/dev/null || "$lctl" kickstart -k "gui/$uid/$label"
+    "$lctl" kickstart "gui/$uid/$label" 2>/dev/null || "$lctl" kickstart -k "gui/$uid/$label" 2>/dev/null
+    # a job launchd does not have cannot be kickstarted, and both kickstarts fail quietly: say so instead of "restarted"
+    if ! "$lctl" list "$label" >/dev/null 2>&1; then
+        echo "$slug: $how; NOT loaded in launchd: run enable-bot.sh $slug (only if the owner has not stopped it)" >&2
+        status=1
+        continue
+    fi
     # the data server (bot dashboard: owner chat + webapp data) runs the same engine code; restart it too
     "$lctl" kickstart -k "gui/$uid/com.ramen-agents.data.$slug" 2>/dev/null || true
     echo "$slug: $how; restarted (run loop + data server) at $(date +%H:%M:%S) on $(git -C "$HOME/Projects/bot" rev-parse --short HEAD)"
