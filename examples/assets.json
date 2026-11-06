@@ -1,0 +1,25 @@
+{
+  "_note": "Example rate card and packages for the Asset page, with made-up prices. Put your own in, then run: node --env-file=.env.local scripts/seed-assets.mjs. It fills an empty list only (--force replaces it). Packages land as drafts; you publish them on the Asset page.",
+  "rates": [
+    "Starter site: a one-page website, $500 one-time",
+    "Website care: $100-$200/month",
+    "Chat assistant: $300 setup, then $100/month",
+    "Lead research: $200 per 100 checked leads"
+  ],
+  "packages": [
+    {
+      "name": "Starter site",
+      "price": "$500 one-time; live in about a week",
+      "offer": "A clean one-page website for a business that has none",
+      "buyer": "Local shops with no website",
+      "deliverables": ["One page with hours, menu or services, and a map", "Set up on your own domain", "One round of changes"]
+    },
+    {
+      "name": "Website care",
+      "price": "$100-$200/month; monthly",
+      "offer": "We keep your site up, fast and current",
+      "buyer": "Small businesses with a site nobody updates",
+      "deliverables": ["Updates and backups", "Small changes each month", "A short monthly report"]
+    }
+  ]
+}

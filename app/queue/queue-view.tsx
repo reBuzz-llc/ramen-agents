@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withAttachments } from "@/lib/attachment-line";
 import { filtersFrom, filtersToQuery, matches, NO_FILTERS, type Filters } from "@/lib/lead-filters";
 import type { QueueRow, TaskRow } from "@/lib/queue";
 import { STEPS } from "@/lib/task-steps";
@@ -42,13 +44,14 @@ function CopyChip({ label, text }: { label: string; text: string | (() => Promis
 }
 
 const TABS = [
-  { key: "review", label: "Review drafts", help: "Drafts the agents wrote that nobody has approved yet. Read it, fix it in Notion if needed, then mark it ready, or send it straight away." },
+  { key: "review", label: "Review drafts", help: "Drafts the agents wrote that nobody has approved yet. Read it, fix it on the Leads board if needed, then mark it ready, or send it straight away." },
   { key: "send", label: "Send email", help: "Approved drafts. Copy the address and the draft, send it from your mailbox, then mark it sent." },
   { key: "tasks", label: "Team tasks", help: "Open team tasks: the standing task first, then yours, then by priority. Move each through its steps and tick what is done." },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
-/** Our queue: the team's work, by kind of task. Nothing is sent from here; the only write is a lead's Status. */
+/** Our queue: the team's work, by kind of task. Nothing is sent from here; the lead writes are its email status steps,
+ *  on Peek's board as the person (lib/lead-queue.ts), the same as Leads → Send next. */
 export default function QueueView() {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [marked, setMarked] = useState<Record<string, string>>({});
@@ -57,8 +60,8 @@ export default function QueueView() {
   const [taken, setTaken] = useState<Record<string, Taken>>({});
   // ?task=<id>&status= (the bots' link <peek>/tasks/<id> lands here): that task's card, open and in view
   const [focus, setFocus] = useState<{ id: string; status: string } | null>(null);
-  const load = useCallback(async (fresh = false) => {
-    const res = await fetch(`/api/queue${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
+  const load = useCallback(async () => {
+    const res = await fetch("/api/queue", { cache: "no-store" });
     setFeed((await res.json()) as Feed);
     setTaken({});
   }, []);
@@ -112,12 +115,12 @@ export default function QueueView() {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-semibold tabular-nums">
-            {sent}
-            {feed?.target ? <span className="text-base font-normal text-muted"> / {feed.target}</span> : null}
+          <p className="flex flex-wrap items-baseline justify-end gap-x-1.5 text-2xl font-semibold tabular-nums">
+            <span>{sent}</span>
+            {feed?.target ? <span className="whitespace-nowrap text-base font-normal text-muted">/ {feed.target}</span> : null}
           </p>
           <p className="text-xs text-muted">sent this week</p>
-          <button onClick={() => void load(true)} className="mt-1 inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline">Refresh from Notion</button>
+          <button onClick={() => void load()} className="mt-1 inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline">Refresh</button>
         </div>
       </div>
 
@@ -157,7 +160,20 @@ export default function QueueView() {
             shown={counts[shown]}
             total={leads.filter((r) => r.kind === shown).length}
           />
-          {!counts[shown] ? <p className="mt-6 rounded-xl bg-panel p-4 text-sm text-muted">{filtered ? "No leads match these filters." : "Nothing waiting here."}</p> : null}
+          {!counts[shown] ? (
+            <p className="mt-6 rounded-xl bg-panel p-4 text-sm text-muted">
+              {filtered ? (
+                "No leads match these filters."
+              ) : (
+                <>
+                  Nothing to send yet ·{" "}
+                  <Link href="/guide#pick" className="font-medium text-accent-ink underline">
+                    read the guide
+                  </Link>
+                </>
+              )}
+            </p>
+          ) : null}
           <ul className="mt-4 space-y-4">
             {visible
               .filter((r) => r.kind === shown)
@@ -178,45 +194,13 @@ export default function QueueView() {
       ) : null}
 
       {feed?.ok && shown === "tasks" ? (
-        feed.tasks?.some((t) => t.source === "peek") ? (
-          <PeekTasks tasks={feed.tasks} people={feed.people ?? []} canRelease={!!feed.canRelease} focus={focus} />
+        feed.tasksReason ? (
+          <p className="mt-6 rounded-xl bg-panel p-4 text-sm text-muted">{feed.tasksReason}</p>
         ) : (
-          <Tasks tasks={feed.tasks ?? []} reason={feed.tasksReason} />
+          <PeekTasks tasks={feed.tasks ?? []} people={feed.people ?? []} canRelease={!!feed.canRelease} focus={focus} />
         )
       ) : null}
     </div>
-  );
-}
-
-function Tasks({ tasks, reason }: { tasks: TaskRow[]; reason?: string }) {
-  if (reason) return <p className="mt-6 rounded-xl bg-panel p-4 text-sm text-muted">{reason}</p>;
-  if (!tasks.length) return <p className="mt-6 rounded-xl bg-panel p-4 text-sm text-muted">No open tasks, or no task board connected (Settings).</p>;
-  return (
-    <ul className="mt-4 divide-y divide-line rounded-xl border border-line bg-panel">
-      {tasks.map((t) => (
-        <li key={t.pageId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <div className="min-w-0">
-            <p className="font-medium">
-              {t.url ? (
-                <a href={t.url} target="_blank" rel="noreferrer" className="hover:text-accent">
-                  {t.task}
-                </a>
-              ) : (
-                t.task
-              )}
-            </p>
-            <p className="text-xs text-muted">
-              {t.mine ? "Yours" : t.assignees.length ? t.assignees.join(", ") : "Not assigned"}
-              {t.deadline ? ` · due ${t.deadline}` : ""}
-            </p>
-          </div>
-          <div className="flex gap-2 text-xs">
-            {t.priority ? <span className="rounded-full bg-bg px-2.5 py-0.5 font-semibold">{t.priority}</span> : null}
-            {t.status ? <span className="rounded-full bg-bg px-2.5 py-0.5">{t.status}</span> : null}
-          </div>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -476,15 +460,15 @@ function Card(p: { row: Row; rank: number; status: string; canRelease: boolean; 
     if (res.status === 409) p.reload();
     return body;
   };
-  // A mark moves the card (to Send email, or out of the queue), so it waits for Notion's read-back with a spinner on the
-  // button pressed; if Notion does not take it, the card stays and says why.
+  // A mark moves the card (to Send email, or out of the queue), so it waits for the board's answer with a spinner on the
+  // button pressed; if the board does not take it, the card stays and says why.
   const [which, setWhich] = useState("");
   const mark = async (s: string) => {
     setWhich(s);
     const body = await post("/api/queue", { status: s });
     setWhich("");
     if (body.ok && body.status) p.onMarked(body.status);
-    else setError(`${body.error ?? "Notion did not take it"}. Nothing changed; try again.`);
+    else setError(`${body.error ?? "The board did not take it"}. Nothing changed; try again.`);
   };
   const acceptIt = async () => {
     if ((await post("/api/queue/claim", { action: "accept" })).ok) p.onTaken({ name: "you", mine: true, at: new Date().toISOString() });
@@ -512,7 +496,7 @@ function Card(p: { row: Row; rank: number; status: string; canRelease: boolean; 
             {row.url ? (
               <>
                 {" · "}
-                <a href={row.url} target="_blank" rel="noreferrer" className="text-accent-ink hover:underline">Notion row</a>
+                <a href={row.url} className="text-accent-ink hover:underline">Open on the board</a>
               </>
             ) : null}
           </p>
@@ -534,7 +518,7 @@ function Card(p: { row: Row; rank: number; status: string; canRelease: boolean; 
         ) : (
           <span className="text-xs text-muted">No business email: WhatsApp only</span>
         )}
-        <CopyChip label="Copy draft" text={async () => (await loadFull()).draft} />
+        <CopyChip label="Copy draft" text={async () => withAttachments((await loadFull()).draft, row.attachments)} />
         {row.whatsapp && row.whatsappDraft ? (
           <>
             <a href={row.whatsapp} target="_blank" rel="noreferrer" className="text-xs text-accent-ink hover:underline">WhatsApp</a>

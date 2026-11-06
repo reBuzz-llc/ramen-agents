@@ -155,6 +155,20 @@
       "when": 1793681936228,
       "tag": "0021_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793882940105,
+      "tag": "0022_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793947890889,
+      "tag": "0023_package_handover",
+      "breakpoints": true
     }
   ]
 }

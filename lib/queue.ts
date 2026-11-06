@@ -34,6 +34,8 @@ export type QueueRow = {
   location: string;
   pkg: string;
   created: string;
+  /** The names of the files attached for its email (Peek's board only): "Copy draft" ends with "Attachments: …". */
+  attachments?: string[];
 };
 
 export const STATUS_REVIEWED = "Ready to Send Email";

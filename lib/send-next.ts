@@ -7,7 +7,8 @@
 import { readFile } from "node:fs/promises";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./db";
-import { claims, files, leadFiles, leadLists, leads, users } from "./db/schema";
+import { claims, leadLists, leads, users } from "./db/schema";
+import { attachmentNames } from "./lead-queue";
 
 export type SendNextRow = {
   id: string;
@@ -72,13 +73,8 @@ const columns = {
 export async function sendNext(db: Db, tenantId: string): Promise<SendNext> {
   const s = await sendNextRows(db, tenantId);
   if (!s.rows.length) return s;
-  const att = await db
-    .select({ leadId: leadFiles.leadId, name: files.name })
-    .from(leadFiles)
-    .innerJoin(files, eq(files.id, leadFiles.fileId))
-    .where(and(eq(leadFiles.tenantId, tenantId), inArray(leadFiles.leadId, s.rows.map((r) => r.id)), isNull(files.deletedAt)))
-    .orderBy(leadFiles.at);
-  for (const r of s.rows) r.attachments = att.filter((a) => a.leadId === r.id).map((a) => a.name);
+  const names = await attachmentNames(db, tenantId, s.rows.map((r) => r.id));
+  for (const r of s.rows) r.attachments = names.get(r.id) ?? [];
   return s;
 }
 

@@ -31,8 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" {...htmlAttrs(jar.get(THEME_COOKIE)?.value, jar.get(TEXT_COOKIE)?.value)}>
       <body className="min-h-screen">
         <header className="border-b border-line bg-panel pt-[env(safe-area-inset-top)]">
-          <nav className="mx-auto flex max-w-5xl items-center gap-x-3 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] text-sm sm:gap-x-5 sm:px-5">
-            <Link href="/" className="mr-1 inline-flex min-h-12 shrink-0 items-center font-semibold whitespace-nowrap text-ink sm:mr-2">
+          <nav className="mx-auto flex max-w-5xl items-center gap-x-3 max-[379px]:gap-x-1 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] text-sm sm:gap-x-5 sm:px-5">
+            <Link href="/" className="mr-1 inline-flex min-h-12 max-[379px]:hidden shrink-0 items-center font-semibold whitespace-nowrap text-ink sm:mr-2">
               <span className="sm:hidden">ramen</span>
               <span className="hidden sm:inline">ramen-agents</span>
             </Link>
@@ -45,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             )}
           </nav>
         </header>
-        <main className="mx-auto max-w-5xl px-5 pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">{children}</main>
+        <main className="mx-auto max-w-5xl px-5 pt-8 has-[[data-wide]]:max-w-none pb-[max(2rem,env(safe-area-inset-bottom))]">{children}</main>
       </body>
     </html>
   );
