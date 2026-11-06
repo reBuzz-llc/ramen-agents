@@ -236,3 +236,93 @@ test("a desk for every family member: ten desks, none overlapping", () => {
 test("restarting: the bot stays at its desk, not in the sleeping corner", () => {
   assert.equal(animOf({ word: "restarting" }), "idle");
 });
+
+// Made for video: the director, the ticker, the recording, the time-lapse and the strip they sit in
+test("director: whoever acted gets the inset for 3 s, then the next; nobody acting pans; gone members are skipped", async () => {
+  // @ts-ignore TS5097
+  const { newDirector, directorStep, insetSource, panAt, DIRECTOR_HOLD_MS, COLS, ROWS, TILE } = await import("../lib/world.ts");
+  const all = ["lead-gen", "scout", "the-ceo"];
+  let d = directorStep(newDirector(), 0, [], all);
+  assert.equal(d.focus, null, "idle: the pan");
+  d = directorStep(d, 1000, ["scout", "the-ceo"], all);
+  assert.equal(d.focus, "scout");
+  d = directorStep(d, 1000 + DIRECTOR_HOLD_MS - 1, ["lead-gen"], all);
+  assert.equal(d.focus, "scout", "held for 3 s");
+  d = directorStep(d, 1000 + DIRECTOR_HOLD_MS, [], all);
+  assert.equal(d.focus, "the-ceo", "then the next who acted");
+  d = directorStep(d, 1000 + 2 * DIRECTOR_HOLD_MS, [], ["lead-gen", "the-ceo"]);
+  assert.equal(d.focus, "lead-gen");
+  d = directorStep(d, 1000 + 3 * DIRECTOR_HOLD_MS, [], all);
+  assert.equal(d.focus, null, "nobody left: back to the pan");
+  // a member that left the room is skipped
+  assert.equal(directorStep(newDirector(), 0, ["validator", "scout"], all).focus, "scout");
+  // the inset: a sixth of the room (shown at 2x), on the head, inside the room; the pan sweeps and comes back
+  const W = COLS * TILE;
+  const H = ROWS * TILE;
+  const r = insetSource({ x: 200, y: 150 }, 0);
+  assert.deepEqual([r.w, r.h], [W / 6, H / 6]);
+  assert.ok(r.x + r.w / 2 === 200 && Math.abs(r.y + r.h / 2 - 140) < 1e-9);
+  const edge = insetSource({ x: 2, y: H - 4 }, 0);
+  assert.ok(edge.x === 0 && Math.abs(edge.y + edge.h - H) < 1e-9, "clamped");
+  const pan = insetSource(null, 30_000);
+  assert.ok(Math.abs(pan.x + pan.w - W) < 1e-9 && pan.y >= 0 && pan.y + pan.h <= H, "the pan reaches the far side inside the room");
+  assert.ok(panAt(0) === 0 && Math.abs(panAt(30_000) - 1) < 1e-9 && Math.abs(panAt(60_000)) < 1e-9);
+});
+
+test("ticker: live numbers from the board's cards, the scroll pauses under the pointer", async () => {
+  // @ts-ignore TS5097
+  const { tickerText, tickerScroll, TICKER_SPEED } = await import("../lib/world.ts");
+  const cards = [
+    { output: { label: "lead", today: 35 }, refusedShare: 0.2, actionsToday: 100 },
+    { output: { label: "draft", today: 14 }, refusedShare: 0.5, actionsToday: 40 },
+    { output: { label: "note", today: 57 }, refusedShare: 0, actionsToday: 60 },
+    { output: null, refusedShare: null, actionsToday: 0 },
+  ];
+  assert.equal(tickerText(cards), "Leads today 35   ·   Drafts today 14   ·   Refused 20% of actions");
+  assert.equal(tickerText([]), "Leads today 0   ·   Drafts today 0   ·   Refused 0% of actions");
+  assert.match(tickerText([{ output: null, refusedShare: 0.31, actionsToday: 100 }]), /Refused 31% of actions/);
+  assert.equal(tickerScroll(10, 1, false, 500), 10 + TICKER_SPEED);
+  assert.equal(tickerScroll(10, 1, true, 500), 10, "paused on hover");
+  assert.equal(tickerScroll(495, 1, false, 500), (495 + TICKER_SPEED) % 500, "wraps");
+});
+
+test("record 60 s: start, stop at 60 s, the Chrome note where WebM recording is missing; the 10x time-lapse", async () => {
+  // @ts-ignore TS5097
+  const { recStart, recTick, REC_MS, lapseHour } = await import("../lib/world.ts");
+  const idle = { state: "idle" as const, until: 0 };
+  const on = recStart(idle, 1000, true);
+  assert.deepEqual(on, { state: "recording", until: 1000 + REC_MS });
+  assert.equal(recStart(on, 5000, true), on, "a second click changes nothing");
+  assert.deepEqual(recTick(on, 1000 + REC_MS - 1), { rec: on, stop: false });
+  assert.deepEqual(recTick(on, 1000 + REC_MS), { rec: idle, stop: true }, "stops itself at 60 s");
+  const note = recStart(idle, 0, false);
+  assert.equal(note.state, "unsupported");
+  assert.deepEqual(recTick(note, 6000), { rec: idle, stop: false }, "the note goes; nothing to stop");
+  assert.equal(lapseHour(14, 0, 3_600_000), 0, "an hour of watching is ten hours of sky");
+  assert.equal(lapseHour(14, 0, 360_000), 15);
+});
+
+test("the video strip covers nothing: the inset, caption and ticker sit under the room, the ticker under the inset", async () => {
+  // @ts-ignore TS5097
+  const { videoLayout, insetSource, COLS, ROWS, TILE } = await import("../lib/world.ts");
+  const W = COLS * TILE;
+  const H = ROWS * TILE;
+  assert.deepEqual(videoLayout({ director: false, ticker: false }), { height: H, inset: null, caption: null, ticker: null }, "all off: the room as before");
+  for (const v of [{ director: true, ticker: false }, { director: false, ticker: true }, { director: true, ticker: true }]) {
+    const L = videoLayout(v);
+    assert.ok(L.height > H && Number.isInteger(L.height));
+    for (const box of [L.inset, L.caption, L.ticker]) {
+      if (!box) continue;
+      assert.ok(box.y >= H, `${JSON.stringify(box)} starts under the room`);
+      assert.ok(box.x >= 0 && box.x + box.w <= W && box.y + box.h <= L.height, `${JSON.stringify(box)} inside the canvas`);
+    }
+    if (L.inset && L.caption) assert.ok(L.caption.x >= L.inset.x + L.inset.w, "the caption beside the inset");
+    if (L.inset) {
+      const src = insetSource(null, 0);
+      assert.equal(L.inset.w, 2 * src.w, "2x across");
+      assert.ok(Math.abs(L.inset.h - 2 * src.h) < 1, "2x down, to a whole pixel");
+    }
+    if (L.inset && L.ticker) assert.ok(L.ticker.y >= L.inset.y + L.inset.h, "the ticker under the inset");
+    if (L.ticker) assert.equal(L.ticker.w, W, "the ticker along the whole width");
+  }
+});

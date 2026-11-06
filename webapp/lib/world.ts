@@ -718,3 +718,100 @@ export function screenForm(width: number, height: number): { form: "full" | "com
   if (width >= 80) return { form: "compact", lines: 3 };
   return { form: "tiny", lines: Math.max(1, Math.floor((height - 8) / (13 * 1.2))) };
 }
+
+// ---- Made for video ----
+// Four controls over the world, all off by default and remembered per browser: a director's picture-in-picture inset,
+// a ticker of live numbers, a 10x time-lapse of day and night in director mode (visual only), and "Record 60 s" (the
+// canvas, inset and ticker included, to a WebM download; nothing is uploaded). The inset and the ticker sit in a strip
+// under the room, never over it.
+
+export type Rect = { x: number; y: number; w: number; h: number };
+
+/** The director: whoever acted gets 2x for 3 s, then the next who acted; nobody: a slow pan across the room. Members
+ *  that left the room (stopped, or gone from the board) are skipped. */
+export type Director = { queue: string[]; focus: string | null; since: number };
+export const DIRECTOR_HOLD_MS = 3000;
+export const newDirector = (): Director => ({ queue: [], focus: null, since: 0 });
+export function directorStep(d: Director, now: number, acted: string[], present: string[]): Director {
+  const here = new Set(present);
+  const queue = [...d.queue];
+  for (const s of acted) if (s !== d.focus && !queue.includes(s)) queue.push(s);
+  if (d.focus && here.has(d.focus) && now - d.since < DIRECTOR_HOLD_MS) return { ...d, queue };
+  while (queue.length && !here.has(queue[0])) queue.shift();
+  const next = queue.shift() ?? null;
+  if (next === null && d.focus === null) return { queue, focus: null, since: d.since };
+  return { queue, focus: next, since: now };
+}
+/** The idle pan: 0..1 across the room and back, once a minute. */
+export const panAt = (now: number) => {
+  const k = (now / 60_000) % 1;
+  return k < 0.5 ? k * 2 : 2 - k * 2;
+};
+/** What the inset shows, room px: a sixth of the room's size (shown at 2x), centred on the focus's head (feet px), or
+ *  panning along the first row of desks' seats; always inside the room. */
+export function insetSource(focus: { x: number; y: number } | null, now: number): Rect {
+  const W = COLS * TILE;
+  const H = ROWS * TILE;
+  const w = W / 6;
+  const h = H / 6;
+  const cx = focus ? focus.x : w / 2 + panAt(now) * (W - w);
+  const cy = (focus ? focus.y : desk(0).seat.y * TILE + 16) - 10;
+  return { x: Math.max(0, Math.min(W - w, cx - w / 2)), y: Math.max(0, Math.min(H - h, cy - h / 2)), w, h };
+}
+
+/** The ticker's line, from the members' cards on the board: leads and drafts accepted today, and the share of today's
+ *  actions that were refused. */
+export function tickerText(cards: { output: { label: string; today: number } | null; refusedShare: number | null; actionsToday: number }[]): string {
+  const sum = (label: string) => cards.reduce((n, c) => n + (c.output?.label === label ? c.output.today : 0), 0);
+  const acts = cards.reduce((n, c) => n + c.actionsToday, 0);
+  const refused = cards.reduce((n, c) => n + (c.refusedShare ?? 0) * c.actionsToday, 0);
+  return [`Leads today ${sum("lead")}`, `Drafts today ${sum("draft")}`, `Refused ${acts ? Math.round((100 * refused) / acts) : 0}% of actions`].join("   ·   ");
+}
+export const TICKER_H = 9;
+/** Where the video parts go: a strip under the room, the director's inset on the left (twice the size of what it
+ *  shows) with a caption beside it, the ticker along the whole width under them. Room px; `height` is the canvas's,
+ *  the room's own height when both are off. */
+export function videoLayout(v: { director: boolean; ticker: boolean }): { height: number; inset: Rect | null; caption: Rect | null; ticker: Rect | null } {
+  const W = COLS * TILE;
+  const Hs = ROWS * TILE;
+  const ih = Math.round(Hs / 3);
+  const inset = v.director ? { x: 4, y: Hs + 4, w: W / 3, h: ih } : null;
+  const caption = v.director ? { x: W / 3 + 12, y: Hs + 4, w: W - W / 3 - 16, h: ih } : null;
+  const top = Hs + (v.director ? ih + 8 : 2);
+  const ticker = v.ticker ? { x: 0, y: top, w: W, h: TICKER_H } : null;
+  return { height: v.ticker ? top + TICKER_H : Hs + (v.director ? ih + 8 : 0), inset, caption, ticker };
+}
+export const TICKER_SPEED = 14; // px a second
+/** The ticker's scroll: it moves on unless the pointer is over it, and wraps after one pass of its line. */
+export const tickerScroll = (x: number, dt: number, paused: boolean, width: number) => (paused ? x : (x + TICKER_SPEED * dt) % Math.max(1, width));
+
+/** "Record 60 s": idle, recording until a time, or unsupported (a note that recording needs Chrome, for 6 s). */
+export type Rec = { state: "idle" | "recording" | "unsupported"; until: number };
+export const REC_MS = 60_000;
+export const recStart = (rec: Rec, now: number, supported: boolean): Rec => (rec.state === "recording" ? rec : supported ? { state: "recording", until: now + REC_MS } : { state: "unsupported", until: now + 6000 });
+/** Time passing: a recording or a note ends at its time; `stop` says the recorder should stop now. */
+export function recTick(rec: Rec, now: number): { rec: Rec; stop: boolean } {
+  if (rec.state === "idle" || now < rec.until) return { rec, stop: false };
+  return { rec: { state: "idle", until: 0 }, stop: rec.state === "recording" };
+}
+/** The time-lapse clock: 10x from the hour it started (visual only). */
+export const lapseHour = (startHour: number, startT: number, now: number) => (startHour + ((now - startT) * 10) / 3_600_000) % 24;
+
+/** The video toggles, remembered per browser; all off until turned on. */
+export type VideoOpts = { director: boolean; ticker: boolean; lapse: boolean };
+const VIDEO_KEY = "world-video";
+export function savedVideo(): VideoOpts {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIDEO_KEY) ?? "{}") as Partial<VideoOpts>;
+    return { director: v.director === true, ticker: v.ticker === true, lapse: v.lapse === true };
+  } catch {
+    return { director: false, ticker: false, lapse: false };
+  }
+}
+export function saveVideo(v: VideoOpts) {
+  try {
+    localStorage.setItem(VIDEO_KEY, JSON.stringify(v));
+  } catch {
+    /* private window: not remembered */
+  }
+}
