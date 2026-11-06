@@ -38,6 +38,13 @@ OPTIONAL_KEYS = [
     ("sniffmail", "Sniffmail (the backup email check)", "https://sniffmail.io"),
 ]
 BOARD_FILES = ["the-ceo/config.toml", "lead-gen/config.toml"]
+# The team portal's keys (setup-queue step 9), minted in the portal's checkout with
+#   node --env-file=.env.local scripts/api-key.mjs <name> <scopes>
+PORTAL_KEYS = [
+    ("portal-engine", "engine board:read board:write", "the agents read and write leads"),
+    ("portal-validator", "validator board:read board:write", "the Validator checks and fills leads"),
+    ("portal-dashboard", "dashboard board:read", "the dashboard reads the board"),
+]
 FILL_DIRS = ["the-ceo", "lead-gen", "package-designer", "scout", "research-analyst", "validator/config.toml", "common-data"]
 
 
@@ -54,6 +61,22 @@ def local_answers(url: str) -> bool:
         return e.code < 500
     except (OSError, ValueError):
         return False
+
+
+def portal_url() -> str:
+    """common.toml's [leads] portal_url, or "" (the Leads board on Notion). A small scan, no TOML library needed."""
+    f = ROOT / "common-data" / "configs" / "common.toml"
+    table = ""
+    for raw in (f.read_text(encoding="utf-8").splitlines() if f.is_file() else []):
+        line = raw.strip()
+        head = re.match(r"^\[([^\[\]]+)\]", line)
+        if head:
+            table = head.group(1).strip()
+        elif table == "leads":
+            m = re.match(r'^portal_url\s*=\s*"([^"]*)"', line)
+            if m:
+                return m.group(1).strip().rstrip("/")
+    return ""
 
 
 def fill_me() -> list[tuple[str, int]]:
@@ -107,13 +130,24 @@ def checks() -> tuple[list[str], list[str], int]:
             missing.append(f"common-data/keys/{n}.key can be read by others: chmod 600 common-data/keys/{n}.key")
     # 4. the boards
     need(key_ok("notion"), "common-data/keys/notion.key: a Notion internal integration's secret, https://www.notion.so/my-integrations (setup-queue step 4)")
+    portal = portal_url()
     for f in BOARD_FILES:
+        if portal and f.startswith("lead-gen/"):
+            continue  # the leads live on the portal
         p = ROOT / f
         off = p.is_file() and re.search(r"^enabled = false .*FILL-ME", p.read_text(encoding="utf-8"), re.M)
         need(not off, f"a board in {f} is still off: paste its id and set enabled = true (SETUP.md step 6)")
     for n, who, link in OPTIONAL_KEYS:
         if not key_ok(n):
             optional.append(f"common-data/keys/{n}.key: {who}, {link}")
+    # 9. the team portal (optional): once common.toml names it, every reader needs its own key
+    if portal:
+        for n, mint, why in PORTAL_KEYS:
+            need(key_ok(n), f"common-data/keys/{n}.key ({why}): in the portal's checkout, node --env-file=.env.local scripts/api-key.mjs {mint}, the key on one line, chmod 600 (setup-queue step 9)")
+            if key_ok(n) and (KEYS / f"{n}.key").stat().st_mode & 0o077:
+                missing.append(f"common-data/keys/{n}.key can be read by others: chmod 600 common-data/keys/{n}.key")
+    else:
+        optional.append("the team portal (the portal branch): a web app for the team over the same Leads board; set [leads] portal_url in common-data/configs/common.toml (setup-queue step 9)")
     # 5. the company, in your words
     left = fill_me()
     need(not left, "FILL-ME markers to fill (setup-queue step 5): " + ", ".join(f"{f} ({n})" for f, n in left[:8]) + (f" and {len(left) - 8} more files" if len(left) > 8 else ""))
@@ -135,6 +169,18 @@ def probe() -> list[str]:
     """One read-only request per key on file: the provider's list of models (Notion: who the integration is)."""
     text = (ROOT / "common-data" / "configs" / "web-bots.toml").read_text(encoding="utf-8") if (ROOT / "common-data" / "configs" / "web-bots.toml").is_file() else ""
     out = []
+    portal = portal_url()
+    for n, _, _ in PORTAL_KEYS if portal else []:
+        if not key_ok(n):
+            continue
+        req = urllib.request.Request(f"{portal}/v1/boards/leads/rows?since=0&limit=1", headers={"Authorization": f"Bearer {(KEYS / f'{n}.key').read_text(encoding='utf-8').strip()}"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:  # noqa: S310 - the portal named in common.toml
+                out.append(f"  ok {n}: the portal answered ({r.status})")
+        except urllib.error.HTTPError as e:
+            out.append(f"  !! {n}: the portal: {'the key is refused' if e.code in (401, 403) else f'HTTP {e.code}'}")
+        except OSError as e:
+            out.append(f"  !! {n}: the portal: no answer ({str(e)[:60]})")
     for n, who, _ in MODEL_KEYS + [("notion", "Notion", "")]:
         if not key_ok(n):
             continue

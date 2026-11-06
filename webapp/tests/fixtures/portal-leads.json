@@ -1,0 +1,9 @@
+{"pages": [
+  {"leads": [
+    {"id": "a", "rev": 1, "business": "Acme Bakery", "website": "https://acmebakery.example", "industry": "Bakery", "email_status": "Email Sent", "whatsapp_status": "WhatsApp Verified", "result": "Replied", "result_date": "2026-11-01", "draft_email": "Hi Maria", "draft_whatsapp": null, "whatsapp": "https://wa.me/1718", "map_link": null, "updated_at": "2026-11-01T10:00:00.000Z"},
+    {"id": "b", "rev": 2, "business": "Bravo Barbers", "website": "https://bravo.example", "industry": "Barbershop", "email_status": null, "whatsapp_status": null, "result": null, "result_date": null, "draft_email": "skip: chain", "draft_whatsapp": null, "whatsapp": null, "map_link": "https://maps.example/b", "updated_at": "2026-10-30T10:00:00.000Z"}
+  ], "next": 2, "more": true},
+  {"leads": [
+    {"id": "c", "rev": 3, "business": "Cedar Dental", "website": null, "industry": "Dental clinic", "email_status": "Ready to Send Email", "whatsapp_status": null, "result": null, "result_date": null, "draft_email": "Hi Cedar", "draft_whatsapp": "Hello", "whatsapp": null, "map_link": null, "updated_at": "2026-10-31T10:00:00.000Z"}
+  ], "next": 3, "more": false}
+]}

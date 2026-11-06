@@ -42,3 +42,9 @@ max_per_day = 12
 enabled = true
 # false = pause only while a listed game app is in front; true = pause whenever the owner is using the Mac.
 when_owner_active = false
+
+# The team portal (the `portal` branch): uncomment to move the Leads board from Notion to the portal. The agents, the
+# Validator and the dashboard then read and write leads there, each with its own key in common-data/keys/
+# (portal-engine.key, portal-validator.key, portal-dashboard.key: setup-queue step 9). Unset, the board stays on Notion.
+# [leads]
+# portal_url = "https://your-portal.example.com"
