@@ -1,5 +1,5 @@
 "use client";
-// The top bar: the daily work on the left (Clock, Our queue, Leads), everything else in the profile menu on the
+// The top bar: the daily work on the left (Clock, To-do, Leads), everything else in the profile menu on the
 // right. The page you are on is marked: accent text, the brand orange underline and aria-current="page" in the bar; a
 // filled row in the menu, and a ring on the profile button while you are on one of its pages. Below 380 px the wordmark
 // steps aside (Clock is home) and, with large text, the links scroll inside the bar, so the page never scrolls sideways.
@@ -11,10 +11,11 @@ import SignOut from "./sign-out";
 /** The bar: the work people do every day. */
 export const NAV = [
   { href: "/", label: "Clock" },
-  { href: "/queue", label: "Our queue" },
+  { href: "/todo", label: "To-do" }, // the team's tasks
   { href: "/leads", label: "Leads" },
   { href: "/files", label: "Files" },
-  { href: "/asset", label: "Asset" }, // what we sell: rates and packages
+  { href: "/asset", label: "Asset" }, // "What we have": the company text, rates included
+  { href: "/packages", label: "Packages" }, // what you offer, ready to pitch
 ] as const;
 /** The profile menu: looking back and setting up. */
 export const MENU = [

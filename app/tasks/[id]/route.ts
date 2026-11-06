@@ -9,6 +9,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const id = (await ctx.params).id;
   const who = await pageMe(`/tasks/${encodeURIComponent(id)}`);
   const r = await taskLink(await db(), who.tenantId, id);
-  if ("missing" in r) return missingPage("task", { href: "/queue#tasks", label: "Our queue" });
+  if ("missing" in r) return missingPage("task", { href: "/todo", label: "To-do" });
   redirect(r.to);
 }

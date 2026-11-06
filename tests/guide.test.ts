@@ -32,8 +32,8 @@ describe("the Guide page", () => {
 
 describe("where a new person lands, the guide is linked", () => {
   const read = (f: string) => readFileSync(path.join(__dirname, "..", f), "utf8");
-  it("Our queue's empty state, the sign-in page, and the Leads drawer's first-open hint", () => {
-    expect(read("app/queue/queue-view.tsx")).toMatch(/Nothing to send yet[\s\S]*href="\/guide#pick"/);
+  it("Send next's empty state, the sign-in page, and the Leads drawer's first-open hint", () => {
+    expect(read("app/leads/leads-view.tsx")).toMatch(/Nothing to send yet[\s\S]*href="\/guide#pick"/);
     expect(read("app/sign-in/page.tsx")).toMatch(/New here\?[\s\S]*href="\/guide"/);
     const drawer = read("app/leads/leads-view.tsx");
     expect(drawer).toMatch(/href="\/guide#send"/);

@@ -272,12 +272,19 @@ export const leads = pgTable(
     painPoint: text("pain_point"),
     package: text("package"),
     evidence: text("evidence"),
+    /** One line of the Google listing's facts (rating, reviews, kind, hours) for a pain point to stand on; never a proof URL
+     *  (that is evidence, the proof link). */
+    listingEvidence: text("listing_evidence"),
     sourcePages: text("source_pages"),
     toolsOnSite: text("tools_on_site").array(),
     siteHealth: text("site_health"),
     leadScore: doublePrecision("lead_score"),
     draftEmail: text("draft_email"),
     draftWhatsapp: text("draft_whatsapp"),
+    // The bot's last draft before a person rewrote it: written only when a person edits the draft and
+    // the cell's previous editor was a bot, never shown as the live cell. A person's rewrite of it is a training example.
+    botDraft: text("bot_draft"),
+    botWhatsapp: text("bot_whatsapp"),
     emailStatus: text("email_status"),
     whatsappStatus: text("whatsapp_status"),
     result: text("result"),
@@ -565,4 +572,23 @@ export const assetPackages = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("asset_packages_tenant").on(t.tenantId, t.position)],
+);
+
+/** The Asset page's "What we have" sections: a title and a body in the
+ *  page's light markdown (### a toggle, "- " or "1. " a list item, two spaces a level deeper), in order. A "rates" section
+ *  shows the rate card (asset_rates) under its body. */
+export const assetSections = pgTable(
+  "asset_sections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    title: text("title").notNull().default(""),
+    kind: text("kind").notNull().default("text"),
+    body: text("body").notNull().default(""),
+    updatedBy: text("updated_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("asset_sections_tenant").on(t.tenantId, t.position)],
 );

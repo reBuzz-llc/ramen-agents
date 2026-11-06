@@ -169,6 +169,27 @@
       "when": 1793947890889,
       "tag": "0023_package_handover",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793953859514,
+      "tag": "0024_bot_draft_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793956146568,
+      "tag": "0025_listing_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793956438104,
+      "tag": "0026_asset_sections",
+      "breakpoints": true
     }
   ]
 }

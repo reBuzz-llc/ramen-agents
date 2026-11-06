@@ -175,3 +175,46 @@ describe("keys and small helpers", () => {
     expect([domainOf("https://www.Acme.example/menu"), domainOf("acme.example"), domainOf(""), domainOf("not a url ::")]).toEqual(["acme.example", "acme.example", null, null]);
   });
 });
+
+describe("the bot's draft kept when a person rewrites it", () => {
+  it("a person's edit after a bot's keeps the bot's text in bot_draft; later person edits and bot drafts leave it", async () => {
+    const { db, tenantId, ANN, id } = await board();
+    const WRITER: Actor = { kind: "bot", name: "Outreach Writer", via: "engine" };
+    await writeLead(db, tenantId, { id }, { draft_email: "Hi, we build websites." }, WRITER);
+    expect((await getLead(db, tenantId, { id }))?.bot_draft).toBeNull(); // a bot's own draft is the live cell
+    await writeLead(db, tenantId, { id }, { draft_email: "Hi Maria, a one-page site for Acme Bakery?" }, ANN);
+    let lead = await getLead(db, tenantId, { id });
+    expect([lead?.draft_email, lead?.bot_draft]).toEqual(["Hi Maria, a one-page site for Acme Bakery?", "Hi, we build websites."]);
+    // the person polishes again: the snapshot is still the bot's text
+    await writeLead(db, tenantId, { id }, { draft_email: "Hi Maria, a free one-page sample for Acme Bakery?" }, ANN);
+    lead = await getLead(db, tenantId, { id });
+    expect(lead?.bot_draft).toBe("Hi, we build websites.");
+    // WhatsApp the same way, its own snapshot
+    await writeLead(db, tenantId, { id }, { draft_whatsapp: "Hello from the team" }, WRITER);
+    await writeLead(db, tenantId, { id }, { draft_whatsapp: "Hi Maria! Quick question about your site" }, ANN);
+    lead = await getLead(db, tenantId, { id });
+    expect([lead?.bot_whatsapp, lead?.bot_draft]).toEqual(["Hello from the team", "Hi, we build websites."]);
+  });
+
+  it("a person's first draft (no bot text before) keeps no snapshot", async () => {
+    const { db, tenantId, ANN, id } = await board();
+    await writeLead(db, tenantId, { id }, { draft_email: "Hi, written by hand." }, ANN);
+    await writeLead(db, tenantId, { id }, { draft_email: "Hi, written by hand, twice." }, ANN);
+    expect((await getLead(db, tenantId, { id }))?.bot_draft).toBeNull();
+  });
+});
+
+describe("the Google listing line", () => {
+  it("a bot fills listing_evidence (fill only), the API carries it, and the proof cell is untouched", async () => {
+    const { db, tenantId, id } = await board();
+    const BACKFILL: Actor = { kind: "bot", name: "listing-evidence backfill", via: "backfill" };
+    const line = "Google listing: 4.6★ (212 reviews), Mexican restaurant, open 7 days";
+    const before = (await getLead(db, tenantId, { id }))?.evidence;
+    const r = await writeLead(db, tenantId, { id }, { listing_evidence: line }, BACKFILL, { fillOnly: true });
+    expect(r.ok && r.written).toEqual(["listing_evidence"]);
+    const lead = await getLead(db, tenantId, { id });
+    expect([lead?.listing_evidence, lead?.evidence]).toEqual([line, before]);
+    const again = await writeLead(db, tenantId, { id }, { listing_evidence: "another line" }, BACKFILL, { fillOnly: true });
+    expect(again.ok && again.written).toEqual([]);
+  });
+});

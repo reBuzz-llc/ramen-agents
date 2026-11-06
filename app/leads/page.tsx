@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { leadToOpen } from "@/lib/deep-links";
 import { boardOf, tableOf } from "@/lib/leads";
 import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
@@ -14,7 +15,8 @@ export default async function LeadsPage(props: { searchParams: Promise<Record<st
   const who = await pageMe();
   const d = await db();
   const sp = await props.searchParams;
-  const tab = sp.tab === "send" ? "send" : sp.tab === "table" ? "table" : "board";
+  // Send next is the first tab and the default; Board and Table by ?tab=.
+  const tab = sp.tab === "board" ? "board" : sp.tab === "table" ? "table" : "send";
   // The Table tab reads every cell; the Board and Send next only the list columns.
   const [rows, next] = await Promise.all([tab === "table" ? tableOf(d, who.tenantId, who.userId) : boardOf(d, who.tenantId, who.userId), sendNext(d, who.tenantId)]);
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : (v as string | null | undefined));
@@ -23,6 +25,8 @@ export default async function LeadsPage(props: { searchParams: Promise<Record<st
     return { ...r, hasDraft: !!r.hasDraft, mine: !!r.mine, corrected: !!r.corrected, openFlags: Number(r.openFlags ?? 0), updatedAt: r.updatedAt.toISOString(), sentAt: iso(x.sentAt), createdAt: iso(x.createdAt) ?? undefined };
   });
   // the drawer to open (from <peek>/leads/<id>, which checked the company); the drawer reads the lead itself
-  const openId = typeof sp.open === "string" && /^[0-9a-f-]{36}$/i.test(sp.open) ? sp.open : null;
-  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: who.name || who.email }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} />;
+  // the lead the address names (?lead=<id>, canonical; ?open=<id> from older links): its drawer opens, or one line says
+  // it isn't available
+  const { openId, unavailable } = await leadToOpen(d, who.tenantId, sp.lead ?? sp.open);
+  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: who.name || who.email }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} unavailable={unavailable} />;
 }

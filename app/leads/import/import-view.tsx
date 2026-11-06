@@ -283,7 +283,7 @@ export default function ImportView({
 
   return (
     <div className="max-w-4xl">
-      <Link href="/leads" className={btnText}>
+      <Link href="/leads?tab=board" className={btnText}>
         ← Leads
       </Link>
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Import leads</h1>
@@ -579,7 +579,7 @@ export default function ImportView({
                   >
                     Download the report
                   </a>
-                  <Link href="/leads" className={btnText}>
+                  <Link href="/leads?tab=board" className={btnText}>
                     Open the Leads board
                   </Link>
                 </div>

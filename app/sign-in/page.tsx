@@ -15,7 +15,7 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
   const sp = await props.searchParams;
   // where the person was going (a deep link), kept through Google and the welcome step
   const next = safeNext(sp.next);
-  if (await me()) redirect(next ?? "/queue");
+  if (await me()) redirect(next ?? "/leads");
   if (await signedInWithoutAccess()) redirect("/no-access");
   const error = sp.error;
   return (

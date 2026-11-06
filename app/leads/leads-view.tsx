@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { leadPath } from "@/lib/deep-links";
 import { industryGroup } from "@/lib/lead-filters";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
@@ -144,10 +145,44 @@ function Toggle({ label, on, set }: { label: string; on: boolean; set: (v: boole
   );
 }
 
-export default function LeadsView({ rows, next, me, tab, canImport = false, openId = null }: { rows: TableRow[]; next: SendNext; me: Me; tab: "board" | "table" | "send"; canImport?: boolean; openId?: string | null }) {
+export default function LeadsView({
+  rows,
+  next,
+  me,
+  tab,
+  canImport = false,
+  openId = null,
+  unavailable = false,
+}: {
+  rows: TableRow[];
+  next: SendNext;
+  me: Me;
+  tab: "board" | "table" | "send";
+  canImport?: boolean;
+  openId?: string | null;
+  unavailable?: boolean;
+}) {
   const [f, setF] = useState<F>(NONE);
-  // ?open=<id> (the bots' link <peek>/leads/<id> lands here): that lead's drawer, open
+  // the open drawer lives in the address, /leads?lead=<id>: a load with it opens that lead
   const [open, setOpen] = useState<string | null>(openId);
+  const [gone, setGone] = useState(unavailable);
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (open) u.searchParams.set("lead", open);
+      else u.searchParams.delete("lead");
+      u.searchParams.delete("open"); // the older parameter becomes the canonical one
+      if (u.href !== window.location.href) window.history.replaceState(window.history.state, "", u);
+    } catch {
+      /* an address the browser will not rewrite: the drawer still works */
+    }
+  }, [open]);
+  // a load that names a lead: its row scrolled into view, the filters as they were
+  useEffect(() => {
+    if (!openId) return;
+    const t = setTimeout(() => document.querySelector(`[data-lead="${openId}"]`)?.scrollIntoView({ block: "center" }), 50);
+    return () => clearTimeout(t);
+  }, [openId]);
   const shown = useMemo(() => rows.filter((r) => matches(r, f)), [rows, f]);
   const hints = useMemo(() => searchHints(rows, f.q), [rows, f.q]);
   const on = (k: keyof F) => (v: string | boolean) => setF({ ...f, [k]: v });
@@ -182,14 +217,14 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
       <nav className={`mt-4 flex gap-1 border-b border-line text-sm ${narrow}`} aria-label="Leads views">
         {(
           [
+            ["send", "Send next", next.rows.length],
             ["board", "Board", rows.length],
             ["table", "Table", rows.length],
-            ["send", "Send next", next.rows.length],
           ] as const
         ).map(([key, label, n]) => (
           <Link
             key={key}
-            href={key === "board" ? "/leads" : `/leads?tab=${key}`}
+            href={key === "send" ? "/leads" : `/leads?tab=${key}`}
             aria-current={tab === key ? "page" : undefined}
             className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 ${tab === key ? "border-accent font-semibold" : "border-transparent text-muted hover:text-ink"}`}
           >
@@ -267,7 +302,7 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
                 </thead>
                 <tbody className="divide-y divide-line">
                   {shown.slice(0, 500).map((r) => (
-                    <tr key={r.id} onClick={() => setOpen(r.id)} className="cursor-pointer hover:bg-accent-tint">
+                    <tr key={r.id} data-lead={r.id} onClick={() => setOpen(r.id)} className="cursor-pointer hover:bg-accent-tint">
                       <td className="px-3 py-2">
                         <button type="button" onClick={() => setOpen(r.id)} className="text-left font-medium hover:underline">
                           {r.business}
@@ -301,6 +336,14 @@ export default function LeadsView({ rows, next, me, tab, canImport = false, open
           )}
         </>
       )}
+      {gone ? (
+        <p role="status" className="fixed inset-x-4 top-20 z-30 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm shadow-lg">
+          That lead isn&apos;t available to you.
+          <button type="button" onClick={() => setGone(false)} aria-label="Dismiss" className="min-h-8 px-1 text-muted hover:text-ink">
+            ×
+          </button>
+        </p>
+      ) : null}
       {open ? <Drawer id={open} me={me} choices={choices} onClose={() => setOpen(null)} /> : null}
     </div>
   );
@@ -437,7 +480,14 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
         then mark it sent.
         {next.missing ? ` ${next.missing} on the list are not on this board yet.` : ""}
       </p>
-      {next.rows.length === 0 ? <p className="mt-4 rounded-xl border border-line bg-panel p-6 text-sm text-muted">Nothing to send next.</p> : null}
+      {next.rows.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-line bg-panel p-6 text-sm text-muted">
+          Nothing to send yet ·{" "}
+          <Link href="/guide#pick" className="font-medium text-accent-ink underline">
+            read the guide
+          </Link>
+        </p>
+      ) : null}
       <ol className="mt-3 space-y-2">
         {next.rows.map((r, i) => {
           const mine = r.takenBy?.userId === me.userId;
@@ -536,6 +586,7 @@ const LABELS: Record<string, string> = {
   pain_point: "Pain point",
   package: "How can I help",
   evidence: "Evidence",
+  listing_evidence: "Google listing",
   source_pages: "Source pages",
   tools_on_site: "Tools on site",
   site_health: "Site health",
@@ -560,6 +611,46 @@ const isUrl = (v: string) => /^https?:\/\//.test(v);
 const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "source_pages", "site_health", "notes"]);
 const SELECT: Record<string, string[]> = { contact_role: CONTACT_ROLES, linkedin_via: LINKEDIN_VIA, email_status: EMAIL_STATUSES, whatsapp_status: WHATSAPP_STATUSES, result: RESULTS };
 const REASON: Record<string, string> = { person_wins: "a person changed it last", human_only: "the team's field", filled: "already filled" };
+
+/** Copy link: the lead's canonical address to the clipboard, "Copied" for two seconds. Where the
+ *  clipboard is refused, the address shows selected in a field, ready for ⌘C. */
+function CopyLink({ id }: { id: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "manual">("idle");
+  const url = typeof window === "undefined" ? leadPath(id) : `${window.location.origin}${leadPath(id)}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setState("copied");
+      setTimeout(() => setState("idle"), 2000);
+    } catch {
+      setState("manual");
+    }
+  };
+  if (state === "manual")
+    return (
+      <input
+        readOnly
+        value={url}
+        aria-label="Link to this lead"
+        ref={(el) => {
+          // shown because the clipboard refused: selected, ready to copy by hand
+          el?.focus();
+          el?.select();
+        }}
+        onBlur={() => setState("idle")}
+        className="h-9 w-48 rounded-lg border border-line bg-panel px-2 text-xs sm:w-64"
+      />
+    );
+  return (
+    <button type="button" onClick={() => void copy()} title="Copy link" aria-label={state === "copied" ? "Link copied" : "Copy link to this lead"} className="group/link inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted hover:text-ink">
+      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+      <span className={state === "copied" ? "text-good" : "hidden group-hover/link:inline"}>{state === "copied" ? "Copied" : "Copy link"}</span>
+    </button>
+  );
+}
 
 export const GUIDE_HINT_KEY = "peek.guide-hint-seen";
 
@@ -691,9 +782,12 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
               <h2 className="text-xl font-bold">…</h2>
             )}
           </div>
-          <button type="button" onClick={onClose} className="min-h-11 text-sm text-muted hover:text-ink">
-            Close
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <CopyLink id={id} />
+            <button type="button" onClick={onClose} className="min-h-11 px-1 text-sm text-muted hover:text-ink">
+              Close
+            </button>
+          </div>
         </div>
         {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
         {lead ? (
