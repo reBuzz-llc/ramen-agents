@@ -4,7 +4,7 @@
 **Who it is for:** a founder or a small agency with time and a laptop, but no budget for software or ads.<br>
 **What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.
 
-![The dashboard's home: a small pixel world where each agent works at its own desk, its screen showing what it is doing (Lead Gen on a bakery's contact page, Outreach Writer drafting an email), with a notice board of decisions and the stopped agents asleep on the right](docs/brochure/world.png)
+![15 seconds of the dashboard home: a small pixel world where each agent works at its own desk, its screen showing what it is doing right now, with the mailbox, the web terminal and the stopped agents asleep on the right (business names swapped for samples)](docs/assets/world.gif)
 
 ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
 steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend

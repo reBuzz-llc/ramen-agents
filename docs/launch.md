@@ -32,12 +32,13 @@ any of it.
 
 ## 3. Show it to people (one a day, not all at once)
 
-- [ ] **Show HN** (Hacker News). Title draft: `Show HN: Ramen-agents – free-tier AI agents for founders with no budget`.
+- [ ] **Show HN** (Hacker News). Title: `Show HN: ramen-agents – a free AI agent team for a small business (runs on free API tiers)`.
+  The text, the Reddit and LinkedIn drafts are in the copy box at the end of the blog's /ramen-agents-launch post.
   First comment draft: what it is in two lines, the ten-minute no-key quickstart, the fence, and one honest
   limitation (macOS for the always-on setup).
 - [ ] **Product Hunt.** Tagline draft: `A small team of AI agents that runs on free tiers.`
-- [ ] **Awesome lists:** a pull request to each, one line in their format: awesome-ai-agents, awesome-llm-apps,
-  awesome-selfhosted (if it fits their rules), awesome-python (agents section).
+- [ ] **Awesome lists:** the entries, PR texts and each list's rule are in `docs/launch/awesome-prs.md` (e2b and
+  slavakurilyak now; kyrolabs after some traction; awesome-selfhosted not before 2027-03-07).
 - [ ] **Dev.to / Hashnode:** cross-post the family's best blog posts (the Research Analyst's findings), with a
   canonical link back to the original and one line about ramen-agents at the end.
 - [ ] **Reddit:** r/SideProject and r/LocalLLaMA (the local-model angle). Read each subreddit's self-promotion rule first.
