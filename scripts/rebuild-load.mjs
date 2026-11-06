@@ -430,9 +430,9 @@ async function main() {
     return i >= 0 ? args[i + 1] : dflt;
   };
   const dir = opt("--dir", path.join(BOTS, "common-data", "backups"));
-  const keyFile = path.join(BOTS, "common-data", "keys", "peek-local.key");
+  const keyFile = path.join(BOTS, "common-data", "keys", "portal-local.key");
   const url = opt("--database-url", existsSync(keyFile) ? readFileSync(keyFile, "utf8").trim() : "");
-  if (!url) throw new Error("no database: --database-url, or common-data/keys/peek-local.key (scripts/peek-local-setup.sh)");
+  if (!url) throw new Error("no database: --database-url, or common-data/keys/portal-local.key (the fleet's scripts/portal-local-setup.sh)");
   const { default: pg } = await import("pg");
   const client = new pg.Client({ connectionString: url });
   await client.connect();

@@ -1,8 +1,8 @@
 // The owner's first sign-in code: on the machine that runs the portal in local or outage mode, against its
 // database, before anyone can sign in to issue codes on Settings → People. Prints the code once; the older codes of
 // that person stop working. Same shape and hash as lib/local-codes.ts.
-//   node --env-file=$HOME/bots/common-data/keys/peek-local.env scripts/local-code.mjs owner@example.com
-//   DATABASE_URL=<the Supabase session pooler URL> node scripts/local-code.mjs owner@example.com --remote   # outage mode
+//   node --env-file=$HOME/bots/common-data/keys/portal-local.env scripts/local-code.mjs owner@example.com
+//   DATABASE_URL=<the standby's session address> node scripts/local-code.mjs owner@example.com --remote   # outage mode
 import { createHash, randomInt } from "node:crypto";
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -14,7 +14,7 @@ export const codeHash = (code) => createHash("sha256").update(`local-code:${code
 
 async function main() {
   const email = (process.argv[2] ?? "").trim().toLowerCase();
-  if (!email.includes("@")) throw new Error("usage: node --env-file=<peek-local.env> scripts/local-code.mjs <email>");
+  if (!email.includes("@")) throw new Error("usage: node --env-file=<portal-local.env> scripts/local-code.mjs <email>");
   const url = (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || "").trim();
   if (!url) throw new Error("no DATABASE_URL: run with --env-file pointing at the local mode env file");
   // on this machine's database by default; the outage deployment's (Supabase) only when asked by name

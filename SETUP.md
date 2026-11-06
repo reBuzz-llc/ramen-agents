@@ -82,26 +82,43 @@ for development: <https://neon.com/docs/auth/production-checklist.md>.
 
 ## 7. Keys for the agents
 
-Each agent gets its own key, named after it. The key names its company and what it may do. Only its SHA-256 is kept,
-so the key is shown once, when you make it.
+Each reader in the agent family gets its own key, named after it. The key names its company and what it may do. Only
+its SHA-256 is kept, so the key is shown once, when you make it.
 
-- In the app: **Settings → API keys → Make a key**, with the name `engine` or `validator` (the right scopes are ticked
-  for you). Copy the key into the agent's key file.
-- Or from this folder: the script writes the file itself (mode 600) and never prints the key.
+| Name | Scopes | Who uses it | File in the fleet |
+|---|---|---|---|
+| `engine` | board:read board:write | the agents, to read and write leads | `common-data/keys/portal-engine.key` |
+| `validator` | board:read board:write board:validate | the Validator, to check and fill leads | `common-data/keys/portal-validator.key` |
+| `dashboard` | board:read | the fleet's dashboard, to read the board | `common-data/keys/portal-dashboard.key` |
+
+- From this folder (the script writes the file itself, mode 600, and never prints the key):
   ```sh
-  PEEK_KEYS_DIR=~/bots/common-data/keys node --env-file=.env.local scripts/api-key.mjs engine
-  PEEK_KEYS_DIR=~/bots/common-data/keys node --env-file=.env.local scripts/api-key.mjs validator
+  node --env-file=.env.local scripts/api-key.mjs engine board:read board:write
+  node --env-file=.env.local scripts/api-key.mjs validator
+  node --env-file=.env.local scripts/api-key.mjs dashboard
   ```
-  Both write `peek-<name>.key`. Making a key for a name again revokes its old one.
+  They write to `~/bots/common-data/keys/` (`PORTAL_KEYS_DIR` to change it). Making a key for a name again revokes its
+  old one. Run the script as shown; do not redirect its output into the key file.
+- Or in the app: **Settings → API keys → Make a key** with the same name (the right scopes are ticked for you), and
+  paste the key into its file, one line, `chmod 600`.
 
 ## 8. Pointing the fleet at the portal
 
-The fleet branch's bots still keep their boards on Notion. To work from the portal meanwhile, connect that Notion
-board in **Settings → Board**: the portal reads it and writes only a row's Status when someone clicks.
+One setting moves the Leads board from Notion to the portal, in the fleet's `common-data/configs/common.toml`:
 
-**Coming:** the switch that moves the fleet's boards into the portal. The Validator's task board comes first
-(`task_store = "peek"` in its config), then the Leads board, through the board API in `docs/design/board-api.md`.
-Until those land in the fleet branch, the keys from step 7 sit ready in `common-data/keys/`.
+```toml
+[leads]
+portal_url = "https://your-portal.example.com"
+```
+
+From then on the agents, the Validator and the dashboard read and write leads here with the keys from step 7. The
+dashboard keeps the board in `common-data/shared-state/portal-leads-cache.json` and asks only for what changed since its
+last read, so a free database's transfer allowance lasts. Check it from the fleet folder with
+`python3 scripts/setup-check.py --probe`: each portal key is tested with one read-only request. Without `portal_url`,
+the board stays on Notion; connect that Notion board in **Settings → Board** so the portal reads it meanwhile.
+
+If the portal's database ever runs out of its free quota, the fleet's `docs/portal-database.md` has the nightly standby
+copy and local mode.
 
 ## Check it
 
