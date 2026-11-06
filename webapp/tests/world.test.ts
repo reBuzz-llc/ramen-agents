@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
-import { animOf, bedSpot, BUBBLE_MS, desk, dialogue, downtimeLine, lookOf, monitorOf, newBubbles, restUntil, route, sofaSeat, stormOf, TERMINAL, week7Lines } from "../lib/world.ts";
+import { animOf, bedSpot, BUBBLE_MS, desk, dialogue, downtimeLine, lookOf, monitorOf, newBubbles, restUntil, route, sofaSeat, stormOf, TERMINAL, week7Lines, LOUNGE } from "../lib/world.ts";
 // @ts-ignore TS5097
 import { screenOf } from "../lib/board.ts";
 
@@ -218,10 +218,12 @@ test("member panel: a member opens Info, a desk opens Screen, the next member ke
 
 test("sleeping corner grows: four mats, three more to their left clear of the sofa, then a second row; no two on one spot", () => {
   const spots = Array.from({ length: 12 }, (_, i) => bedSpot(i));
-  assert.deepEqual(spots.slice(0, 4), [{ x: 16, y: 11.5 }, { x: 18, y: 11.5 }, { x: 20, y: 11.5 }, { x: 22, y: 11.5 }]);
-  assert.deepEqual(spots.slice(4, 7), [{ x: 14, y: 11.5 }, { x: 12, y: 11.5 }, { x: 10, y: 11.5 }]);
+  // the lounge sits LOUNGE rows lower since the desks got their big screens
+  const y = 11.5 + LOUNGE;
+  assert.deepEqual(spots.slice(0, 4), [{ x: 16, y }, { x: 18, y }, { x: 20, y }, { x: 22, y }]);
+  assert.deepEqual(spots.slice(4, 7), [{ x: 14, y }, { x: 12, y }, { x: 10, y }]);
   assert.ok(spots.slice(0, 7).every((p) => p.x * 16 - 13 >= 104), "clear of the sofa (ends at 104 px)");
-  assert.ok(spots[7].y < 11.5, "the eighth starts a second row");
+  assert.ok(spots[7].y < y, "the eighth starts a second row");
   assert.equal(new Set(spots.map((p) => `${p.x},${p.y}`)).size, 12);
 });
 

@@ -36,3 +36,13 @@ test("the four lines, data-true", () => {
   // resting: until when and why
   assert.equal(nowLines({ ...card, state: { word: "resting until 14:40", tone: "muted", why: "work list empty" } } as never).lines[1], "until 14:40 · work list empty");
 });
+
+test("a desk's big screen: the name, a badge only when not working, the four lines, the square for a page", async () => {
+  // @ts-ignore TS5097
+  const { deskScreen } = await import("../lib/world.ts");
+  const s = deskScreen({ ...card, name: "Outreach Writer", item: "" } as never);
+  assert.deepEqual([s.name, s.word, s.mark, s.lines[1], s.share], ["Outreach Writer", "working", "web", "example.com · Example", 0.25]);
+  assert.equal(deskScreen({ ...card, name: "W" } as never).mark, ""); // an item: no square
+  const rest = deskScreen({ ...card, name: "W", state: { word: "resting until 14:40", tone: "muted", why: "work list empty" } } as never);
+  assert.deepEqual([rest.word, rest.mode, rest.lines[1]], ["resting", "dark", "until 14:40 · work list empty"]);
+});

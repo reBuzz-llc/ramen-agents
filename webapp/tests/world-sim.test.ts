@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
-import { animOf, bedOf, desk, figures, gridDistance, MAX_DESKS, newSim, SPEED, simPoll, simStep, sofaSeat, TERMINAL, type Pt } from "../lib/world.ts";
+import { animOf, bedOf, desk, figures, gridDistance, MAX_DESKS, newSim, SPEED, simPoll, simStep, sofaSeat, TERMINAL, type Pt, LOUNGE } from "../lib/world.ts";
 
 type Snap = { at: number; cards: { slug: string; word: string }[]; stopped: string[] };
 
@@ -20,8 +20,8 @@ function obstacles(sim: ReturnType<typeof newSim>): { box: [number, number, numb
     const d = desk(i).desk;
     out.push({ box: [d.x + 0.05, d.y - 0.2, d.x + 2.7, d.y + 0.9], spots: [] });
   }
-  out.push({ box: [22.05, 4.1, 22.95, 6], spots: [] });
-  out.push({ box: [0.75, 10.45, 6.25, 11.6], spots: Array.from({ length: 5 }, (_, i) => sofaSeat(i)) });
+  out.push({ box: [22.05, 8.1, 22.95, 10], spots: [] }); // the terminal, in the aisle between the desk rows
+  out.push({ box: [0.75, 10.45 + LOUNGE, 6.25, 11.6 + LOUNGE], spots: Array.from({ length: 5 }, (_, i) => sofaSeat(i)) }); // the sofa, in the lounge
   for (const slug of sim.beds) {
     const b = bedOf(sim, slug);
     out.push({ box: [b.x - 0.8, b.y - 0.3, b.x + 0.8, b.y + 0.4], spots: [b] });

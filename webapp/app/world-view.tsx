@@ -21,7 +21,8 @@ import {
   MAX_DESKS,
   newSim,
   MONITOR,
-  monitorOf,
+  deskScreen,
+  SCREEN,
   nowLines,
   NAMEPLATE,
   newBubbles,
@@ -51,6 +52,8 @@ import {
   drawFigure,
   drawClock,
   drawDesk,
+  drawDeskScreen,
+  setScreenFace,
   drawLampGlow,
   drawMarker,
   drawPaper,
@@ -86,6 +89,12 @@ export default function World({ data }: { data: Board }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState({ k: 2, dpr: 1, css: 640 });
+  // the screens' face: JetBrains Mono, loaded by the layout as --font-screen; the canvas uses it once the browser has it
+  useEffect(() => {
+    const family = getComputedStyle(document.documentElement).getPropertyValue("--font-screen");
+    setScreenFace(family);
+    if (family.trim()) for (const f of [`14px ${family}`, `bold 14px ${family}`]) void document.fonts?.load(f).catch(() => undefined);
+  }, []);
   const [win, setWin] = useState<Window | null>(null);
   const [latest, setLatest] = useState<{ name: string; text: string } | null>(null);
   // The member panel (queues 24, 25): right of the room on desktop, under it on a phone; tabs Info, Screen, Feed.
@@ -227,10 +236,14 @@ export default function World({ data }: { data: Board }) {
         const c0 = card(m.slug);
         const dk = desk(m.desk).desk;
         const storm = stormStart.current.get(m.slug);
-        const screen = c0 ? monitorOf(c0, { compact: scale.css / W < 2, noise: storm !== undefined && t - storm < NOISE_MS }) : { mode: "dim" as const, bar: "", lines: [] };
         const handle = c0?.handle || c0?.name.slice(0, 5) || m.slug.slice(0, 5);
         const hover = hoverDesk.current === m.desk;
-        items.push({ key: dk.y * TILE + 12, draw: () => drawDesk(c, dk.x, dk.y, handle, screen, t, day.lamps, hover) });
+        // the big screen behind the seat (drawn before the member who sits in front of it), then the desk
+        if (c0) {
+          const big = deskScreen(c0, { noise: storm !== undefined && t - storm < NOISE_MS });
+          items.push({ key: dk.y * TILE + SCREEN.y + SCREEN.h, draw: () => drawDeskScreen(c, dk.x, dk.y, big, t, { hover, cssPerRoom: scale.css / W, k: scale.k }) });
+        }
+        items.push({ key: dk.y * TILE + 12, draw: () => drawDesk(c, dk.x, dk.y, handle, day.lamps) });
       }
       for (const g of figures(S, t, { quiet: quietNow, still })) {
         const m = S.members.get(g.slug)!;
