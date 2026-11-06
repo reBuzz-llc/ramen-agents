@@ -133,6 +133,54 @@ export default function AllowanceView() {
           <p className="mt-2 text-xs text-muted">&ldquo;—&rdquo;: no use recorded today, or no allowance on file.</p>
         </Panel>
       ) : null}
+      {/* every other free limit the family can hit; "not measurable" with the reason, never a guess */}
+      <Panel
+        title="Other free tiers"
+        hint={`Hosting, the databases, file storage and training. Checked hourly by scripts/free-tiers.py${a?.otherAt ? `, last ${a.otherAt.slice(11, 16)}` : " (not run yet)"}; the dashboard holds no key. The ticker warns from 80%.`}
+      >
+        {a?.other?.length ? (
+          <div className="-mx-4 overflow-x-auto px-4">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted">
+                  <th className="py-1.5 pr-3 font-medium">Service</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Used</th>
+                  <th className="py-1.5 pr-3 font-medium">Limit</th>
+                  <th className="py-1.5 pr-3 font-medium">Resets</th>
+                  <th className="py-1.5 font-medium">How we know</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.other.map((r) => (
+                  <tr key={`${r.name}-${r.what}`} className="border-t border-line align-top">
+                    <td className="py-2 pr-3">
+                      <p className="font-medium text-ink">{r.name}</p>
+                      <p className="text-xs text-muted">{r.what}</p>
+                    </td>
+                    <td className="py-2 pr-3 text-right whitespace-nowrap tabular-nums">
+                      {r.used === null ? (
+                        <span className="text-muted">not measurable</span>
+                      ) : (
+                        <span className={r.status === "over" ? "font-semibold text-bad" : r.status === "near" ? "font-semibold text-sys-orange" : ""}>
+                          {r.used.toLocaleString()}
+                          {r.limit ? <span className="block text-[11px] font-normal text-muted">{Math.round((r.used / r.limit) * 100)}%</span> : null}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-muted tabular-nums">
+                      {r.limit === null ? "—" : `${r.limit.toLocaleString()} ${r.unit}`}
+                    </td>
+                    <td className="py-2 pr-3 text-xs text-muted">{r.resets}</td>
+                    <td className="py-2 text-xs text-muted">{r.how}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Not checked yet: the hourly job (launchd com.ramen-agents.free-tiers) writes common-data/shared-state/free-tiers.json.</p>
+        )}
+      </Panel>
     </div>
   );
 }

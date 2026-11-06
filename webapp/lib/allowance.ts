@@ -27,7 +27,15 @@ export type ChainRow = {
   note: string;
 };
 export type IdleRow = { name: string; kind: "search" | "verifier" | "model" | "other"; lastUse: string | null; today: number | null; cap: string; note: string };
-export type Allowance = { at: string; day: string; chain: ChainRow[]; idle: IdleRow[]; since: string | null; alerts: string[] };
+/** A free limit beyond the models: hosting, the databases, file storage, training. Written hourly by
+ *  scripts/free-tiers.py (which alone calls the providers); "unknown" with the reason when the free plan gives no
+ *  number. */
+export type OtherTier = { name: string; what: string; used: number | null; limit: number | null; unit: string; resets: string; status: "ok" | "near" | "over" | "unknown"; how: string };
+export type Allowance = { at: string; day: string; chain: ChainRow[]; idle: IdleRow[]; since: string | null; alerts: string[]; other: OtherTier[]; otherAt: string | null };
+
+/** The other tiers that warn on the ticker: 80 % and over. */
+export const otherAlerts = (rows: OtherTier[]) =>
+  rows.filter((r) => (r.status === "near" || r.status === "over") && r.used !== null && r.limit).map((r) => `${r.name} ${r.what} at ${Math.round(((r.used ?? 0) / (r.limit ?? 1)) * 100)}%`);
 
 // Token-bound tiers the config does not state yet (set tokens_per_day or tokens_per_month in the
 // provider tables; a value there wins). Groq: gpt-oss-120b's 200k tokens a day (its rate-limit headers). Gonka Broker:
@@ -114,7 +122,7 @@ export function daysLeft(day: string): number {
 
 /** The allowance from the files' contents (pure, for tests). */
 export function allowanceOf(
-  input: { config: string; calls: Calls; history: History; keys: string[]; search: Record<string, Record<string, number>>; verify: Record<string, { at?: string; by?: string }> },
+  input: { config: string; calls: Calls; history: History; keys: string[]; search: Record<string, Record<string, number>>; verify: Record<string, { at?: string; by?: string }>; other?: { at?: string; rows?: OtherTier[] } },
   now: Date,
 ): Allowance {
   const cfg = parseConfig(input.config);
@@ -202,7 +210,8 @@ export function allowanceOf(
     });
 
   const alerts = chain.filter((r) => r.status === "dead" || r.status === "near").map((r) => (r.status === "dead" ? `${r.name} not answering` : `${r.name} at ${Math.round((r.used ?? 0) * 100)}%`));
-  return { at: now.toISOString(), day, chain, idle, since: input.history.since ?? null, alerts };
+  const other = input.other?.rows ?? [];
+  return { at: now.toISOString(), day, chain, idle, since: input.history.since ?? null, alerts: [...alerts, ...otherAlerts(other)], other, otherAt: input.other?.at ?? null };
 }
 
 function localDay(d: Date) {
@@ -214,14 +223,15 @@ const readJson = async <T,>(file: string, fallback: T): Promise<T> => readFile(/
 /** The allowance now, from the files under `bots` (~/bots). */
 export async function readAllowance(bots: string, now = new Date()): Promise<Allowance> {
   const shared = path.join(bots, "common-data", "shared-state");
-  const [config, calls, history, keyFiles, verify, ...search] = await Promise.all([
+  const [config, calls, history, keyFiles, verify, other, ...search] = await Promise.all([
     readFile(/*turbopackIgnore: true*/ path.join(bots, "common-data", "configs", "web-bots.toml"), "utf8").catch(() => ""),
     readJson<Calls>(path.join(shared, "model_calls.json"), {}),
     readJson<History>(path.join(shared, "usage-history.json"), {}),
     readdir(/*turbopackIgnore: true*/ path.join(bots, "common-data", "keys")).catch(() => [] as string[]),
     readJson<Record<string, { at?: string; by?: string }>>(path.join(shared, "email-verify.json"), {}),
+    readJson<{ at?: string; rows?: OtherTier[] }>(path.join(shared, "free-tiers.json"), {}),
     ...Object.values(SEARCH).map((s) => readJson<Record<string, number>>(path.join(shared, s.file), {})),
   ]);
   const keys = [...new Set(keyFiles.filter((f) => f.endsWith(".key")).map((f) => f.replace(/\.key$/, "")))];
-  return allowanceOf({ config, calls, history, keys, search: Object.fromEntries(Object.keys(SEARCH).map((k, i) => [k, search[i]])), verify }, now);
+  return allowanceOf({ config, calls, history, keys, search: Object.fromEntries(Object.keys(SEARCH).map((k, i) => [k, search[i] as Record<string, number>])), verify, other: other as { at?: string; rows?: OtherTier[] } }, now);
 }

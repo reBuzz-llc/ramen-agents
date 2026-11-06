@@ -73,3 +73,19 @@ test("keys out of the chain: searches and verifiers with their counts, models wi
   assert.deepEqual([by("dahl-inference").kind, by("dahl-inference").lastUse], ["model", "2026-11-05"]);
   assert.equal(by("openai").cap, "paid key, in no chain");
 });
+
+test("allowance: the other free tiers pass through, and those at 80% or more warn on the ticker", async () => {
+  // @ts-ignore TS5097
+  const { otherAlerts } = await import("../lib/allowance.ts");
+  const rows = [
+    { name: "Supabase", what: "database size", used: 420, limit: 500, unit: "MB", resets: "", status: "near", how: "" },
+    { name: "Vercel Hobby", what: "fast data transfer", used: null, limit: 100, unit: "GB/month", resets: "", status: "unknown", how: "not measurable" },
+    { name: "Kaggle", what: "GPU hours", used: 6, limit: 30, unit: "hours/week", resets: "", status: "ok", how: "" },
+  ] as const;
+  assert.deepEqual(otherAlerts([...rows]), ["Supabase database size at 84%"]);
+  const a = run({ other: { at: "2026-11-06T20:00:00", rows: [...rows] } });
+  assert.equal(a.other.length, 3);
+  assert.equal(a.otherAt, "2026-11-06T20:00:00");
+  assert.ok(a.alerts.includes("Supabase database size at 84%"));
+  assert.deepEqual(run().other, []); // no file yet: nothing, and no alert
+});
