@@ -166,3 +166,28 @@ describe("statement", () => {
     });
   });
 });
+
+describe("WhatsApp messages sent", () => {
+  it("count apart from emails, for the person who pressed it, in the week they pressed it", () => {
+    const rows = scoreboard(
+      team,
+      [],
+      [
+        lead("w1", { whatsappStatus: "WhatsApp msg sent", sentBy: ["Sam"], sentAt: new Date("2026-10-13T09:00:00Z"), waSentAt: new Date("2026-10-13T09:00:00Z"), waSentBy: "u-sam" }),
+        // emailed by Sam last week, WhatsApp by Jo this week: the email stays Sam's (and last week's), the WhatsApp is Jo's
+        lead("w2", { ...sent("2026-10-05T09:00:00Z"), sentBy: ["Sam"], whatsappStatus: "WhatsApp msg sent", waSentAt: new Date("2026-10-14T09:00:00Z"), waSentBy: "u-jo" }),
+        // pressed last week: not this week's
+        lead("w3", { whatsappStatus: "WhatsApp msg sent", sentBy: ["Jo"], sentAt: new Date("2026-10-02T09:00:00Z"), waSentAt: new Date("2026-10-02T09:00:00Z"), waSentBy: "u-jo" }),
+        // no History step (an older row): Sent by and Sent at
+        lead("w4", { whatsappStatus: "WhatsApp msg sent", sentBy: ["Jo"], sentAt: new Date("2026-10-13T12:00:00Z") }),
+        // verified, not sent: nothing
+        lead("w5", { whatsappStatus: "WhatsApp Verified", sentBy: [], waSentAt: null }),
+      ],
+      [],
+      [],
+      from,
+    );
+    const by = Object.fromEntries(rows.map((r) => [r.name, [r.sent, r.whatsapp]]));
+    expect(by).toEqual({ Sam: [0, 1], Jo: [0, 2] });
+  });
+});

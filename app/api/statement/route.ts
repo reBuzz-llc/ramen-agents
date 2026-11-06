@@ -35,6 +35,7 @@ export async function GET(req: Request) {
     ...(s.statement.lines ?? []).map((l) => ({ text: `   ${l.project}, ${l.from === l.to ? l.from : `${l.from} to ${l.to}`}: ${l.hours.toFixed(2)} h x ${l.hourly === null ? "rate not set" : l.hourly.toFixed(2)} = ${m(l.base)}` })),
     { text: `Base (hours x hourly rate): ${m(s.statement.base)}` },
     { text: `Emails sent: ${s.week.sent}` },
+    { text: `WhatsApp messages sent: ${s.week.whatsapp ?? 0}` },
     { text: `Replies ${s.week.replies}, meetings ${s.week.meetings}, clients ${s.week.clients}` },
     { text: `Outcome bonus: ${m(s.statement.bonus)}` },
     { text: `Tasks done: ${s.week.tasksDone}` },

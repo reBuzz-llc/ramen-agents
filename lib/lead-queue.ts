@@ -8,9 +8,9 @@
 // Sent by and Sent at). Nothing is sent from here.
 import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./db";
-import { files, leadFiles, leads, tasks } from "./db/schema";
+import { files, leadCells, leadFiles, leads, tasks } from "./db/schema";
 import { emailSteps } from "./lead-workflow";
-import { writeLead, type Actor, type Refusal } from "./leads";
+import { WHATSAPP_SENT, writeLead, type Actor, type Refusal } from "./leads";
 import type { QueueRow } from "./queue";
 import type { LeadFact, TaskFact } from "./scoreboard";
 
@@ -126,13 +126,14 @@ export async function scoreFacts(
         result: leads.result,
         resultDate: leads.resultDate,
         updatedAt: leads.updatedAt,
+        whatsappStatus: leads.whatsappStatus,
       })
       .from(leads)
       .where(
         and(
           eq(leads.tenantId, tenantId),
           eq(leads.archived, false),
-          or(eq(leads.emailStatus, STATUS_SENT), isNotNull(leads.result)),
+          or(eq(leads.emailStatus, STATUS_SENT), eq(leads.whatsappStatus, WHATSAPP_SENT), isNotNull(leads.result)),
           or(
             gte(leads.sentAt, from),
             gte(leads.resultDate, day),
@@ -156,8 +157,18 @@ export async function scoreFacts(
         ),
       ),
   ]);
+  // Who pressed "WhatsApp message sent", and when: the latest such step in each lead's History.
+  const waIds = leadRows.filter((r) => r.whatsappStatus === WHATSAPP_SENT).map((r) => r.id);
+  const waSteps = waIds.length
+    ? await db
+        .select({ leadId: leadCells.leadId, userId: leadCells.actorUserId, at: leadCells.at, id: leadCells.id })
+        .from(leadCells)
+        .where(and(eq(leadCells.tenantId, tenantId), inArray(leadCells.leadId, waIds), eq(leadCells.column, "whatsapp_status"), eq(leadCells.outcome, "applied"), sql`${leadCells.new} = ${JSON.stringify(WHATSAPP_SENT)}::jsonb`))
+    : [];
+  const wa = new Map<string, { userId: string | null; at: Date; id: number }>();
+  for (const s of waSteps) if (!wa.has(s.leadId) || wa.get(s.leadId)!.id < s.id) wa.set(s.leadId, s);
   return {
-    leads: leadRows.map((r) => ({ ...r, sentBy: r.sentBy ?? [] })),
+    leads: leadRows.map((r) => ({ ...r, sentBy: r.sentBy ?? [], waSentAt: wa.get(r.id)?.at ?? null, waSentBy: wa.get(r.id)?.userId ?? null })),
     tasks: taskRows.map((t) => ({ ...t, assignees: t.assignees ?? [] })),
   };
 }

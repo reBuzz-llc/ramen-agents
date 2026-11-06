@@ -31,6 +31,7 @@ export default async function StatementPage(props: PageProps<"/week/statement/[u
     ["Hours clocked", hhmm(s.week.minutes)],
     ["Base (hours x hourly rate)", money(st.base, st.currency)],
     ["Emails sent", String(s.week.sent)],
+    ["WhatsApp messages sent", String(s.week.whatsapp ?? 0)],
     ["Replies, meetings, clients", `${s.week.replies}, ${s.week.meetings}, ${s.week.clients}`],
     ["Outcome bonus", money(st.bonus, st.currency)],
     ["Tasks done", String(s.week.tasksDone)],

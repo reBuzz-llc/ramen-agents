@@ -11,7 +11,10 @@ export type Standing = PersonWeek & { points: number; rank: number };
 
 export const weightsOf = (set?: Partial<Weights>): Weights => ({ ...DEFAULT_WEIGHTS, ...Object.fromEntries(Object.entries(set ?? {}).filter(([, v]) => typeof v === "number")) });
 
-export const pointsOf = (r: PersonWeek, w: Weights) => OUTCOMES.reduce((t, k) => t + r[k] * w[k], 0);
+/** A WhatsApp message sent earns what an email sent does. */
+export const pointsOf = (r: PersonWeek, w: Weights) => OUTCOMES.reduce((t, k) => t + r[k] * w[k], 0) + (r.whatsapp ?? 0) * w.sent;
+/** "12 emails · 4 WhatsApp": the sends, emails and WhatsApp apart; just the email count when there is no WhatsApp send. */
+export const sendsLabel = (r: { sent: number; whatsapp?: number }) => (r.whatsapp ? `${r.sent} emails · ${r.whatsapp} WhatsApp` : String(r.sent));
 
 /** Everyone but the owner, most points first. Equal points share a rank (1, 2, 2, 4); ties list the most clients,
  *  then meetings, then replies first, then by name. */

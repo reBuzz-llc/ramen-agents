@@ -218,3 +218,34 @@ describe("the Google listing line", () => {
     expect(again.ok && again.written).toEqual([]);
   });
 });
+
+describe("WhatsApp message sent fills Sent by and Sent at", () => {
+  it("like Mark email sent: the person's name and now, kept when an email filled them first; the × clears them with it", async () => {
+    const { db, tenantId, ANN, id } = await board();
+    await writeLead(db, tenantId, { id }, { whatsapp: "https://wa.me/12125550100", whatsapp_status: "WhatsApp Verified" }, ANN);
+    let lead = await getLead(db, tenantId, { id });
+    expect([lead?.sent_by, lead?.sent_at]).toEqual([null, null]); // verified is not sent
+    await writeLead(db, tenantId, { id }, { whatsapp_status: "WhatsApp msg sent" }, ANN);
+    lead = await getLead(db, tenantId, { id });
+    expect(lead?.sent_by).toEqual(["Olu"]);
+    expect(typeof lead?.sent_at).toBe("string");
+    const { clearStatus } = await import("@/lib/leads");
+    const c = await clearStatus(db, tenantId, id, "whatsapp_status", ANN as Extract<Actor, { kind: "person" }>);
+    expect(c.ok && [...c.cleared].sort()).toEqual(["sent_at", "sent_by", "whatsapp_status"]);
+  });
+
+  it("an email sent first keeps its Sent at; the scoreboard reads who pressed WhatsApp sent from History", async () => {
+    const { db, tenantId, ANN, id } = await board();
+    await writeLead(db, tenantId, { id }, { email_status: "Email Sent" }, ANN);
+    const emailed = (await getLead(db, tenantId, { id }))?.sent_at;
+    await writeLead(db, tenantId, { id }, { whatsapp: "https://wa.me/12125550100", whatsapp_status: "WhatsApp Verified" }, ANN);
+    await writeLead(db, tenantId, { id }, { whatsapp_status: "WhatsApp msg sent" }, ANN);
+    expect((await getLead(db, tenantId, { id }))?.sent_at).toBe(emailed);
+    const { scoreFacts } = await import("@/lib/lead-queue");
+    const { leads: facts } = await scoreFacts(db, tenantId, new Date(Date.now() - 86_400_000));
+    const f = facts.find((x) => x.id === id);
+    expect(f?.whatsappStatus).toBe("WhatsApp msg sent");
+    expect(f?.waSentBy).toBe(ANN.kind === "person" ? ANN.userId : null);
+    expect(f?.waSentAt).toBeInstanceOf(Date);
+  });
+});

@@ -5,7 +5,7 @@ import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import { sendNext } from "@/lib/send-next";
 import type { TableRow } from "./lead-table";
-import LeadsView from "./leads-view";
+import LeadsView, { FILTER_KEYS } from "./leads-view";
 
 export const metadata = { title: "Leads · ramen-agents" };
 
@@ -28,5 +28,8 @@ export default async function LeadsPage(props: { searchParams: Promise<Record<st
   // the lead the address names (?lead=<id>, canonical; ?open=<id> from older links): its drawer opens, or one line says
   // it isn't available
   const { openId, unavailable } = await leadToOpen(d, who.tenantId, sp.lead ?? sp.open);
-  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: who.name || who.email }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} unavailable={unavailable} />;
+  // filters in the address (the Guide's links, e.g. ?tab=board&whatsapp=WhatsApp%20Verified): the board opens filtered
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.slice(0, 200) ?? "";
+  const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, one(sp[k])]).filter(([, v]) => v));
+  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: who.name || who.email }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} unavailable={unavailable} filters={filters} />;
 }
