@@ -38,7 +38,7 @@ export const DESK_W = 44; // px: a wide desk, the monitor on the left facing the
 export const MONITOR = { x: 2, y: -22, w: 26, h: 16 }; // px from the desk's top-left corner (the small monitor, unused)
 /** A desk's big screen (its four lines and the footer, in JetBrains Mono): on two posts behind the seat, its bottom just
  *  above the seated member's head; px from the desk's top-left corner. The name rides on a tab on top of the frame. */
-export const SCREEN = { x: -8, y: -64, w: 56, h: 44 };
+export const SCREEN = { x: -9, y: -64, w: 62, h: 44 }; // as wide as the 64 px between desks allows; the last clears the terminal
 /** The lounge (sofa, rug, mats, the sleeping-corner sign) sits LOUNGE rows lower than in the 13-row room. */
 export const LOUNGE = 6;
 export const NAMEPLATE = { x: 15, y: 5, w: 14, h: 6 };
@@ -670,6 +670,9 @@ export function figures(sim: Sim, t: number, o: { quiet: boolean; still: boolean
   return out;
 }
 
+/** "4 h ago" -> "4h", "3 min ago" -> "3m", "40 s ago" -> "40s", "2 d ago" -> "2d" (the screens' short age). */
+export const shortAgo = (s: string) => s.replace(/^(\d+) (s|min|h|d) ago$/, (_, n: string, u: string) => `${n}${u === "min" ? "m" : u}`);
+
 /** "api.z.ai/glm-4.5-flash" -> "z.ai"; "gemini/flash" -> "gemini". */
 export const providerOf = (label: string) => (label.split("/")[0] ?? "").replace(/^api\./, "");
 
@@ -680,14 +683,15 @@ export const providerOf = (label: string) => (label.split("/")[0] ?? "").replace
 export function nowLines(c: Pick<BotCard, "slug" | "state" | "last" | "output" | "actionsToday" | "refusedShare" | "item" | "modelAgo" | "window" | "goal" | "model" | "questions">): { word: string; lines: string[]; refused: number | null } {
   const n = c.output ? c.output.today : c.actionsToday;
   const noun = c.output ? (c.output.label.split(" ").pop() ?? c.output.label) : "action";
-  const made = `${n} ${noun}${n === 1 ? "" : "s"} today${c.goal ? ` · goal ${c.goal}` : ""}`;
+  // short wording, about 13-17 characters a line: "11/12 updates" (of the goal), "z.ai · 4h", "9/13 ok · 30m"
+  const made = c.goal ? `${n}/${c.goal} ${noun}s` : `${n} ${noun}${n === 1 ? "" : "s"} today`;
   const anim = animOf(c.state);
   const working = !["resting", "quiet", "blocked", "lost", "idle"].includes(anim) && !!c.last;
   const until = restUntil(c.state);
   const page = c.last?.screen ? (c.last.screen.kind === "search" ? `search: ${c.last.screen.title}` : c.last.screen.kind === "web" ? [c.last.screen.domain, c.last.screen.title].filter(Boolean).join(" · ") : c.last.words) : "";
   const second = working ? c.item || (c.slug === "research-analyst" ? (c.questions[0] ?? "") : "") || page : [until ? `until ${until}` : "", c.state.why].filter(Boolean).join(" · ");
-  const fresh = c.model ? `${providerOf(c.model.label)}${c.modelAgo ? ` · ${c.modelAgo}` : ""}` : "";
-  const win = c.window.total ? `30 min: ${c.window.allowed}/${c.window.total} ok` : "30 min: no actions";
+  const fresh = c.model ? `${providerOf(c.model.label)}${c.modelAgo ? ` · ${shortAgo(c.modelAgo)}` : ""}` : "";
+  const win = c.window.total ? `${c.window.allowed}/${c.window.total} ok · 30m` : "no actions · 30m";
   return { word: c.state.word, lines: [made, second, fresh, win].filter(Boolean), refused: c.refusedShare };
 }
 

@@ -281,6 +281,28 @@ export type BotCard = {
   goal: number | null;
 };
 
+/** The provider and model of the bot's last call, and when: the newest decision trace,
+ *  <ws>/traces/<YYYY-MM-DD>/<HHMMSS>-<cycle>-<action>.json, which records the model that answered. The log's "using"
+ *  line marks only a provider switch, so it read hours old while the same provider kept answering. Null when there is
+ *  no trace (then the log line below). */
+export async function lastTraceModel(ws: string): Promise<{ label: string; ts: string } | null> {
+  const root = path.join(ws, "traces");
+  const days = (await readdir(/*turbopackIgnore: true*/ root).catch(() => [] as string[])).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+  for (const day of days.slice(0, 2)) {
+    const files = (await readdir(/*turbopackIgnore: true*/ path.join(root, day)).catch(() => [] as string[])).filter((f) => /^\d{6}-.*\.json$/.test(f)).sort().reverse();
+    for (const f of files.slice(0, 3)) {
+      try {
+        const t = JSON.parse(await readFile(/*turbopackIgnore: true*/ path.join(root, day, f), "utf8")) as { model?: unknown; at?: unknown };
+        const label = one(t.model);
+        if (label) return { label, ts: typeof t.at === "string" && t.at ? t.at : `${day}T${f.slice(0, 2)}:${f.slice(2, 4)}:${f.slice(4, 6)}` };
+      } catch {
+        /* a trace being written: the one before it */
+      }
+    }
+  }
+  return null;
+}
+
 /** The provider and model the bot's last call used: the newest "using <label>" line (the engine logs one on each switch),
  *  or the provider= of a repaired or model_failure event, whichever is newer. */
 function lastModel(text: string): { label: string; ts: string } | null {
@@ -461,7 +483,7 @@ export async function boardBot(
     ),
   ]);
   const r = rows[0] ?? {};
-  const model = lastModel(jsonl);
+  const model = (await lastTraceModel(ws).catch(() => null)) ?? lastModel(jsonl);
   const hb = json<Hb | null>(r.hb, null);
   const h = hourly(json(r.hours, []));
   const last = json<{ ts: string; t: string; p: string; r: string | null } | null>(r.last, null);

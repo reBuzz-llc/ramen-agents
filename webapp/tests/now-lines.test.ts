@@ -30,9 +30,9 @@ const card = {
 };
 
 test("the four lines, data-true", () => {
-  assert.deepEqual(nowLines(card as never), { word: "working", lines: ["7 drafts today · goal 10", "Sunrise Bakery · Draft email", "z.ai · 2 min ago", "30 min: 9/15 ok"], refused: 0.25 });
+  assert.deepEqual(nowLines(card as never), { word: "working", lines: ["7/10 drafts", "Sunrise Bakery · Draft email", "z.ai · 2m", "9/15 ok · 30m"], refused: 0.25 });
   // no item: its page; no goal: no goal; no actions in the window: says so
-  assert.deepEqual(nowLines({ ...card, item: "", goal: null, window: { allowed: 0, total: 0 } } as never).lines, ["7 drafts today", "example.com · Example", "z.ai · 2 min ago", "30 min: no actions"]);
+  assert.deepEqual(nowLines({ ...card, item: "", goal: null, window: { allowed: 0, total: 0 } } as never).lines, ["7 drafts today", "example.com · Example", "z.ai · 2m", "no actions · 30m"]);
   // resting: until when and why
   assert.equal(nowLines({ ...card, state: { word: "resting until 14:40", tone: "muted", why: "work list empty" } } as never).lines[1], "until 14:40 · work list empty");
 });
@@ -45,4 +45,18 @@ test("a desk's big screen: the name, a badge only when not working, the four lin
   assert.equal(deskScreen({ ...card, name: "W" } as never).mark, ""); // an item: no square
   const rest = deskScreen({ ...card, name: "W", state: { word: "resting until 14:40", tone: "muted", why: "work list empty" } } as never);
   assert.deepEqual([rest.word, rest.mode, rest.lines[1]], ["resting", "dark", "until 14:40 · work list empty"]);
+});
+
+test("the last model call comes from the newest trace, not the log's switch line", async () => {
+  const { mkdtemp, mkdir, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  // @ts-ignore TS5097
+  const { lastTraceModel } = await import("../lib/board.ts");
+  const ws = await mkdtemp(path.join(tmpdir(), "trace-"));
+  assert.equal(await lastTraceModel(ws), null);
+  await mkdir(path.join(ws, "traces", "2026-01-06"), { recursive: true });
+  await writeFile(path.join(ws, "traces", "2026-01-06", "120000-5-open.json"), JSON.stringify({ model: "api.z.ai/glm-4.5-flash", at: "2026-01-06T12:00:00" }));
+  await writeFile(path.join(ws, "traces", "2026-01-06", "130500-6-search.json"), JSON.stringify({ model: "gemini/flash" }));
+  assert.deepEqual(await lastTraceModel(ws), { label: "gemini/flash", ts: "2026-01-06T13:05:00" });
 });
