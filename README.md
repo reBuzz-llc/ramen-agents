@@ -1,11 +1,16 @@
 # ramen-agents
 
-**A family of small web agents a founder with no budget can run from a laptop, on free model tiers and keyless
-search.** ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO
-agent that steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account,
-spend money, or collect personal data: that fence is in the code, not in a prompt.
+**What it is:** a free AI agent team for a small business: it finds leads, writes the first outreach, and a dashboard watches it work.<br>
+**Who it is for:** a founder or a small agency with time and a laptop, but no budget for software or ads.<br>
+**What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.
 
-[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [The fence](FENCE.md) · [FAQ](#faq) · [Run it for real](#run-it-for-real) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
+![The dashboard's home: a small pixel world where each agent works at its own desk, its screen showing what it is doing (Lead Gen on a bakery's contact page, Outreach Writer drafting an email), with a notice board of decisions and the stopped agents asleep on the right](docs/brochure/world.png)
+
+ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
+steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
+money, or collect personal data: that fence is in the code, not in a prompt.
+
+[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [Set up with your AI agent](#set-up-with-your-ai-agent) · [The fence](FENCE.md) · [FAQ](#faq) · [Print the brochure (PDF)](docs/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
 ---
 
@@ -112,6 +117,20 @@ workspace for the boards.
 
 The long-running setup uses macOS launch agents. The engine and the fake demo run anywhere Python does.
 
+## Set up with your AI agent
+
+The setup is also an ordered checklist, [docs/setup-queue.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/setup-queue.md),
+with a check script, `scripts/setup-check.py`, that names what is still missing and where you get it. Both are on the `fleet`
+branch. An AI coding agent (Claude Code, Codex, Cursor and the like) can work through them with you. Clone the `fleet`
+branch to `~/bots`, open your agent there, and paste:
+
+```text
+Read docs/setup-queue.md and work the steps in order. After every step run `python scripts/setup-check.py` and end your reply with the list of what is still missing and where I get it. Never create accounts or keys for me; ask me for each one, with the link. Keep that list at the end of every reply until it is empty.
+```
+
+The agent does the typing; every account and every key stays yours to make. `python3 scripts/setup-check.py --probe`
+tests each key with one read-only request when you have them.
+
 ## How it compares
 
 Most agent frameworks give you building blocks and a cloud model bill: you write the orchestration, choose the model
@@ -121,6 +140,23 @@ plain-English instruction files. It has a Validator and a hard fence because it 
 business's leads, where one invented email or one sign-up would be one too many.
 
 ## FAQ
+
+### What is ramen-agents?
+
+An open-source team of AI agents for a small business: one finds businesses that need what you sell, one writes the
+first email, others research the market and price your packages, and a Validator checks every write. A local
+dashboard shows them working. It is Python and Next.js, Apache-2.0.
+
+### Who is it for?
+
+Founders and small agencies who have time and a laptop but no budget: people who would otherwise do lead research and
+first emails by hand. It was built for, and is run every day by, a small agency.
+
+### Can my AI coding agent set it up?
+
+Yes. Paste the prompt in [Set up with your AI agent](#set-up-with-your-ai-agent): it works through
+`docs/setup-queue.md` and runs `scripts/setup-check.py` after each step. It never creates accounts or keys: it asks you
+for each one, with the link.
 
 ### Does it cost anything?
 
@@ -160,13 +196,14 @@ English, then `bot --config ~/bots/name/config.toml install` keeps it running.
 
 ## Repository layout
 
-This repository has three branches, because the engine and the family are cloned into different folders:
+This repository has four branches, because the engine and the family are cloned into different folders:
 
 | Branch | Clone to | Contents |
 |---|---|---|
 | `main` | (read here) | This README, the fence, the licence, contribution guides, the docs site |
 | `engine` | `~/Projects/bot` | The `bot` program: the loop, the policy, the tests |
 | `fleet` | `~/bots` | The agents' folders with blank instructions, shared settings, the Validator, the dashboard, scripts |
+| `portal` | anywhere (optional) | A team portal: people take leads and tasks and record what they sent; the agents read it |
 
 Both working branches start with no history and no data: no leads, notes, keys or logs.
 

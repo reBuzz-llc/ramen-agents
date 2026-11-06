@@ -1,26 +1,46 @@
 # ramen-agents
 
-> ramen-agents is an open-source family of small web agents that a founder with no budget can run from a laptop on free
-> model tiers and keyless search. It includes a lead finder, a research analyst, a package designer, a scout for free
-> tools and a CEO agent, plus a Validator that checks every write and a local dashboard. A hard fence in the code stops
-> any agent from creating accounts, spending money or collecting personal data. Licence: Apache-2.0.
+> ramen-agents is an open-source, free AI agent team for a small business: it finds leads, writes the first outreach
+> email, researches the market and prices service packages, and a local dashboard shows the agents working. It is for
+> founders and small agencies with time and a laptop but no budget, and it costs nothing to run: free model tiers and
+> keyless search, no card anywhere. A hard fence in the code stops any agent from creating accounts, spending money or
+> collecting personal data. Licence: Apache-2.0.
 
-## Start here
+## What it is
 
-- [README](https://github.com/reBuzz-llc/ramen-agents#readme): what it is, the ten-minute quickstart with no key, the FAQ
+- A family of web agents (The CEO, Lead Gen, Outreach Writer, Package Designer, Research Analyst, Scout), a Validator
+  that checks every write against the owner's rules, and a local Next.js dashboard drawn as a small pixel world.
+- Each agent is a folder with a `config.toml` and a `persona.md` in plain English; one Python program (`bot`) runs them.
+
+## Who it is for
+
+- Founders and small agencies who do lead research and first emails by hand today and have no software budget.
+
+## What it costs
+
+- Nothing. The default model chain is free tiers only (Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter free models,
+  Ollama Cloud, then a local Ollama model); search is keyless (SearXNG, DuckDuckGo via MCP, FreeSerp). Each provider's
+  free daily limits are counted so the family slows down instead of running up a bill.
+
+## How to start
+
+- Ten minutes, no key, no network: `git clone -b engine https://github.com/reBuzz-llc/ramen-agents`, `pip install -e .`,
+  `bot new "My Explorer" --fake --dir ./demo-fleet`, `bot --config ./demo-fleet/my-explorer/config.toml demo`.
+- The real setup, by hand or with an AI coding agent: clone `-b fleet` to `~/bots`, follow `docs/setup-queue.md`, and run
+  `python3 scripts/setup-check.py` after each step (it names what is missing and where to get it). The agent never
+  creates accounts or keys; it asks the person for each one.
+- Requirements: Python 3.11+ for the engine; the always-on setup (launch agents, dashboard service) targets macOS.
+
+## Links
+
+- [README](https://github.com/reBuzz-llc/ramen-agents#readme): what it is, the quickstart, setting up with an AI agent, the FAQ
+- [Setup queue](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/setup-queue.md): the ordered setup as checkbox steps
 - [The fence](https://github.com/reBuzz-llc/ramen-agents/blob/main/FENCE.md): every rule no agent may break, and the file that enforces it
+- [Free tiers](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md): each provider's free limits and where its key goes
+- [Brochure (PDF)](https://github.com/reBuzz-llc/ramen-agents/blob/main/docs/brochure.pdf): the project on one tri-fold page
+- [Docs site](https://rebuzz-llc.github.io/ramen-agents/): one page per question
+- [Bot Field Notes](https://rebot-omega.vercel.app): the public journal the agents write, unedited
 - [Contributing](https://github.com/reBuzz-llc/ramen-agents/blob/main/CONTRIBUTING.md): branches, tests, style
-
-## Key facts
-
-- Cost: nothing. The default model chain is free tiers only (Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter free models,
-  Ollama Cloud, then a local Ollama model); search is keyless (SearXNG, DuckDuckGo via MCP, FreeSerp).
-- Quickstart: `pip install -e .` on the engine branch, then `bot new "My Explorer" --fake --dir ./demo-fleet` and
-  `bot --config ./demo-fleet/my-explorer/config.toml demo`. No key, no network.
-- Safety: sign-in pages are blocked (`workspace/denylist.txt`); goals about credentials, spending or self-replication are
-  refused (`src/explorer/policy.py`); the Validator's gate refuses personal or invented data (`validator/gate.py`).
-- Requirements: Python 3.11+. The always-on setup (launch agents, dashboard service) targets macOS.
-- Branches: `engine` (the `bot` program), `fleet` (the agents, the Validator, the dashboard), `main` (docs).
 
 ## Optional
 
