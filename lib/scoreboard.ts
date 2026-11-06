@@ -1,20 +1,35 @@
-// "This week", per person, and the weekly statement. Attribution: a lead belongs to the
-// person in its "Sent by" cell on the board (the store fills it with the person who marks it Email Sent); a click on
-// "I sent it" counts too. A lead's later Result counts for that same person. Tasks done: Status "Done" with the person
-// among the assignees, last changed this week. Read from the portal's own board: lib/lead-queue.ts scoreFacts. Pure functions, tested apart from the database.
+// "This week", per person, and the weekly statement. Sends are emails and WhatsApp messages, counted apart.
+// Attribution: a lead belongs to the person in its "Sent by" cell on the board (the store fills it with the person who
+// marks it Email Sent or WhatsApp message sent); a click on "I sent it" counts too. A lead's later Result counts for that
+// same person. Tasks done: Status "Done" with the person among the assignees, last changed this week. Read from the
+// portal's own board: lib/lead-queue.ts scoreFacts. Pure functions, tested apart from the database.
 import { and, eq, gte } from "drizzle-orm";
 import type { Db } from "./db";
 import { outcomes, shifts, users } from "./db/schema";
 import { roundShift } from "./cadence";
 
 export type Person = { id: string; name: string; email: string; role: string; notionUserId: string | null };
-export type PersonWeek = { userId: string; name: string; role: string; sent: number; replies: number; meetings: number; clients: number; tasksDone: number; minutes: number };
+export type PersonWeek = { userId: string; name: string; role: string; sent: number; whatsapp?: number; replies: number; meetings: number; clients: number; tasksDone: number; minutes: number };
 /** A lead as the scoreboard needs it. `notionPageId`: clicks made while the queue still read Notion carry that id. */
-export type LeadFact = { id: string; notionPageId: string | null; emailStatus: string | null; sentBy: string[]; sentAt: Date | null; result: string | null; resultDate: string | null; updatedAt: Date };
+export type LeadFact = {
+  id: string;
+  notionPageId: string | null;
+  emailStatus: string | null;
+  sentBy: string[];
+  sentAt: Date | null;
+  result: string | null;
+  resultDate: string | null;
+  updatedAt: Date;
+  /** WhatsApp: the status, and who pressed "WhatsApp message sent" and when (the lead's History). */
+  whatsappStatus?: string | null;
+  waSentAt?: Date | null;
+  waSentBy?: string | null;
+};
 export type TaskFact = { status: string; assignees: string[]; updatedAt: Date };
 
 const REACHED: Record<string, number> = { Replied: 1, "Not interested": 1, Meeting: 2, Client: 3 };
 const SENT = "Email Sent";
+const WA_SENT = "WhatsApp msg sent";
 
 /** The ramen-agents user behind a name in a Sent by or assignee cell: by name, else by email (no case). */
 export function personNamed(people: Person[], who: string): Person | undefined {
@@ -36,10 +51,16 @@ export function scoreboard(
   // A click by lead id, or by the Notion page id it had before the queue moved over.
   const click = new Map<string, { userId: string; at: Date }>();
   for (const c of clicks) if (c.userId && !click.has(c.pageId)) click.set(c.pageId, { userId: c.userId, at: c.at });
-  const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: p.name || p.email, role: p.role, sent: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
+  const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: p.name || p.email, role: p.role, sent: 0, whatsapp: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
   for (const l of leads) {
     const c = click.get(l.id) ?? (l.notionPageId ? click.get(l.notionPageId) : undefined);
     const who = l.sentBy.map((n) => personNamed(people, n)).find(Boolean)?.id ?? c?.userId;
+    // A WhatsApp message sent counts for the person who pressed it, when they pressed it (else Sent by and Sent at).
+    if (l.whatsappStatus === WA_SENT) {
+      const waRow = rows.get(l.waSentBy ?? "") ?? (who ? rows.get(who) : undefined);
+      const waWhen = l.waSentAt ?? l.sentAt;
+      if (waRow && waWhen && waWhen >= from) waRow.whatsapp = (waRow.whatsapp ?? 0) + 1;
+    }
     const row = who ? rows.get(who) : undefined;
     if (!row) continue;
     // When it was sent: the board's Sent at, else the click, else (an imported row) its result date.

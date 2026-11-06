@@ -17,3 +17,13 @@ describe("the leaderboard", () => {
     expect(weightsOf({ sent: 2 })).toEqual({ ...DEFAULT_WEIGHTS, sent: 2 });
   });
 });
+
+describe("WhatsApp sends on the board", () => {
+  it("earn what an email does, and read as emails · WhatsApp", async () => {
+    const { pointsOf, sendsLabel } = await import("@/lib/leaderboard");
+    expect(pointsOf(p("Ann", { sent: 2, whatsapp: 3 }), DEFAULT_WEIGHTS)).toBe(5 * DEFAULT_WEIGHTS.sent);
+    expect(pointsOf(p("Bo", { sent: 2 }), DEFAULT_WEIGHTS)).toBe(2 * DEFAULT_WEIGHTS.sent); // a week saved before: no whatsapp
+    expect(sendsLabel({ sent: 12, whatsapp: 4 })).toBe("12 emails · 4 WhatsApp");
+    expect(sendsLabel({ sent: 12, whatsapp: 0 })).toBe("12");
+  });
+});

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { scoreFacts } from "@/lib/lead-queue";
 import { can } from "@/lib/roles";
+import { sendsLabel } from "@/lib/leaderboard";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { projectName, projectsOf, type Project } from "@/lib/projects";
 import { hhmm, minutesByProject, type ProjectShift } from "@/lib/timesheet";
@@ -30,9 +31,11 @@ export default async function WeekPage() {
   const all = scoreboard(people, clicks, leads, tasks, shiftRows, from, new Date(), step);
   const rows = can(who.role, "week.team") ? all : all.filter((r) => r.userId === who.userId);
   const kr = who.settings.keyResults ?? {};
-  const total = (k: "sent" | "replies" | "meetings" | "tasksDone") => all.reduce((t, r) => t + r[k], 0);
-  const tiles: { label: string; value: number; target?: number }[] = [
-    { label: "Sent", value: total("sent"), target: kr.sent },
+  const total = (k: "sent" | "whatsapp" | "replies" | "meetings" | "tasksDone") => all.reduce((t, r) => t + (r[k] ?? 0), 0);
+  const wa = total("whatsapp");
+  const tiles: { label: string; value: number; target?: number; note?: string }[] = [
+    // the key result is emails sent; WhatsApp messages sent show beside it
+    { label: "Sent", value: total("sent"), target: kr.sent, note: wa ? `emails · ${wa} WhatsApp` : undefined },
     { label: "Replies", value: total("replies"), target: kr.replies },
     { label: "Meetings", value: total("meetings"), target: kr.meetings },
     { label: "Tasks done", value: total("tasksDone"), target: kr.tasksDone },
@@ -50,6 +53,7 @@ export default async function WeekPage() {
               <span>{t.value}</span>
               {t.target ? <span className="whitespace-nowrap text-base font-normal text-muted">/ {t.target}</span> : null}
             </p>
+            {t.note ? <p className="text-xs text-muted">{t.note}</p> : null}
           </div>
         ))}
       </div>
@@ -73,7 +77,7 @@ export default async function WeekPage() {
               <td className="py-2">
                 {r.name} <span className="text-xs text-muted">{r.role}</span>
               </td>
-              <td className="py-2 text-right">{r.sent}</td>
+              <td className="py-2 text-right whitespace-nowrap">{sendsLabel(r)}</td>
               <td className="py-2 text-right">{r.replies}</td>
               <td className="py-2 text-right">{r.meetings}</td>
               <td className="py-2 text-right">{r.clients}</td>

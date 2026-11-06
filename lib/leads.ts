@@ -57,6 +57,7 @@ export const FIELDS: Field[] = [
 const BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
 
 import { EMAIL_STATUSES, WHATSAPP_STATUSES } from "./lead-workflow";
+export const WHATSAPP_SENT = "WhatsApp msg sent";
 export { EMAIL_STATUSES, RESULTS, WHATSAPP_STATUSES } from "./lead-workflow";
 
 const MAX_TEXT = 20_000;
@@ -303,7 +304,9 @@ export async function writeLead(
       set.city = p?.city || null;
       set.state = p?.state || null;
     }
-    if (set.emailStatus === "Email Sent" && !cur.sentAt && !opts.import) {
+    // A WhatsApp message sent is a send too: it fills Sent by and Sent at as Email Sent does, when
+    // they are empty; the × on its chip clears them with it (clearStatus: the companions written in the same step).
+    if ((set.emailStatus === "Email Sent" || set.whatsappStatus === WHATSAPP_SENT) && !cur.sentAt && !opts.import) {
       set.sentAt = now;
       history.push({ tenantId, leadId: cur.id, column: "sent_at", old: null, new: now.toISOString() as unknown as object, ...who });
       // Sent by is the person who marked it sent, never a bot (the Validator guessed it from Notion until now).

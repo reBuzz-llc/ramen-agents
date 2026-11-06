@@ -44,6 +44,8 @@ type Choices = { package: string[]; industry: string[]; location: string[] };
 
 type F = { q: string; email: string; whatsapp: string; city: string; industry: string; score: string; draft: string; role: string; mine: boolean; corrected: boolean; flagged: boolean };
 const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", score: "", draft: "", role: "", mine: false, corrected: false, flagged: false };
+/** The text filters a link may set in the address (?whatsapp=WhatsApp%20Verified): the Guide links the board filtered. */
+export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role"] as const;
 const NOT_SET = "(not set)";
 
 function counts(rows: BoardRow[], key: (r: BoardRow) => string) {
@@ -153,6 +155,7 @@ export default function LeadsView({
   canImport = false,
   openId = null,
   unavailable = false,
+  filters = {},
 }: {
   rows: TableRow[];
   next: SendNext;
@@ -161,8 +164,9 @@ export default function LeadsView({
   canImport?: boolean;
   openId?: string | null;
   unavailable?: boolean;
+  filters?: Partial<Record<(typeof FILTER_KEYS)[number], string>>;
 }) {
-  const [f, setF] = useState<F>(NONE);
+  const [f, setF] = useState<F>({ ...NONE, ...filters });
   // the open drawer lives in the address, /leads?lead=<id>: a load with it opens that lead
   const [open, setOpen] = useState<string | null>(openId);
   const [gone, setGone] = useState(unavailable);
@@ -753,6 +757,10 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
               First lead? How to send it by hand and record it:{" "}
               <Link href="/guide#send" className="font-medium text-accent-ink underline">
                 the guide
+              </Link>
+              ; for a WhatsApp message,{" "}
+              <Link href="/guide#whatsapp-send" className="font-medium text-accent-ink underline">
+                this step
               </Link>
               .
             </span>

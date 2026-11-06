@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { publicReason } from "@/lib/errors";
-import { monthStartDate, OUTCOMES, standings, weightsOf } from "@/lib/leaderboard";
+import { monthStartDate, OUTCOMES, sendsLabel, standings, weightsOf } from "@/lib/leaderboard";
 import { scoreFacts } from "@/lib/lead-queue";
 import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
@@ -105,7 +105,7 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
                       <span>{r.points}</span>
                     </div>
                   </td>
-                  <td className="py-2 text-right">{r.sent}</td>
+                  <td className="py-2 text-right whitespace-nowrap">{sendsLabel(r)}</td>
                   <td className="py-2 text-right">{r.replies}</td>
                   <td className="py-2 text-right">{r.meetings}</td>
                   <td className="py-2 text-right">{r.clients}</td>
