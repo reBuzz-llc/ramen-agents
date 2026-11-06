@@ -28,13 +28,13 @@ const SECTIONS: Step[] = [
     id: "pick",
     title: "Pick the next lead",
     steps: [
-      <>Open <B>Leads → Send next</B>: the Validator&apos;s pick of what to send, best first. (<B>Our queue → Send email</B> lists every approved draft; a lead taken in one is taken in the other.)</>,
+      <>Open <B>Leads</B>: its first tab, <B>Send next</B>, is the Validator&apos;s pick of what to send, best first.</>,
       <>Press <B>Take it</B> on the top lead nobody has taken. <B>Give back</B> if you cannot finish it.</>,
       <>Open the lead and read the <B>Draft email</B>. If a name or a detail is wrong, press <B>Edit</B> on the draft and fix it first.</>,
       <>Press <B>Copy address</B> (or copy <B>Business email</B> in the drawer), then <B>Copy draft</B>. If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them.</>,
       <>To attach a file yourself: in the lead&apos;s drawer, under <B>Attachments</B>, pick it from <B>Attach a file…</B>. The files themselves are on the <Link href="/files" className="underline">Files</Link> page.</>,
     ],
-    seen: "your claim. The lead shows as yours in Send next and Our queue, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
+    seen: "your claim. The lead shows as yours in Send next, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
   },
   {
     id: "send",
@@ -43,7 +43,7 @@ const SECTIONS: Step[] = [
     steps: [
       <>Paste the draft into a new email from your own mailbox, to the address you copied.</>,
       <>Attach the files the last line names, then delete that line. Send it.</>,
-      <>Back in the portal, press <B>Mark sent</B> in Send next, <B>I sent it</B> in Our queue, or <B>Mark email sent</B> in the drawer. They are the same step.</>,
+      <>Back in the portal, press <B>Mark sent</B> in Send next or <B>Mark email sent</B> in the drawer. They are the same step.</>,
       <>Check the lead now shows <B>Email Sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today. If you pressed it by mistake, the <B>×</B> on the chip clears all three.</>,
     ],
     seen: "Email status, Sent by and Sent at. The Validator counts the team's sends from them, This week shows them as sent this week, and the Leaderboard gives the lead to the person in Sent by on the day in Sent at.",
@@ -85,7 +85,7 @@ const SECTIONS: Step[] = [
     id: "tasks",
     title: "Team tasks",
     steps: [
-      <>Open <B>Our queue → Team tasks</B>. The standing task comes first, then yours, then the rest by priority.</>,
+      <>Open <B>To-do</B>. The standing task comes first, then yours, then the rest by priority.</>,
       <>Press <B>I&apos;m on it</B> on the task you take. <B>Release</B> gives it back.</>,
       <>Press the status step the task has reached; tick each line under <B>Done when</B> as you finish it.</>,
       <>Press <B>Done</B> at the end. A red flag on a task is the Validator&apos;s note about something to fix; fix it and the flag goes on its next run.</>,

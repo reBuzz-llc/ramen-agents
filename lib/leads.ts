@@ -35,6 +35,7 @@ export const FIELDS: Field[] = [
   { key: "pain_point", prop: "painPoint", kind: "text" },
   { key: "package", prop: "package", kind: "text" },
   { key: "evidence", prop: "evidence", kind: "text" },
+  { key: "listing_evidence", prop: "listingEvidence", kind: "text" },
   { key: "source_pages", prop: "sourcePages", kind: "text" },
   { key: "tools_on_site", prop: "toolsOnSite", kind: "list" },
   { key: "site_health", prop: "siteHealth", kind: "text" },
@@ -133,6 +134,9 @@ export function splitStatus(v: unknown): { email_status: string | null; whatsapp
   return { email_status: join(items.filter((x) => EMAIL_STATUSES.includes(x))), whatsapp_status: join(items.filter((x) => WHATSAPP_STATUSES.includes(x))) };
 }
 
+/** The draft cells whose bot text is kept when a person rewrites it, and the row's field for it. */
+export const BOT_SNAPSHOT: Record<string, "botDraft" | "botWhatsapp"> = { draft_email: "botDraft", draft_whatsapp: "botWhatsapp" };
+
 /** A row as the API answers it: every field under its Neon name, Notion's combined `status`, and the row's meta. */
 export function toApi(r: typeof leads.$inferSelect): Lead {
   const out: Lead = { id: r.id, notion_page_id: r.notionPageId, rev: Number(r.rev) };
@@ -148,6 +152,9 @@ export function toApi(r: typeof leads.$inferSelect): Lead {
     created_at: r.createdAt.toISOString(),
     updated_at: r.updatedAt.toISOString(),
     last_edited_by: r.lastActorName ? { actor: r.lastActorName, kind: r.lastActorKind } : null,
+    // the bot's draft before a person rewrote it (read only; the training scripts pair it with the sent text)
+    bot_draft: r.botDraft ?? null,
+    bot_whatsapp: r.botWhatsapp ?? null,
   });
   return out;
 }
@@ -250,9 +257,11 @@ export async function writeLead(
       return { ok: true as const, created: true, lead: toApi(row), written: Object.keys(values).map((p) => FIELDS.find((f) => f.prop === p)!.key), refused };
     }
 
-    // The last applied change of each field, for the person-wins rule.
+    // The last applied change of each field: for the person-wins rule (a bot's write), and for the bot's draft kept when
+    // a person rewrites it (a person's write of a draft cell).
     const lastBy = new Map<string, string>();
-    if (actor.kind === "bot" && !opts.import) {
+    const draftEdit = actor.kind === "person" && [...want.keys()].some((f) => f.key in BOT_SNAPSHOT);
+    if ((actor.kind === "bot" || draftEdit) && !opts.import) {
       const past = await tx
         .select({ column: leadCells.column, kind: leadCells.actorKind })
         .from(leadCells)
@@ -279,6 +288,9 @@ export async function writeLead(
       set[f.prop] = v;
       written.push(f.key);
       history.push({ tenantId, leadId: cur.id, column: f.key, old: old as object, new: v as object, ...who });
+      // a person rewriting a bot's draft: keep the bot's text beside it (a person's later edits leave it alone)
+      const snap = BOT_SNAPSHOT[f.key];
+      if (snap && actor.kind === "person" && !opts.import && old !== null && lastBy.get(f.key) === "bot") set[snap] = old;
     }
     if (createdAt && cur.createdAt.getTime() !== createdAt.getTime()) set.createdAt = createdAt;
     if (!Object.keys(set).length) {

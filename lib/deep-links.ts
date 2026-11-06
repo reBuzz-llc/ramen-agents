@@ -12,14 +12,27 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function taskLink(db: Db, tenantId: string, id: string): Promise<Link> {
   if (!UUID.test(id)) return { missing: true };
   const [t] = await db.select({ status: tasks.status }).from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, id)));
-  return t ? { to: `/queue?task=${id}&status=${encodeURIComponent(t.status)}#tasks` } : { missing: true };
+  return t ? { to: `/todo?task=${id}&status=${encodeURIComponent(t.status)}` } : { missing: true };
 }
 
-/** A lead: the Leads board with its drawer open. */
+/** A lead: the Leads board with its drawer open, at its canonical address /leads?lead=<id>. */
 export async function leadLink(db: Db, tenantId: string, id: string): Promise<Link> {
   if (!UUID.test(id)) return { missing: true };
   const [l] = await db.select({ id: leads.id }).from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, id)));
-  return l ? { to: `/leads?open=${id}` } : { missing: true };
+  return l ? { to: leadPath(id) } : { missing: true };
+}
+
+/** The canonical address of a lead's drawer (Copy link writes it with the origin in front). */
+export const leadPath = (id: string) => `/leads?lead=${id}`;
+
+/** The lead a Leads page load names (?lead=<id>, or the older ?open=<id>): its id when it is on this company's board
+ *  and not archived, else `unavailable` (no such id, another company's, archived): the page says so in one line,
+ *  never whether it exists elsewhere. No parameter: nothing to open. */
+export async function leadToOpen(db: Db, tenantId: string, raw: unknown): Promise<{ openId: string | null; unavailable: boolean }> {
+  if (typeof raw !== "string" || !raw) return { openId: null, unavailable: false };
+  if (!UUID.test(raw)) return { openId: null, unavailable: true };
+  const [l] = await db.select({ id: leads.id, archived: leads.archived }).from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, raw)));
+  return l && !l.archived ? { openId: l.id, unavailable: false } : { openId: null, unavailable: true };
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

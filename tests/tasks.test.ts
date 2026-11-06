@@ -171,7 +171,7 @@ describe("the queue", () => {
 });
 
 describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
-  it("open the task's card in Our queue and the lead's drawer; another company's id, an unknown one or a bad one is missing", async () => {
+  it("open the task's card on To-do and the lead's drawer; another company's id, an unknown one or a bad one is missing", async () => {
     const { leadLink, taskLink } = await import("@/lib/deep-links");
     const { writeLead } = await import("@/lib/leads");
     const { db, tenantId } = await board();
@@ -181,9 +181,9 @@ describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
     const l = await writeLead(db, tenantId, {}, { business: "Acme Bakery", website: "https://acmebakery.example" }, CEO, { create: true });
     const tid = t.ok ? t.task.id : "";
     const lid = l.ok ? l.lead.id : "";
-    expect(await taskLink(db, tenantId, tid)).toEqual({ to: `/queue?task=${tid}&status=Not%20started#tasks` });
+    expect(await taskLink(db, tenantId, tid)).toEqual({ to: `/todo?task=${tid}&status=Not%20started` });
     expect(await taskLink(db, tenantId, done.ok ? done.task.id : "")).toMatchObject({ to: expect.stringContaining("status=Done") });
-    expect(await leadLink(db, tenantId, lid)).toEqual({ to: `/leads?open=${lid}` });
+    expect(await leadLink(db, tenantId, lid)).toEqual({ to: `/leads?lead=${lid}` });
     for (const [fn, id] of [[taskLink, tid], [leadLink, lid]] as const) {
       expect(await fn(db, other, id)).toEqual({ missing: true }); // another company's
       expect(await fn(db, tenantId, "00000000-0000-0000-0000-000000000000")).toEqual({ missing: true });
@@ -195,15 +195,48 @@ describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
     const { readFileSync } = await import("node:fs");
     const { missingPage } = await import("@/lib/deep-links");
     const src = (f: string) => readFileSync(f, "utf8");
-    for (const [k, fn] of [["tasks", "taskLink"], ["leads", "leadLink"]]) {
-      expect(src(`app/${k}/[id]/route.ts`)).toContain(`const r = await ${fn}(await db(), who.tenantId, id);`);
-      expect(src(`app/${k}/[id]/route.ts`)).toMatch(/if \("missing" in r\) return missingPage\(/);
-    }
-    const res = missingPage("task", { href: "/queue#tasks", label: "Our queue" });
+    for (const [k, fn] of [["tasks", "taskLink"], ["leads", "leadLink"]]) expect(src(`app/${k}/[id]/route.ts`)).toContain(`const r = await ${fn}(await db(), who.tenantId, id);`);
+    expect(src("app/tasks/[id]/route.ts")).toMatch(/if \("missing" in r\) return missingPage\(/);
+    // a lead someone cannot open lands on the Leads page, which says so in one line
+    expect(src("app/leads/[id]/route.ts")).toMatch(/redirect\("missing" in r \? leadPath\(/);
+    expect(src("app/tasks/[id]/route.ts")).toContain('{ href: "/todo", label: "To-do" }');
+    const res = missingPage("task", { href: "/todo", label: "To-do" });
     expect(res.status).toBe(404);
-    expect(await res.text()).toContain('<a href="/queue#tasks">← Back to Our queue</a>');
+    expect(await res.text()).toContain('<a href="/todo">← Back to To-do</a>');
     expect(src("app/leads/page.tsx")).toMatch(/openId=\{openId\}/);
     expect(src("app/leads/leads-view.tsx")).toMatch(/useState<string \| null>\(openId\)/);
-    expect(src("app/queue/queue-view.tsx")).toMatch(/focused=\{focus\?\.id === t\.pageId\}/);
+    expect(src("app/todo/todo-view.tsx")).toMatch(/focused=\{focus\?\.id === t\.pageId\}/);
+    // an old Our-queue task link still lands on its card
+    expect(src("app/queue/page.tsx")).toMatch(/if \(task\) redirect\(`\/todo\?task=/);
+  });
+});
+
+describe("a lead's link", () => {
+  it("round trip: the canonical address opens that lead; another company's, an archived one or a bad id says unavailable", async () => {
+    const { memoryDb } = await import("@/lib/db");
+    const { createTenant } = await import("@/lib/tenants");
+    const { writeLead } = await import("@/lib/leads");
+    const { leadLink, leadPath, leadToOpen } = await import("@/lib/deep-links");
+    const db = await memoryDb();
+    const a = (await createTenant(db, "Acme", "acme", { email: "o@acme.example", name: "Olu" })).tenant.id;
+    const b = (await createTenant(db, "Beta", "beta", { email: "o@beta.example", name: "Bo" })).tenant.id;
+    const bot = { kind: "bot" as const, name: "Lead Gen", via: "engine" };
+    const l = await writeLead(db, a, {}, { business: "Acme Bakery", website: "https://acmebakery.example" }, bot, { create: true });
+    const old = await writeLead(db, a, {}, { business: "Gone Cafe", website: "https://gonecafe.example" }, bot, { create: true });
+    const id = l.ok ? l.lead.id : "";
+    const gone = old.ok ? old.lead.id : "";
+    const { leads } = await import("@/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.update(leads).set({ archived: true }).where(eq(leads.id, gone));
+    // the link a bot records, and Copy link's address, both resolve to the same drawer
+    const link = await leadLink(db, a, id);
+    expect(link).toEqual({ to: leadPath(id) });
+    const param = new URL(`https://peek.example${leadPath(id)}`).searchParams.get("lead");
+    expect(await leadToOpen(db, a, param)).toEqual({ openId: id, unavailable: false });
+    // the older ?open= value works the same
+    expect(await leadToOpen(db, a, id)).toEqual({ openId: id, unavailable: false });
+    for (const raw of [gone, "00000000-0000-0000-0000-000000000000", "not-an-id"]) expect(await leadToOpen(db, a, raw)).toEqual({ openId: null, unavailable: true });
+    expect(await leadToOpen(db, b, id)).toEqual({ openId: null, unavailable: true }); // another company's: no hint it exists
+    expect(await leadToOpen(db, a, undefined)).toEqual({ openId: null, unavailable: false });
   });
 });

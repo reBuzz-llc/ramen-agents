@@ -5,7 +5,7 @@
 // are deleted. One transaction, so a reader never sees half a list.
 import { and, asc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import type { Db } from "./db";
-import { assetPackages, assetRates } from "./db/schema";
+import { assetPackages, assetRates, assetSections } from "./db/schema";
 
 export const MAX_ITEMS = 200;
 export const STATUSES = ["draft", "published"] as const;
@@ -36,6 +36,10 @@ export type Package = PackageIn & {
   handedOverBy: string | null;
   handedOverAt: string | null;
 };
+export const SECTION_KINDS = ["text", "rates"] as const;
+export type SectionKind = (typeof SECTION_KINDS)[number];
+export type SectionIn = { id?: string; title: string; kind: SectionKind; body: string };
+export type Section = SectionIn & { id: string; position: number; updatedAt: string; updatedBy: string };
 export type Checked<T> = { ok: true; items: T[] } | { ok: false; message: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -139,7 +143,7 @@ export async function listPackages(db: Db, tenantId: string, only?: PackageStatu
 /** The latest change in a list, for the API's top-level updated_at. */
 export const latest = (rows: { updatedAt: string }[]) => rows.reduce<string | null>((m, r) => (!m || r.updatedAt > m ? r.updatedAt : m), null);
 
-type Table = typeof assetRates | typeof assetPackages;
+type Table = typeof assetRates | typeof assetPackages | typeof assetSections;
 
 /** Replace a company's list: keep, change, add and delete in one step. An id from another company, or one that is not
  *  in the list any more, is refused, so a stale page cannot bring a deleted row back under its old id. `known` is the ids
@@ -315,3 +319,33 @@ export function keyMayNotPublish(existing: { id: string; name: string; price: st
   const gone = existing.find((p) => p.status === "published" && !kept.has(p.id));
   return gone ? `"${gone.name}" is published; it is removed only on the Asset page` : null;
 }
+
+/** A section list from the page or a key: a title or a body each (a section with neither is dropped); kind text unless
+ *  "rates"; the body's line breaks and leading spaces kept (they are its lists and levels). */
+export function checkSections(input: unknown): Checked<SectionIn> {
+  if (!Array.isArray(input)) return { ok: false, message: "send sections as a list: [{title, body, kind?}]" };
+  if (input.length > MAX_ITEMS) return { ok: false, message: `at most ${MAX_ITEMS} sections` };
+  const items: SectionIn[] = [];
+  for (const [i, x] of input.entries()) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) return { ok: false, message: `section ${i + 1} is not an object` };
+    const o = x as Record<string, unknown>;
+    const id = idOf(o.id);
+    if (id === null) return { ok: false, message: `section ${i + 1} has an id that is not one of the portal's` };
+    if (o.kind !== undefined && !SECTION_KINDS.includes(o.kind as SectionKind)) return { ok: false, message: `section ${i + 1}: kind is text or rates` };
+    const title = str(o.title, 200);
+    const body = block(o.body, 20_000);
+    if (title || body || o.kind === "rates") items.push({ id, title, kind: (o.kind as SectionKind) ?? "text", body });
+  }
+  if (items.filter((s) => s.kind === "rates").length > 1) return { ok: false, message: "only one section shows the rate card" };
+  return { ok: true, items };
+}
+
+export async function listSections(db: Db, tenantId: string): Promise<Section[]> {
+  const rows = await db.select().from(assetSections).where(eq(assetSections.tenantId, tenantId)).orderBy(asc(assetSections.position));
+  return rows.map((s) => ({ id: s.id, position: s.position, title: s.title, kind: s.kind as SectionKind, body: s.body, updatedAt: s.updatedAt.toISOString(), updatedBy: s.updatedBy }));
+}
+
+export const saveSections = (db: Db, tenantId: string, items: SectionIn[], by: string, known?: Set<string>) =>
+  replace(db, assetSections, tenantId, items, by, (r, x) => r.title === x.title && r.kind === x.kind && r.body === x.body, (x) => ({ title: x.title, kind: x.kind, body: x.body }), known);
+
+export const sectionJson = (s: Section) => ({ id: s.id, position: s.position, title: s.title, kind: s.kind, body: s.body, updated_at: s.updatedAt, updated_by: s.updatedBy });

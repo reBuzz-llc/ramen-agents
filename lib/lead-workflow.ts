@@ -85,6 +85,7 @@ export const DRAWER_ORDER = [
   "package",
   "map_link",
   "evidence",
+  "listing_evidence",
   "source_pages",
   "tools_on_site",
   "site_health",

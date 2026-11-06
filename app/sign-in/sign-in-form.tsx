@@ -15,7 +15,7 @@ export default function SignInForm({ next = null }: { next?: string | null }) {
     setBusy(true);
     setError("");
     try {
-      const r = await authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}${next ?? "/queue"}` });
+      const r = await authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}${next ?? "/leads"}` });
       if (r?.error) throw r.error;
     } catch (err) {
       setError(authMessage(err));

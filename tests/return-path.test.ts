@@ -29,9 +29,9 @@ describe("the way back after sign-in", () => {
     expect(src("app/leads/import/page.tsx")).toContain('pageMe("/leads/import")');
     expect(src("app/files/page.tsx")).toContain('pageMe("/files")');
     expect(src("lib/page-me.ts")).toMatch(/withNext\("\/sign-in", from\)[\s\S]*withNext\("\/welcome", from\)/);
-    expect(src("app/sign-in/page.tsx")).toMatch(/const next = safeNext\(sp\.next\);[\s\S]*redirect\(next \?\? "\/queue"\)[\s\S]*<SignInForm next=\{next\} \/>[\s\S]*name="next"/);
-    expect(src("app/sign-in/sign-in-form.tsx")).toContain('callbackURL: `${window.location.origin}${next ?? "/queue"}`');
-    expect(src("app/api/dev-login/route.ts")).toContain('safeNext(form.get("next")) ?? "/queue"');
+    expect(src("app/sign-in/page.tsx")).toMatch(/const next = safeNext\(sp\.next\);[\s\S]*redirect\(next \?\? "\/leads"\)[\s\S]*<SignInForm next=\{next\} \/>[\s\S]*name="next"/);
+    expect(src("app/sign-in/sign-in-form.tsx")).toContain('callbackURL: `${window.location.origin}${next ?? "/leads"}`');
+    expect(src("app/api/dev-login/route.ts")).toContain('safeNext(form.get("next")) ?? "/leads"');
     expect(src("app/welcome/page.tsx")).toMatch(/name="next"/);
     expect(src("app/api/acknowledge/route.ts")).toContain("new URL(next ?? \"/\", req.url)");
   });

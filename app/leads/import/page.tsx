@@ -11,7 +11,7 @@ export const metadata = { title: "Import leads · ramen-agents" };
 /** Import leads from a CSV or spreadsheet: owners and managers. */
 export default async function ImportPage() {
   const who = await pageMe("/leads/import");
-  if (!can(who.role, "leads.import")) redirect("/leads");
+  if (!can(who.role, "leads.import")) redirect("/leads?tab=board");
   const d = await db();
   const [past, pkgs] = await Promise.all([
     d.select().from(leadImports).where(eq(leadImports.tenantId, who.tenantId)).orderBy(desc(leadImports.at)).limit(10),

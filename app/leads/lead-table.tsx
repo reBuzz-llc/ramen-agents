@@ -500,6 +500,7 @@ export default function LeadTable({
             {sorted.slice(0, 500).map((r) => (
               <tr
                 key={r.id}
+                data-lead={r.id}
                 onClick={() => onOpen(r.id)}
                 className="group cursor-pointer"
               >
