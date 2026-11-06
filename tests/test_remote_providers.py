@@ -349,6 +349,9 @@ def test_provider_tables_and_chain_entries_are_validated(tmp_path):
         validate(cfg)
     del cfg.model.providers["groq"]["app_title"]
     validate(cfg)
+    # the token-bound tiers the dashboard's Allowance view reads are allowed keys
+    cfg.model.providers["groq"].update({"tokens_per_day": 200000, "tokens_per_month": 0})
+    validate(cfg)
 
 
 # ---- Plan 6: spend a per-minute token budget on the output that shows -----------------------
