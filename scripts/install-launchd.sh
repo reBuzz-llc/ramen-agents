@@ -1,6 +1,6 @@
 #!/bin/sh
 # Render the launch-agent templates in ~/bots/launchd for THIS Mac and load them.
-#   sh scripts/install-launchd.sh                 # everything, plus a data server per bot folder
+#   sh scripts/install-launchd.sh                 # everything (but the three named below), plus a data server per bot folder
 #   sh scripts/install-launchd.sh --dry-run       # show what would be written, change nothing
 #   sh scripts/install-launchd.sh searxng ollama  # only the named ones (the part after "com.ramen-agents.")
 # Safe to run again: an agent that is already loaded is replaced. Bots' run loops are installed separately with
@@ -21,8 +21,15 @@ done
 NODE=$(command -v node 2>/dev/null || echo /usr/local/bin/node)
 [ "$ROOT" = "$HOME/bots" ] || echo "note: this folder is $ROOT; the configs expect the fleet at $HOME/bots" >&2
 
+# Installed only when named: the portal's database copy needs its two keys first, and local mode is for an outage.
+#   sh scripts/install-launchd.sh db-standby          sh scripts/install-launchd.sh portal-local portal-tunnel
+BY_NAME_ONLY="db-standby portal-local portal-tunnel"
+
 wanted() {  # $1 = short name, e.g. "searxng" or "data.lead-gen"
-  [ -z "$ONLY" ] && return 0
+  if [ -z "$ONLY" ]; then
+    for n in $BY_NAME_ONLY; do [ "$n" = "$1" ] && return 1; done
+    return 0
+  fi
   for w in $ONLY; do [ "$w" = "$1" ] && return 0; done
   return 1
 }

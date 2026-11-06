@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hourly: the free limits beyond the model providers (hosting, databases, file storage), read-only, into common-data/shared-state/free-tiers.json for the dashboard's Allowance view (scripts/free-tiers.py) -->
+  <key>Label</key><string>com.ramen-agents.free-tiers</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/scripts/free-tiers.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>__HOME__/bots</string>
+  <key>StartInterval</key><integer>3600</integer>
+  <key>RunAtLoad</key><true/>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/free-tiers.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/free-tiers.err</string>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>__HOME__</string><key>PATH</key><string>/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/opt/libpq/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin</string></dict>
+</dict>
+</plist>

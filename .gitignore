@@ -13,6 +13,8 @@ common-data/shared-state/
 common-data/downloads/
 common-data/chatroom.jsonl*
 common-data/search_pause.json
+common-data/backups/
+common-data/portal-files/
 *.sqlite3
 *.sqlite3-*
 

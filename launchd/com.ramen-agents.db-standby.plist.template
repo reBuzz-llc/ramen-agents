@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The portal database's nightly copy, primary to standby, checked table by table (scripts/db-standby.sh, docs/portal-database.md). Installed only by name: sh scripts/install-launchd.sh db-standby -->
+  <key>Label</key><string>com.ramen-agents.db-standby</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__HOME__/bots/scripts/db-standby.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>__HOME__/bots</string>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>30</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/db-standby.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/db-standby.err</string>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>__HOME__</string><key>PATH</key><string>/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/opt/libpq/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin</string></dict>
+</dict>
+</plist>

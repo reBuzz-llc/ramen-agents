@@ -1,0 +1,48 @@
+# The free limits beyond the model providers, for the dashboard's "Other free tiers" (scripts/free-tiers.py, hourly).
+# Copy to free-tiers.toml and keep the services you use. Check each limit on the provider's own pricing page: free
+# plans change. Measures: none | json | s3-bucket | neon-api (see the top of scripts/free-tiers.py).
+
+# The portal's database size, from the nightly copy (scripts/db-standby.sh writes db_mb).
+[[service]]
+name = "Portal database"
+what = "database size (the primary)"
+limit = 500
+unit = "MB"
+resets = "not monthly: what is stored"
+measure = "json"
+file = "db-standby.json"
+field = "db_mb"
+
+# Hosting with no usage API on its free plan: shown as not measurable, with where to look.
+[[service]]
+name = "Vercel Hobby"
+what = "fast data transfer"
+limit = 100
+unit = "GB/month"
+resets = "monthly"
+measure = "none"
+where = "vercel.com/dashboard/usage (a Hobby project is paused past its limits)"
+
+# File storage over S3: the bucket listed read-only and summed. key_file holds "access-id:secret" on one line.
+# [[service]]
+# name = "Supabase"
+# what = "the portal's files"
+# limit = 1
+# unit = "GB"
+# resets = "not monthly: what is stored"
+# measure = "s3-bucket"
+# endpoint = "https://<project-ref>.supabase.co/storage/v1/s3"
+# region = "<the project's region, e.g. us-east-1>"
+# bucket = "portal-files"
+# key_file = "supabase-s3.key"
+
+# A Neon project's monthly numbers, with a Neon API key you make in its console.
+# [[service]]
+# name = "Neon"
+# what = "data transfer"
+# limit = 5
+# unit = "GB/month"
+# resets = "monthly"
+# measure = "neon-api"
+# key_file = "neon-api.key"
+# field = "data_transfer"

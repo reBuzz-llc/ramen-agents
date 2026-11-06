@@ -73,6 +73,8 @@ is git-ignored. Any subset works; more keys mean more fallbacks. Limits and what
 
 - [ ] The `portal` branch is a web app where people take leads and tasks, record what they sent, and the agents read
       it. It needs a Postgres database (a free Neon project works). Its own `README.md` and `SETUP.md` explain it.
+- [ ] Its database's safety net: a nightly standby copy to a second free database, local mode for an outage, and
+      the dashboard's "Other free tiers" warnings. All in [portal-database.md](portal-database.md).
 
 ## 10. First run
 

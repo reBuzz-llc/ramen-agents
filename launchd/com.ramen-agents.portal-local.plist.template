@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The team portal in local mode on 127.0.0.1:3100 (scripts/portal-local.sh, docs/portal-database.md). Load only in local mode: sh scripts/install-launchd.sh portal-local -->
+  <key>Label</key><string>com.ramen-agents.portal-local</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__HOME__/bots/scripts/portal-local.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>__HOME__/bots</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/portal-local.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/portal-local.err</string>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>__HOME__</string><key>PATH</key><string>/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/opt/libpq/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin</string></dict>
+</dict>
+</plist>
