@@ -2,6 +2,9 @@
 
 Each step says what to run and how to tell it worked. Run `sh scripts/check-setup.sh` at any point to see what is left.
 
+The same steps as a checklist, for working through by hand or with an AI coding agent: `docs/setup-queue.md`, with
+`python3 scripts/setup-check.py` after each step (what is still missing, and where you get it).
+
 ## 1. The engine
 
 ```sh
