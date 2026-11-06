@@ -53,6 +53,7 @@ import {
   drawClock,
   drawDesk,
   drawDeskScreen,
+  drawMatNote,
   setScreenFace,
   drawLampGlow,
   drawMarker,
@@ -291,6 +292,8 @@ export default function World({ data }: { data: Board }) {
             drawMat(c, x, y, !!s0.retired);
             drawPerson(c, x, y, lookOf(slug), "lie", 0);
             text(c, s0.name.split(/[\s-]/)[0], x, y - 7, { size: 4, color: "#5b4f6b" }); // a retired one's grey mat carries an "R"
+            // the owner's Stop: "owner 12:32: <reason>" under the mat, from the STOP file's first line
+            if (s0.by === "owner") drawMatNote(c, `owner ${s0.at ?? ""}: ${s0.reason ?? ""}`, x, y + 11, 44);
           },
         });
         const i = S.beds.indexOf(slug);
@@ -552,7 +555,7 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
     const s = data.stopped.find((x) => x.slug === win.slug);
     if (s) {
       title = s.name;
-      lines = [s.retired ? `Retired by the owner${s.since ? `, ${s.since}` : ""}. It has no launch agents until it is brought back.` : `Asleep: stopped by the owner, since ${s.since.slice(5)}.`];
+      lines = [s.retired ? `Retired by the owner${s.since ? `, ${s.since}` : ""}. It has no launch agents until it is brought back.` : s.by === "owner" ? `Stopped by the owner, ${s.since.slice(5)} ${s.at ?? ""}: ${s.reason ?? ""}` : `Asleep: stopped by the owner, since ${s.since.slice(5)}.`];
       slug = s.slug;
     }
   } else if (win?.kind === "bulletin") {
@@ -704,7 +707,7 @@ function Controls(p: {
       <div className="mt-2 rounded-md bg-[#fff5e8] p-2">
         <p className="font-bold">{confirmText(p.ask.action, p.name, p.ask.choice)}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <input value={p.reason} onChange={(e) => p.setReason(e.target.value)} maxLength={300} placeholder="Reason (one line, for the log)" className="h-8 min-w-0 flex-1 rounded border-2 border-[#1a0d00] bg-white px-2 text-xs" />
+          <input value={p.reason} onChange={(e) => p.setReason(e.target.value)} maxLength={300} placeholder={p.ask?.action === "stop" ? "Reason (optional; shown on its mat)" : "Reason (one line, for the log)"} className="h-8 min-w-0 flex-1 rounded border-2 border-[#1a0d00] bg-white px-2 text-xs" />
           <BoxButton onClick={p.onYes}>▶ Yes</BoxButton>
           <button type="button" onClick={() => p.setAsk(null)} className={btn}>
             No
