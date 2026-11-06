@@ -9,6 +9,7 @@ Files every bot on this Mac shares.
 | `knowledge/` | standing context every bot can search: the target market, the owner's steers, the packages rules, the handbook |
 | `family.md` | the root concept every persona opens with |
 | `team.json` | the human team tasks may be assigned to (the dashboard's Team page edits it) |
+| `daily-goals.json` | each agent's daily goal (its own outputs a day), shown in its dialogue as "7 leads today · goal 10"; an example to edit |
 | `denylist.txt` | sites no bot may open |
 | `provider-watchlist.md` | pricing and limits pages re-read weekly for changes |
 | `botBox/` | the owner's drop folder; only its README is in git |

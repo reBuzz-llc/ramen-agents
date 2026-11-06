@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { GLASS_COOKIE, GLASS_DEFAULT, parseGlass, parseTheme, THEME_COLORS, THEME_COOKIE } from "@/lib/theme";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+
+// The member dialogue's four lines read in JetBrains Mono: fetched from Google Fonts at build and served from this app,
+// so the browser asks Google for nothing.
+const screenFont = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-screen", display: "swap", fallback: ["ui-monospace", "Menlo", "monospace"] });
 
 export const metadata: Metadata = {
   title: "Bot Dashboard",
@@ -37,7 +42,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className="h-full"
+      className={`h-full ${screenFont.variable}`}
       data-theme={theme === "system" ? undefined : theme}
       style={glass === GLASS_DEFAULT ? undefined : ({ "--glass-t": String(glass / 100) } as React.CSSProperties)}
       suppressHydrationWarning

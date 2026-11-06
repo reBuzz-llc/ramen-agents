@@ -664,3 +664,24 @@ export function figures(sim: Sim, t: number, o: { quiet: boolean; still: boolean
   }
   return out;
 }
+
+/** "api.z.ai/glm-4.5-flash" -> "z.ai"; "gemini/flash" -> "gemini". */
+export const providerOf = (label: string) => (label.split("/")[0] ?? "").replace(/^api\./, "");
+
+/** The four lines a member's dialogue opens with, data-true, one each: today's output against its daily goal (when
+ *  common-data/daily-goals.json names one), the item it is on (its newest naming write, else the Analyst's question, else
+ *  its page or search; resting or stuck: until when and why), the provider of its last model call and how fresh, the
+ *  last 30 minutes' allowed/all actions; then its refused share for the meter. */
+export function nowLines(c: Pick<BotCard, "slug" | "state" | "last" | "output" | "actionsToday" | "refusedShare" | "item" | "modelAgo" | "window" | "goal" | "model" | "questions">): { word: string; lines: string[]; refused: number | null } {
+  const n = c.output ? c.output.today : c.actionsToday;
+  const noun = c.output ? (c.output.label.split(" ").pop() ?? c.output.label) : "action";
+  const made = `${n} ${noun}${n === 1 ? "" : "s"} today${c.goal ? ` · goal ${c.goal}` : ""}`;
+  const anim = animOf(c.state);
+  const working = !["resting", "quiet", "blocked", "lost", "idle"].includes(anim) && !!c.last;
+  const until = restUntil(c.state);
+  const page = c.last?.screen ? (c.last.screen.kind === "search" ? `search: ${c.last.screen.title}` : c.last.screen.kind === "web" ? [c.last.screen.domain, c.last.screen.title].filter(Boolean).join(" · ") : c.last.words) : "";
+  const second = working ? c.item || (c.slug === "research-analyst" ? (c.questions[0] ?? "") : "") || page : [until ? `until ${until}` : "", c.state.why].filter(Boolean).join(" · ");
+  const fresh = c.model ? `${providerOf(c.model.label)}${c.modelAgo ? ` · ${c.modelAgo}` : ""}` : "";
+  const win = c.window.total ? `30 min: ${c.window.allowed}/${c.window.total} ok` : "30 min: no actions";
+  return { word: c.state.word, lines: [made, second, fresh, win].filter(Boolean), refused: c.refusedShare };
+}
