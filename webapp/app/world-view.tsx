@@ -41,6 +41,19 @@ import {
   type PauseFor,
   type Pt,
   week7Lines,
+  directorStep,
+  insetSource,
+  lapseHour,
+  newDirector,
+  recStart,
+  recTick,
+  savedVideo,
+  saveVideo,
+  tickerScroll,
+  tickerText,
+  videoLayout,
+  type Rec,
+  type VideoOpts,
 } from "@/lib/world";
 import Portrait from "./portrait";
 import { chime, click, pageFlip, rememberSound, soundState, soundWanted, unlockSound } from "./world-sound";
@@ -68,6 +81,9 @@ import {
   drawSofaFront,
   drawStorm,
   drawZzz,
+  drawInsetFrame,
+  drawStrip,
+  drawTicker,
   H,
   text,
   W,
@@ -122,6 +138,63 @@ export default function World({ data }: { data: Board }) {
     rememberSound(on);
     if (on) unlockSound();
   };
+  // Made for video: a director's inset, a ticker, a time-lapse and "Record 60 s". All off by default and remembered
+  // per browser; with all off the room draws exactly as before.
+  const [video, setVideo] = useState<VideoOpts>({ director: false, ticker: false, lapse: false });
+  const videoRef = useRef(video);
+  useEffect(() => {
+    videoRef.current = video;
+  }, [video]);
+  useEffect(() => {
+    const t = setTimeout(() => setVideo(savedVideo()), 0);
+    return () => clearTimeout(t);
+  }, []);
+  const toggleVideo = (k: keyof VideoOpts) =>
+    setVideo((v) => {
+      const n = { ...v, [k]: !v[k] };
+      saveVideo(n);
+      return n;
+    });
+  const director = useRef(newDirector());
+  const acted = useRef<string[]>([]); // members with a new accepted action since the last frame: the director cuts to them
+  const tickerX = useRef(0);
+  const tickerHover = useRef(false);
+  const lapse = useRef<{ h: number; t: number } | null>(null);
+  const offscreen = useRef<HTMLCanvasElement | null>(null);
+  // "Record 60 s": the canvas (inset and ticker included) to a WebM download; nothing leaves this browser
+  const [rec, setRec] = useState<Rec>({ state: "idle", until: 0 });
+  const recorder = useRef<MediaRecorder | null>(null);
+  const startRec = () => {
+    const cv = canvas.current;
+    const supported = !!cv && typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("video/webm") && typeof cv.captureStream === "function";
+    const next = recStart(rec, Date.now(), supported);
+    setRec(next);
+    if (!supported || next === rec || !cv) return;
+    const chunks: Blob[] = [];
+    const mr = new MediaRecorder(cv.captureStream(30), { mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm" });
+    mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    mr.onstop = () => {
+      const url = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `office-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.webm`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      recorder.current = null;
+    };
+    mr.start(1000);
+    recorder.current = mr;
+  };
+  // the recording stops itself at 60 s; the "needs Chrome" note goes after a few seconds
+  useEffect(() => {
+    if (rec.state === "idle") return;
+    const id = setInterval(() => {
+      const { rec: n, stop } = recTick(rec, Date.now());
+      if (stop && recorder.current?.state === "recording") recorder.current.stop();
+      if (n !== rec) setRec(n);
+    }, 500);
+    return () => clearInterval(id);
+  }, [rec]);
   // for a check from the browser that nothing plays between events
   useEffect(() => {
     (window as unknown as { __worldSound?: () => string }).__worldSound = soundState;
@@ -152,6 +225,7 @@ export default function World({ data }: { data: Board }) {
     simPoll(sim.current, data.cards, data.stopped, now);
     const fresh = newBubbles(prev.current, data.cards, now);
     bubbles.current = [...bubbles.current.filter((b) => b.until > now && !fresh.some((f) => f.slug === b.slug)), ...fresh];
+    for (const f of fresh) acted.current.push(f.slug); // a new accepted action: the director cuts to it
     if (fresh.length) {
       // a page-flip and a paper to the mailbox for a draft, else a soft click; one sound per poll at most
       const draft = fresh.find((f) => data.cards.find((c) => c.slug === f.slug)?.last?.words.startsWith("drafted"));
@@ -221,10 +295,16 @@ export default function World({ data }: { data: Board }) {
       const { data: d, win: w } = live.current;
       const quiet = [...sim.current.members.values()].some((m) => m.anim === "quiet"); // debounced, as the walks
       const clock = new Date();
-      const day = dayPhase(clock.getHours(), clock.getMinutes());
+      const v = videoRef.current;
+      // the director's time-lapse: day and night at 10x from now (visual only)
+      if (v.director && v.lapse) lapse.current ??= { h: clock.getHours() + clock.getMinutes() / 60, t };
+      else lapse.current = null;
+      const lh = lapse.current ? lapseHour(lapse.current.h, lapse.current.t, t) : null;
+      const day = lh !== null ? dayPhase(Math.floor(lh), Math.floor((lh % 1) * 60)) : dayPhase(clock.getHours(), clock.getMinutes());
       c.setTransform(scale.k, 0, 0, scale.k, 0, 0);
       c.imageSmoothingEnabled = false;
-      c.clearRect(0, 0, W, H);
+      const L = videoLayout(v); // the video parts get a strip under the room, never over it
+      c.clearRect(0, 0, W, L.height);
       drawRoom(c, { day, flash: flashUntil.current > t, quiet, decisions: d.counts?.decisions ?? 0, proposals: d.counts?.proposals ?? 0, requests: d.counts?.requests ?? 0, drafts: d.week?.drafts ?? d.team?.unsent ?? null, t });
       drawSofaBack(c);
 
@@ -238,6 +318,7 @@ export default function World({ data }: { data: Board }) {
       const card = (slug: string) => d.cards.find((m) => m.slug === slug);
       // desks: one per member that holds one, with its live monitor
       const slotsNow: Record<string, { x: number; y: number }> = {};
+      const drawnAt = new Map<string, { x: number; y: number }>(); // each figure's feet as drawn: the director's focus
       for (const m of S.members.values()) {
         const c0 = card(m.slug);
         const dk = desk(m.desk).desk;
@@ -271,6 +352,7 @@ export default function World({ data }: { data: Board }) {
         if (g.where === "desk") items.push({ key: p.y - 0.5, draw: () => drawChair(c, p.x + 1, p.y) });
         items.push({ key: p.y, draw: () => drawFigure(c, p.x, p.y, look, g.pose as Pose, still ? 0 : fr, grey, g.facing, !onSofa && g.where !== "desk") });
         hitList.push({ kind: "member", slug: g.slug, x: p.x, y: p.y });
+        drawnAt.set(g.slug, p);
         const head = p.y - (look.accessory === "crown" || look.accessory === "beanie" ? 24 : 21);
         if (!walking && anim === "resting") {
           items.push({ key: p.y + 1, draw: () => drawCup(c, p.x + 7, p.y - 3, t) });
@@ -332,6 +414,36 @@ export default function World({ data }: { data: Board }) {
         overlays.push(() => drawPaper(c, { x: dk.x * TILE + 15, y: dk.y * TILE - 14 }, { x: MAILBOX.x * TILE + 8, y: 17 }, (t - p.at) / 1400));
       }
       overlays.forEach((o) => o());
+      // made for video: the strip under the room (it also hides anything drawn past the room's front edge, as the
+      // canvas edge did), the director's 2x inset on its left with who it shows and what that member just did beside
+      // it, the ticker along the bottom
+      if (L.height > H) {
+        const focus = director.current.focus ? card(director.current.focus) : undefined;
+        const lines = focus
+          ? [focus.name, focus.state.word, focus.last ? `${focus.last.words} · ${focus.last.ago}` : ""]
+          : ["The office, live", `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")} · ${d.cards.length} at work`, "nobody acting: a slow pan along the desks"];
+        drawStrip(c, H, L.height, L.caption, lines.filter(Boolean));
+      }
+      if (v.director && L.inset) {
+        director.current = directorStep(director.current, t, acted.current.splice(0), [...S.members.keys()]);
+        const fs = director.current.focus;
+        const src = insetSource(fs ? (drawnAt.get(fs) ?? null) : null, t);
+        const dst = L.inset;
+        const off = (offscreen.current ??= document.createElement("canvas"));
+        if (off.width !== cv.width || off.height !== cv.height) Object.assign(off, { width: cv.width, height: cv.height });
+        off.getContext("2d")?.drawImage(cv, 0, 0);
+        c.save();
+        c.beginPath();
+        c.roundRect(dst.x, dst.y, dst.w, dst.h, 4);
+        c.clip();
+        c.drawImage(off, src.x * scale.k, src.y * scale.k, src.w * scale.k, src.h * scale.k, dst.x, dst.y, dst.w, dst.h);
+        c.restore();
+        drawInsetFrame(c, dst, fs ? (card(fs)?.name ?? "") : "");
+      } else acted.current.length = 0;
+      if (v.ticker && L.ticker) {
+        const pass = drawTicker(c, tickerText(d.cards), tickerX.current, L.ticker);
+        tickerX.current = tickerScroll(tickerX.current, still ? 0 : dt, tickerHover.current, pass);
+      }
       hits.current = hitList;
       raf = requestAnimationFrame(frame);
     };
@@ -346,7 +458,7 @@ export default function World({ data }: { data: Board }) {
   const pick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * W;
-    const y = ((e.clientY - r.top) / r.height) * H;
+    const y = ((e.clientY - r.top) / r.height) * videoLayout(video).height;
     const hit = hits.current
       .map((h) => ({ h, d: Math.hypot(h.x - x, h.y - 9 - y) }))
       .filter(({ h, d }) => d < (h.kind === "sleeper" ? 14 : 12))
@@ -448,8 +560,29 @@ export default function World({ data }: { data: Board }) {
     <div className="mt-3 lg:flex lg:items-start lg:gap-3">
       <div ref={wrap} className="min-w-0 flex-1">
         <div className="mx-auto" style={{ maxWidth: cssW }}>
-          <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
             <p className="min-w-0 text-xs text-muted">{downtimeLine(data.down)}</p>
+            {/* wraps under the line on a phone instead of pushing the page sideways */}
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            {(["director", "ticker", "lapse"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => toggleVideo(k)}
+                aria-pressed={video[k]}
+                disabled={k === "lapse" && !video.director}
+                title={k === "director" ? "A 2x inset on whoever acts" : k === "ticker" ? "Live numbers along the bottom" : "Day and night at 10x (director mode)"}
+                className="rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40"
+                style={video[k] ? { background: "#ff6600", color: "#1a0d00" } : undefined}
+              >
+                {k === "director" ? "Director" : k === "ticker" ? "Ticker" : "Time-lapse"}
+              </button>
+            ))}
+            <button type="button" onClick={startRec} disabled={rec.state === "recording"} className="flex items-center gap-1.5 rounded-full bg-fill-3 px-3 py-1 text-xs font-semibold text-ink" title="The room for 60 s, as a WebM download; nothing is uploaded">
+              {rec.state === "recording" ? <span className="h-2 w-2 animate-pulse rounded-full bg-[#d63b3b]" aria-hidden /> : null}
+              {rec.state === "recording" ? "Recording…" : "Record 60 s"}
+            </button>
+            {rec.state === "unsupported" ? <span className="text-xs text-muted">Recording needs Chrome.</span> : null}
             <button type="button" onClick={toggleSound} aria-pressed={sound} className="flex shrink-0 items-center gap-1.5 rounded-full bg-fill-3 px-3 py-1 text-xs font-semibold text-ink">
               <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                 <path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none" />
@@ -457,13 +590,14 @@ export default function World({ data }: { data: Board }) {
               </svg>
               {sound ? "Sound: on" : "Sound: off"}
             </button>
+            </div>
           </div>
           <div className="relative" style={{ width: cssW, maxWidth: "100%" }}>
           <canvas
             ref={canvas}
             width={W * scale.k}
-            height={H * scale.k}
-            style={{ width: cssW, height: (cssW * H) / W, imageRendering: "pixelated" }}
+            height={Math.ceil(videoLayout(video).height * scale.k)}
+            style={{ width: cssW, height: (cssW * videoLayout(video).height) / W, imageRendering: "pixelated" }}
             className="block max-w-full cursor-pointer rounded-xl ring-1 ring-line focus-visible:ring-2 focus-visible:ring-[#ff6600] focus-visible:outline-none"
             tabIndex={0}
             role="application"
@@ -472,14 +606,19 @@ export default function World({ data }: { data: Board }) {
           onPointerMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const x = ((e.clientX - r.left) / r.width) * W;
-            const y = ((e.clientY - r.top) / r.height) * H;
+            const y = ((e.clientY - r.top) / r.height) * videoLayout(video).height;
             hoverDesk.current = null;
+            const tk = videoLayout(video).ticker;
+            tickerHover.current = !!tk && y >= tk.y; // the ticker pauses under the pointer
             for (const m of sim.current.members.values()) {
               const dk = desk(m.desk).desk;
               if (x >= dk.x * TILE && x <= dk.x * TILE + DESK_W && y >= dk.y * TILE + MONITOR.y && y <= dk.y * TILE + 14) hoverDesk.current = m.desk;
             }
           }}
-          onPointerLeave={() => (hoverDesk.current = null)}
+          onPointerLeave={() => {
+            hoverDesk.current = null;
+            tickerHover.current = false;
+          }}
             onKeyDown={onKey}
           />
           <ScreenLayer

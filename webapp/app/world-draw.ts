@@ -578,3 +578,40 @@ export function drawDeskScreen(c: Ctx, dx: number, dy: number, m: DeskScreen, t:
     r(c, ix + 1, iy + ih - 2, Math.max(1, Math.round((iw - 2) * Math.min(1, m.share))), 1, BRAND);
   }
 }
+
+/** The ticker in its strip: a dark band, the line scrolling left, repeated to fill it. Returns the width of one pass,
+ *  so the scroll can wrap. */
+export function drawTicker(c: Ctx, line: string, scroll: number, at: { x: number; y: number; w: number; h: number }): number {
+  r(c, at.x, at.y, at.w, at.h, "#141821");
+  r(c, at.x, at.y, at.w, 1, BRAND);
+  c.font = "bold 4.5px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const pass = c.measureText(line + "      ").width;
+  for (let x = at.x - scroll; x < at.x + at.w; x += pass) text(c, line, x, at.y + at.h - 2.5, { size: 4.5, color: "#fffaf0", align: "left" });
+  return pass;
+}
+
+/** The strip under the room (from `from` to `height`) and, beside the director's inset, who it shows and what it just
+ *  did: the first line large, the rest small, each cut to the caption's width. */
+export function drawStrip(c: Ctx, from: number, height: number, caption: { x: number; y: number; w: number; h: number } | null, lines: string[]) {
+  r(c, 0, from, W, height - from, "#1d2433");
+  if (!caption) return;
+  lines.forEach((l, i) => {
+    c.font = `${i === 0 ? "bold " : ""}${i === 0 ? 9 : 5.5}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    text(c, fit(c, l, caption.w - 4), caption.x + 2, caption.y + (i === 0 ? 14 : 22 + i * 9), { size: i === 0 ? 9 : 5.5, color: i === 0 ? "#fffaf0" : "#c9cfdb", align: "left", bold: i === 0 });
+  });
+}
+
+/** The director's inset frame and the focus's name in its corner (the zoomed picture is copied in by the caller). */
+export function drawInsetFrame(c: Ctx, rect: { x: number; y: number; w: number; h: number }, label: string) {
+  c.strokeStyle = "#fffaf0";
+  c.lineWidth = 1.5;
+  c.beginPath();
+  c.roundRect(rect.x, rect.y, rect.w, rect.h, 4);
+  c.stroke();
+  if (label) {
+    c.font = "bold 4.5px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const w = c.measureText(label).width + 6;
+    r(c, rect.x + 3, rect.y + 3, w, 7, "rgba(20, 24, 34, 0.7)");
+    text(c, label, rect.x + 6, rect.y + 8.5, { size: 4.5, color: "#fffaf0", align: "left" });
+  }
+}
