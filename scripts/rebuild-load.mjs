@@ -16,7 +16,7 @@
 //
 //   node scripts/rebuild-load.mjs --database-url URL [--dir ~/bots/common-data/backups] [--stamp <stamp>]
 //        [--owner-email you@example.com] [--tenant team] [--dry-run]
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -135,11 +135,43 @@ async function columnsOf(client, table) {
   return new Map(rows.map((r) => [r.column_name, r.data_type]));
 }
 
-/** Upsert one board's rows; returns {inserted, changed, unchanged, cells: {column: n}}. */
+const BATCH = 500; // rows per insert statement (a remote load in seconds, not half an hour)
+const quote = (n) => `"${n}"`;
+
+/** Insert rows in batches of BATCH, rows with the same columns together (a multi-row VALUES cannot leave a column to
+ *  its default for some rows only). */
+async function insertMany(client, table, rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const key = Object.keys(r).join(",");
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  for (const [key, list] of groups) {
+    const names = key.split(",");
+    for (let i = 0; i < list.length; i += BATCH) {
+      const args = [];
+      const tuples = list.slice(i, i + BATCH).map((r) => `(${names.map((n) => (args.push(r[n]), `$${args.length}`)).join(", ")})`);
+      await client.query(`insert into ${table} (${names.map(quote).join(", ")}) values ${tuples.join(", ")}`, args);
+    }
+  }
+}
+
+/** Upsert one board's rows; returns {inserted, changed, unchanged, skipped, cells: {column: n}}. The stored rows are
+ *  read once and matched in memory; new rows and their History entries go in BATCH at a time; the board commits on its
+ *  own, so a stop never leaves one long transaction open. */
 async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today, dry }) {
   const cols = await columnsOf(client, table);
   const report = { inserted: 0, changed: 0, unchanged: 0, skipped: 0, cells: {} };
+  // what is stored: by id, by Notion page, and (tasks without either) by title, oldest first
+  const stored = (await client.query(`select * from ${table} where tenant_id = $1 order by created_at, rev`, [tenant])).rows;
+  const byId = new Map(stored.map((r) => [r.id, r]));
+  const byNotion = new Map(stored.filter((r) => r.notion_page_id).map((r) => [r.notion_page_id, r]));
+  const byTitle = new Map();
+  if (table === "tasks") for (const r of stored.filter((x) => !x.notion_page_id)) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
   const taken = new Set(); // each stored row answers one dataset row per run (two tasks may share a title)
+  const inserts = [];
+  const history = [];
+  const updates = [];
   for (const row of rows) {
     const fields = row.fields ?? {};
     const values = {};
@@ -170,15 +202,13 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
     const id = row.id && /^[0-9a-f-]{36}$/i.test(row.id) ? row.id : null;
     // the row by its id, else its Notion page, else (a task the dataset has no id for) its title: a second run finds
     // what the first one wrote
-    const found = id
-      ? (await client.query(`select * from ${table} where id = $1`, [id])).rows[0]
-      : values.notion_page_id
-        ? (await client.query(`select * from ${table} where tenant_id = $1 and notion_page_id = $2`, [tenant, values.notion_page_id])).rows[0]
-        : table === "tasks"
-          ? (await client.query(`select * from tasks where tenant_id = $1 and title = $2 and notion_page_id is null and not (id = any($3::uuid[])) order by created_at, rev limit 1`, [tenant, values.title, [...taken]])).rows[0]
-          : null;
+    let found = id ? byId.get(id) : values.notion_page_id ? byNotion.get(values.notion_page_id) : undefined;
+    if (!found && !id && !values.notion_page_id && table === "tasks") found = (byTitle.get(values.title) ?? []).find((r) => !taken.has(r.id));
+    if (found && taken.has(found.id)) found = undefined;
     if (found) taken.add(found.id);
     const note = { note: `rebuilt from ${[...sources].join(", ") || "the dataset"} on ${today}` };
+    const asParam = (k) => (cols.get(k) === "jsonb" ? JSON.stringify(values[k]) : values[k]);
+    const entry = (rowId, columns) => ({ tenant_id: tenant, [idCol]: rowId, column: "rebuilt", new: JSON.stringify({ ...note, columns }), actor_kind: "bot", actor_name: "rebuild", via: "rebuild-load" });
     if (found) {
       const diff = Object.keys(values).filter((k) => !same(norm(cols.get(k), found[k]), values[k]));
       if (!diff.length) {
@@ -187,32 +217,35 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
       }
       report.changed++;
       for (const k of diff) report.cells[k] = (report.cells[k] ?? 0) + 1;
-      if (dry) continue;
-      const set = diff.map((k, i) => `"${k}" = $${i + 2}`).join(", ");
-      await client.query(
-        `update ${table} set ${set}, updated_at = now(), rev = nextval('${table}_rev_seq'), last_actor_name = 'rebuild', last_actor_kind = 'bot' where id = $1`,
-        [found.id, ...diff.map((k) => (cols.get(k) === "jsonb" ? JSON.stringify(values[k]) : values[k]))],
-      );
-      await client.query(`insert into ${cellsTable} (tenant_id, ${idCol}, "column", new, actor_kind, actor_name, via) values ($1, $2, 'rebuilt', $3, 'bot', 'rebuild', 'rebuild-load')`, [tenant, found.id, JSON.stringify({ ...note, columns: diff })]);
+      updates.push({ id: found.id, diff, args: diff.map(asParam) });
+      history.push(entry(found.id, diff));
       continue;
     }
     report.inserted++;
     for (const k of Object.keys(values)) if (values[k] !== null) report.cells[k] = (report.cells[k] ?? 0) + 1;
-    if (dry) continue;
-    const keys = Object.keys(values);
-    const extra = [];
-    const args = [tenant];
-    if (id) {
-      extra.push(["id", id]);
+    const newId = id ?? randomUUID();
+    taken.add(newId);
+    const ins = { tenant_id: tenant, id: newId };
+    if (row.created_at) ins.created_at = new Date(row.created_at).toISOString();
+    for (const k of Object.keys(values)) ins[k] = asParam(k);
+    ins.last_actor_name = "rebuild";
+    ins.last_actor_kind = "bot";
+    inserts.push(ins);
+    history.push(entry(newId, Object.keys(values)));
+  }
+  if (dry) return report;
+  await client.query("begin");
+  try {
+    await insertMany(client, table, inserts);
+    for (const u of updates) {
+      const set = u.diff.map((k, i) => `${quote(k)} = $${i + 2}`).join(", ");
+      await client.query(`update ${table} set ${set}, updated_at = now(), rev = nextval('${table}_rev_seq'), last_actor_name = 'rebuild', last_actor_kind = 'bot' where id = $1`, [u.id, ...u.args]);
     }
-    if (row.created_at) extra.push(["created_at", new Date(row.created_at).toISOString()]);
-    const names = ["tenant_id", ...extra.map((e) => e[0]), ...keys, "last_actor_name", "last_actor_kind"];
-    for (const e of extra) args.push(e[1]);
-    for (const k of keys) args.push(cols.get(k) === "jsonb" ? JSON.stringify(values[k]) : values[k]);
-    args.push("rebuild", "bot");
-    const { rows: ins } = await client.query(`insert into ${table} (${names.map((n) => `"${n}"`).join(", ")}) values (${names.map((_, i) => `$${i + 1}`).join(", ")}) returning id`, args);
-    taken.add(ins[0].id);
-    await client.query(`insert into ${cellsTable} (tenant_id, ${idCol}, "column", new, actor_kind, actor_name, via) values ($1, $2, 'rebuilt', $3, 'bot', 'rebuild', 'rebuild-load')`, [tenant, ins[0].id, JSON.stringify({ ...note, columns: keys })]);
+    await insertMany(client, cellsTable, history);
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
   }
   return report;
 }
@@ -319,6 +352,7 @@ export async function rebuild({ client, dir, stamp, ownerEmail, tenantSlug = "te
       report.tenant = `created ${tenantSlug}`;
     } else report.tenant = `kept ${tenantSlug}`;
     const tenant = t[0].id;
+    report.tenantId = tenant;
     // the people: the dataset's file, else the team list and the owner
     let people = readJsonl(files.people);
     if (!people.length) {
@@ -355,14 +389,24 @@ export async function rebuild({ client, dir, stamp, ownerEmail, tenantSlug = "te
       if (!dry) await client.query("insert into api_keys (tenant_id, name, key_hash, scopes) values ($1, $2, $3, $4)", [tenant, name, sha256(token), scopes]);
     }
     report.keys = keyReport.join("; ");
-    report.leads = await loadBoard(client, { table: "leads", cellsTable: "lead_cells", idCol: "lead_id", tenant, rows: readJsonl(files.leads), today, dry });
-    report.tasks = await loadBoard(client, { table: "tasks", cellsTable: "task_cells", idCol: "task_id", tenant, rows: readJsonl(files.tasks), today, dry });
-    report.assets = await loadAssets(client, tenant, readJsonl(files.assets), dry);
+    // the company, its people and its keys commit first; then each board on its own, then the assets
     await client.query(dry ? "rollback" : "commit");
   } catch (err) {
     await client.query("rollback").catch(() => {});
     throw err;
   }
+  const tenantId = report.tenantId;
+  report.leads = await loadBoard(client, { table: "leads", cellsTable: "lead_cells", idCol: "lead_id", tenant: tenantId, rows: readJsonl(files.leads), today, dry });
+  report.tasks = await loadBoard(client, { table: "tasks", cellsTable: "task_cells", idCol: "task_id", tenant: tenantId, rows: readJsonl(files.tasks), today, dry });
+  await client.query("begin");
+  try {
+    report.assets = await loadAssets(client, tenantId, readJsonl(files.assets), dry);
+    await client.query(dry ? "rollback" : "commit");
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
+  }
+  delete report.tenantId;
   return report;
 }
 
