@@ -1284,6 +1284,14 @@ class Run:
         new, reopened, resolved = self.reconcile()
         sent = self.notify() if not self.args.dry_run else []
         text = self.report(new, reopened, resolved)
+        if not self.args.dry_run:
+            import family_report   # the agents' day and week on the portal's Family page, when a portal is set
+            try:
+                note = family_report.run(self.state, self.now)
+                if note:
+                    self.notes.append(note)
+            except Exception as exc:  # noqa: BLE001 - one error line, never a failed run
+                self.errors.append(str(exc)[:300])
         if self.args.inbox and not self.args.dry_run:
             save_json(FLAGS, self.flags)
             save_json(STATE, self.state)
