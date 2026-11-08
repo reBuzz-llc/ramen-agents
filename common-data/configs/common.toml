@@ -48,3 +48,7 @@ when_owner_active = false
 # (portal-engine.key, portal-validator.key, portal-dashboard.key: setup-queue step 9). Unset, the board stays on Notion.
 # [leads]
 # portal_url = "https://your-portal.example.com"
+# With the portal, the Validator also posts the agents' day to its Family page; the weekly write-up
+# (scripts/family_week.py) goes there too when you publish it somewhere and say where:
+# [family]
+# week_url = "https://your-blog.example.com/family-week"
