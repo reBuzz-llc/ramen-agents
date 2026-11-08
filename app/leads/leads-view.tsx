@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { leadPath } from "@/lib/deep-links";
-import { industryGroup } from "@/lib/lead-filters";
+import { FILTER_KEYS, industryGroup } from "@/lib/lead-filters";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
 import { CONTACT_ROLES, DRAWER_ORDER, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
@@ -45,7 +45,6 @@ type Choices = { package: string[]; industry: string[]; location: string[] };
 type F = { q: string; email: string; whatsapp: string; city: string; industry: string; score: string; draft: string; role: string; mine: boolean; corrected: boolean; flagged: boolean };
 const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", score: "", draft: "", role: "", mine: false, corrected: false, flagged: false };
 /** The text filters a link may set in the address (?whatsapp=WhatsApp%20Verified): the Guide links the board filtered. */
-export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role"] as const;
 const NOT_SET = "(not set)";
 
 function counts(rows: BoardRow[], key: (r: BoardRow) => string) {

@@ -5,7 +5,8 @@ import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import { sendNext } from "@/lib/send-next";
 import type { TableRow } from "./lead-table";
-import LeadsView, { FILTER_KEYS } from "./leads-view";
+import LeadsView from "./leads-view";
+import { FILTER_KEYS } from "@/lib/lead-filters";
 
 export const metadata = { title: "Leads · ramen-agents" };
 

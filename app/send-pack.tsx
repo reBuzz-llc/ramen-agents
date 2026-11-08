@@ -23,7 +23,9 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState<Record<string, string>>({});
-  const [open, setOpen] = useState<string | null>(pack[0]?.id ?? null);
+  // undefined: nothing chosen yet, so the first lead is open (also when the pack fills after the page loaded); null: all closed
+  const [open, setOpen] = useState<string | null | undefined>(undefined);
+  const shown = open === undefined ? (pack[0]?.id ?? null) : open;
   const say = (id: string, text: string) => setMsg((m) => ({ ...m, [id]: text }));
 
   const fill = async () => {
@@ -76,7 +78,7 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
       ) : (
         <ol className="mt-4 space-y-2">
           {pack.map((l, i) => {
-            const expanded = open === l.id;
+            const expanded = shown === l.id;
             return (
               <li key={l.id} className="rounded-xl border border-line bg-panel text-sm">
                 <button type="button" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : l.id)} className="flex w-full flex-wrap items-baseline justify-between gap-2 p-3 text-left">

@@ -107,3 +107,8 @@ export function filtersToQuery(f: Filters): string {
   const s = p.toString();
   return s ? `?${s}` : "";
 }
+
+/** The Leads page's filters read from the address (?whatsapp=…, ?city=…): one list for the server page and the client
+ *  view. It lives here, not in the client view: a server component that imports a plain value from a "use client" file
+ *  gets a client reference, not the array (FILTER_KEYS.map is not a function: the filters in a link were ignored). */
+export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role"] as const;
