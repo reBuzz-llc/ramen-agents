@@ -41,6 +41,7 @@ from email_check import stale, verify_many  # noqa: E402
 from leads_upkeep import ASSIGN_HOURS, Deletion, deletion_report, examine, provider_message, work_message, write_board_file  # noqa: E402
 import claims  # noqa: E402
 import family  # noqa: E402
+import portal_leads  # noqa: E402
 from blockers import Blocker, parse_blocker, parse_resolved, reply_text, unanswered_owner_messages, verify  # noqa: E402
 from sources import BOTS, NotionReader, bot_task_page_ids, norm_title, package_files, providers, team_members, utc_now  # noqa: E402
 
@@ -258,11 +259,13 @@ class Run:
         """Rows the team marked "False Whatsapp Number": rule the number out, clear the cell and the Status, and ask
         Lead Gen once for another number (owner, 2026-10-07). The Validator's one write to the Leads board."""
         ds = self.s.get("leads_data_source_id")
-        if not ds:
+        portal = portal_leads.portal_url()
+        if not ds and not portal:
             return
-        from whatsapp_false import ask_text, clear_false
+        from whatsapp_false import ask_text, clear_false, clear_false_portal
         try:
-            cleared = clear_false(ds, now=self.now, api_version=self.s["notion_api_version"], dry_run=self.args.dry_run)
+            cleared = (clear_false_portal(portal_leads.PortalLeads(self.state, portal), now=self.now, dry_run=self.args.dry_run) if portal else
+                       clear_false(ds, now=self.now, api_version=self.s["notion_api_version"], dry_run=self.args.dry_run))
         except (OSError, httpx.HTTPError, KeyError, ValueError) as exc:
             self.errors.append(f"false-WhatsApp clean-up failed: {exc}")
             return
@@ -285,10 +288,11 @@ class Run:
         blank-cell work list. Cheap (one query, no page bodies) and it is what makes the team's deletions land
         with Lead Gen in minutes rather than at the next six-hourly sweep."""
         ds = self.s.get("leads_data_source_id")
-        if not ds:
+        portal = portal_leads.portal_url()
+        if not ds and not portal:
             return
         try:
-            reader = NotionReader(self.s["notion_api_version"])
+            reader = portal_leads.PortalLeads(self.state, portal) if portal else NotionReader(self.s["notion_api_version"])
             since = self.state.get("last_leads_look_utc") or self.state.get("last_run_utc")
             edited_after = None
             if since:
@@ -351,8 +355,13 @@ class Run:
             for p in toggles:
                 self.checked.add(("package", p.block_id))
                 self.current += check_package_toggle(self.ck, p, own_domains=own)
-        if self.s.get("leads_data_source_id"):
-            self._gather_leads(reader, edited_after, [p.title.split(" — ", 1)[0].strip() for p in toggles])
+        if self.s.get("leads_data_source_id") or portal_leads.portal_url():
+            try:      # the team portal when common.toml sets [leads] portal_url, else this Notion reader
+                lead_reader = portal_leads.reader_for(self.state, reader)
+            except RuntimeError as exc:
+                self.errors.append(f"leads board: {exc}")
+            else:
+                self._gather_leads(lead_reader, edited_after, [p.title.split(" — ", 1)[0].strip() for p in toggles])
         if "_open_titles_run" in self.state:
             self.state["open_task_titles"] = self.state.pop("_open_titles_run")[:60]
         self.notes.append(f"Notion requests: {reader.requests}")
@@ -362,8 +371,8 @@ class Run:
             else:
                 self._model_pass(tasks, toggles)
 
-    def _gather_leads(self, reader: NotionReader, edited_after: str | None, package_names: list[str]) -> None:
-        ds = self.s["leads_data_source_id"]
+    def _gather_leads(self, reader, edited_after: str | None, package_names: list[str]) -> None:
+        ds = self.s.get("leads_data_source_id") or ""
         try:
             leads = reader.leads(ds, edited_after)
             # The board's own dropdown is the authority for a package name; the packages page titles are marketing
@@ -381,7 +390,9 @@ class Run:
             import signals          # Tools on site / Site health / Lead score (owner, 2026-10-14)
             try:
                 from checks import draft_issues as _di, pain_point_issue as _pi, pain_point_parts as _pp
-                res = signals.run(leads, self.state, api_key=self._notion_key(), data_source=ds,
+                on_portal = isinstance(reader, portal_leads.PortalLeads)
+                res = signals.run(leads, self.state, api_key="" if on_portal else self._notion_key(), data_source=ds,
+                                  write=portal_leads.writer(reader) if on_portal else None,
                                   api_version=self.s["notion_api_version"], now=self.now,
                                   draft_ok=lambda ld: bool(ld.draft_email.strip()) and not ld.draft_email.lower().startswith("skip:")
                                   and not _di(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp, status=ld.status),
