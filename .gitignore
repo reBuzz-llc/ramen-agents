@@ -15,6 +15,10 @@ common-data/chatroom.jsonl*
 common-data/search_pause.json
 common-data/backups/
 common-data/portal-files/
+# The weekly write-up (scripts/family_week.py) and its private mask list
+common-data/family-weeks.json
+common-data/family-weeks/
+common-data/configs/family-week.toml
 *.sqlite3
 *.sqlite3-*
 

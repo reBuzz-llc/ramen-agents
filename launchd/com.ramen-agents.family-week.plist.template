@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- This week in the family: every Sunday at 21:00, scripts/family_week.py writes the week to common-data/family-weeks.json and common-data/family-weeks/<Sunday>.md. Installed only by name: sh scripts/install-launchd.sh family-week -->
+  <key>Label</key><string>com.ramen-agents.family-week</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Projects/bot/.venv/bin/python</string>
+    <string>__HOME__/bots/scripts/family_week.py</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__HOME__/bots/common-data/logs/family-week.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/bots/common-data/logs/family-week.err</string>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>__HOME__</string><key>PATH</key><string>/usr/local/bin:/usr/bin:/bin</string></dict>
+</dict>
+</plist>
