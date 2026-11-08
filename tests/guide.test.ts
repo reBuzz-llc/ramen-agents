@@ -16,10 +16,10 @@ describe("the Guide page", () => {
     expect(src).not.toContain("pageMe("); // open to anyone, like Privacy: the sign-in page links it
   });
 
-  it("has the seven steps in order, each with its anchor, a 'Seen by the family as' line and a Next / Back to steps", () => {
+  it("has the eight steps in order, each with its anchor, a 'Seen by the family as' line and a Next / Back to steps", () => {
     const ids = [...src.matchAll(/^\s+id: "([a-z-]+)",$/gm)].map((m) => m[1]);
-    expect(ids).toEqual(["sign-in", "pick", "send", "whatsapp", "whatsapp-send", "result", "tasks"]);
-    expect([...src.matchAll(/^\s+seen: "/gm)]).toHaveLength(7);
+    expect(ids).toEqual(["sign-in", "already-sent", "pick", "send", "whatsapp", "whatsapp-send", "result", "tasks"]);
+    expect([...src.matchAll(/^\s+seen: "/gm)]).toHaveLength(8);
     expect(src).toMatch(/Next: \{steps\[i \+ 1\]\.title\}/);
     expect(src).toContain('href="#steps"');
     expect(src).toContain("Seen by the family as:");
@@ -37,14 +37,14 @@ describe("the Guide page", () => {
   });
 
   it("links every page a step names, and the WhatsApp step links the board filtered to verified numbers", () => {
-    for (const href of ["/leads", "/todo", "/", "/files", "/packages", "/asset", "/settings/people"]) expect(src).toContain(`<P href="${href}">`);
+    for (const href of ["/leads", "/leads/already-sent", "/todo", "/", "/files", "/packages", "/asset", "/settings/people"]) expect(src).toContain(`<P href="${href}">`);
     expect(src).toContain('const WA_VERIFIED = "/leads?tab=board&whatsapp=WhatsApp%20Verified";');
     for (const name of ["WhatsApp message sent", "WhatsApp msg sent", "Draft WhatsApp message", "Give back"]) expect(src).toContain(name);
     expect(readFileSync(path.join(__dirname, "..", "app", "leads", "leads-view.tsx"), "utf8")).toContain('href="/guide#whatsapp-send"');
   });
 
   it("names the cells and buttons the team presses, and nothing personal", () => {
-    for (const name of ["Continue with Google", "Take it", "Copy draft", "Mark email sent", "Sent by", "Sent at", "False number", "Meeting booked", "Show empty fields", "I&apos;m on it", "Done when"]) expect(src).toContain(name);
+    for (const name of ["Continue with Google", "Fill my pack", "Mark already sent", "Open the lead", "Copy follow-up", "Follow-up sent", "Take it", "Copy draft", "Mark email sent", "Sent by", "Sent at", "False number", "Meeting booked", "Show empty fields", "I&apos;m on it", "Done when"]) expect(src).toContain(name);
     expect(src).not.toMatch(/[\w.+-]+@[\w-]+\.\w+/); // no email address
     expect(src).not.toMatch(/\bAruna\b/);
   });

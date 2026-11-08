@@ -291,6 +291,11 @@ export const leads = pgTable(
     resultDate: date("result_date", { mode: "string" }),
     sentBy: text("sent_by").array(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    /** The follow-up: the agents' draft of a short second note, and when and by whom a person sent one (person-only,
+     *  like the statuses). The Clock home's Follow up list reads them. */
+    draftFollowup: text("draft_followup"),
+    followUpAt: date("follow_up_at", { mode: "string" }),
+    followUpBy: text("follow_up_by").array(),
     foundBy: text("found_by"),
     /** A phone number and free notes, from an owner's import; the board had neither. */
     phone: text("phone"),

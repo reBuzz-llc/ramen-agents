@@ -209,12 +209,21 @@ export default function LeadsView({
       <div className={`flex flex-wrap items-center justify-between gap-3 ${narrow}`}>
         <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Leads</h1>
         {canImport ? (
-          <Link href="/leads/import" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-            </svg>
-            Import CSV
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {/* the sends the rebuilt board lost, re-marked from a person's Sent folder (queue 323) */}
+            <Link href="/leads/already-sent" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              Mark already sent
+            </Link>
+            <Link href="/leads/import" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+              </svg>
+              Import CSV
+            </Link>
+          </div>
         ) : null}
       </div>
       <p className={`mt-1 text-[0.9375rem] text-muted ${narrow}`}>Every business on the board, with where it stands. Open one to see its details, its history and what to do next.</p>
@@ -597,12 +606,15 @@ const LABELS: Record<string, string> = {
   lead_score: "Lead score",
   draft_email: "Draft email",
   draft_whatsapp: "Draft WhatsApp message",
+  draft_followup: "Draft follow-up",
   email_status: "Email status",
   whatsapp_status: "WhatsApp status",
   result: "Result",
   result_date: "Result date",
   sent_by: "Sent by",
   sent_at: "Sent at",
+  follow_up_at: "Follow-up sent",
+  follow_up_by: "Follow-up by",
   found_by: "Found by",
   phone: "Phone",
   notes: "Notes",
@@ -612,7 +624,7 @@ const LABELS: Record<string, string> = {
 const label = (k: string) => LABELS[k] ?? k;
 const show = (v: unknown) => (v === null || v === undefined || v === "" ? "" : Array.isArray(v) ? v.join(", ") : String(v));
 const isUrl = (v: string) => /^https?:\/\//.test(v);
-const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "source_pages", "site_health", "notes"]);
+const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "draft_followup", "source_pages", "site_health", "notes"]);
 const SELECT: Record<string, string[]> = { contact_role: CONTACT_ROLES, linkedin_via: LINKEDIN_VIA, email_status: EMAIL_STATUSES, whatsapp_status: WHATSAPP_STATUSES, result: RESULTS };
 const REASON: Record<string, string> = { person_wins: "a person changed it last", human_only: "the team's field", filled: "already filled" };
 

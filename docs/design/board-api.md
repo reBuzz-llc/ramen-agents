@@ -163,6 +163,10 @@ What runs now, read against the design above. The engine and the Validator still
   `POST /v1/rows/{id}/flags` `{actor, rule, detail}` answers `{flag: {id, rule, detail, status, first_seen, resolved_at, actor}}`
   (one per rule: an open one keeps its id and takes the new detail, a resolved one reopens);
   `PATCH /v1/rows/{id}/flags/{flagId}` `{actor, resolved: true}` answers `{flag}`; `GET /v1/rows/{id}/flags` answers `{flags}`.
+- **Follow-ups**: `draft_followup` is an ordinary cell the agents may write (the Outreach Writer drafts a short second
+  note for a lead it sent before; a person's edit wins). `follow_up_at` (a date) and `follow_up_by` (names) are
+  person-only like the statuses: a bot writing them is refused (`human_only`). The Clock home lists a person's own sends
+  4+ working days old with no result and no follow-up; "Follow-up sent" writes the two cells as that person.
 - **Family reports** (the Validator's key, scope `board:validate`, for POST): what the agents did, shown to
   the team on `/family`. `POST /v1/family/report` with one of three shapes (`at` optional, ISO 8601, default now):
   - `{"kind": "tick", "at", "today": {"drafts_landed", "whatsapp_pitches", "leads_listed", "no_site_share" (0-100),

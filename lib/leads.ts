@@ -1,7 +1,8 @@
 // The Leads board in the portal's own database. Every
 // write goes through writeLead, which enforces the store's rules and records each cell in lead_cells:
 // - person wins: a bot never replaces a cell whose last change was a person's; the attempt is kept, refused;
-// - human only: email status, WhatsApp status, result and result date are the team's; a bot writing one is refused;
+// - human only: email status, WhatsApp status, result, result date and the follow-up sent (follow_up_at, follow_up_by)
+//   are the team's; a bot writing one is refused;
 // - fill only (when the writer asks): a cell that has a value is left alone;
 // - an import (the backfill's key) copies Notion as it is, past those rules, and is idempotent on the Notion page id.
 // Readers follow `rev`: listLeads(since = the last rev seen) returns what changed after it, in order.
@@ -47,6 +48,9 @@ export const FIELDS: Field[] = [
   { key: "result", prop: "result", kind: "text", human: true },
   { key: "result_date", prop: "resultDate", kind: "date", human: true },
   { key: "sent_by", prop: "sentBy", kind: "list" },
+  { key: "draft_followup", prop: "draftFollowup", kind: "text" },
+  { key: "follow_up_at", prop: "followUpAt", kind: "date", human: true },
+  { key: "follow_up_by", prop: "followUpBy", kind: "list", human: true },
   { key: "found_by", prop: "foundBy", kind: "text" },
   { key: "notes", prop: "notes", kind: "text" },
   { key: "address", prop: "address", kind: "text" },
@@ -199,7 +203,8 @@ export async function writeLead(
   target: { id?: string; notionPageId?: string },
   input: Record<string, unknown>,
   actor: Actor,
-  opts: { create?: boolean; fillOnly?: boolean; import?: boolean; sourceUrl?: string | null } = {},
+  // sentAt: when the send happened, for a send marked after the fact (Leads → Mark already sent, queue 323); else now
+  opts: { create?: boolean; fillOnly?: boolean; import?: boolean; sourceUrl?: string | null; sentAt?: Date | null } = {},
 ): Promise<WriteResult> {
   // Read and check the input before touching the database.
   const raw = { ...input };
@@ -335,8 +340,9 @@ export async function writeLead(
     // A WhatsApp message sent is a send too: it fills Sent by and Sent at as Email Sent does, when
     // they are empty; the × on its chip clears them with it (clearStatus: the companions written in the same step).
     if ((set.emailStatus === "Email Sent" || set.whatsappStatus === WHATSAPP_SENT) && !cur.sentAt && !opts.import) {
-      set.sentAt = now;
-      history.push({ tenantId, leadId: cur.id, column: "sent_at", old: null, new: now.toISOString() as unknown as object, ...who });
+      const sentAt = opts.sentAt && opts.sentAt.getTime() <= now.getTime() ? opts.sentAt : now;
+      set.sentAt = sentAt;
+      history.push({ tenantId, leadId: cur.id, column: "sent_at", old: null, new: sentAt.toISOString() as unknown as object, ...who });
       // Sent by is the person who marked it sent, never a bot (the Validator guessed it from Notion until now).
       if (actor.kind === "person" && !cur.sentBy?.length && !("sentBy" in set)) {
         set.sentBy = [actor.name];
@@ -395,7 +401,7 @@ export type LeadQuery = {
  *  returned (ask again with since = next), or the same `since` when nothing changed; `more` says a page was cut. */
 /** The long cells a list read leaves out unless asked for (egress): drafts, pain point, evidence,
  *  the listing, notes, the bot's kept drafts. A lead's own read (GET /v1/rows/<id>) always has every cell. */
-export const LONG_FIELDS = ["draft_email", "draft_whatsapp", "pain_point", "evidence", "listing_evidence", "source_pages", "site_health", "notes", "listing", "bot_draft", "bot_whatsapp"] as const;
+export const LONG_FIELDS = ["draft_email", "draft_whatsapp", "draft_followup", "pain_point", "evidence", "listing_evidence", "source_pages", "site_health", "notes", "listing", "bot_draft", "bot_whatsapp"] as const;
 const LIST_EXTRA = ["bot_draft", "bot_whatsapp"] as const;
 /** The cells a list read answers: ?fields=a,b (any of the board's keys, plus bot_draft and bot_whatsapp), "slim" (all
  *  but LONG_FIELDS), "all"; none given: the default, "all" until PEEK_SLIM_DEFAULT=1 is set (the readers ask for
