@@ -23,7 +23,8 @@ NODE=$(command -v node 2>/dev/null || echo /usr/local/bin/node)
 
 # Installed only when named: the portal's database copy needs its two keys first, and local mode is for an outage.
 #   sh scripts/install-launchd.sh db-standby          sh scripts/install-launchd.sh portal-local portal-tunnel
-BY_NAME_ONLY="db-standby portal-local portal-tunnel"
+#   sh scripts/install-launchd.sh family-week         (the weekly write-up, Sundays 21:00)
+BY_NAME_ONLY="db-standby portal-local portal-tunnel family-week"
 
 wanted() {  # $1 = short name, e.g. "searxng" or "data.lead-gen"
   if [ -z "$ONLY" ]; then

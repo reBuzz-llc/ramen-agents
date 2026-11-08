@@ -18,7 +18,7 @@ jobs:
       - run: pip install pytest httpx
       - run: python -m pytest -q tests
         working-directory: validator
-      - run: python -m pytest -q scripts/test_free_tiers.py
+      - run: python -m pytest -q scripts/test_free_tiers.py scripts/test_family_week.py
   dashboard:
     runs-on: ubuntu-latest
     steps:

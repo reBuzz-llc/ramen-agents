@@ -68,6 +68,9 @@ is git-ignored. Any subset works; more keys mean more fallbacks. Limits and what
 - [ ] `sh scripts/install-launchd.sh`: search, the local model, the dashboard, the Validator and the checks start with
       the Mac and restart if they stop.
 - [ ] The dashboard answers at http://127.0.0.1:3000.
+- [ ] Optional: a weekly write-up of what the family did, every Sunday at 21:00, with no business, person or place
+      named: copy `common-data/configs/family-week.example.toml` to `family-week.toml`, add your own places and people,
+      then `sh scripts/install-launchd.sh family-week`. It lands in `common-data/family-weeks/<Sunday>.md`.
 
 ## 9. Optional: the team portal
 
