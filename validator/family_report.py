@@ -33,6 +33,8 @@ OPEN_HOUR = 6
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _URL = re.compile(r"https?://\S+|www\.\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|co|us|biz|info|io|shop|store|nyc|app|dev|me|ai)\b\S*", re.I)
 _PHONE = re.compile(r"\+?\d[\d ()./-]{7,}\d")
+_DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
+_PORTAL_PHONE = re.compile(r"\+?\d[\d ()-]{8,}\d")
 
 
 def mask(text: Any, limit: int = MAX_LINE) -> str:
@@ -40,6 +42,10 @@ def mask(text: Any, limit: int = MAX_LINE) -> str:
     s = _EMAIL.sub("[email]", s)
     s = _URL.sub("[link]", s)
     s = _PHONE.sub(lambda m: "[phone]" if len(re.sub(r"\D", "", m.group(0))) >= 9 else m.group(0), s)
+    # the portal's own rule counts characters, not digits (\d[\d ()-]{8,}\d): a date like 2026-11-04 is refused as a
+    # phone (17:08 morning post, 11-08), so dates are written 11/04 and whatever still matches is masked
+    s = _DATE.sub(lambda m: f"{m.group(2)}/{m.group(3)}", s)
+    s = _PORTAL_PHONE.sub("[phone]", s)
     return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
 
 

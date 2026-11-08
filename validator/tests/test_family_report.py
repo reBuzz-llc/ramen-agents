@@ -47,7 +47,7 @@ def _client(seen, status=200):
 
 
 def test_mask_passes_the_portals_check():
-    for raw in ["mail a@b.example", "call +1 (555) 010-0199", "see https://x.example and shop.com", "Lead Gen: 3 actions, 0% refused"]:
+    for raw in ["mail a@b.example", "call +1 (555) 010-0199", "see https://x.example and shop.com", "Lead Gen: 3 actions, 0% refused", "imports: 2026-11-04 batch 2010"]:
         out = fr.mask(raw)
         assert not any(p.search(out) for p in PORTAL_REFUSES), out
 
