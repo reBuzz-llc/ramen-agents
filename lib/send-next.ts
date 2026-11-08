@@ -67,7 +67,7 @@ const columns = {
   draft: leads.draftEmail,
   emailStatus: leads.emailStatus,
   takenId: claims.userId,
-  takenName: sql<string | null>`coalesce(nullif(${users.name}, ''), ${users.email})`,
+  takenName: sql<string | null>`coalesce(nullif(trim(${users.name}), ''), split_part(${users.email}, '@', 1))`,
 };
 
 export async function sendNext(db: Db, tenantId: string): Promise<SendNext> {

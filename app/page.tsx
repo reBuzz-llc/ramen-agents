@@ -11,6 +11,7 @@ import { followUpsDue, sentWaiting } from "@/lib/follow-up";
 import { db } from "@/lib/db";
 import { can } from "@/lib/roles";
 import { allPacks, PACK, packOf } from "@/lib/send-pack";
+import { displayName, namesOf } from "@/lib/display-name";
 
 export const metadata = { title: "Clock · ramen-agents" };
 
@@ -23,12 +24,12 @@ export default async function Home(props: { searchParams: Promise<Record<string,
   const msg = (await props.searchParams).msg;
   const d = await db();
   const work = can(who.role, "queue.work");
-  const myName = who.name || who.email;
+  const myName = displayName(who.name, who.email);
   const [pack, others, due, waiting, checks, waSend] = await Promise.all([
     work ? packOf(d, who.tenantId, who.userId) : [],
     who.role === "owner" ? allPacks(d, who.tenantId) : null,
-    work ? followUpsDue(d, who.tenantId, myName) : [],
-    work ? sentWaiting(d, who.tenantId, myName) : [],
+    work ? followUpsDue(d, who.tenantId, namesOf(who.name, who.email)) : [],
+    work ? sentWaiting(d, who.tenantId, namesOf(who.name, who.email)) : [],
     work ? checkList(d, who.tenantId, who.userId) : [],
     work ? sendList(d, who.tenantId, who.userId) : [],
   ]);

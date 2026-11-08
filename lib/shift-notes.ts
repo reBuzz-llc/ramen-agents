@@ -6,6 +6,7 @@ import type { Db } from "./db";
 import { cadenceFor, liveUpdate } from "./cadence";
 import { projects, shiftNotes, shifts, users, type TenantSettings } from "./db/schema";
 import { GENERAL } from "./project-picker";
+import { displayName } from "./display-name";
 
 export const NOTE_MAX = 280;
 export const cleanNote = (raw: unknown) => String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, NOTE_MAX);
@@ -116,7 +117,7 @@ export async function teamNow(db: Db, tenantId: string, settings: TenantSettings
       const last = own.at(-1);
       // Overdue for an update on a project with a cadence (a reminder, shown to the owner and managers).
       const live = liveUpdate({ startedAt: o.since, endedAt: null }, own, cadenceFor(o.project ? { cadenceHistory: o.cadenceHistory } : null, settings), now);
-      return { userId: o.userId, name: o.name || o.email, project: o.project ?? GENERAL, since: o.since, note: last?.text ?? null, noteAt: last?.at ?? null, overdueSince: live.overdueSince };
+      return { userId: o.userId, name: displayName(o.name, o.email), project: o.project ?? GENERAL, since: o.since, note: last?.text ?? null, noteAt: last?.at ?? null, overdueSince: live.overdueSince };
     })
     .sort((a, b) => (b.noteAt ?? b.since).getTime() - (a.noteAt ?? a.since).getTime());
 }
@@ -147,5 +148,5 @@ export async function projectLog(db: Db, tenantId: string, projectId: string | n
     const b = Math.min((s.endedAt ?? now).getTime(), to.getTime(), now.getTime());
     return t + Math.max(0, Math.round((b - a) / 60000));
   }, 0);
-  return { lines: lines.map((l) => ({ at: l.at, name: l.name || l.email, text: l.text })) as LogLine[], minutes };
+  return { lines: lines.map((l) => ({ at: l.at, name: displayName(l.name, l.email), text: l.text })) as LogLine[], minutes };
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import AlreadySentView from "./already-sent-view";
+import { displayName } from "@/lib/display-name";
 
 export const metadata = { title: "Mark already sent · ramen-agents" };
 
@@ -9,5 +10,5 @@ export const metadata = { title: "Mark already sent · ramen-agents" };
 export default async function AlreadySentPage() {
   const who = await pageMe("/leads/already-sent");
   if (!can(who.role, "leads.import")) redirect("/leads");
-  return <AlreadySentView me={who.name || who.email} />;
+  return <AlreadySentView me={displayName(who.name, who.email)} />;
 }

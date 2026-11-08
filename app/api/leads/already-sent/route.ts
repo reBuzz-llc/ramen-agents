@@ -5,6 +5,7 @@ import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { sendNext } from "@/lib/send-next";
 import { sameOrigin } from "@/lib/same-origin";
+import { displayName } from "@/lib/display-name";
 
 // Leads → Mark already sent, owner and manager. POST {text, mark, confirm}, mark one of email_sent,
 // whatsapp_sent, whatsapp_verified, ready_email or per_line (the status named on each line):
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
         capped: entries.length >= MAX_ENTRIES,
       });
     }
-    const done = await markSent(d, g.who.tenantId, preview, { kind: "person", name: g.who.name || g.who.email, userId: g.who.userId });
+    const done = await markSent(d, g.who.tenantId, preview, { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     return NextResponse.json({ ok: true, ...done });
   } catch (err) {
     return NextResponse.json({ ok: false, error: publicReason(err, "leads.already-sent") }, { status: 500 });

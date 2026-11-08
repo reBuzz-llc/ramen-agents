@@ -13,6 +13,7 @@ import AddMember, { CopySignIn, RemoveMember } from "../add-member";
 import SectionHead from "../section-head";
 import LocalCode from "../local-code";
 import { localMode } from "@/lib/local-codes";
+import { displayName } from "@/lib/display-name";
 
 export const metadata = { title: settingsTitle("people") };
 
@@ -40,12 +41,15 @@ export default async function People(props: PageProps<"/settings/people">) {
           const rows = histories.get(p.id) ?? [];
           const r = rateOn(rows, s.rates ?? {}, today);
           const invited = p.active && !p.firstSignedInAt && p.role !== "owner";
+          // a missing name shows as the email's first part everywhere: warn, and offer to set it here
+          const nameMissing = !(p.name ?? "").trim();
+          const mayName = p.id === who.userId || can(who.role, "users.add");
           return (
-            <li key={p.id} className={`space-y-2 p-4 ${p.active ? "" : "opacity-60"}`}>
+            <li key={p.id} className={`space-y-2 p-4 ${p.active ? "" : "opacity-60"} ${nameMissing && p.id === who.userId ? "rounded-2xl ring-2 ring-accent" : ""}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-[0.9375rem] font-semibold">
-                    {p.name || p.email}
+                    {displayName(p.name, p.email)}
                     {!p.active ? <span className={`${badge} bg-bg font-normal text-muted`}>Removed (add them again to restore)</span> : invited ? <span className={`${badge} bg-accent-tint font-normal`}>Invited, not signed in yet</span> : null}
                   </p>
                   {p.name ? <p className="truncate text-sm text-muted">{p.email}</p> : null}
@@ -55,7 +59,7 @@ export default async function People(props: PageProps<"/settings/people">) {
                     <input type="hidden" name="action" value="role" />
                     <input type="hidden" name="userId" value={p.id} />
                     <label className="sr-only" htmlFor={`role-${p.id}`}>
-                      Role of {p.name || p.email}
+                      Role of {displayName(p.name, p.email)}
                     </label>
                     <select id={`role-${p.id}`} name="role" defaultValue={p.role} className={`${control} w-36`}>
                       <option value="member">Member</option>
@@ -67,7 +71,26 @@ export default async function People(props: PageProps<"/settings/people">) {
                   <span className={`${badge} bg-bg text-muted capitalize`}>{p.role}</span>
                 )}
               </div>
-              {localMode() && p.active && can(who.role, "users.manage") ? <LocalCode userId={p.id} label={p.name || p.email} /> : null}
+              {nameMissing && p.active ? (
+                <div data-name-missing className="rounded-lg border-l-4 border-accent bg-bg px-3 py-2 text-sm">
+                  <p>
+                    <span className="font-semibold">Name missing:</span> shows as &ldquo;{displayName(p.name, p.email)}&rdquo; on packs, Sent by, statements and This week.
+                    {p.id === who.userId ? " This is you." : ""}
+                  </p>
+                  {mayName ? (
+                    <PendingForm action="/api/settings" method="post" className="mt-2 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="action" value="name" />
+                      <input type="hidden" name="userId" value={p.id} />
+                      <label className="sr-only" htmlFor={`name-${p.id}`}>
+                        Name of {displayName(p.name, p.email)}
+                      </label>
+                      <input id={`name-${p.id}`} name="name" required maxLength={80} placeholder="Full name" className={`${control} w-56`} />
+                      <button className={btnOutline}>Save name</button>
+                    </PendingForm>
+                  ) : null}
+                </div>
+              ) : null}
+              {localMode() && p.active && can(who.role, "users.manage") ? <LocalCode userId={p.id} label={displayName(p.name, p.email)} /> : null}
               {(invited && can(who.role, "users.add")) || (p.active && can(who.role, "users.add") && canRemove(me, p)) ? (
                 <div className="flex flex-wrap items-center gap-x-4">
                   {invited && can(who.role, "users.add") ? <CopySignIn email={p.email} name={p.name} ownerName={who.name} /> : null}

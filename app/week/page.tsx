@@ -12,6 +12,7 @@ import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { projectName, projectsOf, type Project } from "@/lib/projects";
 import { hhmm, minutesByProject, type ProjectShift } from "@/lib/timesheet";
 import { startDayOf, weekStart, weekStartDate, WEEKDAYS } from "@/lib/week";
+import { displayName } from "@/lib/display-name";
 
 export const metadata = { title: "This week · ramen-agents" };
 
@@ -32,11 +33,20 @@ export default async function WeekPage() {
   ]);
   // follow-ups sent this week: their own line, never counted as sends
   const [followUps, fixed] = await Promise.all([followUpsSince(d, who.tenantId, weekStart(new Date(), startDay)), draftsFixedSince(d, who.tenantId, weekStart(new Date(), startDay))]);
-  const myName = who.name || who.email;
-  const followShown = can(who.role, "week.team") ? [...followUps.entries()].sort((a, b) => b[1] - a[1]) : [[myName, followUps.get(myName) ?? 0] as [string, number]];
+  const myName = displayName(who.name, who.email);
+  // counts kept under a full address (written before names were shortened) join the person's short name
+  const byShown = (m: Map<string, number>) => {
+    const out = new Map<string, number>();
+    for (const [k, n] of m) {
+      const key = k.includes("@") ? displayName("", k) : k;
+      out.set(key, (out.get(key) ?? 0) + n);
+    }
+    return out;
+  };
+  const followShown = can(who.role, "week.team") ? [...byShown(followUps).entries()].sort((a, b) => b[1] - a[1]) : [[myName, byShown(followUps).get(myName) ?? 0] as [string, number]];
   const followTotal = followShown.reduce((t, [, n]) => t + n, 0);
   // drafts fixed this week: a person's edit of an agent's email or WhatsApp draft, once per lead
-  const fixedShown = can(who.role, "week.team") ? [...fixed.entries()].sort((a, b) => b[1] - a[1]) : [[myName, fixed.get(myName) ?? 0] as [string, number]];
+  const fixedShown = can(who.role, "week.team") ? [...byShown(fixed).entries()].sort((a, b) => b[1] - a[1]) : [[myName, byShown(fixed).get(myName) ?? 0] as [string, number]];
   const fixedTotal = fixedShown.reduce((t, [, n]) => t + n, 0);
   const { leads, tasks, error: boardError } = boards;
   const all = scoreboard(people, clicks, leads, tasks, shiftRows, from, new Date(), step);

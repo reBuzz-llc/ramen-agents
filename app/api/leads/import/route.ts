@@ -4,6 +4,7 @@ import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { BATCH, IMPORT_FIELDS, MAX_ROWS, planImport, runImport, type Batch, type ImportField, type MappedRow, type PlanLine, type Rules } from "@/lib/lead-import";
 import { sameOrigin } from "@/lib/same-origin";
+import { displayName } from "@/lib/display-name";
 
 // A batch of 500 new leads, each with its history, can take a while: up to a minute (Vercel Hobby's limit).
 export const maxDuration = 60;
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     }
     const rows = b.records.map((r) => ({ ...clean(r), row: Math.max(2, Math.floor(Number((r as { row?: unknown })?.row) || 0)) }));
     const excluded = Array.isArray(b.excluded) ? (b.excluded as PlanLine[]).slice(0, MAX_ROWS).map((l) => ({ row: Number(l.row) || 0, business: String(l.business ?? "").slice(0, 200), outcome: (["skipped", "excluded", "rejected"].includes(String(l.outcome)) ? l.outcome : "skipped") as PlanLine["outcome"], reason: String(l.reason ?? "").slice(0, 200) })) : [];
-    const r = await runImport(d, g.who.tenantId, { userId: g.who.userId, name: g.who.name || g.who.email }, rows, String(b.fileName ?? ""), {
+    const r = await runImport(d, g.who.tenantId, { userId: g.who.userId, name: displayName(g.who.name, g.who.email) }, rows, String(b.fileName ?? ""), {
       importId: typeof b.importId === "string" ? b.importId : undefined,
       maps: b.maps === true,
       packageForWebsite: typeof b.packageForWebsite === "string" ? b.packageForWebsite.slice(0, 120) : undefined,

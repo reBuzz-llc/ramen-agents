@@ -8,6 +8,7 @@ import { canSeePay } from "@/lib/rates";
 import { statementFor } from "@/lib/statements";
 import { hhmm } from "@/lib/timesheet";
 import { startDayOf, weekStart } from "@/lib/week";
+import { displayName } from "@/lib/display-name";
 
 export const metadata = { title: "Statement · ramen-agents" };
 
@@ -42,7 +43,7 @@ export default async function StatementPage(props: PageProps<"/week/statement/[u
       <Link href="/week" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent-ink hover:underline">
         ← This week
       </Link>
-      <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Statement: {person.name || person.email}</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Statement: {displayName(person.name, person.email)}</h1>
       <p className="mt-1 text-sm text-muted">Week of {week} · {s.approved ? `approved by ${s.approved.by} on ${s.approved.at.slice(0, 10)} (frozen)` : "draft: it changes until approved"}</p>
       <table className="mt-6 w-full text-sm">
         <tbody className="divide-y divide-line">

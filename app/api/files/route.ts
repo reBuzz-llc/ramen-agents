@@ -5,6 +5,7 @@ import { listFiles, startUpload } from "@/lib/files";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
 import { NOT_SET_UP, storage } from "@/lib/storage";
+import { displayName } from "@/lib/display-name";
 
 // POST {name, size, type, tag?}: start an upload. Answers {id, upload: {url, headers}}: the browser PUTs the bytes there
 // (straight to the bucket), then POSTs {action: "done"} to /api/files/{id}.
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
   if (!st) return NextResponse.json({ ok: false, error: NOT_SET_UP }, { status: 503 });
   const b = (await req.json().catch(() => null)) as { name?: string; size?: number; type?: string; tag?: string } | null;
   try {
-    const r = await startUpload(await db(), g.who.tenantId, { userId: g.who.userId, name: g.who.name || g.who.email, role: g.who.role }, { name: String(b?.name ?? ""), size: Number(b?.size), type: String(b?.type ?? ""), tag: String(b?.tag ?? "") });
+    const r = await startUpload(await db(), g.who.tenantId, { userId: g.who.userId, name: displayName(g.who.name, g.who.email), role: g.who.role }, { name: String(b?.name ?? ""), size: Number(b?.size), type: String(b?.type ?? ""), tag: String(b?.tag ?? "") });
     if (!r.ok) return NextResponse.json(r, { status: 400 });
     return NextResponse.json({ ok: true, id: r.file.id, upload: await st.uploadUrl(r.file.key, r.file.contentType, r.file.id) });
   } catch (err) {

@@ -4,6 +4,7 @@ import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { CLEARABLE, clearStatus, historyOf } from "@/lib/leads";
 import { sameOrigin } from "@/lib/same-origin";
+import { displayName } from "@/lib/display-name";
 
 // POST {field: "email_status" | "whatsapp_status" | "result"}: the × on a status chip. Answers the lead and its history.
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -16,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const d = await db();
   try {
-    const r = await clearStatus(d, g.who.tenantId, id, field, { kind: "person", name: g.who.name || g.who.email, userId: g.who.userId });
+    const r = await clearStatus(d, g.who.tenantId, id, field, { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     if (!r.ok) return NextResponse.json(r, { status: 409 });
     return NextResponse.json({ ...r, history: await historyOf(d, g.who.tenantId, id) });
   } catch (err) {

@@ -5,6 +5,7 @@ import { changeFile, deleteFile, finishUpload, getFile } from "@/lib/files";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
 import { NOT_SET_UP, storage } from "@/lib/storage";
+import { displayName } from "@/lib/display-name";
 
 // POST {action: "done"} after the upload; {action: "rename", name}; {action: "tag", tag}; {action: "delete"}.
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -16,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const b = (await req.json().catch(() => null)) as { action?: string; name?: string; tag?: string } | null;
   const { id } = await ctx.params;
   const d = await db();
-  const who = { userId: g.who.userId, name: g.who.name || g.who.email, role: g.who.role };
+  const who = { userId: g.who.userId, name: displayName(g.who.name, g.who.email), role: g.who.role };
   try {
     if (b?.action === "done") {
       const [f] = await Promise.all([getFile(d, g.who.tenantId, id)]);

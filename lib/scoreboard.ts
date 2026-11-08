@@ -7,6 +7,7 @@ import { and, eq, gte } from "drizzle-orm";
 import type { Db } from "./db";
 import { outcomes, shifts, users } from "./db/schema";
 import { roundShift } from "./cadence";
+import { displayName } from "./display-name";
 
 export type Person = { id: string; name: string; email: string; role: string; notionUserId: string | null };
 export type PersonWeek = { userId: string; name: string; role: string; sent: number; whatsapp?: number; replies: number; meetings: number; clients: number; tasksDone: number; minutes: number };
@@ -51,7 +52,7 @@ export function scoreboard(
   // A click by lead id, or by the Notion page id it had before the queue moved over.
   const click = new Map<string, { userId: string; at: Date }>();
   for (const c of clicks) if (c.userId && !click.has(c.pageId)) click.set(c.pageId, { userId: c.userId, at: c.at });
-  const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: p.name || p.email, role: p.role, sent: 0, whatsapp: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
+  const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: displayName(p.name, p.email), role: p.role, sent: 0, whatsapp: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
   for (const l of leads) {
     const c = click.get(l.id) ?? (l.notionPageId ? click.get(l.notionPageId) : undefined);
     const who = l.sentBy.map((n) => personNamed(people, n)).find(Boolean)?.id ?? c?.userId;

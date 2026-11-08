@@ -45,7 +45,12 @@ export function followUpTemplate(l: { business: string; contact: string | null; 
   return `${hi} a quick follow-up on my note last week about ${what}.\nWould a 15-minute call this week be useful, or should I send the details by email?`;
 }
 
-const sentByMe = (name: string) => sql`${leads.sentBy} @> ARRAY[${name}]::text[]`;
+// the person's own sends, under any name they were recorded with (namesOf: the shown name, and the full address older
+// records carry)
+const sentByMe = (names: string | string[]) => {
+  const list = Array.isArray(names) ? names : [names];
+  return sql`${leads.sentBy} && ARRAY[${sql.join(list.map((n) => sql`${n}`), sql`, `)}]::text[]`;
+};
 const isSent = or(eq(leads.emailStatus, "Email Sent"), eq(leads.whatsappStatus, WHATSAPP_SENT));
 
 function shape(r: { id: string; business: string; contact: string | null; email: string | null; pkg: string | null; draft: string | null; draftFollowup: string | null; sentAt: Date | null }): SentLead {
@@ -66,7 +71,7 @@ function shape(r: { id: string; business: string; contact: string | null; email:
 const cols = { id: leads.id, business: leads.business, contact: leads.contactPerson, email: leads.businessEmail, pkg: leads.package, draft: leads.draftEmail, draftFollowup: leads.draftFollowup, sentAt: leads.sentAt };
 
 /** The person's follow-ups due: their sends four or more working days old, no result, no follow-up yet, oldest first. */
-export async function followUpsDue(db: Db, tenantId: string, name: string, now = new Date()): Promise<SentLead[]> {
+export async function followUpsDue(db: Db, tenantId: string, name: string | string[], now = new Date()): Promise<SentLead[]> {
   const cutoff = new Date(`${workingDaysBefore(now, FOLLOW_UP_AFTER)}T23:59:59`);
   const rows = await db
     .select(cols)
@@ -79,7 +84,7 @@ export async function followUpsDue(db: Db, tenantId: string, name: string, now =
 
 /** The person's recent sends still waiting for an answer (not yet due a follow-up), newest first: where a reply is
  *  recorded. */
-export async function sentWaiting(db: Db, tenantId: string, name: string, now = new Date()): Promise<SentLead[]> {
+export async function sentWaiting(db: Db, tenantId: string, name: string | string[], now = new Date()): Promise<SentLead[]> {
   const cutoff = new Date(`${workingDaysBefore(now, FOLLOW_UP_AFTER)}T23:59:59`);
   const since = new Date(now.getTime() - RECENT_DAYS * 86_400_000);
   const rows = await db
