@@ -4,6 +4,7 @@ import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
 import { fillChecks, markWhatsappSent, setCheck, STATUS_OF, type CheckStatus } from "@/lib/whatsapp-pack";
+import { displayName } from "@/lib/display-name";
 
 // The pack's WhatsApp tab. POST {action: "fill"}: take unchecked numbers up to twenty.
 // POST {action: "check", id, status: "verified" | "asked" | "false"}: the number's check, as the person.
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   const g = await guard("queue.work");
   if ("res" in g) return g.res;
   const b = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; status?: unknown } | null;
-  const who = { userId: g.who.userId, name: g.who.name || g.who.email };
+  const who = { userId: g.who.userId, name: displayName(g.who.name, g.who.email) };
   const id = typeof b?.id === "string" && /^[0-9a-f-]{36}$/i.test(b.id) ? b.id : null;
   try {
     const d = await db();

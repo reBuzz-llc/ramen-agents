@@ -82,7 +82,7 @@ export async function markPackSent(db: Db, tenantId: string, leadId: string, who
 /** Everyone's packs, for the owner: each person holding leads, with how many and which. */
 export async function allPacks(db: Db, tenantId: string): Promise<{ userId: string; name: string; leads: { id: string; business: string }[] }[]> {
   const rows = await db
-    .select({ userId: claims.userId, name: sql<string>`coalesce(nullif(${users.name}, ''), ${users.email})`, id: leads.id, business: leads.business })
+    .select({ userId: claims.userId, name: sql<string>`coalesce(nullif(trim(${users.name}), ''), split_part(${users.email}, '@', 1))`, id: leads.id, business: leads.business })
     .from(claims)
     .innerJoin(users, eq(users.id, claims.userId))
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))

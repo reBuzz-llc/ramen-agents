@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "./db";
 import { claims, users } from "./db/schema";
 import type { Role } from "./roles";
+import { displayName } from "./display-name";
 
 export type Claim = { userId: string; name: string; at: Date };
 
@@ -31,7 +32,7 @@ export async function holderOf(db: Db, tenantId: string, pageId: string): Promis
     .from(claims)
     .innerJoin(users, eq(users.id, claims.userId))
     .where(and(eq(claims.tenantId, tenantId), eq(claims.pageId, pageId)));
-  return c ? { userId: c.userId, name: c.name || c.email, at: c.at } : null;
+  return c ? { userId: c.userId, name: displayName(c.name, c.email), at: c.at } : null;
 }
 
 /** Every taken lead in the company, by Notion page id. */
@@ -41,7 +42,7 @@ export async function claimsOf(db: Db, tenantId: string): Promise<Map<string, Cl
     .from(claims)
     .innerJoin(users, eq(users.id, claims.userId))
     .where(eq(claims.tenantId, tenantId));
-  return new Map(rows.map((r) => [r.pageId, { userId: r.userId, name: r.name || r.email, at: r.at }]));
+  return new Map(rows.map((r) => [r.pageId, { userId: r.userId, name: displayName(r.name, r.email), at: r.at }]));
 }
 
 /** Done with a lead (sent): the claim goes, the outcome row keeps who sent it. */

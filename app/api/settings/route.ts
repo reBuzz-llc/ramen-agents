@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { tenants, users } from "@/lib/db/schema";
 import { guard } from "@/lib/guard";
-import { canSetRole, type Role } from "@/lib/roles";
+import { can, canSetRole, type Role } from "@/lib/roles";
 import { sameOrigin } from "@/lib/same-origin";
 import { boardById, forgetBoard, forgetTasks, NotionError, whoAmI } from "@/lib/notion";
 import { idFromInput, missingLeadsColumns, NONE_SHARED, NOT_ACCEPTED } from "@/lib/notion-pick";
@@ -14,6 +14,7 @@ import { connectNotion, disconnectNotion, notionOf, settingsOf } from "@/lib/ten
 import { setRate } from "@/lib/member-rates";
 import { sectionOf } from "@/lib/settings-nav";
 import { canSetRate, dayOf, money } from "@/lib/rates";
+import { displayName } from "@/lib/display-name";
 
 // Back to the page the form was on: its Settings page (lib/settings-nav.ts sectionOf), or the Clock page's "Manage
 // projects" (a form there sends return=/). Kept per request, never in a module variable shared by requests running at once.
@@ -186,6 +187,19 @@ export async function POST(req: Request) {
     const r = await mergeProjects(d, g.who.tenantId, String(form.get("projectId") ?? ""), into === "general" ? null : into);
     return back(req, r.ok ? "Projects merged: the hours moved over and the duplicate is gone." : r.error);
   }
+  if (action === "name") {
+    // a person's name: an owner or manager names anyone in the company; anyone names themselves
+    const g = await guard("clock.own");
+    if ("res" in g) return g.res;
+    const userId = String(form.get("userId") ?? "");
+    const name = String(form.get("name") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (userId !== g.who.userId && !can(g.who.role, "users.add")) return back(req, "Only an owner or manager can name someone else.");
+    if (!name || /@/.test(name)) return back(req, "Write a name, not an email address.");
+    const [target] = await d.select({ id: users.id }).from(users).where(and(eq(users.tenantId, g.who.tenantId), eq(users.id, userId)));
+    if (!target) return back(req, "No such person.");
+    await d.update(users).set({ name }).where(and(eq(users.tenantId, g.who.tenantId), eq(users.id, userId)));
+    return back(req, `Name saved: ${name}. It shows on packs, Sent by, statements and This week from now on.`);
+  }
   if (action === "role") {
     const g = await guard("users.manage");
     if ("res" in g) return g.res;
@@ -207,7 +221,7 @@ export async function POST(req: Request) {
     if (hourly === undefined && outcomeBonus === undefined) return back(req, "Give an hourly rate, an outcome bonus or both.");
     const currency = String(form.get("currency") ?? "USD").trim().toUpperCase().slice(0, 3) || "USD";
     await setRate(d, g.who.tenantId, target.id, from, { hourly, outcomeBonus, currency }, g.who.userId);
-    return back(req, `${target.name || target.email}: new rate from ${from}. Hours from that day on use it; approved statements stay as they were.`);
+    return back(req, `${displayName(target.name, target.email)}: new rate from ${from}. Hours from that day on use it; approved statements stay as they were.`);
   }
   return back(req, "Unknown action.");
 }

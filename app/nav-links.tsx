@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SignOut from "./sign-out";
+import { displayName } from "@/lib/display-name";
 
 /** The bar: the work people do every day. */
 export const NAV = [
@@ -67,7 +68,7 @@ function ProfileMenu({ who, current }: { who: { name: string; email: string; rol
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const name = who.name || who.email;
+  const name = displayName(who.name, who.email);
   const initials = name
     .split(/[\s@.]+/)
     .filter(Boolean)

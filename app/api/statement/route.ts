@@ -9,6 +9,7 @@ import { canSeePay } from "@/lib/rates";
 import { sameOrigin } from "@/lib/same-origin";
 import { approve, statementFor } from "@/lib/statements";
 import { hhmm } from "@/lib/timesheet";
+import { displayName } from "@/lib/display-name";
 
 const okWeek = (w: string) => /^\d{4}-\d{2}-\d{2}$/.test(w);
 
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
   const m = (n: number | null) => (n === null ? "owner sets the rate" : `${s.statement.currency} ${n.toFixed(2)}`);
   const pdf = textPdf([
     { text: `${who.tenantName}: weekly statement`, size: 16, bold: true },
-    { text: `${person.name || person.email}, week of ${week}` },
+    { text: `${displayName(person.name, person.email)}, week of ${week}` },
     { text: s.approved ? `Approved by ${s.approved.by} on ${s.approved.at.slice(0, 10)}` : "Draft: not yet approved" },
     { text: " " },
     { text: `Hours clocked: ${hhmm(s.week.minutes)}` },

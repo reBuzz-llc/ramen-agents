@@ -11,6 +11,7 @@ import { listTasks, openTaskFlags } from "@/lib/tasks";
 import { sameOrigin } from "@/lib/same-origin";
 import { recordOutcome } from "@/lib/tenants";
 import { startDayOf, weekStart } from "@/lib/week";
+import { displayName } from "@/lib/display-name";
 
 // GET: the company's queue (drafts to review, emails to send, open team tasks), best Lead score first, and this week's
 // sent count against the key result. The leads come from Peek's own board, the same rows and
@@ -43,7 +44,7 @@ export async function GET() {
     });
     // Server-Timing: the browser's network panel shows how long the server spent (the budget is 600 ms warm).
     const people = tasks.some((t) => t.source === "peek")
-      ? (await d.select({ name: users.name, email: users.email }).from(users).where(and(eq(users.tenantId, g.who.tenantId), eq(users.active, true)))).map((u) => u.name || u.email).sort()
+      ? (await d.select({ name: users.name, email: users.email }).from(users).where(and(eq(users.tenantId, g.who.tenantId), eq(users.active, true)))).map((u) => displayName(u.name, u.email)).sort()
       : [];
     return NextResponse.json({ ok: true, rows, leadsReason, people, canRelease: g.who.role !== "member", tasks, tasksReason, sentThisWeek, target: g.who.settings.keyResults?.sent ?? null }, { headers: { "server-timing": `app;dur=${Date.now() - started}` } });
   } catch (err) {
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
   if (!holder) return NextResponse.json({ ok: false, error: "Accept it first." }, { status: 409 });
   if (holder.userId !== g.who.userId) return NextResponse.json({ ok: false, error: `${holder.name} accepted this one.` }, { status: 409 });
   try {
-    const r = await markLead(d, g.who.tenantId, body.pageId, status as (typeof WRITABLE)[number], { kind: "person", name: g.who.name || g.who.email, userId: g.who.userId });
+    const r = await markLead(d, g.who.tenantId, body.pageId, status as (typeof WRITABLE)[number], { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     if (r.ok) await recordOutcome(d, g.who.tenantId, g.who.userId, body.pageId, status === STATUS_SENT ? "sent" : "reviewed");
     if (r.ok && status === STATUS_SENT) await closeClaim(d, g.who.tenantId, body.pageId);
     return NextResponse.json(r, { status: r.ok ? 200 : 409 });

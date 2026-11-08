@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
+import { displayName } from "@/lib/display-name";
 
 // PUT from the Asset and Packages pages: the whole list as the owner or a manager left it ({rates}, {packages} or {sections}),
 // written as them; the answer is the list as saved, with its ids. `known` is the ids the page loaded: a row added since
@@ -16,7 +17,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ list: string }>
   if ("res" in g) return g.res;
   const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const d = await db();
-  const by = g.who.name || g.who.email;
+  const by = displayName(g.who.name, g.who.email);
   try {
     if (list === "rates") {
       const c = checkRates(b?.rates);

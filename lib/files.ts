@@ -59,7 +59,7 @@ export async function listFiles(db: Db, tenantId: string): Promise<FileRow[]> {
   const rows = await db
     .select({
       f: files,
-      uploader: sql<string>`coalesce(nullif(${users.name}, ''), ${users.email}, '')`,
+      uploader: sql<string>`coalesce(nullif(trim(${users.name}), ''), split_part(${users.email}, '@', 1), '')`,
       attachedTo: sql<number>`(select count(*)::int from ${leadFiles} lf where lf.file_id = ${files.id})`,
     })
     .from(files)

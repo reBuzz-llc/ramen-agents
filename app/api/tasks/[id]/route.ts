@@ -4,6 +4,7 @@ import { publicReason } from "@/lib/errors";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
 import { changeTask, type PersonChange } from "@/lib/tasks";
+import { displayName } from "@/lib/display-name";
 
 // PATCH {status? | tick: {index, text, done} | assignees? | priority? | due?}: a person's change from the queue card
 //, written as that person: it lands in the task's history and the bots never overwrite it.
@@ -20,7 +21,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (b.due === null || typeof b.due === "string") change.due = b.due;
   if (b.tick && Number.isInteger(b.tick.index) && typeof b.tick.text === "string" && typeof b.tick.done === "boolean") change.tick = b.tick;
   try {
-    const r = await changeTask(await db(), g.who.tenantId, (await ctx.params).id, { kind: "person", name: g.who.name || g.who.email, userId: g.who.userId }, change);
+    const r = await changeTask(await db(), g.who.tenantId, (await ctx.params).id, { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId }, change);
     if (!r.ok) return NextResponse.json({ ok: false, error: r.message }, { status: r.code === "not_found" ? 404 : 400 });
     return NextResponse.json({ ok: true, task: r.task });
   } catch (err) {

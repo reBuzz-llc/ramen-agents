@@ -542,7 +542,7 @@ function boardColumns(userId: string) {
     sentBy: leads.sentBy,
     hasDraft: sql<boolean>`${leads.draftEmail} is not null and ${leads.draftEmail} not ilike 'skip:%'`,
     updatedAt: leads.updatedAt,
-    takenBy: sql<string | null>`(select coalesce(nullif(u.name, ''), u.email) from ${claims} c join ${users} u on u.id = c.user_id where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text)`,
+    takenBy: sql<string | null>`(select coalesce(nullif(trim(u.name), ''), split_part(u.email, '@', 1)) from ${claims} c join ${users} u on u.id = c.user_id where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text)`,
     mine: sql<boolean>`exists (select 1 from ${claims} c where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text and c.user_id = ${userId})
       or exists (select 1 from ${leadCells} m where m.lead_id = "leads"."id" and m.actor_user_id = ${userId} and m.outcome = 'applied')`,
     openFlags: sql<number>`(select count(*)::int from ${leadFlags} f where f.lead_id = "leads"."id" and f.status = 'open')`,
