@@ -80,6 +80,12 @@ function Handover({ p }: { p: Package }) {
           </p>
         )}
         {p.status === "draft" && why ? <p className="mt-1">Why: {why}</p> : null}
+        {p.status === "draft" && p.reviewedBy && p.reviewedAt ? (
+          <p data-review={p.reviewVerdict ?? ""} className={`mt-1 ${p.reviewVerdict === "revise" ? "text-bad" : "text-ink"}`}>
+            Reviewed by {p.reviewedBy}, {day(p.reviewedAt)}: <span className="font-semibold">{p.reviewVerdict === "approve" ? "approve" : "revise"}</span>
+            {p.reviewNote ? <span> · {p.reviewNote}</span> : null}
+          </p>
+        ) : null}
         {p.status === "draft" && p.sources.length ? (
           <p className="mt-1 break-words">
             Read:{" "}
