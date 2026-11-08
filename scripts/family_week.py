@@ -13,7 +13,8 @@ What it reads (read only):
 A section whose source is missing is left out, never shown as zero.
 
 Masking: nothing in it may name a business, a person or a place. It masks every business name and website on the
-portal's lead cache (common-data/shared-state/portal-leads-cache.json, when the portal is in use), the names in
+portal's lead caches (common-data/shared-state/portal-leads-cache-dashboard.json and portal-leads-cache.json, when the
+portal is in use), the names in
 common-data/team.json, everything in common-data/configs/family-week.toml (copy family-week.example.toml: your places,
 your people, any other words), and every email address, phone number and web address.
 
@@ -52,8 +53,13 @@ def _json(path: Path, default):
 def mask_terms(root: Path = ROOT) -> dict[str, str]:
     """Term -> what it becomes: the portal's businesses and their websites, the team's names, and family-week.toml."""
     terms: dict[str, str] = {}
-    cache = _json(root / "common-data/shared-state/portal-leads-cache.json", {})
-    for lead in (cache.get("leads") or {}).values() if isinstance(cache, dict) else []:
+    leads: list = []
+    # the dashboard's cache ({"leads": {id: lead}}) and the engine's shared copy ({"rows": {id: lead}} or a list)
+    for file, key in (("portal-leads-cache-dashboard.json", "leads"), ("portal-leads-cache.json", "rows")):
+        cache = _json(root / "common-data/shared-state" / file, {})
+        got = cache.get(key) if isinstance(cache, dict) else None
+        leads += list(got.values()) if isinstance(got, dict) else list(got) if isinstance(got, list) else []
+    for lead in (x for x in leads if isinstance(x, dict)):
         name = str(lead.get("business") or "").strip()
         if len(name) >= 4:
             terms.setdefault(name, "a business")
