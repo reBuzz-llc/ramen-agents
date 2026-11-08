@@ -136,8 +136,10 @@ def score(ld, sig: dict, *, draft_ok: bool, pain_ok: bool, today: dt.date) -> in
 
 
 def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_version: str, now: dt.datetime,
-        draft_ok: Callable, pain_ok: Callable, dry_run: bool = False, get: Callable | None = None, per_run: int = PER_RUN) -> dict:
-    """Read up to PER_RUN sites due for a check, then write Tools / Site health / Lead score where they changed."""
+        draft_ok: Callable, pain_ok: Callable, dry_run: bool = False, get: Callable | None = None, per_run: int = PER_RUN,
+        write: Callable | None = None) -> dict:
+    """Read up to PER_RUN sites due for a check, then write Tools / Site health / Lead score where they changed. With
+    `write(page_id, {column: value}) -> bool` (the team portal, portal_leads.writer) the cells go there instead of Notion."""
     try:
         cache: dict = json.loads(CACHE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -147,7 +149,7 @@ def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_
                  key=lambda ld: str(cache.get(ld.page_id, {}).get("at", "")))[:per_run]
     for ld in due:
         cache[ld.page_id] = {**cache.get(ld.page_id, {}), "at": now.date().isoformat(), "sig": read_site(ld.website, get=get)}
-    client = None if dry_run else httpx.Client(headers={"Authorization": f"Bearer {api_key}", "Notion-Version": api_version}, timeout=60)
+    client = None if dry_run or write is not None else httpx.Client(headers={"Authorization": f"Bearer {api_key}", "Notion-Version": api_version}, timeout=60)
     written = 0
     for ld in leads:
         sig = (cache.get(ld.page_id) or {}).get("sig", {}) if ld.website.strip() else {}
@@ -158,7 +160,10 @@ def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_
         had = (cache.get(ld.page_id) or {}).get("written") or {}
         if had.get("tools") == want["tools"] and had.get("score") == want["score"] and had.get("health", "")[:40] == want["health"][:40]:
             continue
-        if client is not None:
+        if write is not None and not dry_run:
+            if not write(ld.page_id, {"Tools on site": want["tools"], "Site health": want["health"][:300], "Lead score": want["score"]}):
+                continue
+        elif client is not None:
             props = {"Tools on site": {"multi_select": [{"name": t} for t in want["tools"]]},
                      "Site health": {"rich_text": [{"text": {"content": want["health"][:300]}}] if want["health"] else []},
                      "Lead score": {"number": want["score"]}}
