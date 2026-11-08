@@ -163,6 +163,18 @@ What runs now, read against the design above. The engine and the Validator still
   `POST /v1/rows/{id}/flags` `{actor, rule, detail}` answers `{flag: {id, rule, detail, status, first_seen, resolved_at, actor}}`
   (one per rule: an open one keeps its id and takes the new detail, a resolved one reopens);
   `PATCH /v1/rows/{id}/flags/{flagId}` `{actor, resolved: true}` answers `{flag}`; `GET /v1/rows/{id}/flags` answers `{flags}`.
+- **Family reports** (the Validator's key, scope `board:validate`, for POST): what the agents did, shown to
+  the team on `/family`. `POST /v1/family/report` with one of three shapes (`at` optional, ISO 8601, default now):
+  - `{"kind": "tick", "at", "today": {"drafts_landed", "whatsapp_pitches", "leads_listed", "no_site_share" (0-100),
+    "polished_drafts", "contact_roles": {"<role>": n}}, "members": [{"name", "state", "line"}]}` (every field of `today`
+    optional; 30 members at most);
+  - `{"kind": "morning", "at", "lines": ["...", ...]}` (1 to 60 lines);
+  - `{"kind": "week", "at", "week": {"title", "summary", "url"}}` (`url` the post's https link, wherever it is published).
+
+  Every text is one line of at most 300 characters, and masked: one with an email address, a phone number or a web
+  address is refused with 400 and the field that has it. Answers `{report: {id, at}}`; the newest 50 per kind are
+  kept. `GET /v1/family/latest` (`board:read`) answers `{tick, morning, week}`, each the newest report with its `at`, or
+  `null`.
 - **Phone**: `phone` is an ordinary cell next to `whatsapp`, written by bots and people under person wins
   (not a team-only field). Every write stores it in E.164 (`"+17188760861"`): a US number in any common shape gets `+1`,
   a number with a country code keeps it, an extension is dropped, and text that is not a number is kept as written.

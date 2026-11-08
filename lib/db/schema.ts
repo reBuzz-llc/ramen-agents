@@ -628,3 +628,21 @@ export const assetSections = pgTable(
   },
   (t) => [index("asset_sections_tenant").on(t.tenantId, t.position)],
 );
+
+/** The family's own reports for the team (the reverse of the Guide): what the agents did today and
+ *  this week, posted by the Validator with its key (POST /v1/family/report) and shown on /family. Masked text only:
+ *  lib/family.ts refuses emails, phone numbers and web addresses (but the week post's own link). `kind` is "tick" (every
+ *  few minutes: today's numbers and each member's state line), "morning" (the morning block's lines) or "week" (the
+ *  weekly post's title, summary and link); `lines` holds that payload. The newest 50 per kind are kept. */
+export const familyReports = pgTable(
+  "family_reports",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    lines: jsonb("lines").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    postedBy: text("posted_by").notNull().default(""),
+  },
+  (t) => [index("family_reports_latest").on(t.tenantId, t.kind, t.at)],
+);

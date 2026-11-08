@@ -22,6 +22,7 @@ export const MENU = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/week", label: "This week" },
   { href: "/guide", label: "Guide" }, // the team's step-by-step guide
+  { href: "/family", label: "Family" }, // what the agents did today and this week
   { href: "/settings", label: "Settings" },
   { href: "/privacy", label: "Privacy" },
 ] as const;
