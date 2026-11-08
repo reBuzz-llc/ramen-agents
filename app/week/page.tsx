@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { scoreFacts } from "@/lib/lead-queue";
 import { can } from "@/lib/roles";
+import GoalsNudge from "../goals-nudge";
 import { sendsLabel } from "@/lib/leaderboard";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { projectName, projectsOf, type Project } from "@/lib/projects";
@@ -44,6 +45,7 @@ export default async function WeekPage() {
     <div>
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">This week</h1>
       <p className="mt-1 text-sm text-muted">Since {WEEKDAYS[startDay]} {weekStart(new Date(), startDay)}.{step ? ` Hours are rounded to ${step} minutes per shift.` : ""} A reply or meeting counts for the person who sent that lead.</p>
+      <GoalsNudge role={who.role} keyResults={kr} className="mt-4" />
       {boardError ? <p className="mt-4 rounded-lg bg-panel p-3 text-sm text-muted">{boardError}</p> : null}
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((t) => (
