@@ -530,6 +530,10 @@ class LeadsConfig:
 
     enabled: bool = False
     database_id: str = ""
+    # The team portal instead of Notion (portal_store.py): set portal_url (common.toml [leads]) and the agents read and
+    # write the Leads board there with portal_key_file's key; unset, the board stays on Notion.
+    portal_url: str = ""
+    portal_key_file: str = "~/bots/common-data/keys/portal-engine.key"
     max_per_episode: int = 1  # 0 = no cap
     max_per_day: int = 3  # 0 = no cap
     max_updates_per_episode: int = 2  # update_lead actions per episode; 0 = no cap

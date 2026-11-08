@@ -2356,6 +2356,10 @@ class Controller:
         hit = cache.get(domain)
         if hit is not None and time.time() - hit[0] < 3600:
             return hit[1]
+        if hasattr(self.leads_notion, "has_domain"):        # the portal: its shared copy answers, no query
+            found = self.leads_notion.has_domain(domain)
+            cache[domain] = (time.time(), found)
+            return found
         try:
             data = self.leads_notion._request("POST", f"{self.leads_notion._container_path}/query",
                                               json={"filter": {"property": "Website", "url": {"contains": domain}}, "page_size": 1})
