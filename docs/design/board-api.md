@@ -163,6 +163,12 @@ What runs now, read against the design above. The engine and the Validator still
   `POST /v1/rows/{id}/flags` `{actor, rule, detail}` answers `{flag: {id, rule, detail, status, first_seen, resolved_at, actor}}`
   (one per rule: an open one keeps its id and takes the new detail, a resolved one reopens);
   `PATCH /v1/rows/{id}/flags/{flagId}` `{actor, resolved: true}` answers `{flag}`; `GET /v1/rows/{id}/flags` answers `{flags}`.
+- **Package draft reviews** (any `board:write` key): `POST /v1/assets/packages/drafts/review`
+  `{name, verdict: "approve"|"revise", note?, by?}` (note at most 500 characters of masked text; `by` the reviewing agent,
+  else the key's name) stamps `reviewed_by`, `reviewed_at`, `review_verdict` and `review_note` on the newest draft of that
+  name an agent handed over; never a published package or a person's draft (404 when there is none). Answers
+  `{ok, id, reviewed_at}`. A new handover of the draft clears its review. `GET /v1/assets/packages/drafts` (`board:read`)
+  and the packages list carry the four fields; the Packages page shows the review, and the owner still publishes.
 - **Follow-ups**: `draft_followup` is an ordinary cell the agents may write (the Outreach Writer drafts a short second
   note for a lead it sent before; a person's edit wins). `follow_up_at` (a date) and `follow_up_by` (names) are
   person-only like the statuses: a bot writing them is refused (`human_only`). The Clock home lists a person's own sends

@@ -3,9 +3,10 @@
 // Validator's price guard, the Writer's offer reader) all go through here. A save sends the whole list in the order it
 // should read: rows with an id are kept (and only touched when they changed), rows without one are added, rows left out
 // are deleted. One transaction, so a reader never sees half a list.
-import { and, asc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import type { Db } from "./db";
 import { assetPackages, assetRates, assetSections } from "./db/schema";
+import { unmasked } from "./family";
 
 export const MAX_ITEMS = 200;
 export const STATUSES = ["draft", "published"] as const;
@@ -35,6 +36,11 @@ export type Package = PackageIn & {
   /** A bot's handover: who handed it over and when. */
   handedOverBy: string | null;
   handedOverAt: string | null;
+  /** An agent's review of a bot's draft: who, when, approve or revise, and a short note. */
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewVerdict: "approve" | "revise" | null;
+  reviewNote: string | null;
 };
 export const SECTION_KINDS = ["text", "rates"] as const;
 export type SectionKind = (typeof SECTION_KINDS)[number];
@@ -137,6 +143,10 @@ export async function listPackages(db: Db, tenantId: string, only?: PackageStatu
     sources: p.sources,
     handedOverBy: p.handedOverBy,
     handedOverAt: p.handedOverAt ? p.handedOverAt.toISOString() : null,
+    reviewedBy: p.reviewedBy,
+    reviewedAt: p.reviewedAt ? p.reviewedAt.toISOString() : null,
+    reviewVerdict: p.reviewVerdict === "approve" || p.reviewVerdict === "revise" ? p.reviewVerdict : null,
+    reviewNote: p.reviewNote,
   }));
 }
 
@@ -259,7 +269,8 @@ export async function addDraft(db: Db, tenantId: string, d: DraftIn, by: string)
       )
       .limit(1);
     const now = new Date();
-    const fields = { ...d, handedOverBy: by, handedOverAt: now, updatedBy: by, updatedAt: now };
+    // a new handover is a new text: an earlier review of it no longer applies
+    const fields = { ...d, handedOverBy: by, handedOverAt: now, updatedBy: by, updatedAt: now, reviewedBy: null, reviewedAt: null, reviewVerdict: null, reviewNote: null };
     if (same) {
       await t.update(assetPackages).set(fields).where(eq(assetPackages.id, same.id));
       return { id: same.id, created: false };
@@ -289,6 +300,10 @@ export const packageJson = (p: Package) => ({
   sources: p.sources,
   handed_over_by: p.handedOverBy,
   handed_over_at: p.handedOverAt,
+  reviewed_by: p.reviewedBy,
+  reviewed_at: p.reviewedAt,
+  review_verdict: p.reviewVerdict,
+  review_note: p.reviewNote,
   updated_at: p.updatedAt,
   updated_by: p.updatedBy,
 });
@@ -349,3 +364,33 @@ export const saveSections = (db: Db, tenantId: string, items: SectionIn[], by: s
   replace(db, assetSections, tenantId, items, by, (r, x) => r.title === x.title && r.kind === x.kind && r.body === x.body, (x) => ({ title: x.title, kind: x.kind, body: x.body }), known);
 
 export const sectionJson = (s: Section) => ({ id: s.id, position: s.position, title: s.title, kind: s.kind, body: s.body, updated_at: s.updatedAt, updated_by: s.updatedBy });
+
+export type ReviewIn = { name: string; verdict: "approve" | "revise"; note: string; by: string };
+
+/** A review's body checked: {name, verdict: "approve"|"revise", note ≤ 500 characters of masked text, by?}. */
+export function checkReview(input: unknown, keyName: string): { ok: true; review: ReviewIn } | { ok: false; message: string } {
+  const b = (input ?? {}) as Record<string, unknown>;
+  const name = typeof b.name === "string" ? b.name.trim() : "";
+  if (!name) return { ok: false, message: "send {name, verdict: approve or revise, note?, by?}" };
+  if (b.verdict !== "approve" && b.verdict !== "revise") return { ok: false, message: "verdict must be approve or revise" };
+  const note = typeof b.note === "string" ? b.note.replace(/\s+/g, " ").trim() : "";
+  if (note.length > 500) return { ok: false, message: "note is longer than 500 characters" };
+  const why = unmasked(note);
+  if (why) return { ok: false, message: `note has ${why}: send masked text only` };
+  const by = typeof b.by === "string" && b.by.trim() ? b.by.trim().slice(0, 80) : keyName;
+  return { ok: true, review: { name: name.slice(0, 200), verdict: b.verdict, note, by } };
+}
+
+/** Stamp a review on the newest draft of that name an agent handed over (any agent): never a published package, never a
+ *  person's draft. Null when there is no such draft. */
+export async function reviewDraft(db: Db, tenantId: string, r: ReviewIn, now = new Date()): Promise<{ id: string; reviewedAt: string } | null> {
+  const [draft] = await db
+    .select({ id: assetPackages.id })
+    .from(assetPackages)
+    .where(and(eq(assetPackages.tenantId, tenantId), eq(assetPackages.status, "draft"), isNotNull(assetPackages.handedOverBy), isNotNull(assetPackages.handedOverAt), sql`lower(${assetPackages.name}) = ${r.name.toLowerCase()}`))
+    .orderBy(desc(assetPackages.handedOverAt))
+    .limit(1);
+  if (!draft) return null;
+  await db.update(assetPackages).set({ reviewedBy: r.by, reviewedAt: now, reviewVerdict: r.verdict, reviewNote: r.note || null }).where(eq(assetPackages.id, draft.id));
+  return { id: draft.id, reviewedAt: now.toISOString() };
+}

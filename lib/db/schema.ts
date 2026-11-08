@@ -608,6 +608,13 @@ export const assetPackages = pgTable(
     sources: text("sources").array().notNull().default(sql`'{}'::text[]`),
     handedOverBy: text("handed_over_by"),
     handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
+    // An agent's review of a bot's draft, before the owner prices and publishes: POST /v1/assets/packages/drafts/review
+    // stamps these; a person's draft and a published package are never reviewed. The verdict is "approve" or "revise";
+    // the note is short, masked text.
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewVerdict: text("review_verdict"),
+    reviewNote: text("review_note"),
     updatedBy: text("updated_by").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
