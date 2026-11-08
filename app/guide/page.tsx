@@ -8,7 +8,7 @@ export const metadata = { title: "Guide · ramen-agents" };
 // what a person changes in the portal, step by step, and what the agent family and the scoreboard read from that change. Every
 // button and cell name is the one on the page. Edit LAST_UPDATED by hand when the text changes. Each section has an
 // anchor (/guide#send) so an agent or a teammate can link one step.
-const LAST_UPDATED = "2026-11-06";
+const LAST_UPDATED = "2026-11-08";
 
 type Step = { id: string; title: string; intro?: React.ReactNode; steps: React.ReactNode[]; seen: string };
 
@@ -35,17 +35,29 @@ const SECTIONS: Step[] = [
     seen: "your name. Every change you make is recorded under it in the lead's History, and This week and the Leaderboard count your work by the name or the Google address you signed in with.",
   },
   {
-    id: "pick",
-    title: "Pick the next lead",
+    id: "already-sent",
+    title: "Before the first sends: mark what you already sent (the owner)",
+    intro: "If your board was imported or rebuilt without the record of who was already emailed, Send next and the packs would offer those businesses again. Do this once, before anyone fills a pack.",
     steps: [
-      <>Open <P href="/leads">Leads</P>. It opens on its first tab, <B>Send next</B>: the Validator&apos;s pick of what to send, best first.</>,
-      <>Press <B>Take it</B> on the top lead nobody has taken. It now shows as yours; <B>Give back</B> if you cannot finish it. The same <B>Take it</B> / <B>Give back</B> is at the bottom of the lead&apos;s drawer.</>,
-      <>Press the business name to open the drawer and read the <B>Draft email</B>. If a name or a detail is wrong, press <B>Edit</B> on the draft and fix it first.</>,
-      <>Copy the address from <B>Business email</B>, then press <B>Copy draft</B> in Send next (or <B>Copy</B> on the draft in the drawer). If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them.</>,
-      <>To attach a file yourself: in the drawer, under <B>Attachments</B>, pick it from <B>Attach a file…</B>. The files themselves are on the <P href="/files">Files</P> page; what we offer is on <P href="/packages">Packages</P> and <P href="/asset">Asset</P>.</>,
-      <><B>Copy link</B> in the drawer shares a lead with a colleague.</>,
+      <>Open <P href="/leads/already-sent">Leads → Mark already sent</P> (owners and managers).</>,
+      <>Paste the addresses from your mailbox&apos;s <B>Sent</B> folder, or press <B>Open a CSV…</B> on an export of it. A date on a line becomes the sent date. WhatsApp numbers and lead ids work too.</>,
+      <>Pick what to set: <B>Email sent</B> (the usual), <B>WhatsApp sent</B>, <B>WhatsApp Verified</B>, <B>Ready to send email</B>, or <B>As each line says</B> for a list that names the status on each line.</>,
+      <>Press <B>Preview</B>. It shows what it would mark, what is already marked, what it could not find, and how many second first-emails it keeps from going out. Then press <B>Mark</B>.</>,
+      <>Then everyone fills their pack (the next step). In that order: paste first, then packs.</>,
     ],
-    seen: "your claim. The lead shows as yours in Send next, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
+    seen: "Email status (or WhatsApp status), Sent by and Sent at, set as you in each lead's History: Send next and the packs stop offering those leads, and This week counts them on the day in the paste.",
+  },
+  {
+    id: "pick",
+    title: "Your send pack: the next ten leads",
+    steps: [
+      <>On the <P href="/">Clock</P>, under the clock, press <B>Fill my pack</B>. Peek takes the next ten leads from Send next for you, best first, that nobody else holds; they are yours until you send them or give them back.</>,
+      <>Open a lead in the pack. Read the <B>Draft email</B> and any red line under it: that is the Validator&apos;s flag on this lead (a wrong name, a figure it could not find). If the draft needs fixing, press <B>Open the lead</B> and use <B>Edit</B> on the draft first.</>,
+      <>Copy the address shown beside the business, then press <B>Copy draft</B>. If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them (the files are on the <P href="/files">Files</P> page; what we offer is on <P href="/packages">Packages</P> and <P href="/asset">Asset</P>).</>,
+      <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. The next lead comes in, so the pack stays at ten.</>,
+      <>Want one particular lead instead? In <P href="/leads">Leads</P> → <B>Send next</B>, press <B>Take it</B>; <B>Give back</B> if you cannot finish it. <B>Copy link</B> in a lead&apos;s drawer shares it with a colleague.</>,
+    ],
+    seen: "your claim. A lead in your pack shows as yours everywhere, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
   },
   {
     id: "send",
@@ -80,20 +92,22 @@ const SECTIONS: Step[] = [
       <>Press <B>Copy</B> on the draft.</>,
       <>Press the <B>WhatsApp</B> link (it opens a chat with that number), paste the message and send it from WhatsApp.</>,
       <>Back in the portal, press <B>WhatsApp message sent</B>. Check the chip now reads <B>WhatsApp msg sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today (if the lead was emailed first, those keep the email&apos;s). Pressed it by mistake? The <B>×</B> on the chip clears it.</>,
-      <>A reply or a meeting from WhatsApp is recorded the same way as from email: see <a href="#result" className="underline">Record a reply, a meeting, a win or a loss</a>.</>,
+      <>A reply or a meeting from WhatsApp is recorded the same way as from email: see <a href="#result" className="underline">Follow up and record the result</a>.</>,
     ],
     seen: "WhatsApp status, Sent by and Sent at, under your name in the lead's History. This week, the Leaderboard and your statement count it as a send for the person who pressed the button, shown beside the emails (\"12 emails · 4 WhatsApp\"), worth the same points as an email; a reply, meeting or client you record afterwards counts as usual.",
   },
   {
     id: "result",
-    title: "Record a reply, a meeting, a win or a loss",
+    title: "Follow up and record the result",
+    intro: "Most small businesses answer a short second note, not the first email. Peek reminds you; you send it, as always, from your own mailbox.",
     steps: [
-      <>Search the business in <P href="/leads?tab=board">Leads → Board</P> and open it.</>,
-      <>Press <B>Replied</B>, <B>Meeting booked</B>, <B>Won</B>, <B>Lost</B> or <B>Bounced</B>. Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
-      <>The <B>Result date</B> fills itself with today. If the reply came on another day, press <B>Edit</B> on Result date and set it.</>,
-      <>Pressed the wrong one? Clear it with the <B>×</B> on its chip and press the right one.</>,
+      <>On the <P href="/">Clock</P>, under your pack, <B>Follow up</B> lists the leads you sent four or more working days ago with no answer yet, oldest first.</>,
+      <>Open one. <B>What you sent first</B> shows your first email; under it is the follow-up: the agents&apos; draft when they wrote one, else a two-line note. Make it yours, press <B>Copy follow-up</B>, send it from your mailbox as a reply to your first email, then press <B>Follow-up sent</B>.</>,
+      <>An answer came? Press what it was, there or under <B>Sent by you, no answer yet</B>: <B>Replied</B>, <B>Meeting booked</B>, <B>Not interested</B> or <B>Bounced</B>. In a lead&apos;s drawer the same steps are <B>Replied</B>, <B>Meeting booked</B>, <B>Won</B>, <B>Lost</B> and <B>Bounced</B>; Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
+      <>The <B>Result date</B> fills itself with today. If the reply came on another day, open the lead (search it in <P href="/leads?tab=board">Leads → Board</P>), press <B>Edit</B> on Result date and set it.</>,
+      <>Pressed the wrong one? Clear it with the <B>×</B> on its chip in the drawer and press the right one.</>,
     ],
-    seen: "Result and Result date, which only people set; the agents never change them. The Leaderboard and This week count replies, meetings and clients by the result date, for the person who sent the lead.",
+    seen: "Follow-up sent and Follow-up by, Result and Result date, which only people set; the agents never change them. This week shows the follow-ups on their own line (not as sends), and the Leaderboard and This week count replies, meetings and clients by the result date, for the person who sent the lead.",
   },
   {
     id: "tasks",

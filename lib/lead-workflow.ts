@@ -81,6 +81,7 @@ export const DRAWER_ORDER = [
   "pain_point",
   "draft_email",
   "draft_whatsapp",
+  "draft_followup",
   "size",
   "package",
   "map_link",
@@ -94,10 +95,12 @@ export const DRAWER_ORDER = [
   "result_date",
   "sent_by",
   "sent_at",
+  "follow_up_at",
+  "follow_up_by",
   "found_by",
   "notes",
   "notion_uid",
   "created_at",
 ];
 /** Shown but never edited by hand: derived, the Validator's measures, or the record of who did what. */
-export const READ_ONLY = new Set(["email_check", "tools_on_site", "site_health", "lead_score", "sent_by", "sent_at", "found_by", "notion_uid", "created_at"]);
+export const READ_ONLY = new Set(["email_check", "tools_on_site", "site_health", "lead_score", "sent_by", "sent_at", "follow_up_by", "found_by", "notion_uid", "created_at"]);
