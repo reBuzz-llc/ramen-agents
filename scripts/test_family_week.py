@@ -53,12 +53,13 @@ def test_a_missing_source_is_left_out_not_zero(tmp_path):
 def test_masks_from_the_portal_cache_team_and_config(tmp_path):
     (tmp_path / "common-data/shared-state").mkdir(parents=True)
     (tmp_path / "common-data/configs").mkdir(parents=True)
-    (tmp_path / "common-data/shared-state/portal-leads-cache.json").write_text(json.dumps({"leads": {"1": {"business": "Maple Street Bakery", "website": "https://www.maplebakery.example/"}}}))
+    (tmp_path / "common-data/shared-state/portal-leads-cache-dashboard.json").write_text(json.dumps({"leads": {"1": {"business": "Maple Street Bakery", "website": "https://www.maplebakery.example/"}}}))
+    (tmp_path / "common-data/shared-state/portal-leads-cache.json").write_text(json.dumps({"rows": {"2": {"business": "Corner Florist", "website": "https://cornerflorist.example"}}}))
     (tmp_path / "common-data/team.json").write_text(json.dumps({"members": [{"name": "Jane Roe"}, {"name": "FILL-ME: a person"}]}))
     (tmp_path / "common-data/configs/family-week.toml").write_text('places = ["Springfield"]\npeople = ["Sam Advisor"]\n[mask]\n"Project Falcon" = "an internal project"\n')
     m = fw.Masker(fw.mask_terms(tmp_path))
-    out = m("Maple Street Bakery (maplebakery.example) in Springfield: Jane told Sam Advisor about Project Falcon; jane@x.example, +1 212 555 0100, https://x.example/a")
-    for bad in ("Maple", "maplebakery", "Springfield", "Jane", "Sam Advisor", "Falcon", "jane@", "555", "https://"):
+    out = m("Corner Florist and Maple Street Bakery (maplebakery.example) in Springfield: Jane told Sam Advisor about Project Falcon; jane@x.example, +1 212 555 0100, https://x.example/a")
+    for bad in ("Corner Florist", "Maple", "maplebakery", "Springfield", "Jane", "Sam Advisor", "Falcon", "jane@", "555", "https://"):
         assert bad not in out, bad
     assert "FILL-ME" not in json.dumps(fw.mask_terms(tmp_path))
 

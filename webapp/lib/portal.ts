@@ -3,7 +3,10 @@
 // unset (the default), the Leads board stays on Notion. The dashboard reads with its own read-only key,
 // common-data/keys/portal-dashboard.key, read at each request and never from the environment; it is minted in the
 // portal's checkout with `node --env-file=.env.local scripts/api-key.mjs dashboard board:read`. The board is kept in
-// common-data/shared-state/portal-leads-cache.json so each read pulls only what changed (lib/lead-rows.ts).
+// common-data/shared-state/portal-leads-cache-dashboard.json so each read pulls only what changed (lib/lead-rows.ts).
+// That file is the dashboard's own: portal-leads-cache.json is the engine's and the Validator's shared copy (another
+// shape, its own lock), which the dashboard never reads or writes; one file for both made each side throw the other's
+// copy away and pull the whole board again.
 // docs/setup-queue.md step 9, docs/portal-database.md.
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -11,7 +14,10 @@ import { BOTS_DIR } from "./bots";
 import { readPortalCached, type PortalCache } from "./lead-rows";
 export { leadsSource, portalLocal, portalUrl, type PortalLocal } from "./portal-config";
 
-export const portalCache = (bots = BOTS_DIR) => path.join(bots, "common-data", "shared-state", "portal-leads-cache.json");
+export const DASHBOARD_CACHE_FILE = "portal-leads-cache-dashboard.json";
+/** The engine's and the Validator's shared copy: the dashboard never reads or writes it. */
+export const SHARED_CACHE_FILE = "portal-leads-cache.json";
+export const portalCache = (bots = BOTS_DIR) => path.join(bots, "common-data", "shared-state", DASHBOARD_CACHE_FILE);
 export const portalKey = (bots = BOTS_DIR) => path.join(bots, "common-data", "keys", "portal-dashboard.key");
 const MINT = "mint it in the portal's checkout: node --env-file=.env.local scripts/api-key.mjs dashboard board:read, into common-data/keys/portal-dashboard.key";
 
