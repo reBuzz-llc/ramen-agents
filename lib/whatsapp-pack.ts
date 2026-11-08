@@ -6,6 +6,7 @@
 // (the Validator clears it as before). Nothing is ever sent by the portal. Claims of kind "whatsapp" (the email pack's are "email").
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { accept, closeClaim } from "./claims";
+import { changedSince, lastPersonEdit } from "./draft-edits";
 import type { Db } from "./db";
 import { claims, leadFlags, leads } from "./db/schema";
 import { WHATSAPP_SENT, writeLead, type Actor } from "./leads";
@@ -27,7 +28,7 @@ export type WaLead = {
   link: string | null;
   status: string | null;
   draft: string | null;
-  flags: { rule: string; detail: string }[];
+  flags: { rule: string; detail: string; changed: boolean }[];
   mine: boolean;
 };
 
@@ -46,15 +47,19 @@ type Row = { id: string; business: string; contact: string | null; whatsapp: str
 
 async function withFlags(db: Db, tenantId: string, rows: Row[], mine: Set<string>): Promise<WaLead[]> {
   if (!rows.length) return [];
-  const flags = await db
-    .select({ leadId: leadFlags.leadId, rule: leadFlags.rule, detail: leadFlags.detail })
-    .from(leadFlags)
-    .where(and(eq(leadFlags.tenantId, tenantId), inArray(leadFlags.leadId, rows.map((r) => r.id)), eq(leadFlags.status, "open")));
+  const ids = rows.map((r) => r.id);
+  const [flags, edited] = await Promise.all([
+    db
+      .select({ leadId: leadFlags.leadId, rule: leadFlags.rule, detail: leadFlags.detail, firstSeen: leadFlags.firstSeen })
+      .from(leadFlags)
+      .where(and(eq(leadFlags.tenantId, tenantId), inArray(leadFlags.leadId, ids), eq(leadFlags.status, "open"))),
+    lastPersonEdit(db, tenantId, ids, "draft_whatsapp"),
+  ]);
   return rows.map((r) => ({
     ...r,
     draft: r.draft && !/^skip\s*:/i.test(r.draft.trim()) ? r.draft : null,
     link: waLink(r.whatsapp, r.phone),
-    flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail })),
+    flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail, changed: changedSince(f.firstSeen, edited.get(r.id)) })),
     mine: mine.has(r.id),
   }));
 }

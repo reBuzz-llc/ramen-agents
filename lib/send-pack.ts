@@ -7,6 +7,7 @@ import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { accept, closeClaim } from "./claims";
 import type { Db } from "./db";
 import { claims, leadFlags, leads, users } from "./db/schema";
+import { changedSince, lastPersonEdit } from "./draft-edits";
 import { attachmentNames } from "./lead-queue";
 import { writeLead, type Actor } from "./leads";
 import { sendNext } from "./send-next";
@@ -21,7 +22,8 @@ export type PackLead = {
   email: string | null;
   draft: string | null;
   pkg: string | null;
-  flags: { rule: string; detail: string }[];
+  /** The Validator's open flags; `changed`: a person edited the draft after the flag was raised (checked on its next run). */
+  flags: { rule: string; detail: string; changed: boolean }[];
   attachments: string[];
   takenAt: string;
 };
@@ -38,14 +40,15 @@ export async function packOf(db: Db, tenantId: string, userId: string): Promise<
     .orderBy(asc(claims.at), asc(leads.business));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const [flags, files] = await Promise.all([
-    db.select({ leadId: leadFlags.leadId, rule: leadFlags.rule, detail: leadFlags.detail }).from(leadFlags).where(and(eq(leadFlags.tenantId, tenantId), inArray(leadFlags.leadId, ids), eq(leadFlags.status, "open"))),
+  const [flags, files, edited] = await Promise.all([
+    db.select({ leadId: leadFlags.leadId, rule: leadFlags.rule, detail: leadFlags.detail, firstSeen: leadFlags.firstSeen }).from(leadFlags).where(and(eq(leadFlags.tenantId, tenantId), inArray(leadFlags.leadId, ids), eq(leadFlags.status, "open"))),
     attachmentNames(db, tenantId, ids),
+    lastPersonEdit(db, tenantId, ids, "draft_email"),
   ]);
   return rows.map((r) => ({
     ...r,
     takenAt: new Date(r.takenAt).toISOString(),
-    flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail })),
+    flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail, changed: changedSince(f.firstSeen, edited.get(r.id)) })),
     attachments: files.get(r.id) ?? [],
   }));
 }

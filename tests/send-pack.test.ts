@@ -53,7 +53,7 @@ describe("send pack", () => {
     await fillPack(db, tenantId, owner.id);
     const first = (await packOf(db, tenantId, owner.id))[0];
     await raiseFlag(db, tenantId, first.id, "OW09", "an invented figure", "validator");
-    expect((await packOf(db, tenantId, owner.id))[0].flags).toEqual([{ rule: "OW09", detail: "an invented figure" }]);
+    expect((await packOf(db, tenantId, owner.id))[0].flags).toEqual([{ rule: "OW09", detail: "an invented figure", changed: false }]);
 
     const r = await markPackSent(db, tenantId, first.id, { userId: owner.id, name: "Olu" }, new Date("2026-11-09T09:00:00Z"));
     expect(r).toEqual({ ok: true, added: 1 });
