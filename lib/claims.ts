@@ -8,9 +8,10 @@ import type { Role } from "./roles";
 
 export type Claim = { userId: string; name: string; at: Date };
 
-/** Take a lead. The first person wins; a second gets who has it. Taking your own lead again is a no-op. */
-export async function accept(db: Db, tenantId: string, pageId: string, userId: string): Promise<{ ok: true } | { ok: false; takenBy: string }> {
-  await db.insert(claims).values({ tenantId, pageId, userId }).onConflictDoNothing();
+/** Take a lead, for the email pack (the default) or the WhatsApp one. The first person wins; a second gets who has it.
+ *  Taking your own lead again is a no-op. */
+export async function accept(db: Db, tenantId: string, pageId: string, userId: string, kind: "email" | "whatsapp" = "email"): Promise<{ ok: true } | { ok: false; takenBy: string }> {
+  await db.insert(claims).values({ tenantId, pageId, userId, kind }).onConflictDoNothing();
   const holder = await holderOf(db, tenantId, pageId);
   return holder && holder.userId !== userId ? { ok: false, takenBy: holder.name } : { ok: true };
 }

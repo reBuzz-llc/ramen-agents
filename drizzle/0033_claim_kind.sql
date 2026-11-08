@@ -1,0 +1,1 @@
+ALTER TABLE "claims" ADD COLUMN "kind" text DEFAULT 'email' NOT NULL;

@@ -152,6 +152,9 @@ export const claims = pgTable(
     pageId: text("page_id").notNull(),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** Which pack holds it: "email" (Send next, the email pack) or "whatsapp" (checking and sending
+     *  on WhatsApp). One holder per lead either way. */
+    kind: text("kind").notNull().default("email"),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.pageId] }), index("claims_person").on(t.tenantId, t.userId)],
 );

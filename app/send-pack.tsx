@@ -50,7 +50,7 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
   };
 
   return (
-    <section aria-labelledby="send-pack" className="mt-10">
+    <section aria-labelledby="send-pack" className="mt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="send-pack" className="text-lg font-semibold">
           Your send pack <span className="text-sm font-normal text-muted tabular-nums">{pack.length} of {size}</span>

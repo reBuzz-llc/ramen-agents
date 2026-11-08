@@ -34,7 +34,7 @@ export async function packOf(db: Db, tenantId: string, userId: string): Promise<
     .select({ id: leads.id, business: leads.business, contact: leads.contactPerson, role: leads.contactRole, email: leads.businessEmail, draft: leads.draftEmail, pkg: leads.package, takenAt: claims.at })
     .from(claims)
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
-    .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), notSent))
+    .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), eq(claims.kind, "email"), notSent))
     .orderBy(asc(claims.at), asc(leads.business));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
@@ -83,7 +83,7 @@ export async function allPacks(db: Db, tenantId: string): Promise<{ userId: stri
     .from(claims)
     .innerJoin(users, eq(users.id, claims.userId))
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
-    .where(and(eq(claims.tenantId, tenantId), notSent))
+    .where(and(eq(claims.tenantId, tenantId), eq(claims.kind, "email"), notSent))
     .orderBy(asc(users.name), asc(claims.at));
   const by = new Map<string, { userId: string; name: string; leads: { id: string; business: string }[] }>();
   for (const r of rows) {
