@@ -14,6 +14,12 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; error
   }
 }
 
+/** The number as people read it: "+17185551000", from the WhatsApp cell (a wa.me link or a number) or the phone. */
+const shownNumber = (l: WaLead) => {
+  const digits = ((l.whatsapp ?? "").replace(/^https?:\/\/(wa\.me|api\.whatsapp\.com)\/(send\?phone=)?/i, "") || l.phone || "").replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
+};
+
 const btn = "inline-flex min-h-10 items-center rounded-full px-3.5 text-sm font-semibold disabled:opacity-50";
 
 /** The pack's WhatsApp tab: check numbers, then send to the verified ones. */
@@ -61,7 +67,7 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
             <li key={l.id} className="rounded-xl border border-line bg-panel p-3 text-sm">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-semibold">{l.business}</span>
-                <span className="text-xs text-muted">{l.whatsapp ?? l.phone}</span>
+                <span className="text-xs text-muted tabular-nums">{shownNumber(l)}</span>
               </div>
               {l.flags.map((f) => (
                 <p key={f.rule} className="mt-2 rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-1.5">
@@ -118,7 +124,7 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
               <span className="min-w-0">
                 <span className="font-medium">{l.business}</span>
                 <span className="block text-xs text-muted">
-                  {l.whatsapp && !/^https?:/.test(l.whatsapp) ? l.whatsapp : (l.phone ?? l.link?.replace("https://wa.me/", "+"))}
+                  {shownNumber(l)}
                   {l.status ? " · asked, waiting" : ""}
                 </span>
               </span>
