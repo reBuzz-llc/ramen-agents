@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { withAttachments } from "@/lib/attachment-line";
+import DraftBox from "./draft-box";
 import type { PackLead } from "@/lib/send-pack";
 
 type Others = { userId: string; name: string; leads: { id: string; business: string }[] }[] | null;
@@ -27,6 +28,9 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
   const [open, setOpen] = useState<string | null | undefined>(undefined);
   const shown = open === undefined ? (pack[0]?.id ?? null) : open;
   const say = (id: string, text: string) => setMsg((m) => ({ ...m, [id]: text }));
+  // drafts saved here: Copy uses them at once, before the page refreshes
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const draftOf = (l: PackLead) => edited[l.id] ?? l.draft;
 
   const fill = async () => {
     setBusy("fill");
@@ -44,7 +48,7 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
   };
   const copy = async (l: PackLead) => {
     try {
-      await navigator.clipboard.writeText(withAttachments(l.draft ?? "", l.attachments));
+      await navigator.clipboard.writeText(withAttachments(draftOf(l) ?? "", l.attachments));
       say(l.id, "Draft copied.");
     } catch {
       say(l.id, "Copy failed: open the lead and select the draft.");
@@ -98,13 +102,27 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
                       {l.attachments.length ? ` · attach: ${l.attachments.join(", ")}` : ""}
                     </p>
                     {l.flags.map((f) => (
-                      <p key={f.rule} className="mt-2 rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-1.5 text-sm">
+                      <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 text-sm ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
                         <span className="font-semibold">{f.rule}</span> {f.detail}
+                        {f.changed || edited[l.id] !== undefined ? <span className="block text-xs text-muted">You changed the draft after this flag; the Validator checks it again on its next run.</span> : null}
                       </p>
                     ))}
-                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-bg p-3 font-sans text-sm">{l.draft ?? "No draft yet."}</pre>
+                    {draftOf(l) ? (
+                      <DraftBox
+                        leadId={l.id}
+                        field="draft_email"
+                        text={draftOf(l)!}
+                        onSaved={(t) => {
+                          setEdited((e) => ({ ...e, [l.id]: t }));
+                          say(l.id, "Draft saved as yours.");
+                          router.refresh();
+                        }}
+                      />
+                    ) : (
+                      <p className="mt-2 text-sm text-muted">No draft yet.</p>
+                    )}
                     <div className="mt-2 flex flex-wrap items-center gap-3">
-                      {l.draft ? (
+                      {draftOf(l) ? (
                         <button type="button" onClick={() => copy(l)} className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-semibold hover:border-accent">
                           Copy draft
                         </button>

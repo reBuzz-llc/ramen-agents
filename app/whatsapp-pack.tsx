@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { WaLead } from "@/lib/whatsapp-pack";
+import DraftBox from "./draft-box";
 
 async function post(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; added?: number }> {
   try {
@@ -27,6 +28,9 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
+  // messages saved here: Copy uses them at once, before the page refreshes
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const msgOf = (l: WaLead) => edited[l.id] ?? l.draft;
   const act = async (id: string, body: Record<string, unknown>, done: string) => {
     setBusy(id);
     const r = await post(body);
@@ -36,7 +40,7 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
   };
   const copy = async (l: WaLead) => {
     try {
-      await navigator.clipboard.writeText(l.draft ?? "");
+      await navigator.clipboard.writeText(msgOf(l) ?? "");
       setNote(`${l.business}: message copied.`);
     } catch {
       setNote("Copy failed: open the lead and select the message.");
@@ -70,11 +74,21 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
                 <span className="text-xs text-muted tabular-nums">{shownNumber(l)}</span>
               </div>
               {l.flags.map((f) => (
-                <p key={f.rule} className="mt-2 rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-1.5">
+                <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
                   <span className="font-semibold">{f.rule}</span> {f.detail}
+                  {f.changed || edited[l.id] !== undefined ? <span className="block text-xs text-muted">You changed the message after this flag; the Validator checks it again on its next run.</span> : null}
                 </p>
               ))}
-              <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-bg p-3 font-sans text-sm">{l.draft}</pre>
+              <DraftBox
+                leadId={l.id}
+                field="draft_whatsapp"
+                text={msgOf(l) ?? ""}
+                onSaved={(t) => {
+                  setEdited((e) => ({ ...e, [l.id]: t }));
+                  setNote(`${l.business}: message saved as yours.`);
+                  router.refresh();
+                }}
+              />
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <button type="button" onClick={() => copy(l)} className={`${btn} border border-line hover:border-accent`}>
                   Copy message

@@ -6,6 +6,7 @@ import { scoreFacts } from "@/lib/lead-queue";
 import { can } from "@/lib/roles";
 import GoalsNudge from "../goals-nudge";
 import { followUpsSince } from "@/lib/follow-up";
+import { draftsFixedSince } from "@/lib/draft-edits";
 import { sendsLabel } from "@/lib/leaderboard";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { projectName, projectsOf, type Project } from "@/lib/projects";
@@ -30,10 +31,13 @@ export default async function WeekPage() {
     projectsOf(d, who.tenantId),
   ]);
   // follow-ups sent this week: their own line, never counted as sends
-  const followUps = await followUpsSince(d, who.tenantId, weekStart(new Date(), startDay));
+  const [followUps, fixed] = await Promise.all([followUpsSince(d, who.tenantId, weekStart(new Date(), startDay)), draftsFixedSince(d, who.tenantId, weekStart(new Date(), startDay))]);
   const myName = who.name || who.email;
   const followShown = can(who.role, "week.team") ? [...followUps.entries()].sort((a, b) => b[1] - a[1]) : [[myName, followUps.get(myName) ?? 0] as [string, number]];
   const followTotal = followShown.reduce((t, [, n]) => t + n, 0);
+  // drafts fixed this week: a person's edit of an agent's email or WhatsApp draft, once per lead
+  const fixedShown = can(who.role, "week.team") ? [...fixed.entries()].sort((a, b) => b[1] - a[1]) : [[myName, fixed.get(myName) ?? 0] as [string, number]];
+  const fixedTotal = fixedShown.reduce((t, [, n]) => t + n, 0);
   const { leads, tasks, error: boardError } = boards;
   const all = scoreboard(people, clicks, leads, tasks, shiftRows, from, new Date(), step);
   const rows = can(who.role, "week.team") ? all : all.filter((r) => r.userId === who.userId);
@@ -72,6 +76,12 @@ export default async function WeekPage() {
           <span className="text-muted"> · {followShown.map(([n, c]) => `${n} ${c}`).join(" · ")}</span>
         ) : null}
         <span className="text-muted"> (a second note to a lead that was sent; not counted as a send)</span>
+      </p>
+      <p data-drafts-fixed className="mt-1 text-sm">
+        <span className="text-muted">Drafts fixed: </span>
+        <span className="font-semibold tabular-nums">{fixedTotal}</span>
+        {can(who.role, "week.team") && fixedShown.length ? <span className="text-muted"> · {fixedShown.map(([n, c]) => `${n} ${c}`).join(" · ")}</span> : null}
+        <span className="text-muted"> (an agent&apos;s email or WhatsApp draft you rewrote: what the agents learn from)</span>
       </p>
       <div className="relative mt-6 overflow-x-auto">
       <table className="w-full min-w-[34rem] text-sm tabular-nums">
