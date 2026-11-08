@@ -190,7 +190,15 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
 
         transcripts = YouTubeTranscripts(cfg.browser.video_transcript_languages, logger=logger)
     leads_notion = None
-    if cfg.leads.enabled:
+    if cfg.leads.enabled and cfg.leads.portal_url.strip():
+        from .portal_store import PortalLeadStore, shared_cache_path
+
+        token = load_api_key("PORTAL_ENGINE_KEY", cfg.leads.portal_key_file)
+        if token:
+            leads_notion = PortalLeadStore(cfg.leads.portal_url.strip(), token, cfg.agent.name, logger, cache=shared_cache_path())
+        else:
+            logger.warning("leads.portal_url is set but no agents' key was found (%s); leads are off", cfg.leads.portal_key_file)
+    elif cfg.leads.enabled:
         key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
         if key:
             leads_cfg = dataclasses.replace(cfg.notion, enabled=True, database_id=cfg.leads.database_id.strip())
