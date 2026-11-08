@@ -8,10 +8,11 @@ import { MENU } from "@/app/nav-links";
 const src = readFileSync(path.join(__dirname, "..", "app", "guide", "page.tsx"), "utf8");
 
 describe("the Guide page", () => {
-  it("sits in the profile menu between This week and Settings", () => {
+  it("sits in the profile menu after This week, then Family, then Settings", () => {
     const labels = MENU.map((m) => m.label);
     expect(labels.indexOf("Guide")).toBe(labels.indexOf("This week") + 1);
-    expect(labels.indexOf("Settings")).toBe(labels.indexOf("Guide") + 1);
+    expect(labels.indexOf("Family")).toBe(labels.indexOf("Guide") + 1);
+    expect(labels.indexOf("Settings")).toBe(labels.indexOf("Family") + 1);
     expect(src).not.toContain("pageMe("); // open to anyone, like Privacy: the sign-in page links it
   });
 
