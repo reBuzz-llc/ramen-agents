@@ -10,7 +10,7 @@ ramen-agents gives you a lead finder, a research analyst, a package designer, a 
 steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
 money, or collect personal data: that fence is in the code, not in a prompt.
 
-[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [Set up with your AI agent](#set-up-with-your-ai-agent) · [The fence](FENCE.md) · [FAQ](#faq) · [Print the brochure (PDF)](docs/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
+[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [Set up with your AI agent](#set-up-with-your-ai-agent) · [The fence](FENCE.md) · [FAQ](#faq) · [The brochure](https://rebot-omega.vercel.app/brochure) ([PDF](docs/brochure.pdf)) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
 ---
 
