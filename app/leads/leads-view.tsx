@@ -574,7 +574,7 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
                 {r.draft ? (
                   <button
                     type="button"
-                    onClick={async () => say(r.id, (await copy(withAttachments(r.draft!, r.attachments))) ? "Draft copied." : "Copy failed: open the lead and select the draft.")}
+                    onClick={async () => say(r.id, (await copy(withAttachments(withSample(r.draft!, r.sample), r.attachments))) ? "Draft copied." : "Copy failed: open the lead and select the draft.")}
                     className="inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline"
                   >
                     Copy draft

@@ -108,6 +108,7 @@ const SECTIONS: Step[] = [
       <>An answer came? Press what it was, there or under <B>Sent by you, no answer yet</B>: <B>Replied</B>, <B>Meeting booked</B>, <B>Not interested</B> or <B>Bounced</B>. In a lead&apos;s drawer the same steps are <B>Replied</B>, <B>Meeting booked</B>, <B>Won</B>, <B>Lost</B> and <B>Bounced</B>; Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
       <>The <B>Result date</B> fills itself with today. If the reply came on another day, open the lead (search it in <P href="/leads?tab=board">Leads → Board</P>); in its <B>Activity</B> box at the top, press <B>Change date</B> beside the result and set it.</>,
       <>Pressed the wrong one? Clear it with the <B>×</B> on its chip in the drawer and press the right one.</>,
+      <>A Starter Website lead replied or booked a meeting? It shows under <B>Samples to make</B> on the <P href="/">Clock</P> until you paste its sample&apos;s link in <B>Sample site</B>.</>,
     ],
     seen: "Follow-up sent and Follow-up by, Result and Result date, which only people set; the agents never change them. This week shows the follow-ups on their own line (not as sends), and the Leaderboard and This week count replies, meetings and clients by the result date, for the person who sent the lead.",
   },
