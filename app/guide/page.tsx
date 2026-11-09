@@ -104,7 +104,7 @@ const SECTIONS: Step[] = [
       <>On the <P href="/">Clock</P>, under your pack, <B>Follow up</B> lists the leads you sent four or more working days ago with no answer yet, oldest first.</>,
       <>Open one. <B>What you sent first</B> shows your first email; under it is the follow-up: the agents&apos; draft when they wrote one, else a two-line note. Make it yours, press <B>Copy follow-up</B>, send it from your mailbox as a reply to your first email, then press <B>Follow-up sent</B>.</>,
       <>An answer came? Press what it was, there or under <B>Sent by you, no answer yet</B>: <B>Replied</B>, <B>Meeting booked</B>, <B>Not interested</B> or <B>Bounced</B>. In a lead&apos;s drawer the same steps are <B>Replied</B>, <B>Meeting booked</B>, <B>Won</B>, <B>Lost</B> and <B>Bounced</B>; Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
-      <>The <B>Result date</B> fills itself with today. If the reply came on another day, open the lead (search it in <P href="/leads?tab=board">Leads → Board</P>), press <B>Edit</B> on Result date and set it.</>,
+      <>The <B>Result date</B> fills itself with today. If the reply came on another day, open the lead (search it in <P href="/leads?tab=board">Leads → Board</P>); in its <B>Activity</B> box at the top, press <B>Change date</B> beside the result and set it.</>,
       <>Pressed the wrong one? Clear it with the <B>×</B> on its chip in the drawer and press the right one.</>,
     ],
     seen: "Follow-up sent and Follow-up by, Result and Result date, which only people set; the agents never change them. This week shows the follow-ups on their own line (not as sends), and the Leaderboard and This week count replies, meetings and clients by the result date, for the person who sent the lead.",
@@ -188,10 +188,11 @@ export default async function Guide() {
         <p className="mt-2">So fix anything wrong or weak in place. It is never wasted.</p>
         <p className="mt-2 text-sm">
           <span className="font-semibold">How:</span> open the lead, press <B>Edit</B> next to the cell (empty cells are listed too; if you pressed <B>Hide empty fields</B> before, press <B>Show empty fields</B>), type the
-          right value and press <B>Save</B>.
+          right value and press <B>Save</B>. What was sent, the follow-up, the result and who holds the lead are not cells: they show in the
+          drawer&apos;s <B>Activity</B> box, set by the step buttons and the result chips.
         </p>
         <p className="mt-2 text-sm">
-          <span className="font-semibold">Your order:</span> in <P href="/settings/my-view">Settings → My view</P> put the drawer&apos;s fields in the order you work them, hide the ones you never use, or press <B>Use my Table column order</B>. It is yours on every browser.
+          <span className="font-semibold">Your order:</span> in <P href="/settings/my-view">Settings → My view</P> put the drawer&apos;s fields in the order you work them, hide the ones you never use (the agents&apos; proof fields, such as Evidence, Source pages and Found by, start hidden; unhide any you want), or press <B>Use my Table column order</B>. It is yours on every browser.
         </p>
       </section>
 

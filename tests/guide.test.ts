@@ -44,7 +44,7 @@ describe("the Guide page", () => {
   });
 
   it("names the cells and buttons the team presses, and nothing personal", () => {
-    for (const name of ["Continue with Google", "Take 20 numbers", "Open in WhatsApp", "Mark WhatsApp sent", "Fill my pack", "Mark already sent", "Open the lead", "Copy follow-up", "Follow-up sent", "Take it", "Copy draft", "Mark email sent", "Sent by", "Sent at", "False number", "Meeting booked", "Show empty fields", "Hide empty fields", "Use my Table column order", "I&apos;m on it", "Done when"]) expect(src).toContain(name);
+    for (const name of ["Continue with Google", "Take 20 numbers", "Open in WhatsApp", "Mark WhatsApp sent", "Fill my pack", "Mark already sent", "Open the lead", "Copy follow-up", "Follow-up sent", "Take it", "Copy draft", "Mark email sent", "Sent by", "Sent at", "False number", "Meeting booked", "Show empty fields", "Hide empty fields", "Use my Table column order", "Change date", "Activity", "I&apos;m on it", "Done when"]) expect(src).toContain(name);
     expect(src).not.toMatch(/[\w.+-]+@[\w-]+\.\w+/); // no email address
     expect(src).not.toMatch(/\bAruna\b/);
   });

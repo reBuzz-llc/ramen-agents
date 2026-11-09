@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { leadPath } from "@/lib/deep-links";
 import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
 import { readShowEmpty, writeShowEmpty } from "@/lib/drawer-prefs";
+import { activityOf } from "@/lib/activity";
 import { DEFAULT_VIEW, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
@@ -384,7 +385,7 @@ export default function LeadsView({
           </button>
         </p>
       ) : null}
-      {open ? <Drawer id={open} me={me} choices={choices} view={view} onClose={() => setOpen(null)} /> : null}
+      {open ? <Drawer id={open} me={me} choices={choices} view={view} holder={rows.find((r) => r.id === open)?.takenBy ?? null} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
@@ -657,7 +658,7 @@ function CopyLink({ id }: { id: string }) {
 
 export const GUIDE_HINT_KEY = "peek.guide-hint-seen";
 
-function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choices: Choices; view: ViewPrefs | null; onClose: () => void }) {
+function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me; choices: Choices; view: ViewPrefs | null; holder: string | null; onClose: () => void }) {
   const router = useRouter();
   const [data, setData] = useState<{ lead: Lead; history: Change[]; flags?: Flag[]; attachments?: Attached[] } | null>(null);
   const [error, setError] = useState("");
@@ -667,7 +668,7 @@ function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choice
   // empty fields show (default yes). Kept on the person; this browser's copy of "show empty" stands in only
   // when the server's could not be read.
   const order = drawerOrder(view ?? DEFAULT_VIEW);
-  const hiddenSet = new Set(view?.hidden_fields ?? []);
+  const hiddenSet = new Set((view ?? DEFAULT_VIEW).hidden_fields);
   const [showEmpty, setShowEmptyState] = useState(() => {
     if (view) return view.show_empty;
     try {
@@ -677,6 +678,9 @@ function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choice
     }
   });
   const [revealHidden, setRevealHidden] = useState(false);
+  // Take it / Give back here changes who holds the lead before the board reloads
+  const [claimNow, setClaimNow] = useState<boolean | null>(null);
+  const [movingDate, setMovingDate] = useState(false);
   const setShowEmpty = (v: boolean) => {
     setShowEmptyState(v);
     try {
@@ -757,11 +761,14 @@ function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choice
     setBusy(false);
     if (!r.ok) return setMsg(r.error ?? "That failed.");
     setTaken(action === "accept");
+    setClaimNow(action === "accept");
     setMsg(action === "accept" ? "Taken: it is yours." : "Given back.");
     router.refresh();
   };
   const lead = data?.lead;
   const steps: Step[] = lead ? [...emailSteps(lead), ...whatsappSteps(lead)] : [];
+  const holderNow = claimNow === true ? "you" : claimNow === false ? null : holder === me.name ? "you" : holder;
+  const activity = lead ? activityOf(lead, data?.history ?? [], holderNow ? `Taken by ${holderNow}` : null) : [];
   const visible = order.filter((k) => !hiddenSet.has(k) || revealHidden);
   const keys = visible.filter((k) => showEmpty || show(lead?.[k]));
   const empty = lead ? visible.filter((k) => !show(lead[k])).length : 0;
@@ -830,6 +837,42 @@ function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choice
                   <span className="block text-xs text-muted">flagged {new Date(x.first_seen).toLocaleDateString()}</span>
                 </p>
               ))}
+            {activity.length ? (
+              <section aria-label="Activity" className="mt-4 rounded-xl border border-line bg-panel/60 px-3 py-2">
+                <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Activity</h3>
+                <ul className="mt-1 space-y-0.5 text-sm">
+                  {activity.map((a) => (
+                    <li key={a.key} className="flex flex-wrap items-center gap-x-2">
+                      {a.text}
+                      {a.key === "result" ? (
+                        movingDate ? (
+                          <form
+                            className="inline-flex items-center gap-1"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const v = String(new FormData(e.currentTarget).get("result_date") ?? "");
+                              if (v) void save({ result_date: v }, "Result date: saved.").then((ok) => ok && setMovingDate(false));
+                            }}
+                          >
+                            <input type="date" name="result_date" required defaultValue={show(lead.result_date).slice(0, 10)} aria-label="Result date" className="min-h-11 rounded-lg border border-line bg-panel px-2 text-sm" />
+                            <button type="submit" disabled={busy} className="min-h-11 px-2 text-sm font-semibold text-accent-ink hover:underline">
+                              Save
+                            </button>
+                            <button type="button" onClick={() => setMovingDate(false)} className="min-h-11 px-1 text-sm text-muted hover:text-ink">
+                              Cancel
+                            </button>
+                          </form>
+                        ) : (
+                          <button type="button" onClick={() => setMovingDate(true)} className="inline-flex min-h-11 items-center text-xs text-accent-ink hover:underline">
+                            Change date
+                          </button>
+                        )
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {done.map((s) => (
                 <span key={`done-${s.key}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-panel px-3 text-sm text-muted">
