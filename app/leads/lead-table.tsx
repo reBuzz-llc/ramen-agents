@@ -255,7 +255,9 @@ const ORDER: Record<Kind, [string, string]> = {
 const kind = (key: string): Kind =>
   COLUMNS.find((c) => c.key === key)?.kind ?? "text";
 
-/** Rows in a column's order; empty cells last either way. The business sorts by name; no sort keeps the board's. */
+/** Rows in a column's order. An empty cell counts as the highest value (owner, 2026-11-09): at the bottom in the first
+ *  order (A to Z, low to high, oldest first), at the top in the reverse one, so a second click on Website lists the
+ *  leads with no website first. The business sorts by name; no sort keeps the board's. */
 export function sortRows(rows: TableRow[], sort: Sort): TableRow[] {
   if (!sort) return rows;
   const get =
@@ -265,8 +267,9 @@ export function sortRows(rows: TableRow[], sort: Sort): TableRow[] {
   return [...rows].sort((a, b) => {
     const x = get(a);
     const y = get(b);
-    if (x === null || x === "") return y === null || y === "" ? 0 : 1;
-    if (y === null || y === "") return -1;
+    const ex = x === null || x === "";
+    const ey = y === null || y === "";
+    if (ex || ey) return ex && ey ? 0 : (ex ? 1 : -1) * sort.dir;
     const c =
       typeof x === "number" && typeof y === "number"
         ? x - y
@@ -335,6 +338,8 @@ export default function LeadTable({
   onOpen: (id: string) => void;
 }) {
   const [sort, setSort] = useState<Sort>(null);
+  // how many rows are drawn (owner, 2026-11-09: "how to see more"): 500 at a time, or all
+  const [limit, setLimit] = useState(500);
   // The arrangement lives in this browser (localStorage), read after the first render so the server's HTML matches.
   const [arr, setArr] = useState<Arrangement | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -422,6 +427,12 @@ export default function LeadTable({
       </button>
     </th>
   );
+  // how many leads have the sorted column empty: the note says where they are
+  const emptyCount = useMemo(() => {
+    if (!sort || sort.key === "business") return 0;
+    const get = COLUMNS.find((c) => c.key === sort.key)?.get;
+    return get ? rows.filter((r) => { const v = get(r); return v === null || v === ""; }).length : 0;
+  }, [rows, sort]);
   const sortedBy = sort
     ? sort.key === "business"
       ? "Business"
@@ -440,6 +451,12 @@ export default function LeadTable({
                 Sorted by{" "}
                 <span className="font-semibold text-ink">{sortedBy}</span>,{" "}
                 {ORDER[kind(sort.key)][sort.dir === 1 ? 0 : 1]}
+                {emptyCount ? (
+                  <>
+                    {" "}
+                    · {emptyCount.toLocaleString()} with no {sortedBy}: {sort.dir === -1 ? "shown first" : `at the end (${ORDER[kind(sort.key)][1]} shows them first)`}
+                  </>
+                ) : null}
               </span>
               <button
                 type="button"
@@ -497,7 +514,7 @@ export default function LeadTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.slice(0, 500).map((r) => (
+            {sorted.slice(0, limit).map((r, i) => (
               <tr
                 key={r.id}
                 data-lead={r.id}
@@ -508,14 +525,18 @@ export default function LeadTable({
                   scope="row"
                   className="sticky left-0 z-[5] max-w-64 border-r border-b border-line bg-panel px-3 py-2 text-left font-medium group-hover:bg-accent-tint"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onOpen(r.id)}
-                    className="block max-w-60 truncate text-left hover:underline"
-                    title={r.business}
-                  >
-                    {r.business}
-                  </button>
+                  {/* the row's number in the order shown (owner, 2026-11-09: to know which row you are on under a sort) */}
+                  <span className="flex items-baseline gap-2">
+                    <span className="w-10 shrink-0 text-right text-xs font-normal text-muted tabular-nums">{i + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => onOpen(r.id)}
+                      className="block max-w-52 truncate text-left hover:underline"
+                      title={r.business}
+                    >
+                      {r.business}
+                    </button>
+                  </span>
                   {r.openFlags ? (
                     <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-2 text-xs font-normal text-bad">
                       {r.openFlags === 1 ? "1 flag" : `${r.openFlags} flags`}
@@ -534,10 +555,20 @@ export default function LeadTable({
             ))}
           </tbody>
         </table>
-        {sorted.length > 500 ? (
-          <p className="sticky left-0 p-3 text-xs text-muted">
-            Showing the first 500; narrow the filters to see the rest.
-          </p>
+        {sorted.length > limit ? (
+          <div className="sticky left-0 flex flex-wrap items-center gap-3 p-3 text-sm">
+            <span className="text-muted">
+              Showing rows 1 to {limit.toLocaleString()} of {sorted.length.toLocaleString()}.
+            </span>
+            <button type="button" onClick={() => setLimit((n) => n + 500)} className="inline-flex min-h-11 items-center rounded-full border border-line px-4 font-semibold hover:border-accent">
+              Show {Math.min(500, sorted.length - limit).toLocaleString()} more
+            </button>
+            <button type="button" onClick={() => setLimit(sorted.length)} className="inline-flex min-h-11 items-center px-2 text-accent-ink hover:underline">
+              Show all {sorted.length.toLocaleString()} (may take a few seconds)
+            </button>
+          </div>
+        ) : sorted.length > 500 ? (
+          <p className="sticky left-0 p-3 text-xs text-muted">All {sorted.length.toLocaleString()} rows shown.</p>
         ) : null}
       </div>
     </>

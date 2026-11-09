@@ -28,6 +28,7 @@ const row = (
   result: null,
   sentBy: null,
   hasDraft: false,
+  hasWhatsapp: false,
   takenBy: null,
   mine: false,
   corrected: false,
@@ -43,13 +44,13 @@ describe("the Table tab's sort", () => {
   ];
   it("keeps the board's order with no sort", () =>
     expect(sortRows(rows, null).map((r) => r.id)).toEqual(["a", "b", "c"]));
-  it("sorts numbers both ways, empty cells last either way", () => {
+  it("sorts numbers both ways; an empty cell is at the bottom the first way and at the top the reverse way", () => {
     expect(
       sortRows(rows, { key: "leadScore", dir: 1 }).map((r) => r.id),
     ).toEqual(["a", "c", "b"]);
     expect(
       sortRows(rows, { key: "leadScore", dir: -1 }).map((r) => r.id),
-    ).toEqual(["c", "a", "b"]);
+    ).toEqual(["b", "c", "a"]);
   });
   it("sorts names by their numbers and without case", () =>
     expect(

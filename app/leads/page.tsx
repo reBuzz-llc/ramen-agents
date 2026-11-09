@@ -24,7 +24,7 @@ export default async function LeadsPage(props: { searchParams: Promise<Record<st
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : (v as string | null | undefined));
   const board: TableRow[] = rows.map((r) => {
     const x = r as typeof r & { sentAt?: Date | null; createdAt?: Date };
-    return { ...r, hasDraft: !!r.hasDraft, mine: !!r.mine, corrected: !!r.corrected, openFlags: Number(r.openFlags ?? 0), updatedAt: r.updatedAt.toISOString(), sentAt: iso(x.sentAt), createdAt: iso(x.createdAt) ?? undefined };
+    return { ...r, hasDraft: !!r.hasDraft, hasWhatsapp: !!r.hasWhatsapp, mine: !!r.mine, corrected: !!r.corrected, openFlags: Number(r.openFlags ?? 0), updatedAt: r.updatedAt.toISOString(), sentAt: iso(x.sentAt), createdAt: iso(x.createdAt) ?? undefined };
   });
   // the drawer to open (from <peek>/leads/<id>, which checked the company); the drawer reads the lead itself
   // the lead the address names (?lead=<id>, canonical; ?open=<id> from older links): its drawer opens, or one line says

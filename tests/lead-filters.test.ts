@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choices, filtersFrom, filtersToQuery, industryGroup, matches, NO_FILTERS, placeOf, type Filterable } from "@/lib/lead-filters";
+import { choices, FILTER_KEYS, filtersFrom, filtersToQuery, hasNoWebsite, industryGroup, matches, NO_FILTERS, placeOf, SITE_FILTERS, siteMatches, type Filterable } from "@/lib/lead-filters";
 
 describe("reading a place", () => {
   it("finds the state in the messy shapes on the board", () => {
@@ -46,5 +46,24 @@ describe("matching", () => {
     const f = { ...NO_FILTERS, industry: "Food and drink", score: "70" as const };
     expect(filtersToQuery(f)).toBe("?industry=Food+and+drink&score=70");
     expect(filtersFrom(new URLSearchParams(filtersToQuery(f)))).toEqual(f);
+  });
+});
+
+describe("the No website quick filters", () => {
+  const r = (website: string | null, hasWhatsapp: boolean) => ({ website, hasWhatsapp });
+  it("reads an empty or blank website cell as no website", () => {
+    expect(hasNoWebsite(null)).toBe(true);
+    expect(hasNoWebsite("  ")).toBe(true);
+    expect(hasNoWebsite("https://luna.example")).toBe(false);
+  });
+  it("keeps the no-site leads, and with WhatsApp only those with a number", () => {
+    const rows = [r(null, true), r("", false), r("https://a.example", true)];
+    expect(rows.filter((x) => siteMatches(x, "none"))).toEqual([r(null, true), r("", false)]);
+    expect(rows.filter((x) => siteMatches(x, "none-wa"))).toEqual([r(null, true)]);
+    expect(rows.filter((x) => siteMatches(x, ""))).toHaveLength(3);
+  });
+  it("is one of the filters a link may set", () => {
+    expect(FILTER_KEYS).toContain("site");
+    expect(SITE_FILTERS.map(([k]) => k)).toEqual(["none", "none-wa"]);
   });
 });

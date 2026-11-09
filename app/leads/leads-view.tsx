@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { leadPath } from "@/lib/deep-links";
-import { FILTER_KEYS, industryGroup } from "@/lib/lead-filters";
+import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
 import { CONTACT_ROLES, DRAWER_ORDER, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
@@ -33,6 +33,7 @@ export type BoardRow = {
   result: string | null;
   sentBy: string[] | null;
   hasDraft: boolean;
+  hasWhatsapp: boolean;
   takenBy: string | null;
   mine: boolean;
   corrected: boolean;
@@ -42,8 +43,8 @@ export type BoardRow = {
 type Me = { userId: string; name: string };
 type Choices = { package: string[]; industry: string[]; location: string[] };
 
-type F = { q: string; email: string; whatsapp: string; city: string; industry: string; score: string; draft: string; role: string; mine: boolean; corrected: boolean; flagged: boolean };
-const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", score: "", draft: "", role: "", mine: false, corrected: false, flagged: false };
+type F = { q: string; email: string; whatsapp: string; city: string; industry: string; score: string; draft: string; role: string; site: string; mine: boolean; corrected: boolean; flagged: boolean };
+const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", score: "", draft: "", role: "", site: "", mine: false, corrected: false, flagged: false };
 /** The text filters a link may set in the address (?whatsapp=WhatsApp%20Verified): the Guide links the board filtered. */
 const NOT_SET = "(not set)";
 
@@ -65,6 +66,7 @@ function matches(r: BoardRow, f: F) {
   if (f.score === "none" ? r.leadScore !== null : f.score && (r.leadScore ?? -1) < Number(f.score)) return false;
   if (f.draft && r.hasDraft !== (f.draft === "yes")) return false;
   if (f.role && !!r.contactRole !== (f.role === "yes")) return false;
+  if (!siteMatches(r, f.site)) return false;
   if (f.mine && !r.mine) return false;
   if (f.corrected && !r.corrected) return false;
   if (f.flagged && !r.openFlags) return false;
@@ -132,7 +134,7 @@ function Pick({ label, value, onChange, options }: { label: string; value: strin
   );
 }
 
-function Toggle({ label, on, set }: { label: string; on: boolean; set: (v: boolean) => void }) {
+function Toggle({ label, on, set, count }: { label: string; on: boolean; set: (v: boolean) => void; count?: number }) {
   return (
     <button
       type="button"
@@ -142,6 +144,7 @@ function Toggle({ label, on, set }: { label: string; on: boolean; set: (v: boole
     >
       {on ? <span aria-hidden>✓</span> : null}
       {label}
+      {count !== undefined ? <span className="text-xs text-muted tabular-nums">{count}</span> : null}
     </button>
   );
 }
@@ -180,6 +183,24 @@ export default function LeadsView({
       /* an address the browser will not rewrite: the drawer still works */
     }
   }, [open]);
+  // the filters in the address as they change, so a filtered view can be shared or reloaded
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      for (const k of FILTER_KEYS) {
+        if (f[k]) u.searchParams.set(k, f[k]);
+        else u.searchParams.delete(k);
+      }
+      if (u.href !== window.location.href) window.history.replaceState(window.history.state, "", u);
+    } catch {
+      /* an address the browser will not rewrite: the filters still work */
+    }
+  }, [f]);
+  // the count beside each "No website" chip: the rows it would show under the other filters
+  const siteCounts = useMemo(() => {
+    const rest = rows.filter((r) => matches(r, { ...f, site: "" }));
+    return Object.fromEntries(SITE_FILTERS.map(([k]) => [k, rest.filter((r) => siteMatches(r, k)).length]));
+  }, [rows, f]);
   // a load that names a lead: its row scrolled into view, the filters as they were
   useEffect(() => {
     if (!openId) return;
@@ -284,6 +305,9 @@ export default function LeadsView({
                 <Toggle label="Mine" on={f.mine} set={on("mine")} />
                 <Toggle label="Corrected by the team" on={f.corrected} set={on("corrected")} />
                 <Toggle label="Has flags" on={f.flagged} set={on("flagged")} />
+                {SITE_FILTERS.map(([k, label]) => (
+                  <Toggle key={k} label={label} count={siteCounts[k]} on={f.site === k} set={(v) => on("site")(v ? k : "")} />
+                ))}
               </div>
               <div className="flex items-center gap-4 text-sm">
                 {Object.values(f).some(Boolean) ? (
