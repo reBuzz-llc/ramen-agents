@@ -5,8 +5,13 @@
 // the default order, so a saved view never hides a new field by accident.
 import { DRAWER_ORDER } from "./lead-workflow";
 
-export type ViewPrefs = { show_empty: boolean; field_order: string[]; hidden_fields: string[] };
-export const DEFAULT_VIEW: ViewPrefs = { show_empty: true, field_order: [], hidden_fields: [] };
+/** defaults_seen: the default-hidden fields this person has already been given, so a field added to DEFAULT_HIDDEN
+ *  later is hidden for them once, and a field they unhid stays shown. */
+export type ViewPrefs = { show_empty: boolean; field_order: string[]; hidden_fields: string[]; defaults_seen: string[] };
+/** Hidden for everyone until they choose otherwise: the agents' proof
+ *  and signal fields, and the Notion page id. Kept in the data and the API; a person unhides any of them in My view. */
+export const DEFAULT_HIDDEN = ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence", "notion_uid"];
+export const DEFAULT_VIEW: ViewPrefs = { show_empty: true, field_order: [], hidden_fields: DEFAULT_HIDDEN, defaults_seen: DEFAULT_HIDDEN };
 
 const known = new Set(DRAWER_ORDER);
 const keysOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((k): k is string => typeof k === "string" && known.has(k)))] : []);
@@ -15,11 +20,15 @@ const keysOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filte
 export function viewOf(raw: unknown): ViewPrefs {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const order = keysOf(r.field_order);
+  const seen = keysOf(r.defaults_seen);
+  const fresh = DEFAULT_HIDDEN.filter((k) => !seen.includes(k));
   return {
     show_empty: typeof r.show_empty === "boolean" ? r.show_empty : true,
     // the default order is stored as no order, so fields added later fall into their default place
     field_order: order.join() === DRAWER_ORDER.slice(0, order.length).join() ? [] : order,
-    hidden_fields: keysOf(r.hidden_fields),
+    // the person's hidden fields, plus any default-hidden field they have not been given yet
+    hidden_fields: [...new Set([...keysOf(r.hidden_fields), ...fresh])],
+    defaults_seen: [...new Set([...seen, ...DEFAULT_HIDDEN])],
   };
 }
 

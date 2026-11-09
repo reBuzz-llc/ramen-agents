@@ -75,7 +75,6 @@ export const DRAWER_ORDER = [
   "founder_linkedin",
   "linkedin_via",
   "business_email",
-  "email_check",
   "whatsapp",
   "phone",
   "pain_point",
@@ -91,16 +90,15 @@ export const DRAWER_ORDER = [
   "tools_on_site",
   "site_health",
   "lead_score",
-  "result",
-  "result_date",
-  "sent_by",
-  "sent_at",
-  "follow_up_at",
-  "follow_up_by",
   "found_by",
   "notes",
   "notion_uid",
   "created_at",
 ];
+/** The workflow's own records: what Peek writes when a person presses a step,
+ *  a result chip or Take it, and the Validator's email check. Not fields: the drawer shows them as one Activity strip
+ *  above History, read-only (the result date can be moved there), and My view does not order them. Still in the data
+ *  and the API. */
+export const ACTIVITY_FIELDS = ["email_check", "sent_by", "sent_at", "follow_up_at", "follow_up_by", "result", "result_date"];
 /** Shown but never edited by hand: derived, the Validator's measures, or the record of who did what. */
 export const READ_ONLY = new Set(["email_check", "tools_on_site", "site_health", "lead_score", "sent_by", "sent_at", "follow_up_by", "found_by", "notion_uid", "created_at"]);
