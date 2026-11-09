@@ -56,6 +56,7 @@ const SECTIONS: Step[] = [
       <>Copy the address shown beside the business, then press <B>Copy draft</B>. If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them (the files are on the <P href="/files">Files</P> page; what we offer is on <P href="/packages">Packages</P> and <P href="/asset">Asset</P>).</>,
       <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. The next lead comes in, so the pack stays at ten.</>,
       <>Want one particular lead instead? In <P href="/leads">Leads</P> → <B>Send next</B>, press <B>Take it</B>; <B>Give back</B> if you cannot finish it. <B>Copy link</B> in a lead&apos;s drawer shares it with a colleague.</>,
+      <>Telling the team in the WhatsApp group? Beside <B>Copy link</B>, <B>Copy for WhatsApp</B> copies the business, its link and the team&apos;s last changes on it (no email addresses or phone numbers); paste it into the group.</>,
     ],
     seen: "your claim. A lead in your pack shows as yours everywhere, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
   },
