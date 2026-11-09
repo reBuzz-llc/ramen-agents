@@ -7,7 +7,8 @@ import { raiseFlag } from "@/lib/flags";
 import { getLead, writeLead, type Actor } from "@/lib/leads";
 import { allPacks, fillPack, markPackSent, PACK, packOf } from "@/lib/send-pack";
 import { createTenant } from "@/lib/tenants";
-import { users } from "@/lib/db/schema";
+import { tenants, users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 
 const addUser = async (db: Db, tenantId: string, u: { email: string; name: string; role: "member" }) =>
@@ -18,6 +19,8 @@ const ENGINE: Actor = { kind: "bot", name: "Outreach Writer", via: "engine" };
 async function board(n: number) {
   const db = await memoryDb();
   const { tenant, owner } = await createTenant(db, "Acme", "acme", { email: "o@acme.example", name: "Olu" });
+  // a goal above the pack size, so these tests see the pack's own ten (the daily goals: tests/send-goals.test.ts)
+  await db.update(tenants).set({ settings: { sendGoals: { email: 50, whatsapp: 50 } } }).where(eq(tenants.id, tenant.id));
   const ids: string[] = [];
   for (let i = 0; i < n; i++) {
     const r = await writeLead(db, tenant.id, {}, { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, business_email: `hi@shop${i}.example`, draft_email: i === 3 ? "skip: chain" : `Hi ${i}`, lead_score: 100 - i }, ENGINE, { create: true });

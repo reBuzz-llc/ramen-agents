@@ -10,6 +10,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./db";
 import { leads } from "./db/schema";
 import { WHATSAPP_SENT, writeLead, type Actor } from "./leads";
+import { ALREADY_SENT_SOURCE } from "./send-goals";
 
 export type Mark = "email_sent" | "whatsapp_sent" | "whatsapp_verified" | "ready_email";
 export type MarkChoice = Mark | "per_line";
@@ -209,7 +210,7 @@ export async function markSent(db: Db, tenantId: string, p: Preview, actor: Acto
     const mk = MARKS[m.mark];
     const sentAt = mk.send && m.date ? new Date(`${m.date}T12:00:00Z`) : null;
     try {
-      const r = await writeLead(db, tenantId, { id: m.leadId }, { [mk.field]: mk.value }, actor, { sentAt });
+      const r = await writeLead(db, tenantId, { id: m.leadId }, { [mk.field]: mk.value }, actor, { sentAt, sourceUrl: ALREADY_SENT_SOURCE }); // sends made before: never today's goal
       if (r.ok && r.written.length) marked++;
       else if (!r.ok) failed.push({ business: m.business, reason: r.message });
     } catch (err) {

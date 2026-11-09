@@ -11,6 +11,7 @@ import { listTasks, openTaskFlags } from "@/lib/tasks";
 import { sameOrigin } from "@/lib/same-origin";
 import { recordOutcome } from "@/lib/tenants";
 import { startDayOf, weekStart } from "@/lib/week";
+import { overGoal } from "@/lib/send-goals-db";
 import { displayName } from "@/lib/display-name";
 
 // GET: the company's queue (drafts to review, emails to send, open team tasks), best Lead score first, and this week's
@@ -82,6 +83,9 @@ export async function POST(req: Request) {
   if (!holder) return NextResponse.json({ ok: false, error: "Accept it first." }, { status: 409 });
   if (holder.userId !== g.who.userId) return NextResponse.json({ ok: false, error: `${holder.name} accepted this one.` }, { status: 409 });
   try {
+    // the day's send goal
+    const over = status === STATUS_SENT ? await overGoal(d, g.who.tenantId, g.who.userId, ["email"], body.pageId) : null;
+    if (over) return NextResponse.json({ ok: false, error: over }, { status: 409 });
     const r = await markLead(d, g.who.tenantId, body.pageId, status as (typeof WRITABLE)[number], { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     if (r.ok) await recordOutcome(d, g.who.tenantId, g.who.userId, body.pageId, status === STATUS_SENT ? "sent" : "reviewed");
     if (r.ok && status === STATUS_SENT) await closeClaim(d, g.who.tenantId, body.pageId);

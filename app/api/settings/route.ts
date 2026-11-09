@@ -15,6 +15,7 @@ import { setRate } from "@/lib/member-rates";
 import { sectionOf } from "@/lib/settings-nav";
 import { canSetRate, dayOf, money } from "@/lib/rates";
 import { displayName } from "@/lib/display-name";
+import { goalFromForm, validTimeZone } from "@/lib/send-goals";
 
 // Back to the page the form was on: its Settings page (lib/settings-nav.ts sectionOf), or the Clock page's "Manage
 // projects" (a form there sends return=/). Kept per request, never in a module variable shared by requests running at once.
@@ -91,6 +92,18 @@ export async function POST(req: Request) {
     s.keyResults = { sent: num(form.get("sent")), replies: num(form.get("replies")), meetings: num(form.get("meetings")), tasksDone: num(form.get("tasksDone")) };
     await d.update(tenants).set({ settings: s }).where(eq(tenants.id, g.who.tenantId));
     return back(req, "This week's key results saved.");
+  }
+  if (action === "sendGoals") {
+    // daily send goals per person and the time zone their day starts in: the owner's
+    const g = await guard("settings.rates");
+    if ("res" in g) return g.res;
+    const tz = String(form.get("timezone") ?? "").trim();
+    if (tz && !validTimeZone(tz)) return back(req, `"${tz.slice(0, 60)}" is not a time zone name: pick one from the list, like Europe/Berlin or UTC.`);
+    const s = await settingsOf(d, g.who.tenantId);
+    s.sendGoals = { email: goalFromForm(form.get("daily_email_goal")), whatsapp: goalFromForm(form.get("daily_whatsapp_goal")) };
+    s.timezone = tz || undefined;
+    await d.update(tenants).set({ settings: s }).where(eq(tenants.id, g.who.tenantId));
+    return back(req, "Daily send goals saved. They apply from the next Fill my pack or Mark sent.");
   }
   if (action === "rates") {
     const g = await guard("settings.rates");

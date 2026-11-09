@@ -20,7 +20,10 @@ export type TenantSettings = {
   keyResults?: { sent?: number; replies?: number; meetings?: number; tasksDone?: number };
   /** Pay rates, set by the owner (week 3). Empty means "owner sets"; nothing is computed without them. */
   rates?: { hourly?: number; outcomeBonus?: number; currency?: string };
+  /** The company's time zone (IANA name): where its day starts for the daily send goals. Unset: the server's clock. */
   timezone?: string;
+  /** Daily send goals per person: first emails and WhatsApp messages a day; unset means 5 and 3. */
+  sendGoals?: { email?: number; whatsapp?: number };
   /** Leaderboard points per outcome, set by the owner; empty means the defaults in lib/leaderboard.ts. */
   points?: { sent?: number; replies?: number; meetings?: number; clients?: number; tasksDone?: number };
   /** Settings → Time & updates: the default update cadence (with history), rounding of shift times for pay and totals,

@@ -7,6 +7,8 @@ import { flagsOf } from "@/lib/flags";
 import { getLead, historyOf, writeLead } from "@/lib/leads";
 import { sameOrigin } from "@/lib/same-origin";
 import { displayName } from "@/lib/display-name";
+import { sendsIn } from "@/lib/send-goals";
+import { overGoal } from "@/lib/send-goals-db";
 
 // GET: one lead with its history, for the board page's drawer (the signed-in team; keys use /v1).
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -30,6 +32,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const d = await db();
   const { id } = await ctx.params;
   try {
+    // the day's send goal: Mark email sent / WhatsApp sent past it is refused, as in the pack
+    const over = await overGoal(d, g.who.tenantId, g.who.userId, sendsIn(b.fields), id);
+    if (over) return NextResponse.json({ ok: false, error: over }, { status: 409 });
     const r = await writeLead(d, g.who.tenantId, { id }, b.fields, { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     if (!r.ok) return NextResponse.json({ ok: false, error: r.message }, { status: r.code === "not_found" ? 404 : 400 });
     return NextResponse.json({ ok: true, lead: r.lead, written: r.written, refused: r.refused, changes: r.changes ?? [], history: await historyOf(d, g.who.tenantId, id) });

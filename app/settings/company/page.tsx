@@ -5,6 +5,7 @@ import { settingsTitle } from "@/lib/settings-nav";
 import { btnOutline, btnPrimary, control, fieldLabel, helper, sectionTitle } from "@/lib/ui-classes";
 import { PendingForm } from "../../ui";
 import SectionHead from "../section-head";
+import { DEFAULT_EMAIL_GOAL, DEFAULT_WHATSAPP_GOAL, goalsOf } from "@/lib/send-goals";
 
 export const metadata = { title: settingsTitle("company") };
 
@@ -16,6 +17,9 @@ export default async function Company(props: PageProps<"/settings/company">) {
   const s = who.settings;
   const manage = can(who.role, "projects.manage");
   const krs = can(who.role, "settings.keyResults");
+  const owner = can(who.role, "settings.rates");
+  const goals = goalsOf(s);
+  const zones = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
   return (
     <>
       <SectionHead slug="company" msg={msg} />
@@ -76,6 +80,44 @@ export default async function Company(props: PageProps<"/settings/company">) {
             </div>
           ) : (
             <p className={`${helper} sm:col-span-2`}>An owner or manager changes these.</p>
+          )}
+        </PendingForm>
+      </section>
+
+      <section aria-labelledby="send-goals">
+        <h2 id="send-goals" className={sectionTitle}>
+          Daily send goals
+        </h2>
+        <p className={helper}>
+          How many first emails and WhatsApp messages each person sends a day. Many sends from one address in a day land in
+          spam more often, so the pack fills only up to what is left today and Mark sent past the goal is refused. Checking
+          numbers is not a send and has no limit. The day starts at midnight in the company&apos;s time zone.
+        </p>
+        <PendingForm action="/api/settings" method="post" className="mt-4 grid gap-4 sm:grid-cols-3">
+          <input type="hidden" name="action" value="sendGoals" />
+          <label className={fieldLabel}>
+            Emails a day, per person
+            <input name="daily_email_goal" type="number" min={0} max={200} inputMode="numeric" defaultValue={goals.email} placeholder={String(DEFAULT_EMAIL_GOAL)} disabled={!owner} className={control} />
+          </label>
+          <label className={fieldLabel}>
+            WhatsApp messages a day, per person
+            <input name="daily_whatsapp_goal" type="number" min={0} max={200} inputMode="numeric" defaultValue={goals.whatsapp} placeholder={String(DEFAULT_WHATSAPP_GOAL)} disabled={!owner} className={control} />
+          </label>
+          <label className={fieldLabel}>
+            Time zone
+            <input name="timezone" list="time-zones" defaultValue={s.timezone ?? ""} placeholder="The server's clock (UTC)" disabled={!owner} className={control} />
+            <datalist id="time-zones">
+              {zones.map((z) => (
+                <option key={z} value={z} />
+              ))}
+            </datalist>
+          </label>
+          {owner ? (
+            <div className="sm:col-span-3">
+              <button className={btnOutline}>Save send goals</button>
+            </div>
+          ) : (
+            <p className={`${helper} sm:col-span-3`}>The owner changes these.</p>
           )}
         </PendingForm>
       </section>
