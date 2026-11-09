@@ -28,6 +28,8 @@ export type WaLead = {
   link: string | null;
   status: string | null;
   draft: string | null;
+  /** The sample site the team made: Copy message ends with it. */
+  sample: string | null;
   flags: { rule: string; detail: string; changed: boolean }[];
   mine: boolean;
 };
@@ -42,8 +44,8 @@ export function waLink(whatsapp: string | null, phone: string | null): string | 
 
 const hasNumber = or(isNotNull(leads.whatsapp), isNotNull(leads.phone));
 const open = and(eq(leads.archived, false), isNull(leads.result), or(isNull(leads.whatsappStatus), ne(leads.whatsappStatus, WHATSAPP_SENT)));
-const leadCols = { id: leads.id, business: leads.business, contact: leads.contactPerson, whatsapp: leads.whatsapp, phone: leads.phone, status: leads.whatsappStatus, draft: leads.draftWhatsapp };
-type Row = { id: string; business: string; contact: string | null; whatsapp: string | null; phone: string | null; status: string | null; draft: string | null };
+const leadCols = { id: leads.id, business: leads.business, contact: leads.contactPerson, whatsapp: leads.whatsapp, phone: leads.phone, status: leads.whatsappStatus, draft: leads.draftWhatsapp, sample: leads.sampleUrl };
+type Row = { id: string; business: string; contact: string | null; whatsapp: string | null; phone: string | null; status: string | null; draft: string | null; sample: string | null };
 
 async function withFlags(db: Db, tenantId: string, rows: Row[], mine: Set<string>): Promise<WaLead[]> {
   if (!rows.length) return [];

@@ -11,6 +11,7 @@ import { leadPath } from "@/lib/deep-links";
 import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
 import { readShowEmpty, writeShowEmpty } from "@/lib/drawer-prefs";
 import { activityOf } from "@/lib/activity";
+import { withSample } from "@/lib/sample-site";
 import { shareText, type ShareChange } from "@/lib/team-share";
 import { DEFAULT_VIEW, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
 import { withAttachments } from "@/lib/attachment-line";
@@ -924,7 +925,7 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
                   value={lead[k]}
                   busy={busy}
                   choices={choices}
-                  copyAs={k === "draft_email" ? (v) => withAttachments(v, (data.attachments ?? []).map((a) => a.name)) : undefined}
+                  copyAs={k === "draft_email" ? (v) => withAttachments(withSample(v, show(lead.sample_url)), (data.attachments ?? []).map((a) => a.name)) : k === "draft_whatsapp" ? (v) => withSample(v, show(lead.sample_url)) : undefined}
                   onSave={(v) => save({ [k]: v }, `${label(k)}: saved.`)}
                 />
               ))}

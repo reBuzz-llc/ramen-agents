@@ -78,6 +78,7 @@ export const DRAWER_ORDER = [
   "whatsapp",
   "phone",
   "pain_point",
+  "sample_url",
   "draft_email",
   "draft_whatsapp",
   "draft_followup",

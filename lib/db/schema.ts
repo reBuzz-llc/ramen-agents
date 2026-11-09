@@ -275,6 +275,9 @@ export const leads = pgTable(
     linkedinVia: text("linkedin_via"),
     whatsapp: text("whatsapp"),
     mapLink: text("map_link"),
+    /** The sample site the team made by hand before the meeting: an https link a
+     *  person pastes; Copy draft and Copy message add it. Never written by an agent. */
+    sampleUrl: text("sample_url"),
     painPoint: text("pain_point"),
     package: text("package"),
     evidence: text("evidence"),
