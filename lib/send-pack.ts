@@ -22,6 +22,8 @@ export type PackLead = {
   email: string | null;
   draft: string | null;
   pkg: string | null;
+  /** The sample site the team made: Copy draft ends with it. */
+  sample: string | null;
   /** The Validator's open flags; `changed`: a person edited the draft after the flag was raised (checked on its next run). */
   flags: { rule: string; detail: string; changed: boolean }[];
   attachments: string[];
@@ -33,7 +35,7 @@ const notSent = and(eq(leads.archived, false), or(isNull(leads.emailStatus), ne(
 /** One person's pack: the leads they hold that are not sent and have no result, oldest taken first. */
 export async function packOf(db: Db, tenantId: string, userId: string): Promise<PackLead[]> {
   const rows = await db
-    .select({ id: leads.id, business: leads.business, contact: leads.contactPerson, role: leads.contactRole, email: leads.businessEmail, draft: leads.draftEmail, pkg: leads.package, takenAt: claims.at })
+    .select({ id: leads.id, business: leads.business, contact: leads.contactPerson, role: leads.contactRole, email: leads.businessEmail, draft: leads.draftEmail, pkg: leads.package, sample: leads.sampleUrl, takenAt: claims.at })
     .from(claims)
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
     .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), eq(claims.kind, "email"), notSent))

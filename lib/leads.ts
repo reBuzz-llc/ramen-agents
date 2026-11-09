@@ -33,6 +33,7 @@ export const FIELDS: Field[] = [
   { key: "whatsapp", prop: "whatsapp", kind: "text" },
   { key: "phone", prop: "phone", kind: "text" },
   { key: "map_link", prop: "mapLink", kind: "text" },
+  { key: "sample_url", prop: "sampleUrl", kind: "text", human: true },
   { key: "pain_point", prop: "painPoint", kind: "text" },
   { key: "package", prop: "package", kind: "text" },
   { key: "evidence", prop: "evidence", kind: "text" },
@@ -59,6 +60,7 @@ export const FIELDS: Field[] = [
   { key: "notion_uid", prop: "notionUid", kind: "text" },
 ];
 const BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
+import { isSampleUrl } from "./sample-site";
 
 import { EMAIL_STATUSES, WHATSAPP_STATUSES } from "./lead-workflow";
 export const WHATSAPP_SENT = "WhatsApp msg sent";
@@ -101,6 +103,7 @@ function normalise(f: Field, v: unknown): { value: unknown } | { error: string }
     const s = String(v).trim();
     if (s.length > MAX_TEXT) return { error: `${f.key} is longer than ${MAX_TEXT} characters` };
     if (f.key === "phone") return { value: e164(s) || null };
+    if (f.key === "sample_url") return isSampleUrl(s) ? { value: s } : { error: "sample_url is a link starting with https://" };
     return { value: s || null };
   }
   if (f.kind === "number") {
@@ -203,7 +206,7 @@ export async function writeLead(
   target: { id?: string; notionPageId?: string },
   input: Record<string, unknown>,
   actor: Actor,
-  // sentAt: when the send happened, for a send marked after the fact (Leads → Mark already sent, queue 323); else now
+  // sentAt: when the send happened, for a send marked after the fact (Leads → Mark already sent); else now
   opts: { create?: boolean; fillOnly?: boolean; import?: boolean; sourceUrl?: string | null; sentAt?: Date | null } = {},
 ): Promise<WriteResult> {
   // Read and check the input before touching the database.

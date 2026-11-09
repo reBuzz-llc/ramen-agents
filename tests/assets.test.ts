@@ -244,3 +244,63 @@ describe("publishing", () => {
     expect((await listPackages(db, tenantId)).find((p) => p.name === "A")?.updatedBy).toBe("Olu");
   });
 });
+
+describe("a key's PUT keeps the drafts' record", () => {
+  const PKG = { name: "Starter Website", price: "$990 one-time", buyer: "NYC shops with no website", deliverables: ["One page"], why: "Half of US agency rates.", sources: [] };
+  const setup = async () => {
+    const c = await company();
+    current = c.db;
+    const owner = (await mintKey(current, c.tenantId, "owner", ["board:read", "assets:write"])).token;
+    const route = await import("@/app/v1/assets/[list]/route");
+    const call = async (method: "GET" | "PUT", body?: object) => {
+      const res = await route[method](new Request("http://peek.test/v1/assets/packages", { method, headers: { authorization: `Bearer ${owner}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }), { params: Promise.resolve({ list: "packages" }) });
+      return { status: res.status, json: await res.json() };
+    };
+    await addDraft(current, c.tenantId, { ...PKG, offer: "" }, "Package Designer");
+    await addDraft(current, c.tenantId, { ...PKG, name: "Care Plan", offer: "" }, "Package Designer");
+    const { reviewDraft } = await import("@/lib/assets");
+    await reviewDraft(current, c.tenantId, { name: "Care Plan", by: "The CEO", verdict: "approve", note: "fair price" });
+    return { ...c, call };
+  };
+
+  it("re-sending the GET's list, ids and all, changes nothing", async () => {
+    const { call } = await setup();
+    const before = (await call("GET")).json.packages;
+    expect((await call("PUT", { packages: before })).json).toMatchObject({ ok: true, added: 0, removed: 0, changed: 0 });
+    expect((await call("GET")).json.packages).toEqual(before);
+  });
+
+  it("a list without ids updates the rows of the same name in place; the handover and review are never cleared", async () => {
+    const { call } = await setup();
+    const before = (await call("GET")).json.packages;
+    const bare = before.map((p: Record<string, unknown>) => ({ name: String(p.name).toUpperCase(), price: p.price, buyer: p.buyer, deliverables: p.deliverables, why: p.why, status: p.status }));
+    expect((await call("PUT", { packages: [...bare, { name: "Logo refresh", price: "$300" }] })).json).toMatchObject({ ok: true, added: 1, removed: 0 });
+    const after = (await call("GET")).json.packages;
+    for (const b of before) {
+      const a = after.find((x: { id: string }) => x.id === b.id);
+      expect(a, b.name).toBeTruthy();
+      expect(a).toMatchObject({ handed_over_by: b.handed_over_by, handed_over_at: b.handed_over_at, reviewed_by: b.reviewed_by, reviewed_at: b.reviewed_at, review_verdict: b.review_verdict, review_note: b.review_note });
+    }
+    expect(after.find((x: { name: string }) => x.name === "CARE PLAN")).toMatchObject({ review_verdict: "approve", handed_over_by: "Package Designer" });
+  });
+
+  it("restores a draft's handover and review from the saved GET; a published package's stay as they are", async () => {
+    const { call, tenantId } = await setup();
+    const saved = (await call("GET")).json.packages;
+    // a list once deleted and re-created bare
+    await call("PUT", { packages: [] });
+    await call("PUT", { packages: saved.map((p: Record<string, unknown>) => ({ name: p.name, price: p.price, buyer: p.buyer, deliverables: p.deliverables, why: p.why })) });
+    expect((await call("GET")).json.packages.every((p: { handed_over_by: string | null }) => p.handed_over_by === null)).toBe(true);
+    // the restore: the saved JSON, its ids gone with the old rows, matched by name
+    const restore = saved.map(({ id: _id, ...p }: Record<string, unknown>) => p);
+    expect((await call("PUT", { packages: restore })).json).toMatchObject({ ok: true, added: 0, removed: 0 });
+    const back = (await call("GET")).json.packages;
+    for (const s of saved) expect(back.find((b: { name: string }) => b.name === s.name)).toMatchObject({ handed_over_by: s.handed_over_by, handed_over_at: s.handed_over_at, reviewed_by: s.reviewed_by, review_verdict: s.review_verdict, review_note: s.review_note, updated_by: s.updated_by });
+    expect((await call("PUT", { packages: [{ ...restore[0], review_verdict: "maybe" }] })).status).toBe(400);
+    // published: a key does not rewrite its record
+    await publishPackages(current, tenantId, [back[0].id], "Olu");
+    const pub = (await call("GET")).json.packages;
+    expect((await call("PUT", { packages: pub })).status).toBe(200); // unchanged: fine
+    expect((await call("PUT", { packages: pub.map((p: Record<string, unknown>, i: number) => (i === 0 ? { ...p, handed_over_by: "Someone else" } : p)) })).status).toBe(405);
+  });
+});

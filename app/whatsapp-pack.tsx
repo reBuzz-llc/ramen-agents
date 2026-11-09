@@ -1,5 +1,7 @@
 "use client";
 
+import { withSample } from "@/lib/sample-site";
+import { SampleLine } from "./send-pack";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -40,7 +42,7 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
   };
   const copy = async (l: WaLead) => {
     try {
-      await navigator.clipboard.writeText(msgOf(l) ?? "");
+      await navigator.clipboard.writeText(withSample(msgOf(l) ?? "", l.sample));
       setNote(`${l.business}: message copied.`);
     } catch {
       setNote("Copy failed: open the lead and select the message.");
@@ -73,6 +75,7 @@ export default function WhatsAppPack({ checks, send, size }: { checks: WaLead[];
                 <span className="font-semibold">{l.business}</span>
                 <span className="text-xs text-muted tabular-nums">{shownNumber(l)}</span>
               </div>
+              {l.sample ? <SampleLine url={l.sample} /> : null}
               {l.flags.map((f) => (
                 <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
                   <span className="font-semibold">{f.rule}</span> {f.detail}

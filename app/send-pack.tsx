@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { withAttachments } from "@/lib/attachment-line";
+import { withSample } from "@/lib/sample-site";
 import DraftBox from "./draft-box";
 import type { PackLead } from "@/lib/send-pack";
 
@@ -48,7 +49,7 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
   };
   const copy = async (l: PackLead) => {
     try {
-      await navigator.clipboard.writeText(withAttachments(draftOf(l) ?? "", l.attachments));
+      await navigator.clipboard.writeText(withAttachments(withSample(draftOf(l) ?? "", l.sample), l.attachments));
       say(l.id, "Draft copied.");
     } catch {
       say(l.id, "Copy failed: open the lead and select the draft.");
@@ -101,6 +102,7 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
                       {l.pkg ? ` · ${l.pkg}` : ""}
                       {l.attachments.length ? ` · attach: ${l.attachments.join(", ")}` : ""}
                     </p>
+                    {l.sample ? <SampleLine url={l.sample} /> : null}
                     {l.flags.map((f) => (
                       <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 text-sm ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
                         <span className="font-semibold">{f.rule}</span> {f.detail}
@@ -166,5 +168,18 @@ export default function SendPack({ pack, size, me, others }: { pack: PackLead[];
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** The lead's sample site on its card: the link to open and check it before sending. */
+export function SampleLine({ url }: { url: string }) {
+  return (
+    <p className="mt-1 text-sm">
+      <span className="text-muted">Sample site: </span>
+      <a href={url} target="_blank" rel="noopener" className="font-semibold text-accent-ink underline">
+        Open
+      </a>
+      <span className="ml-2 text-xs break-all text-muted">{url}</span>
+    </p>
   );
 }

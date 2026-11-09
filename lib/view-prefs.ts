@@ -60,6 +60,7 @@ export const FIELD_LABELS: Record<string, string> = {
   linkedin_via: "LinkedIn found via",
   whatsapp: "WhatsApp",
   map_link: "Map",
+  sample_url: "Sample site",
   pain_point: "Pain point",
   package: "How can I help",
   evidence: "Evidence",

@@ -26,7 +26,11 @@ export type PackageIn = {
   /** Why this package and price, and the pages it rests on (a handover's, or the Notion toggle's). */
   why: string;
   sources: string[];
+  /** A key restoring a draft's record: the handover, the review, when it was made and by whom, as
+   *  GET /v1/assets/packages gives them. Only the fields an item carries are written, and only on drafts. */
+  restore?: Restore;
 };
+export type Restore = Partial<{ handedOverBy: string | null; handedOverAt: Date | null; reviewedBy: string | null; reviewedAt: Date | null; reviewVerdict: "approve" | "revise" | null; reviewNote: string | null; createdAt: Date; updatedBy: string }>;
 export type Rate = { id: string; position: number; line: string; offer: string; price: string; updatedAt: string; updatedBy: string };
 export type Package = PackageIn & {
   id: string;
@@ -72,6 +76,70 @@ export function splitLine(line: string): { offer: string; price: string } {
 
 const idOf = (v: unknown): string | undefined | null => (v === undefined || v === null || v === "" ? undefined : typeof v === "string" && UUID.test(v) ? v : null);
 
+const RESTORE_KEYS = ["handed_over_by", "handed_over_at", "reviewed_by", "reviewed_at", "review_verdict", "review_note", "created_at", "updated_by"] as const;
+
+/** The record fields a key's item carries (snake_case, as GET gives them); a key that is present is written, null clears. */
+function restoreOf(o: Record<string, unknown>): { restore: Restore } | { error: string } {
+  const r: Restore = {};
+  const text = (v: unknown, n: number) => (v === null ? null : str(v, n) || null);
+  const date = (v: unknown, k: string): Date | null | { error: string } => {
+    if (v === null) return null;
+    const d = typeof v === "string" ? new Date(v) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : { error: `${k} is not a date` };
+  };
+  for (const k of RESTORE_KEYS) {
+    if (!(k in o) || o[k] === undefined) continue;
+    const v = o[k];
+    if (k === "handed_over_by") r.handedOverBy = text(v, 80);
+    if (k === "reviewed_by") r.reviewedBy = text(v, 80);
+    if (k === "review_note") r.reviewNote = text(v, 500);
+    if (k === "updated_by" && typeof v === "string" && v.trim()) r.updatedBy = v.trim().slice(0, 80);
+    if (k === "review_verdict") {
+      if (v !== null && v !== "approve" && v !== "revise") return { error: "review_verdict is approve, revise or null" };
+      r.reviewVerdict = v as "approve" | "revise" | null;
+    }
+    if (k === "handed_over_at" || k === "reviewed_at" || k === "created_at") {
+      const d = date(v, k);
+      if (d && "error" in d) return d;
+      if (k === "handed_over_at") r.handedOverAt = d as Date | null;
+      if (k === "reviewed_at") r.reviewedAt = d as Date | null;
+      if (k === "created_at" && d) r.createdAt = d as Date;
+    }
+  }
+  return { restore: r };
+}
+
+const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null || v === undefined ? null : String(v));
+const RESTORE_COLUMNS: (keyof Restore)[] = ["handedOverBy", "handedOverAt", "reviewedBy", "reviewedAt", "reviewVerdict", "reviewNote", "createdAt", "updatedBy"];
+
+/** A key's list without ids: each item without an id takes the id of the existing row of the same
+ *  name (case-insensitive, first not already named by id), so a re-sent list updates in place and never deletes and
+ *  re-creates rows (which would lose their handover and review). */
+export function withIdsByName<T extends { id?: string; name: string }>(existing: { id: string; name: string }[], items: T[]): T[] {
+  const taken = new Set(items.map((i) => i.id).filter(Boolean));
+  return items.map((it) => {
+    if (it.id) return it;
+    const row = existing.find((r) => !taken.has(r.id) && r.name.trim().toLowerCase() === it.name.trim().toLowerCase());
+    if (!row) return it;
+    taken.add(row.id);
+    return { ...it, id: row.id };
+  });
+}
+
+/** A key may restore a draft's record only: a published package's handover, review or authorship is not rewritten. */
+export function keyMayNotRestore(existing: Package[], items: PackageIn[]): string | null {
+  const byId = new Map(existing.map((p) => [p.id, p]));
+  for (const it of items) {
+    if (!it.restore) continue;
+    const was = it.id ? byId.get(it.id) : undefined;
+    const published = it.status === "published" || was?.status === "published";
+    if (!published) continue;
+    const differs = RESTORE_COLUMNS.some((k) => k in it.restore! && k !== "createdAt" && iso(it.restore![k]) !== iso((was as Record<string, unknown> | undefined)?.[k] ?? null));
+    if (differs) return `"${it.name}" is published; its handover, review and authorship are not changed by a key`;
+  }
+  return null;
+}
+
 /** A rate list from a page or a key: strings or {id?, line}; empty lines dropped. */
 export function checkRates(input: unknown): Checked<RateIn> {
   if (!Array.isArray(input)) return { ok: false, message: "send rates as a list: [{line}] or [\"Offer: price\"]" };
@@ -89,7 +157,7 @@ export function checkRates(input: unknown): Checked<RateIn> {
 }
 
 /** A package list: a name each; status draft unless "published"; deliverables a list of lines (or one per line). */
-export function checkPackages(input: unknown): Checked<PackageIn> {
+export function checkPackages(input: unknown, opts: { restore?: boolean } = {}): Checked<PackageIn> {
   if (!Array.isArray(input)) return { ok: false, message: "send packages as a list: [{name, price, offer, buyer, deliverables, status}]" };
   if (input.length > MAX_ITEMS) return { ok: false, message: `at most ${MAX_ITEMS} packages` };
   const items: PackageIn[] = [];
@@ -115,6 +183,11 @@ export function checkPackages(input: unknown): Checked<PackageIn> {
       why: str(o.why, 2000),
       sources: urls(o.sources),
     });
+    if (opts.restore) {
+      const r = restoreOf(o);
+      if ("error" in r) return { ok: false, message: `package ${i + 1}: ${r.error}` };
+      if (Object.keys(r.restore).length) items[items.length - 1].restore = r.restore;
+    }
   }
   return { ok: true, items };
 }
@@ -168,11 +241,14 @@ async function replace<T extends { id?: string }>(
   same: (row: Record<string, unknown>, item: T) => boolean,
   values: (item: T) => Record<string, unknown>,
   known?: Set<string>,
+  byName = false,
 ): Promise<{ ok: true; added: number; changed: number; removed: number } | { ok: false; message: string }> {
   return db.transaction(async (tx) => {
     const t = tx as unknown as Db;
     const existing = (await t.select().from(table).where(eq(table.tenantId, tenantId))) as unknown as (Record<string, unknown> & { id: string; position: number })[];
     const byId = new Map(existing.map((r) => [r.id, r]));
+    // a key's full replace without ids updates the rows of the same name in place
+    if (byName && !known) items = withIdsByName(existing as unknown as { id: string; name: string }[], items as unknown as { id?: string; name: string }[]) as unknown as T[];
     const ids = items.map((x) => x.id).filter((x): x is string => !!x);
     if (new Set(ids).size !== ids.length) return { ok: false as const, message: "the same id twice in the list" };
     const unknown = ids.find((id) => !byId.has(id));
@@ -223,9 +299,12 @@ export const savePackages = (db: Db, tenantId: string, items: PackageIn[], by: s
       r.email === x.email &&
       r.why === x.why &&
       JSON.stringify(r.sources) === JSON.stringify(x.sources) &&
-      JSON.stringify(r.deliverables) === JSON.stringify(x.deliverables),
-    (x) => ({ name: x.name, price: x.price, offer: x.offer, buyer: x.buyer, deliverables: x.deliverables, status: x.status, email: x.email, why: x.why, sources: x.sources }),
+      JSON.stringify(r.deliverables) === JSON.stringify(x.deliverables) &&
+      RESTORE_COLUMNS.every((k) => !x.restore || !(k in x.restore) || iso(r[k]) === iso(x.restore[k])),
+    // the record fields only as an item carries them, and on drafts: never cleared by an item that does not
+    (x) => ({ name: x.name, price: x.price, offer: x.offer, buyer: x.buyer, deliverables: x.deliverables, status: x.status, email: x.email, why: x.why, sources: x.sources, ...(x.restore && x.status === "draft" ? x.restore : {}) }),
     known,
+    true,
   );
 
 /** The ids a page loaded ({known: [...]}), or undefined when the caller sent none (a full replace). */
