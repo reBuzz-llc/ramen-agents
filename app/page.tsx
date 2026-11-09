@@ -4,6 +4,8 @@ import { pageMe } from "@/lib/page-me";
 import GoalsNudge from "./goals-nudge";
 import SendPack from "./send-pack";
 import FollowUps from "./follow-ups";
+import SamplesToMake from "./samples-to-make";
+import { samplesToMake } from "@/lib/samples-to-make";
 import PackTabs from "./pack-tabs";
 import WhatsAppPack from "./whatsapp-pack";
 import { CHECK, checkList, sendList } from "@/lib/whatsapp-pack";
@@ -25,13 +27,14 @@ export default async function Home(props: { searchParams: Promise<Record<string,
   const d = await db();
   const work = can(who.role, "queue.work");
   const myName = displayName(who.name, who.email);
-  const [pack, others, due, waiting, checks, waSend] = await Promise.all([
+  const [pack, others, due, waiting, checks, waSend, samples] = await Promise.all([
     work ? packOf(d, who.tenantId, who.userId) : [],
     who.role === "owner" ? allPacks(d, who.tenantId) : null,
     work ? followUpsDue(d, who.tenantId, namesOf(who.name, who.email)) : [],
     work ? sentWaiting(d, who.tenantId, namesOf(who.name, who.email)) : [],
     work ? checkList(d, who.tenantId, who.userId) : [],
     work ? sendList(d, who.tenantId, who.userId) : [],
+    work ? samplesToMake(d, who.tenantId, namesOf(who.name, who.email)) : [],
   ]);
   return (
     <>
@@ -50,6 +53,7 @@ export default async function Home(props: { searchParams: Promise<Record<string,
               waCount={waSend.filter((l) => l.draft).length}
             />
           ) : null}
+          {work ? <SamplesToMake rows={samples} /> : null}
           {work ? <FollowUps due={due} waiting={waiting} /> : null}
         </div>
         <aside className="lg:sticky lg:top-6">

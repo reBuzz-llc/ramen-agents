@@ -20,6 +20,8 @@ export type SendNextRow = {
   score: number | null;
   pkg: string | null;
   draft: string | null;
+  /** The sample site the team made: Copy draft ends with it. */
+  sample: string | null;
   emailStatus: string | null;
   note: string;
   takenBy: { userId: string; name: string } | null;
@@ -65,6 +67,7 @@ const columns = {
   score: leads.leadScore,
   pkg: leads.package,
   draft: leads.draftEmail,
+  sample: leads.sampleUrl,
   emailStatus: leads.emailStatus,
   takenId: claims.userId,
   takenName: sql<string | null>`coalesce(nullif(trim(${users.name}), ''), split_part(${users.email}, '@', 1))`,
@@ -96,6 +99,7 @@ async function sendNextRows(db: Db, tenantId: string): Promise<SendNext> {
     score: r.score,
     pkg: r.pkg,
     draft: r.draft,
+    sample: r.sample,
     emailStatus: r.emailStatus,
     note,
     takenBy: r.takenId ? { userId: r.takenId, name: r.takenName ?? "" } : null,
