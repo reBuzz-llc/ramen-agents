@@ -1,4 +1,4 @@
-// Server-side only: the Work plan page (owner, 2026-09-26). One grid of every agent with:
+// Server-side only: the Work plan page. One grid of every agent with:
 //   - its current checklist, written by the engine to <bot>/workspace/plan.json (read-only here);
 //   - the owner's future goal and current rules for it, one line each, in common-data/work-plan.json, which this
 //     app writes and the engine reads into every decide prompt ("## The owner's work plan");
@@ -13,6 +13,7 @@ import { readPersona } from "./persona";
 import { capabilitiesOf, type Capabilities } from "./capabilities";
 import { fillTarget, readTarget } from "./target";
 import { localIso, sq } from "./summary";
+import { kindOf, reasonLabel, type Case, type Kind } from "./checks";
 
 const MAX_GOAL = 200;
 const MAX_RULE = 160;
@@ -398,66 +399,93 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
   return all.sort((a, b) => ((a.ended ?? "") < (b.ended ?? "") ? 1 : -1)).slice(0, limit);
 }
 
-// refused excludes the fence: refusals that are the safety rules working (a personal mailbox, an email not on the
-// business's own site, an invented value, robots.txt...). Those are counted apart in `fence` and stay out of the
-// 20 % target, so the target never pushes toward loosening them (owner, 2026-10-05, via the engine session).
-export type RefusalDay = { day: string; allowed: number; refused: number; fence: number };
-export type RefusalStats = { slug: string; name: string; days: RefusalDay[]; today: RefusalDay; week: RefusalDay; reasons: { reason: string; n: number }[] };
+// The rate is refused / (allowed + refused). Counted apart and never against the 20 % target:
+// the fence (the safety rules working: a personal mailbox, an email not on the business's own site, an invented value,
+// a site that asks bots not to read it), "held" (waiting for someone), "failed" (ran and did not work, e.g. a row already
+// drafted) and "closed" (a site closed for the day). lib/checks.ts kindOf decides.
+export type RefusalDay = { day: string; allowed: number; refused: number; fence: number; held: number; failed: number; closed: number };
+export type RefusalReason = { reason: string; kind: Kind; n: number; cases: Case[] };
+export type RefusalStats = {
+  slug: string;
+  name: string;
+  days: RefusalDay[];
+  today: RefusalDay;
+  week: RefusalDay;
+  /** The seven days before (B1: the ↑/↓ against last week). */
+  prevWeek: RefusalDay;
+  reasons: RefusalReason[];
+  /** The newest action in the bot's table (its source's freshness); null with `error` when the table cannot be read. */
+  lastAt: string | null;
+  error: string | null;
+};
 
-const FENCE = /personal mailbox|does not appear on any page|MG03|robots\.txt|never guess|LD0[12]|LD1[458]|LD20|actually opened|actually seen|own site/i;
+const emptyDay = (day: string): RefusalDay => ({ day, allowed: 0, refused: 0, fence: 0, held: 0, failed: 0, closed: 0 });
+const addDay = (a: RefusalDay, d: RefusalDay): RefusalDay => ({ day: a.day, allowed: a.allowed + d.allowed, refused: a.refused + d.refused, fence: a.fence + d.fence, held: a.held + d.held, failed: a.failed + d.failed, closed: a.closed + d.closed });
 
-/** Refused / (allowed + refused) per day over the last seven days, fence refusals apart, and the top three non-fence
- * reasons this week. Read-only from each bot's actions table: verdict 'allowed' is accepted, anything else refused. */
+/** Per bot, the last seven days by kind, the top reasons this week (not fence or allowed) in plain words with their three
+ *  newest cases, and how fresh its table is. Read-only from each bot's actions table. */
 export async function refusalStats(bots: BotProfile[]): Promise<RefusalStats[]> {
   const today = localIso(Date.now()).slice(0, 10);
   const from = localIso(Date.now() - 6 * 86400e3).slice(0, 10);
+  const from14 = localIso(Date.now() - 13 * 86400e3).slice(0, 10);
+  const monthAgo = localIso(Date.now() - 30 * 86400e3);
   const out: RefusalStats[] = [];
   for (const bot of bots) {
     let rows: Row[] = [];
+    let cases: Row[] = [];
+    let lastAt: string | null = null;
+    let error: string | null = null;
     try {
-      // One row per day and distinct refusal text (allowed rows collapse to one per day), classified here.
-      rows = await query(
-        await dbPath(bot),
-        `SELECT substr(ts,1,10) AS day, CASE WHEN verdict = 'allowed' THEN '' ELSE substr(replace(replace(verdict,'rejected: ',''),'failed: ',''),1,200) END AS v, COUNT(*) AS n FROM actions WHERE ts >= ${sq(from)} GROUP BY 1, 2`,
-      );
-    } catch {
-      continue;
+      const db = await dbPath(bot);
+      // One row per day and distinct verdict text (allowed rows collapse to one per day), classified here.
+      [rows, cases] = await Promise.all([
+        query(db, `SELECT substr(ts,1,10) AS day, CASE WHEN verdict = 'allowed' THEN '' ELSE substr(verdict,1,200) END AS v, COUNT(*) AS n FROM actions WHERE ts >= ${sq(from14)} GROUP BY 1, 2`),
+        query(
+          db,
+          `SELECT ts, verdict AS v, action_type AS t, coalesce(json_extract(payload,'$.name'), json_extract(payload,'$.business'), json_extract(payload,'$.lead'), '') AS b, coalesce(json_extract(payload,'$.query'), json_extract(payload,'$.url'), json_extract(payload,'$.field'), json_extract(payload,'$.title'), '') AS w FROM actions WHERE ts >= ${sq(from)} AND verdict != 'allowed' ORDER BY ts DESC LIMIT 600`,
+        ).catch(() => [] as Row[]),
+      ]);
+      const [last] = await query(db, "SELECT max(ts) AS at FROM actions");
+      lastAt = last?.at ? String(last.at) : null;
+    } catch (err) {
+      error = err instanceof Error ? err.message.split("\n")[0].slice(0, 160) : String(err);
     }
+    if (!error && (!lastAt || lastAt < monthAgo)) continue; // a retired bot: nothing in a month
     const byDay = new Map<string, RefusalDay>();
-    const merged = new Map<string, number>();
+    const merged = new Map<string, { kind: Kind; n: number }>();
     for (const r of rows) {
       const day = String(r.day);
-      const d = byDay.get(day) ?? { day, allowed: 0, refused: 0, fence: 0 };
+      const d = byDay.get(day) ?? emptyDay(day);
       const v = String(r.v ?? "");
       const n = Number(r.n);
-      if (!v) d.allowed += n;
-      else if (FENCE.test(v)) d.fence += n;
-      else {
-        d.refused += n;
-        // The reason up to its first clause, quotes and numbers folded, so "you already searched 'x'" and '…y' are one.
-        const key = v.slice(0, 60).replace(/'[^']*'?/g, "'…'").replace(/\d+/g, "N").split(/[;:,(]| — | -- /)[0].trim();
-        merged.set(key, (merged.get(key) ?? 0) + n);
+      const kind = kindOf(v);
+      d[kind] += n;
+      if (kind !== "allowed" && kind !== "fence" && day >= from) {
+        const key = reasonLabel(v);
+        const m = merged.get(key) ?? { kind, n: 0 };
+        m.n += n;
+        merged.set(key, m);
       }
       byDay.set(day, d);
     }
     const days: RefusalDay[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = localIso(Date.now() - i * 86400e3).slice(0, 10);
-      days.push(byDay.get(d) ?? { day: d, allowed: 0, refused: 0, fence: 0 });
+      days.push(byDay.get(d) ?? emptyDay(d));
     }
-    const week = days.reduce(
-      (a, d) => ({ day: "7d", allowed: a.allowed + d.allowed, refused: a.refused + d.refused, fence: a.fence + d.fence }),
-      { day: "7d", allowed: 0, refused: 0, fence: 0 },
-    );
-    if (!week.allowed && !week.refused && !week.fence) continue;
-    out.push({
-      slug: bot.slug,
-      name: bot.name,
-      days,
-      today: days.find((d) => d.day === today) ?? { day: today, allowed: 0, refused: 0, fence: 0 },
-      week,
-      reasons: [...merged.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, n]) => ({ reason, n })),
-    });
+    const week = days.reduce(addDay, emptyDay("7d"));
+    const prevWeek = [...byDay.values()].filter((d) => d.day < from).reduce(addDay, emptyDay("prev"));
+    const top = [...merged.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 5);
+    const reasons: RefusalReason[] = top.map(([reason, m]) => ({
+      reason,
+      kind: m.kind,
+      n: m.n,
+      cases: cases
+        .filter((c) => reasonLabel(String(c.v ?? "")) === reason)
+        .slice(0, 3)
+        .map((c) => ({ ts: String(c.ts), business: String(c.b ?? "").slice(0, 80), tried: `${String(c.t ?? "")}${c.w ? `: ${String(c.w).slice(0, 120)}` : ""}` })),
+    }));
+    out.push({ slug: bot.slug, name: bot.name, days, today: days.find((d) => d.day === today) ?? emptyDay(today), week, prevWeek, reasons, lastAt, error });
   }
   return out;
 }

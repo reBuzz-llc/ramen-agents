@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The office, live: ~/bots/webapp/scripts/world-public.ts on 127.0.0.1:3200, three routes, signed links only.
+       Expose it with a tunnel of your choice; see webapp/docs/world-public.md. -->
+  <key>Label</key>
+  <string>com.ramen-agents.world-public</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>--experimental-strip-types</string>
+    <string>--no-warnings</string>
+    <string>__HOME__/bots/webapp/scripts/world-public.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/bots/webapp</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/bots/webapp/logs/world-public.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/bots/webapp/logs/world-public.err.log</string>
+</dict>
+</plist>

@@ -42,3 +42,6 @@ next-env.d.ts
 /.next-staging/
 /.next-previous/
 /.next-failed/
+
+# the public world's page, built by scripts/world-public-build.mjs (creatorCC queue 376)
+/dist/

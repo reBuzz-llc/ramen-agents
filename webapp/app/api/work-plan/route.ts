@@ -1,10 +1,10 @@
 import { jsonResponse } from "@/lib/json-response";
-import { findBot, listBots } from "@/lib/bots";
+import { BOTS_DIR, findBot, listBots } from "@/lib/bots";
 import { sameOrigin } from "@/lib/same-origin";
 import type { NextRequest } from "next/server";
 import { attentionSince, pastJobs, refusalStats, workCards, writeOwnerPlan } from "@/lib/work-plan";
 import { candidateFunnel } from "@/lib/candidates";
-import { readChanges } from "@/lib/changes";
+import { readMarkers } from "@/lib/changes";
 import { leadResults } from "@/lib/lead-results";
 import { testRuns } from "@/lib/test-runs";
 import { ceoMeasure } from "@/lib/ceo-measure";
@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
       pastJobs(bots),
       refusalStats(bots),
       candidateFunnel(bots.find((b) => b.slug === "lead-gen")),
-      readChanges(14),
+      readMarkers(14),
       leadResults(),
       testRuns(),
       ceoMeasure(),
     ]);
-    return jsonResponse(req, { ...cards, past, refusals, candidates, changes, results, tests, ceo });
+    return jsonResponse(req, { ...cards, past, refusals, candidates, changes, results, tests, ceo, at: new Date().toISOString() });
   } catch (err) {
     return Response.json({ error: `could not read the work plan: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
   }

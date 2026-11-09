@@ -1,20 +1,21 @@
-// Server-side only: how The CEO is measured (owner, 2026-10-06, "both"): per week, (1) tasks on its task board that
-// the team (the people in team.json) moved to Status "Done", and (2) leads whose Result reached Replied, Meeting or
-// Client. Tasks created is not a measure. A task's done week is its last edit by a team member (the board keeps no
-// separate done date); a lead's is its Result date, else its last edit. Four weeks, newest first; cached 10 minutes.
+// Server-side only: how The CEO is measured: per week, (1) tasks on the team's task board
+// that a person moved to Done, and (2) leads whose Result reached Replied, Meeting or Client. Tasks created is not a
+// measure. The tasks are the team portal's (a Notion board frozen after a move would read 0 for
+// four weeks): a task counts in the week of its newest step to Done made by a person, from its History. A lead's week is
+// its Result date, else its last edit. Four weeks, newest first; cached 10 minutes.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "./bots";
+import { CLOSED_TASK, doneByPerson, weekIndex, type PortalTask, type TaskStep } from "./checks";
 import { fromNotion, fromPortal, type LeadRow } from "./lead-rows";
 import { notionBoards } from "./notion-boards";
-import { leadsSource, portalLeads } from "./portal";
+import { leadsSource, portalKey, portalLeads } from "./portal";
 
 const KEYS = path.join(BOTS_DIR, "common-data", "keys", "notion.key");
-const TEAM = path.join(BOTS_DIR, "common-data", "team.json");
 const ANSWERED = new Set(["Replied", "Meeting", "Client"]);
 
 export type CeoWeek = { from: string; tasksDone: number; leadsAnswered: number };
-export type CeoMeasure = { ok: boolean; reason: string; weeks: CeoWeek[]; openTasks: number };
+export type CeoMeasure = { ok: boolean; reason: string; weeks: CeoWeek[]; openTasks: number; tasksSource?: string };
 
 type Page = { last_edited_time?: string; last_edited_by?: { id?: string }; properties?: Record<string, Record<string, unknown>> };
 const g = globalThis as { __ceoMeasure?: { at: number; data: CeoMeasure } };
@@ -38,59 +39,63 @@ async function queryAll(id: string, key: string): Promise<Page[]> {
   return out;
 }
 
-const named = (p: Record<string, unknown> | undefined) => {
-  const v = p?.[String(p?.type)] as { name?: string; start?: string } | null | undefined;
-  return v?.name ?? v?.start ?? "";
-};
+
+/** The portal's task board with the dashboard's key: every live task, then the History of those Done in the last four weeks. */
+async function portalTasks(url: string, key: string, now: number): Promise<{ open: number; done: string[] }> {
+  const get = async (p: string) => {
+    const r = await fetch(`${url}${p}`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(20000), cache: "no-store" });
+    if (!r.ok) throw new Error(`The team portal answered HTTP ${r.status} for the task board`);
+    return r.json();
+  };
+  const tasks: PortalTask[] = [];
+  let since = 0;
+  for (let i = 0; i < 20; i++) {
+    const b = (await get(`/v1/boards/tasks/rows?since=${since}&limit=500`)) as { tasks?: PortalTask[]; next?: number; more?: boolean };
+    tasks.push(...(b.tasks ?? []));
+    if (!b.more) break;
+    since = Number(b.next ?? since);
+  }
+  const open = tasks.filter((t) => t.status && !CLOSED_TASK.has(t.status)).length;
+  const recent = tasks.filter((t) => t.status === "Done" && weekIndex(String(t.updated_at ?? ""), now) >= 0).slice(0, 200);
+  const done: string[] = [];
+  for (const t of recent) {
+    const h = (await get(`/v1/tasks/${t.id}/history`)) as { history?: TaskStep[] } | TaskStep[];
+    const at = doneByPerson(Array.isArray(h) ? h : (h.history ?? []));
+    if (at) done.push(at);
+  }
+  return { open, done };
+}
 
 export async function ceoMeasure(): Promise<CeoMeasure> {
   if (g.__ceoMeasure && Date.now() - g.__ceoMeasure.at < 10 * 60 * 1000) return g.__ceoMeasure.data;
-  let key = "";
-  let team = new Set<string>();
-  try {
-    key = (await readFile(/*turbopackIgnore: true*/ KEYS, "utf8")).trim();
-    team = new Set(((JSON.parse(await readFile(/*turbopackIgnore: true*/ TEAM, "utf8")) as { members?: { notionId?: string }[] }).members ?? []).map((m) => String(m.notionId)));
-  } catch {
-    return { ok: false, reason: "No Notion key or team list on this Mac.", weeks: [], openTasks: 0 };
-  }
   // Weeks end today: [today-6, today], the one before, and so on.
   const day = 86400e3;
   const now = Date.now();
   const weeks: CeoWeek[] = [0, 1, 2, 3].map((i) => ({ from: new Date(now - (7 * i + 6) * day).toISOString().slice(0, 10), tasksDone: 0, leadsAnswered: 0 }));
-  const weekOf = (iso: string) => {
-    const t = new Date(iso).getTime();
-    if (!Number.isFinite(t) || t > now) return -1;
-    const i = Math.floor((now - t) / (7 * day));
-    return i < 4 ? i : -1;
-  };
   try {
-    const boards = await notionBoards();
-    // Tasks stay on Notion; the leads come from the store the fleet uses (lib/portal.ts).
     const src = await leadsSource();
-    if (!boards.tasks || (src.store === "notion" && !boards.leads)) return { ok: false, reason: "The task board or Leads board id is not set in the-ceo/config.toml.", weeks: [], openTasks: 0 };
-    const [tasks, leads] = await Promise.all([
-      queryAll(boards.tasks, key),
+    const portalKeyText = (await readFile(/*turbopackIgnore: true*/ portalKey(), "utf8").catch(() => "")).trim();
+    if (!portalKeyText) return { ok: false, reason: "source not connected: no team portal key for the dashboard (common-data/keys/portal-dashboard.key)", weeks: [], openTasks: 0 };
+    const leadsP: Promise<LeadRow[]> =
       src.store === "portal"
         ? portalLeads(src.url).then((ls) => ls.map(fromPortal))
-        : queryAll(boards.leads, key).then((ps) => ps.map((p): LeadRow => fromNotion(p.properties ?? {}, String(p.last_edited_time ?? "")))),
-    ]);
-    let openTasks = 0;
-    for (const t of tasks) {
-      const status = named(t.properties?.Status);
-      if (status !== "Done") {
-        if (status && status !== "Dublicate" && status !== "Duplicate") openTasks++;
-        continue;
-      }
-      if (!team.has(String(t.last_edited_by?.id))) continue; // done by the team, not by a bot
-      const w = weekOf(String(t.last_edited_time));
+        : (async () => {
+            const key = (await readFile(/*turbopackIgnore: true*/ KEYS, "utf8")).trim();
+            const boards = await notionBoards();
+            if (!boards.leads) throw new Error("The Leads board id is not set in the-ceo/config.toml.");
+            return (await queryAll(boards.leads, key)).map((p): LeadRow => fromNotion(p.properties ?? {}, String(p.last_edited_time ?? "")));
+          })();
+    const [tasks, leads] = await Promise.all([portalTasks(src.url, portalKeyText, now), leadsP]);
+    for (const at of tasks.done) {
+      const w = weekIndex(at, now);
       if (w >= 0) weeks[w].tasksDone++;
     }
     for (const l of leads) {
       if (!ANSWERED.has(l.result)) continue;
-      const w = weekOf(l.resultDate || l.edited);
+      const w = weekIndex(l.resultDate || l.edited, now);
       if (w >= 0) weeks[w].leadsAnswered++;
     }
-    const data = { ok: true, reason: "", weeks, openTasks };
+    const data: CeoMeasure = { ok: true, reason: "", weeks, openTasks: tasks.open, tasksSource: "the team portal" };
     g.__ceoMeasure = { at: now, data };
     return data;
   } catch (err) {
