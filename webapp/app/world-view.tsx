@@ -59,6 +59,7 @@ import Portrait from "./portrait";
 import { chime, click, pageFlip, rememberSound, soundState, soundWanted, unlockSound } from "./world-sound";
 import { useDecisionAnswer } from "./decision-actions";
 import { FeedTab, ScreenTab } from "./member-tabs";
+import { READ_ONLY } from "./world-mode";
 import {
   drawBubble,
   drawChair,
@@ -118,7 +119,7 @@ export default function World({ data }: { data: Board }) {
   }, []);
   const [win, setWin] = useState<Window | null>(null);
   const [latest, setLatest] = useState<{ name: string; text: string } | null>(null);
-  // The member panel (queues 24, 25): right of the room on desktop, under it on a phone; tabs Info, Screen, Feed.
+  // The member panel: right of the room on desktop, under it on a phone; tabs Info, Screen, Feed.
   const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
   const [panel, setPanel] = useState<Panel>({ open: true, tab: "info" });
   const move = (ev: Parameters<typeof panelNext>[1]) => setPanel((p) => panelNext(p, ev));
@@ -472,7 +473,9 @@ export default function World({ data }: { data: Board }) {
       const px = dk.x * TILE + NAMEPLATE.x;
       const py = dk.y * TILE + NAMEPLATE.y;
       if (x >= px - 1 && x <= px + NAMEPLATE.w + 1 && y >= py - 1 && y <= py + NAMEPLATE.h + 1) {
-        router.push(`/work-plan#${sm.slug}`);
+        // the read-only world (READ_ONLY) has no Work plan to open: the nameplate opens the member instead
+        if (READ_ONLY) setWin({ kind: "member", slug: sm.slug });
+        else router.push(`/work-plan#${sm.slug}`);
         return;
       }
       // the rest of the desk, monitor included: look over the member's shoulder
@@ -520,7 +523,7 @@ export default function World({ data }: { data: Board }) {
       }
     }
   };
-  // "/#mailbox" and "/#bulletin" open that panel (queue 31: a decision's link lands on the mailbox)
+  // "/#mailbox" and "/#bulletin" open that panel
   useEffect(() => {
     const open = () => {
       const h = window.location.hash;
@@ -547,7 +550,7 @@ export default function World({ data }: { data: Board }) {
   const memberSlug = win && win.kind === "member" ? win.slug : null;
   const tabbed = (
     <MemberTabs tab={memberSlug ? panel.tab : "info"} onTab={(t) => setPanel((p) => ({ ...p, tab: t }))} show={!!memberSlug}>
-      {memberSlug && panel.tab !== "info" ? (
+      {memberSlug && panel.tab !== "info" && !(READ_ONLY && panel.tab === "screen") ? (
         <Frame onClose={close}>
           {panel.tab === "screen" ? <ScreenTab slug={memberSlug} tick={data.at} last={data.cards.find((c) => c.slug === memberSlug)?.last ?? null} /> : <FeedTab slug={memberSlug} tick={data.at} />}
         </Frame>
@@ -708,7 +711,7 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
       now = nowLines(c);
       title = d.title;
       lines = span === "today" ? d.lines : week7Lines(data.week7?.[c.slug]);
-      links = [{ href: d.href, label: "Goal and rules" }];
+      links = READ_ONLY ? [] : [{ href: d.href, label: "Goal and rules" }];
       slug = c.slug;
       grey = animOf(c.state) === "lost";
     }
@@ -720,7 +723,9 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
       slug = s.slug;
     }
   } else if (win?.kind === "bulletin") {
-    return <BulletinPrompt data={data} onClose={onClose} />;
+    if (!READ_ONLY) return <BulletinPrompt data={data} onClose={onClose} />;
+    title = "Bulletin board";
+    lines = ["The owner's decisions and the CEO's proposals are answered on the dashboard; they are not shown here."];
   } else if (win?.kind === "mailbox") {
     title = "Mailbox";
     const w = data.week;
@@ -757,7 +762,7 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
               </button>
             </div>
             {now ? <NowBlock now={now} /> : null}
-            {target ? (
+            {target && !READ_ONLY ? (
               <Controls
                 name={data.cards.find((c) => c.slug === target)?.name ?? data.stopped.find((s) => s.slug === target)?.name ?? target}
                 stopped={win.kind === "sleeper"}
@@ -812,7 +817,8 @@ function MemberTabs({ tab, onTab, show, children }: { tab: PanelTab; onTab: (t: 
     <div className="mt-2">
       {show ? (
         <div role="tablist" aria-label="Member" className="mb-1 flex gap-1 font-mono text-xs font-bold">
-          {(["info", "screen", "feed"] as const).map((t) => (
+          {/* the read-only world: Info and Feed only (no Screen: a lead's own web page) */}
+          {(READ_ONLY ? (["info", "feed"] as const) : (["info", "screen", "feed"] as const)).map((t) => (
             <button
               key={t}
               type="button"
@@ -912,7 +918,7 @@ function Controls(p: {
 
 /** The bulletin board as a prompt: each open CEO proposal in turn with Yes / No and a note,
  *  answered with the same POST as the proposals box; then each open decision with its options, Done and Later, answered
- *  with the same POST as the decisions box (queue 32). */
+ *  with the same POST as the decisions box. */
 function BulletinPrompt({ data, onClose }: { data: Board; onClose: () => void }) {
   const [answered, setAnswered] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");

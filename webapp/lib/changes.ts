@@ -1,8 +1,12 @@
-// Server-side only: the shared change log, common-data/knowledge/changes.jsonl (owner, 2026-10-06): one line per
+// Server-side only: the shared change log, common-data/knowledge/changes.jsonl: one line per
 // change that can move a metric, appended by every session, so a jump on the dashboard's charts has a visible cause.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { homedir } from "node:os";
+import { promisify } from "node:util";
 import { BOTS_DIR } from "./bots";
+import { engineMarkers, restartMarkers, type Marker } from "./checks";
 
 export type Change = { at: string; by: string; bots: string[]; area: string; what: string; why: string };
 
@@ -37,4 +41,23 @@ export async function readChanges(days = 14): Promise<Change[]> {
     }
   }
   return out.sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+const ENGINE = process.env.BOT_CODE_ROOT ?? path.join(homedir(), "Projects", "bot");
+const TICK = path.join(BOTS_DIR, "common-data", "shared-state", "tick-report.json");
+
+/** The change markers under the Checks bars: the engine's commits, each bot's last restart (the
+ *  tick report), and the shared change log's notes, newest first. */
+export async function readMarkers(days = 14): Promise<Marker[]> {
+  const [notes, engine, tick] = await Promise.all([
+    readChanges(days),
+    promisify(execFile)("git", ["-C", ENGINE, "log", `--since=${days}.days`, "--pretty=%cI|%h|%s"], { timeout: 5000, maxBuffer: 4 * 1024 * 1024 })
+      .then((r) => engineMarkers(r.stdout))
+      .catch(() => [] as Marker[]),
+    readFile(/*turbopackIgnore: true*/ TICK, "utf8")
+      .then((t) => restartMarkers(JSON.parse(t)))
+      .catch(() => [] as Marker[]),
+  ]);
+  const fromNotes: Marker[] = notes.map((c) => ({ at: c.at, by: c.by, bots: c.bots, kind: "note", what: c.what }));
+  return [...fromNotes, ...engine, ...tick].sort((a, b) => (a.at < b.at ? 1 : -1));
 }

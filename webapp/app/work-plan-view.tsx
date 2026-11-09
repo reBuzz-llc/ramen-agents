@@ -6,11 +6,12 @@ import type { Identity } from "@/lib/identity";
 import { ago } from "@/lib/format";
 import { summaryStatus, TONE_DOT } from "@/lib/status";
 import type { CandidateFunnel } from "@/lib/candidates";
-import type { Change } from "@/lib/changes";
+import { localIso } from "@/lib/summary";
+import { deltaOf, rateOf, REFUSAL_TARGET, verdictOf, type Kind, type Marker } from "@/lib/checks";
 import type { LeadResults, Pipeline, ResultGroup } from "@/lib/lead-results";
 import type { TestRun } from "@/lib/test-runs";
 import type { CeoMeasure } from "@/lib/ceo-measure";
-import type { OwnerPlan, PastJob, RefusalDay, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
+import type { OwnerPlan, PastJob, RefusalDay, RefusalReason, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
 import { partition, pastLine, readHash, type Tab } from "@/lib/work-plan-rows";
 import { sendJson } from "@/lib/client";
 import { Avatar } from "./bot-switcher";
@@ -35,12 +36,12 @@ const same = (a: OwnerPlan, b: OwnerPlan) =>
 const tidy = (p: OwnerPlan): OwnerPlan => ({ goal: p.goal.trim(), rules: p.rules.map((r) => ({ ...r, text: r.text.trim() })).filter((r) => r.text) });
 
 /**
- * Every agent on one line (owner, 2026-09-26; folded 2026-10-30): tap a line for what it is working through now (the
+ * Every agent on one line: tap a line for what it is working through now (the
  * engine's checklist) and the goal and rules the owner sets for it in one line each (read by the engine into every
  * step). Past jobs, the Leads numbers and the checks are their own tabs.
  */
 export default function WorkPlanView({ identity }: { identity: Identity }) {
-  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[]; candidates?: CandidateFunnel; changes?: Change[]; results?: LeadResults; tests?: TestRun[]; ceo?: CeoMeasure }>("work-plan", 15000);
+  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[]; candidates?: CandidateFunnel; changes?: Marker[]; results?: LeadResults; tests?: TestRun[]; ceo?: CeoMeasure; at?: string }>("work-plan", 15000);
   const fleet = usePoll<BotSummary[]>("bots", 15000);
   const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -65,7 +66,7 @@ export default function WorkPlanView({ identity }: { identity: Identity }) {
   const { running, stopped } = useMemo(() => partition(cards), [cards]);
   const slugs = useMemo(() => cards.map((c) => c.slug).join(" "), [cards]);
 
-  // Folded rows, one open at a time (owner, 2026-10-30: "the Work plan page is too long"). The tab and the open row live
+  // Folded rows, one open at a time. The tab and the open row live
   // in the address: #past, #leads, #checks, or #<slug> (the world's nameplates link there).
   const [tab, setTab] = useState<Tab>("plan");
   const [open, setOpen] = useState<string | null>(null);
@@ -141,7 +142,7 @@ export default function WorkPlanView({ identity }: { identity: Identity }) {
             </div>
             <div hidden={tab !== "checks"}>
               {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
-              <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} />
+              <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} at={feed.data.at ?? null} />
             </div>
           </>
         ) : null}
@@ -171,7 +172,7 @@ function CardSlot({ card, tone, target, onDirty }: { card: WorkCard; tone?: Retu
   );
 }
 
-/** Past jobs, one line each, newest first, 20 at a time (owner, 2026-10-30): bot, task, when it ran, how it ended,
+/** Past jobs, one line each, newest first, 20 at a time: bot, task, when it ran, how it ended,
  *  active minutes. Tap a line for its steps. */
 function PastList({ jobs }: { jobs: PastJob[] }) {
   const [shown, setShown] = useState(20);
@@ -357,10 +358,16 @@ function CeoStat({ label, value, prev, hint }: { label: string; value: number; p
   );
 }
 
-/** The CEO's two weekly numbers (owner, 2026-10-06): tasks the team finished, leads that answered. Tasks created
+/** The CEO's two weekly numbers: tasks the team finished, leads that answered. Tasks created
  * is deliberately not shown: it is activity, not result. This week large, the three before as small bars. */
 function CeoPanel({ m }: { m: CeoMeasure }) {
-  if (!m.ok) return null;
+  if (!m.ok)
+    return (
+      <section className="mb-5 rounded-xl border border-dashed border-line px-4 py-3">
+        <h2 className="text-lg font-semibold text-ink">The CEO this week</h2>
+        <p className="mt-1 text-sm text-muted">{/^source not connected/.test(m.reason) ? m.reason : `source not connected: ${m.reason}`}</p>
+      </section>
+    );
   const [now, ...before] = m.weeks;
   const max = Math.max(1, ...m.weeks.flatMap((w) => [w.tasksDone, w.leadsAnswered]));
   return (
@@ -370,7 +377,7 @@ function CeoPanel({ m }: { m: CeoMeasure }) {
         <span className="text-xs text-muted">How the CEO is measured · last 7 days</span>
       </header>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_minmax(0,1.2fr)]">
-        <CeoStat label="Tasks the team finished" value={now.tasksDone} prev={before[0]?.tasksDone ?? 0} hint={`Done by the team · ${m.openTasks} still open`} />
+        <CeoStat label="Tasks the team finished" value={now.tasksDone} prev={before[0]?.tasksDone ?? 0} hint={`Moved to Done by a person on ${m.tasksSource ?? "the task board"} · ${m.openTasks} still open`} />
         <CeoStat label="Leads that answered" value={now.leadsAnswered} prev={before[0]?.leadsAnswered ?? 0} hint="Result reached Replied, Meeting or Client" />
         <div className="flex items-end gap-3 px-1" aria-label="Last four weeks">
           {[...m.weeks].reverse().map((w) => (
@@ -456,7 +463,7 @@ function TestRunsPanel({ runs }: { runs: TestRun[] }) {
 
 /** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
  * people send from the business mailbox. */
-// The routine lives on the Leads board itself, in the board's description (owner, 2026-10-10); rows are not assigned per person.
+// The routine lives on the Leads board itself, in the board's description; rows are not assigned per person.
 const SEND_GUIDE = "https://app.notion.com/p/3e3d905fccff80f1af6afe3c063ed179";
 
 function HowWeSend({ results }: { results: LeadResults }) {
@@ -502,7 +509,7 @@ const STAGES_SHOWN: { key: keyof Pipeline; label: string; who: string }[] = [
   { key: "client", label: "Client", who: "the team" },
 ];
 
-/** How far the leads got, and where they pile up (owner, 2026-10-10: "how could this be better?"). A pipeline from the
+/** How far the leads got, and where they pile up. A pipeline from the
  * board to a client, the first stage that stalls marked; then the same steps per source and per industry, so the
  * source whose leads answer shows itself. Sent and later come from the team's Status and Result; bots never set them. */
 function ResultsPanel({ results }: { results: LeadResults }) {
@@ -644,86 +651,255 @@ function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
   );
 }
 
-const REFUSAL_TARGET = 20; // percent: the clean-up's target (engine session, 2026-10-03)
-const pctOf = (d: RefusalDay) => (d.allowed + d.refused ? Math.round((100 * d.refused) / (d.allowed + d.refused)) : null);
+// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts
+const pctOf = (d: RefusalDay) => rateOf(d);
+const BRAND = "#ff6600";
 
-/** Refused / all actions per agent: today, the last seven days as small bars, and the top refusal reasons. The number
- * the owner judges the card-and-guardrail clean-up by; target under 20 %. Green at or under it, red above. */
-function RefusalPanel({ stats, changes }: { stats: RefusalStats[]; changes: Change[] }) {
+/** Refused / all actions per agent: today and seven days against the 20 % target; one 100 % bar per
+ * day stacked by kind (refused red at the bottom, failed outlined, held grey, closed hatched, fence light, accepted
+ * green); a day under 30 actions dimmed and hatched with its count; an empty outline for a day without actions; the
+ * top reasons in plain words, a tap opening their last three cases; a source that cannot be read or is stale says so. */
+const LOW_DAY = 30;
+const BAR_H = 40;
+const HATCH = "repeating-linear-gradient(135deg, rgb(0 0 0 / 0.18) 0 2px, transparent 2px 5px)";
+const SEGMENTS: { kind: Exclude<Kind, "allowed">; label: string; cls: string; style?: React.CSSProperties }[] = [
+  { kind: "refused", label: "refused", cls: "bg-sys-red" },
+  { kind: "failed", label: "failed", cls: "border border-sys-red bg-transparent" },
+  { kind: "held", label: "held", cls: "bg-sys-gray" },
+  { kind: "closed", label: "site closed", cls: "bg-fill-2", style: { backgroundImage: HATCH } },
+  { kind: "fence", label: "fence", cls: "bg-fill-2" },
+];
+const totalOf = (d: RefusalDay) => d.allowed + d.refused + d.fence + d.held + d.failed + d.closed;
+const stamp = (iso: string) => `${iso.slice(5, 10)} ${iso.slice(11, 16)}`;
+
+const WEEKDAY = ["S", "M", "T", "W", "T", "F", "S"];
+
+function DayBar({ d, marks, today }: { d: RefusalDay; marks: Marker[]; today: boolean }) {
+  const total = totalOf(d);
+  const p = pctOf(d);
+  const low = total > 0 && total < LOW_DAY;
+  const label = `${d.day}: ${total ? `${p ?? 0}% refused (${d.refused} of ${d.allowed + d.refused}); failed ${d.failed}, held ${d.held}, site closed ${d.closed}, fence ${d.fence}, accepted ${d.allowed}` : "no actions"}`;
+  return (
+    <span className="relative flex w-5 flex-col items-center" title={label}>
+      {total ? (
+        <span className={`flex w-5 flex-col-reverse overflow-hidden rounded-sm ${low ? "opacity-45" : ""}`} style={{ height: BAR_H, ...(low ? { backgroundImage: HATCH } : {}) }} aria-label={label}>
+          {SEGMENTS.map((seg) =>
+            d[seg.kind] ? <span key={seg.kind} className={`w-full shrink-0 ${seg.cls}`} style={{ height: `${(d[seg.kind] / total) * 100}%`, ...seg.style }} /> : null,
+          )}
+          {d.allowed ? <span className="w-full shrink-0 bg-sys-green/70" style={{ height: `${(d.allowed / total) * 100}%` }} /> : null}
+        </span>
+      ) : (
+        <span className="w-5 rounded-sm border border-dashed border-line" style={{ height: BAR_H }} aria-label={label} />
+      )}
+      <span className={`mt-0.5 text-[9px] leading-none tabular-nums ${low ? "text-muted" : "text-transparent"}`} aria-hidden={!low}>
+        {low ? `${d.refused}/${total}` : "·"}
+      </span>
+      {/* the weekday's initial, today's marked */}
+      <span className={`mt-0.5 text-[10px] leading-none ${today ? "rounded-sm px-0.5 font-bold text-ink ring-1" : "text-muted"}`} style={today ? { ["--tw-ring-color" as string]: BRAND } : undefined} title={today ? `${d.day} (today)` : d.day}>
+        {WEEKDAY[new Date(`${d.day}T12:00:00`).getDay()]}
+      </span>
+      {marks.length ? (
+        <span
+          className="mt-0.5 h-1.5 w-1.5 rounded-full bg-sys-blue"
+          title={marks.map((c) => `${stamp(c.at)} · ${c.what}`).join("\n")}
+          aria-label={`${marks.length} change${marks.length === 1 ? "" : "s"} on ${d.day}`}
+        />
+      ) : (
+        <span className="mt-0.5 h-1.5" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+function Reasons({ reasons }: { reasons: RefusalReason[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (!reasons.length) return <span className="text-xs text-muted">nothing refused this week</span>;
+  return (
+    <ul className="min-w-0 space-y-0.5 text-xs">
+      {reasons.map((r) => (
+        <li key={r.reason}>
+          <button type="button" onClick={() => setOpen(open === r.reason ? null : r.reason)} aria-expanded={open === r.reason} className="min-h-6 text-left text-ink hover:underline">
+            {r.reason} <span className="text-muted tabular-nums">({r.n}{r.kind === "refused" ? "" : `, ${r.kind}`})</span>
+          </button>
+          {open === r.reason ? (
+            <ul className="mt-0.5 mb-1 space-y-0.5 border-l-2 border-line pl-2 text-muted">
+              {r.cases.length ? (
+                r.cases.map((c, i) => (
+                  <li key={i} className="break-words">
+                    <span className="tabular-nums">{stamp(c.ts)}</span>
+                    {c.business ? <span className="text-ink/85"> · {c.business}</span> : null} · {c.tried}
+                  </li>
+                ))
+              ) : (
+                <li>No case kept for this reason.</li>
+              )}
+            </ul>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** "source not connected" or "last updated …" when a bot's table cannot be read or has nothing for two hours. */
+function Freshness({ b }: { b: RefusalStats }) {
+  const now = useNow(60_000);
+  if (b.error) return <span className="block text-[11px] font-semibold text-bad">source not connected: {b.error}</span>;
+  if (!b.lastAt || !now) return null;
+  const age = now - new Date(b.lastAt).getTime();
+  return age > 2 * 3600e3 ? <span className="block text-[11px] text-muted">last updated {stamp(b.lastAt)}</span> : null;
+}
+
+/** One agent's row (B6: a tap opens the week's numbers per day and the changes, nothing hover-only; B9: its links). */
+function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; changesFor: (slug: string, day: string) => Marker[]; restart: Marker | null; today: string }) {
+  const [open, setOpen] = useState(false);
+  const t = pctOf(b.today);
+  const wk = pctOf(b.week);
+  const delta = deltaOf(b.week, b.prevWeek);
+  const mark = (p: number | null) =>
+    p === null ? <span className="text-muted">–</span> : p <= REFUSAL_TARGET ? <span className="text-good">✓ {p}%</span> : <span className="text-bad">✕ {p}%</span>;
+  const apart = (["fence", "held", "failed", "closed"] as const).filter((k) => b.week[k]).map((k) => `${k === "closed" ? "site closed" : k} ${b.week[k]}`);
+  return (
+    <li className="py-2.5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_8rem_12rem_minmax(0,1fr)] sm:items-start">
+        <span className="min-w-0">
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-6 items-center gap-1 text-left font-medium text-ink hover:underline">
+            <span aria-hidden className={`inline-block text-xs text-muted transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+            {b.name}
+          </button>
+          <Freshness b={b} />
+        </span>
+        <span className="text-sm tabular-nums">
+          <span className="font-semibold">{mark(t)}</span> <span className="text-xs text-muted">today</span>
+          <span className="block text-xs">
+            {mark(wk)} <span className="text-muted">7 days</span>
+            {delta ? (
+              <span className={`ml-1 ${delta.arrow === "↑" ? "text-bad" : delta.arrow === "↓" ? "text-good" : "text-muted"}`} title="against the seven days before">
+                {delta.arrow === "=" ? "= last week" : `${delta.arrow} ${delta.points}`}
+              </span>
+            ) : null}
+          </span>
+          {apart.length ? <span className="block text-[11px] text-muted">{apart.join(" · ")} in 7 days</span> : null}
+        </span>
+        {/* one 100 % bar per day, oldest first; the orange line is the target, measured from the bottom */}
+        <span className="relative flex items-start gap-1.5">
+          <span className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed" style={{ top: BAR_H - Math.round((REFUSAL_TARGET / 100) * BAR_H), borderColor: BRAND }} aria-hidden />
+          {b.days.map((d) => (
+            <DayBar key={d.day} d={d} marks={changesFor(b.slug, d.day)} today={d.day === today} />
+          ))}
+        </span>
+        <Reasons reasons={b.reasons} />
+      </div>
+      {open ? (
+        <div className="mt-2 rounded-lg bg-grouped-3 px-3 py-2 text-xs">
+          <table className="w-full tabular-nums">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="py-0.5 font-normal">Day</th>
+                {["refused", "failed", "held", "site closed", "fence", "accepted", "rate"].map((h) => (
+                  <th key={h} className="py-0.5 text-right font-normal">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {b.days.map((d) => (
+                <tr key={d.day} className={d.day === today ? "font-semibold" : ""}>
+                  <td className="py-0.5">{d.day.slice(5)}{d.day === today ? " (today)" : ""}</td>
+                  {[d.refused, d.failed, d.held, d.closed, d.fence, d.allowed].map((n, i) => (
+                    <td key={i} className="py-0.5 text-right">
+                      {n}
+                    </td>
+                  ))}
+                  <td className="py-0.5 text-right">{pctOf(d) === null ? "–" : `${pctOf(d)}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {b.days.some((d) => changesFor(b.slug, d.day).length) ? (
+            <ul className="mt-2 space-y-0.5 text-muted">
+              {[...b.days].reverse().flatMap((d) => changesFor(b.slug, d.day)).slice(0, 12).map((c, i) => (
+                <li key={i} className="break-words">
+                  <span className="tabular-nums">{stamp(c.at)}</span> · {c.what} <span className="opacity-70">· {c.kind === "note" ? c.by : c.kind}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <a href={`/work-plan#${b.slug}`} className="font-semibold text-ink underline">
+              Work plan card
+            </a>
+            <a href="/settings/reports#refusals" className="font-semibold text-ink underline">
+              Refusal report
+            </a>
+            <span className="text-muted">{restart ? `Last restart ${stamp(restart.at)}` : "No restart recorded"}</span>
+          </p>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function RefusalPanel({ stats, changes, at = null }: { stats: RefusalStats[]; changes: Marker[]; at?: string | null }) {
   if (!stats.length) return null;
   // Changes that touch a bot (or every bot), by day: marked under that day's bar so a jump has a visible cause.
   const changesFor = (slug: string, day: string) => changes.filter((c) => c.at.startsWith(day) && (c.bots.includes("*") || c.bots.includes(slug)));
   const week = new Set(stats[0]?.days.map((d) => d.day) ?? []);
+  const today = stats[0]?.today.day ?? "";
   const recent = changes.filter((c) => week.has(c.at.slice(0, 10)));
   const rows = [...stats].sort((a, b) => (pctOf(b.week) ?? -1) - (pctOf(a.week) ?? -1));
+  const verdict = verdictOf(stats);
+  const restartOf = (slug: string) => changes.find((c) => c.kind === "restart" && c.bots.includes(slug)) ?? null;
   return (
     <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-3">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink">Refusal rate</h2>
         <span className="text-xs text-muted">
-          Share of each agent&apos;s actions refused · target under {REFUSAL_TARGET}% · safety-rule refusals (&ldquo;fence&rdquo;) counted apart
+          {at ? `As of ${stamp(localIso(new Date(at).getTime()))} · ` : ""}refused / (accepted + refused) · target under {REFUSAL_TARGET}% · fence, held, failed and closed sites counted apart
         </span>
       </header>
+      {/* the one line, with the worst agent above target called out */}
+      <p className="mt-1 text-sm text-ink">
+        {verdict.text}
+        {verdict.worst ? (
+          <span className="ml-1 font-semibold" style={{ color: BRAND }}>
+            ✕ Furthest over: {verdict.worst.name}, {verdict.worst.rate}%.
+          </span>
+        ) : null}
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted" aria-label="Legend">
+        {SEGMENTS.map((seg) => (
+          <span key={seg.kind} className="flex items-center gap-1">
+            <span className={`inline-block h-2.5 w-2.5 rounded-sm ${seg.cls}`} style={seg.style} aria-hidden />
+            {seg.label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sys-green/70" aria-hidden />
+          accepted
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: BRAND }} aria-hidden />
+          target
+        </span>
+        <span>· dimmed, with refused/all: under {LOW_DAY} actions that day · dashed outline: no actions · tap a name for its days</span>
+      </p>
       <ul className="mt-2 divide-y divide-line">
-        {rows.map((b) => {
-          const today = pctOf(b.today);
-          const week = pctOf(b.week);
-          const tone = (p: number | null) => (p === null ? "text-muted" : p <= REFUSAL_TARGET ? "text-good" : "text-bad");
-          return (
-            <li key={b.slug} className="grid grid-cols-1 gap-2 py-2.5 sm:grid-cols-[10rem_7rem_10rem_minmax(0,1fr)] sm:items-center">
-              <span className="font-medium text-ink">{b.name}</span>
-              <span className="text-sm tabular-nums">
-                <span className={`font-semibold ${tone(today)}`}>{today === null ? "–" : `${today}%`}</span> <span className="text-xs text-muted">today</span>
-                <span className="block text-xs">
-                  <span className={tone(week)}>{week === null ? "–" : `${week}%`}</span> <span className="text-muted">7 days</span>
-                </span>
-                {b.week.fence ? (
-                  <span className="block text-[11px] text-muted" title="Refusals that are the safety rules working (a personal mailbox, an email not on the business's own site, a guessed value, a site that forbids bots). Not counted in the rate.">
-                    fence: {b.week.fence} in 7 days
-                  </span>
-                ) : null}
-              </span>
-              {/* One bar per day, oldest first; its height is that day's refusal rate, the line is the target. */}
-              <span className="relative flex h-8 items-end gap-1" aria-label={`Last seven days: ${b.days.map((d) => `${d.day} ${pctOf(d) ?? "no actions"}${pctOf(d) === null ? "" : "%"}`).join(", ")}`}>
-                <span className="absolute inset-x-0 border-t border-dashed border-line" style={{ bottom: `${Math.round((REFUSAL_TARGET / 100) * 32)}px` }} aria-hidden />
-                {b.days.map((d) => {
-                  const p = pctOf(d);
-                  const ch = changesFor(b.slug, d.day);
-                  return (
-                    <span key={d.day} className="relative flex h-full w-3 items-end">
-                    {ch.length ? (
-                      <span
-                        className="absolute -bottom-2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-sys-blue"
-                        title={ch.map((c) => `${c.at.slice(5, 16).replace("T", " ")} · ${c.what}`).join("\n")}
-                        aria-label={`${ch.length} change${ch.length === 1 ? "" : "s"} on ${d.day}`}
-                      />
-                    ) : null}
-                    <span
-                      title={`${d.day}: ${p === null ? "no actions" : `${p}% refused (${d.refused} of ${d.allowed + d.refused})`}${d.fence ? `; ${d.fence} fence` : ""}`}
-                      className={`w-3 rounded-sm ${p === null ? "bg-fill-3" : p <= REFUSAL_TARGET ? "bg-sys-green" : "bg-sys-red/80"}`}
-                      style={{ height: `${Math.round(((p === null ? 6 : Math.max(6, p)) / 100) * 32)}px` }}
-                    />
-                    </span>
-                  );
-                })}
-              </span>
-              <span className="min-w-0 text-xs break-words text-muted">
-                {b.reasons.length ? b.reasons.map((r) => `${r.reason} (${r.n})`).join(" · ") : "nothing refused this week"}
-              </span>
-            </li>
-          );
-        })}
+        {rows.map((b) => (
+          <RefusalRow key={b.slug} b={b} changesFor={changesFor} restart={restartOf(b.slug)} today={today} />
+        ))}
       </ul>
       {recent.length ? (
         <div className="mt-3 border-t border-line pt-2.5">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-sys-blue" aria-hidden /> Changes this week (the dots under the bars)
+            <span className="h-1.5 w-1.5 rounded-full bg-sys-blue" aria-hidden /> Changes this week (the dots under the bars): engine commits, restarts and notes
           </p>
           <ul className="space-y-0.5 text-xs text-muted">
-            {recent.slice(0, 8).map((c, i) => (
+            {recent.slice(0, 10).map((c, i) => (
               <li key={i} className="break-words">
-                <span className="tabular-nums">{c.at.slice(5, 10)}</span> · <span className="text-ink/85">{c.what}</span>
-                {c.bots.includes("*") ? "" : ` (${c.bots.join(", ")})`} <span className="opacity-70">· {c.by}</span>
+                <span className="tabular-nums">{stamp(c.at)}</span> · <span className="text-ink/85">{c.what}</span>
+                {c.bots.includes("*") ? "" : ` (${c.bots.join(", ")})`} <span className="opacity-70">· {c.kind === "note" ? c.by : c.kind}</span>
               </li>
             ))}
           </ul>
@@ -817,7 +993,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
           <>
             <p className="text-sm font-medium break-words text-ink">{plan.task || "(untitled job)"}</p>
             {plan.doneWhen ? <p className="mt-0.5 text-xs break-words text-muted">Done when: {plan.doneWhen}</p> : null}
-            {/* Progress, not estimate against actual (owner, 2026-10-15): steps ticked, how soon the first one was in
+            {/* Progress, not estimate against actual: steps ticked, how soon the first one was in
                 active minutes (the engine's measure, pauses left out), and how many actions it has taken. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
               <span>
@@ -862,7 +1038,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
         <label className="mb-1.5 block text-xs font-semibold text-muted" htmlFor={`goal-${card.slug}`}>
           Future goal
         </label>
-        {/* Wraps instead of scrolling sideways (owner, 2026-10-03); still one line of text: Enter saves, no newlines. */}
+        {/* Wraps instead of scrolling sideways; still one line of text: Enter saves, no newlines. */}
         <textarea
           id={`goal-${card.slug}`}
           className={`${input} h-auto resize-none py-2 leading-snug [field-sizing:content]`}
