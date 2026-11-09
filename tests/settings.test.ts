@@ -14,10 +14,10 @@ const src = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8");
 
 describe("the Settings section", () => {
   it("one page per kind, in nav order; Board and API keys only for the owner", () => {
-    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "appearance"]);
-    expect(settingsFor("owner").map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "appearance"]);
-    expect(settingsFor("manager").map((p) => p.slug)).toEqual(["company", "people", "rates", "appearance"]);
-    expect(settingsFor("member").map((p) => p.slug)).toEqual(["company", "people", "rates", "appearance"]);
+    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "my-view", "appearance"]);
+    expect(settingsFor("owner").map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "my-view", "appearance"]);
+    expect(settingsFor("manager").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
+    expect(settingsFor("member").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
   });
   it("every page exists, has the section head and its own tab title", () => {
     for (const p of SETTINGS) {

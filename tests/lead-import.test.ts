@@ -157,3 +157,31 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     expect(report!.csv).toContain('6,"Philly Denim",excluded,"outside NY and NJ"');
   });
 });
+
+describe("a website from the email's domain", () => {
+  it("takes a business's own domain, never a free or shared mailbox", async () => {
+    const { websiteFromEmail } = await import("@/lib/lead-import");
+    expect(websiteFromEmail("hello@luna-salon.com")).toBe("https://luna-salon.com");
+    expect(websiteFromEmail(" Info@WWW.Bodega.NYC ")).toBe("https://bodega.nyc");
+    for (const free of ["a@gmail.com", "a@googlemail.com", "a@yahoo.com", "a@yahoo.co.uk", "a@yahoo.com.mx", "a@outlook.com", "a@outlook.fr", "a@hotmail.com", "a@hotmail.co.uk", "a@live.com", "a@icloud.com", "a@me.com", "a@proton.me", "a@protonmail.com", "a@aol.com", "a@verizon.net", "a@optonline.net", "a@cuny.edu", "a@nyc.gov", "a@school.edu.au"]) expect(websiteFromEmail(free), free).toBe("");
+    for (const bad of ["", null, undefined, "no-at-sign", "two@@x.com", "a@localhost"]) expect(websiteFromEmail(bad)).toBe("");
+  });
+
+  it("fills an empty website on import, marked in History; a file's own website stays", async () => {
+    const { db, tenantId, who } = await board();
+    const csv = `Business Name,Website,E-mail,Borough\nLuna Salon,,hello@luna-salon.example,Queens\nPark Deli,,parkdeli@gmail.com,Bronx\nRio Grill,riogrill.example,owner@rio-group.example,Bronx\n`;
+    const t = parseCsv(csv);
+    const r = await runImport(db, tenantId, who, mapRows(t.slice(1), autoMap(t[0])).map((x, i) => ({ ...x, row: i + 2 })), "maps.csv");
+    expect(r.created).toBe(3);
+    const by = Object.fromEntries((await listLeads(db, tenantId)).leads.map((l) => [l.business, l]));
+    expect(by["Luna Salon"].website).toBe("https://luna-salon.example");
+    expect(by["Park Deli"].website).toBeNull();
+    expect(by["Rio Grill"].website).toBe("https://riogrill.example");
+    const h = await historyOf(db, tenantId, by["Luna Salon"].id);
+    const site = h.find((x) => x.column === "website")!;
+    expect(site).toMatchObject({ outcome: "applied", actor: { kind: "bot", via: "website from the email's domain, import" } });
+    // a guess, not the person's: the Enricher may correct it
+    const bot = await writeLead(db, tenantId, { id: by["Luna Salon"].id }, { website: "https://lunasalon.example" }, { kind: "bot", name: "Lead Enricher", via: "engine" });
+    expect(bot.ok && bot.written).toEqual(["website"]);
+  });
+});

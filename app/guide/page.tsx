@@ -187,8 +187,11 @@ export default async function Guide() {
         </ul>
         <p className="mt-2">So fix anything wrong or weak in place. It is never wasted.</p>
         <p className="mt-2 text-sm">
-          <span className="font-semibold">How:</span> open the lead, press <B>Edit</B> next to the cell (if the cell is empty, press <B>Show empty fields</B> first), type the
+          <span className="font-semibold">How:</span> open the lead, press <B>Edit</B> next to the cell (empty cells are listed too; if you pressed <B>Hide empty fields</B> before, press <B>Show empty fields</B>), type the
           right value and press <B>Save</B>.
+        </p>
+        <p className="mt-2 text-sm">
+          <span className="font-semibold">Your order:</span> in <P href="/settings/my-view">Settings → My view</P> put the drawer&apos;s fields in the order you work them, hide the ones you never use, or press <B>Use my Table column order</B>. It is yours on every browser.
         </p>
       </section>
 

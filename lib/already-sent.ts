@@ -48,7 +48,18 @@ export type Match = {
 export type Preview = { mark: MarkChoice; entries: number; matched: Match[]; notFound: string[]; ambiguous: { key: string; leads: number }[]; noMark: string[] };
 
 /** Addresses no business owns: matching one by its domain would mark every lead that uses it. */
-export const FREE_MAIL = new Set(["gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "hotmail.com", "outlook.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "zoho.com", "yandex.com"]);
+export const FREE_MAIL = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "rocketmail.com", "yahoo.co.uk", "yahoo.ca", "hotmail.com", "hotmail.co.uk", "outlook.com",
+  "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "aol.com", "aim.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.us",
+  "mail.com", "zoho.com", "yandex.com", "att.net", "sbcglobal.net", "verizon.net", "comcast.net", "optonline.net", "earthlink.net", "cox.net",
+  "bellsouth.net", "charter.net", "juno.com", "inbox.com", "fastmail.com", "hey.com", "tutanota.com", "qq.com", "163.com",
+]);
+/** A free or shared mailbox domain: a free-mail provider, an internet provider's mail, or a school's or government's
+ *  (.edu, .gov). Never a business's own site. */
+export const isFreeMailDomain = (domain: string) => {
+  const d = domain.trim().toLowerCase().replace(/^www\./, "");
+  return FREE_MAIL.has(d) || /\.(edu|gov)(\.[a-z]{2})?$/.test(d) || /^(yahoo|hotmail|outlook|live|gmx|yandex)\.[a-z.]+$/.test(d);
+};
 export const MAX_ENTRIES = 5000;
 
 const EMAIL = /[\w.+'-]+@[\w-]+(?:\.[\w-]+)+/g;

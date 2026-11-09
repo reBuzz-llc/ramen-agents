@@ -8,6 +8,7 @@ import type { TableRow } from "./lead-table";
 import LeadsView from "./leads-view";
 import { FILTER_KEYS } from "@/lib/lead-filters";
 import { displayName } from "@/lib/display-name";
+import { getViewPrefs } from "@/lib/view-prefs-db";
 
 export const metadata = { title: "Leads · ramen-agents" };
 
@@ -32,6 +33,8 @@ export default async function LeadsPage(props: { searchParams: Promise<Record<st
   const { openId, unavailable } = await leadToOpen(d, who.tenantId, sp.lead ?? sp.open);
   // filters in the address (the Guide's links, e.g. ?tab=board&whatsapp=WhatsApp%20Verified): the board opens filtered
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.slice(0, 200) ?? "";
+  // the person's own drawer view (Settings → My view); null when it cannot be read, and the drawer uses this browser's
+  const view = await getViewPrefs(d, who.tenantId, who.userId).catch(() => null);
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, one(sp[k])]).filter(([, v]) => v));
-  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: displayName(who.name, who.email) }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} unavailable={unavailable} filters={filters} />;
+  return <LeadsView rows={board} next={next} me={{ userId: who.userId, name: displayName(who.name, who.email) }} tab={tab} canImport={can(who.role, "leads.import")} openId={openId} unavailable={unavailable} filters={filters} view={view} />;
 }

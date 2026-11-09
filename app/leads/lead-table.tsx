@@ -206,7 +206,7 @@ type Sort = { key: string; dir: 1 | -1 } | null;
 
 /** A person's column arrangement: the order of the columns and the ones hidden. Business stays first and shown. */
 export type Arrangement = { order: string[]; hidden: string[] };
-const STORE = "peek-leads-table-columns";
+export const STORE = "peek-leads-table-columns";
 
 /** The columns in a saved arrangement's order: names no longer on the board are dropped, columns added since go at
  *  the end, hidden ones are left out. */
@@ -255,7 +255,7 @@ const ORDER: Record<Kind, [string, string]> = {
 const kind = (key: string): Kind =>
   COLUMNS.find((c) => c.key === key)?.kind ?? "text";
 
-/** Rows in a column's order. An empty cell counts as the highest value (owner, 2026-11-09): at the bottom in the first
+/** Rows in a column's order. An empty cell counts as the highest value: at the bottom in the first
  *  order (A to Z, low to high, oldest first), at the top in the reverse one, so a second click on Website lists the
  *  leads with no website first. The business sorts by name; no sort keeps the board's. */
 export function sortRows(rows: TableRow[], sort: Sort): TableRow[] {
@@ -338,7 +338,7 @@ export default function LeadTable({
   onOpen: (id: string) => void;
 }) {
   const [sort, setSort] = useState<Sort>(null);
-  // how many rows are drawn (owner, 2026-11-09: "how to see more"): 500 at a time, or all
+  // how many rows are drawn ("how to see more"): 500 at a time, or all
   const [limit, setLimit] = useState(500);
   // The arrangement lives in this browser (localStorage), read after the first render so the server's HTML matches.
   const [arr, setArr] = useState<Arrangement | null>(null);
@@ -525,7 +525,7 @@ export default function LeadTable({
                   scope="row"
                   className="sticky left-0 z-[5] max-w-64 border-r border-b border-line bg-panel px-3 py-2 text-left font-medium group-hover:bg-accent-tint"
                 >
-                  {/* the row's number in the order shown (owner, 2026-11-09: to know which row you are on under a sort) */}
+                  {/* the row's number in the order shown (to know which row you are on under a sort) */}
                   <span className="flex items-baseline gap-2">
                     <span className="w-10 shrink-0 text-right text-xs font-normal text-muted tabular-nums">{i + 1}</span>
                     <button
