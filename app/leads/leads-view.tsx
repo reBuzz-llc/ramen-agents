@@ -11,6 +11,7 @@ import { leadPath } from "@/lib/deep-links";
 import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
 import { readShowEmpty, writeShowEmpty } from "@/lib/drawer-prefs";
 import { activityOf } from "@/lib/activity";
+import { shareText, type ShareChange } from "@/lib/team-share";
 import { DEFAULT_VIEW, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
@@ -619,39 +620,59 @@ const REASON: Record<string, string> = { person_wins: "a person changed it last"
 /** Copy link: the lead's canonical address to the clipboard, "Copied" for two seconds. Where the
  *  clipboard is refused, the address shows selected in a field, ready for ⌘C. */
 function CopyLink({ id }: { id: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "manual">("idle");
   const url = typeof window === "undefined" ? leadPath(id) : `${window.location.origin}${leadPath(id)}`;
+  return <CopyButton text={url} label="Copy link" title="Copy link to this lead" done="Link copied" field="Link to this lead" icon={<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>} />;
+}
+
+/** "Copy for WhatsApp": the business, its link and the team's latest changes, for the group chat. */
+function CopyForWhatsApp({ id, business, history }: { id: string; business: string; history: ShareChange[] }) {
+  const url = typeof window === "undefined" ? leadPath(id) : `${window.location.origin}${leadPath(id)}`;
+  return (
+    <CopyButton
+      text={() => shareText({ business, url, history })}
+      label="Copy for WhatsApp"
+      title="Copy a message about this lead for the team's WhatsApp group"
+      done="Message copied"
+      field="Message for the team's WhatsApp group"
+      multiline
+      icon={<path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z" />}
+    />
+  );
+}
+
+/** A small icon button that copies text, "Copied" for two seconds; where the clipboard refuses, the text is shown
+ *  selected to copy by hand. */
+function CopyButton({ text, label, title, done, field, icon, multiline = false }: { text: string | (() => string); label: string; title: string; done: string; field: string; icon: React.ReactNode; multiline?: boolean }) {
+  const [state, setState] = useState<"idle" | "copied" | "manual">("idle");
+  const [shown, setShown] = useState("");
   const copy = async () => {
+    const value = typeof text === "function" ? text() : text;
+    setShown(value);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(value);
       setState("copied");
       setTimeout(() => setState("idle"), 2000);
     } catch {
       setState("manual");
     }
   };
+  // shown because the clipboard refused: selected, ready to copy by hand
+  const select = (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+    el?.focus();
+    el?.select();
+  };
   if (state === "manual")
-    return (
-      <input
-        readOnly
-        value={url}
-        aria-label="Link to this lead"
-        ref={(el) => {
-          // shown because the clipboard refused: selected, ready to copy by hand
-          el?.focus();
-          el?.select();
-        }}
-        onBlur={() => setState("idle")}
-        className="h-9 w-48 rounded-lg border border-line bg-panel px-2 text-xs sm:w-64"
-      />
+    return multiline ? (
+      <textarea readOnly value={shown} aria-label={field} ref={select} onBlur={() => setState("idle")} rows={6} className="w-56 rounded-lg border border-line bg-panel px-2 py-1 text-xs sm:w-72" />
+    ) : (
+      <input readOnly value={shown} aria-label={field} ref={select} onBlur={() => setState("idle")} className="h-9 w-48 rounded-lg border border-line bg-panel px-2 text-xs sm:w-64" />
     );
   return (
-    <button type="button" onClick={() => void copy()} title="Copy link" aria-label={state === "copied" ? "Link copied" : "Copy link to this lead"} className="group/link inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted hover:text-ink">
+    <button type="button" onClick={() => void copy()} title={label} aria-label={state === "copied" ? done : title} className="group/link inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted hover:text-ink">
       <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        {icon}
       </svg>
-      <span className={state === "copied" ? "text-good" : "hidden group-hover/link:inline"}>{state === "copied" ? "Copied" : "Copy link"}</span>
+      <span className={state === "copied" ? "text-good" : "hidden sm:group-hover/link:inline"}>{state === "copied" ? "Copied" : label}</span>
     </button>
   );
 }
@@ -821,6 +842,7 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <CopyLink id={id} />
+            {lead ? <CopyForWhatsApp id={id} business={show(lead.business)} history={data?.history ?? []} /> : null}
             <button type="button" onClick={onClose} className="min-h-11 px-1 text-sm text-muted hover:text-ink">
               Close
             </button>
