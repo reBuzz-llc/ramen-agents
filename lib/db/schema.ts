@@ -46,6 +46,9 @@ export const users = pgTable(
     active: boolean("active").notNull().default(true),
     /** Their first sign-in (Google, matched by this address). Null: added in Settings → People, not signed in yet. */
     firstSignedInAt: timestamp("first_signed_in_at", { withTimezone: true }),
+    /** Their own view of the lead drawer (Settings → My view): show_empty, field_order,
+     *  hidden_fields. Empty: the default view. */
+    viewPrefs: jsonb("view_prefs").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("users_tenant_email").on(t.tenantId, t.email)],

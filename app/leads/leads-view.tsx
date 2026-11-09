@@ -9,9 +9,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { leadPath } from "@/lib/deep-links";
 import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
+import { readShowEmpty, writeShowEmpty } from "@/lib/drawer-prefs";
+import { DEFAULT_VIEW, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
-import { CONTACT_ROLES, DRAWER_ORDER, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
+import { CONTACT_ROLES, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
 import type { SendNext } from "@/lib/send-next";
 import { control, Field } from "../ui";
 import { CHIP, Chip } from "./chip";
@@ -158,6 +160,7 @@ export default function LeadsView({
   openId = null,
   unavailable = false,
   filters = {},
+  view = null,
 }: {
   rows: TableRow[];
   next: SendNext;
@@ -167,6 +170,7 @@ export default function LeadsView({
   openId?: string | null;
   unavailable?: boolean;
   filters?: Partial<Record<(typeof FILTER_KEYS)[number], string>>;
+  view?: ViewPrefs | null;
 }) {
   const [f, setF] = useState<F>({ ...NONE, ...filters });
   // the open drawer lives in the address, /leads?lead=<id>: a load with it opens that lead
@@ -230,7 +234,7 @@ export default function LeadsView({
         <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Leads</h1>
         {canImport ? (
           <div className="flex flex-wrap gap-2">
-            {/* the sends the rebuilt board lost, re-marked from a person's Sent folder (queue 323) */}
+            {/* the sends the rebuilt board lost, re-marked from a person's Sent folder */}
             <Link href="/leads/already-sent" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M20 6 9 17l-5-5" />
@@ -380,7 +384,7 @@ export default function LeadsView({
           </button>
         </p>
       ) : null}
-      {open ? <Drawer id={open} me={me} choices={choices} onClose={() => setOpen(null)} /> : null}
+      {open ? <Drawer id={open} me={me} choices={choices} view={view} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
@@ -605,46 +609,6 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
   );
 }
 
-const LABELS: Record<string, string> = {
-  business: "Business",
-  website: "Website",
-  business_email: "Business email",
-  email_check: "Email check",
-  location: "Location",
-  industry: "Industry",
-  size: "Company size",
-  contact_person: "Contact person",
-  contact_role: "Contact role",
-  founder_linkedin: "Founder LinkedIn",
-  linkedin_via: "LinkedIn found via",
-  whatsapp: "WhatsApp",
-  map_link: "Map",
-  pain_point: "Pain point",
-  package: "How can I help",
-  evidence: "Evidence",
-  listing_evidence: "Google listing",
-  source_pages: "Source pages",
-  tools_on_site: "Tools on site",
-  site_health: "Site health",
-  lead_score: "Lead score",
-  draft_email: "Draft email",
-  draft_whatsapp: "Draft WhatsApp message",
-  draft_followup: "Draft follow-up",
-  email_status: "Email status",
-  whatsapp_status: "WhatsApp status",
-  result: "Result",
-  result_date: "Result date",
-  sent_by: "Sent by",
-  sent_at: "Sent at",
-  follow_up_at: "Follow-up sent",
-  follow_up_by: "Follow-up by",
-  found_by: "Found by",
-  phone: "Phone",
-  notes: "Notes",
-  notion_uid: "Notion ID",
-  created_at: "Created",
-};
-const label = (k: string) => LABELS[k] ?? k;
 const show = (v: unknown) => (v === null || v === undefined || v === "" ? "" : Array.isArray(v) ? v.join(", ") : String(v));
 const isUrl = (v: string) => /^https?:\/\//.test(v);
 const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "draft_followup", "source_pages", "site_health", "notes"]);
@@ -693,13 +657,35 @@ function CopyLink({ id }: { id: string }) {
 
 export const GUIDE_HINT_KEY = "peek.guide-hint-seen";
 
-function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Choices; onClose: () => void }) {
+function Drawer({ id, me, choices, view, onClose }: { id: string; me: Me; choices: Choices; view: ViewPrefs | null; onClose: () => void }) {
   const router = useRouter();
   const [data, setData] = useState<{ lead: Lead; history: Change[]; flags?: Flag[]; attachments?: Attached[] } | null>(null);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const [showEmpty, setShowEmpty] = useState(false);
+  // The person's own view (Settings → My view): their field order, the fields behind "n hidden", and whether
+  // empty fields show (default yes). Kept on the person; this browser's copy of "show empty" stands in only
+  // when the server's could not be read.
+  const order = drawerOrder(view ?? DEFAULT_VIEW);
+  const hiddenSet = new Set(view?.hidden_fields ?? []);
+  const [showEmpty, setShowEmptyState] = useState(() => {
+    if (view) return view.show_empty;
+    try {
+      return typeof window === "undefined" || readShowEmpty(window.localStorage);
+    } catch {
+      return true;
+    }
+  });
+  const [revealHidden, setRevealHidden] = useState(false);
+  const setShowEmpty = (v: boolean) => {
+    setShowEmptyState(v);
+    try {
+      writeShowEmpty(window.localStorage, v);
+    } catch {
+      /* storage blocked: the server keeps it */
+    }
+    void fetch("/api/view-prefs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_empty: v }) }).catch(() => undefined);
+  };
   const [taken, setTaken] = useState(false);
   const [done, setDone] = useState<{ key: string; label: string }[]>([]);
   // the first drawer this browser opens shows one line pointing at the guide's sending steps
@@ -776,8 +762,9 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
   };
   const lead = data?.lead;
   const steps: Step[] = lead ? [...emailSteps(lead), ...whatsappSteps(lead)] : [];
-  const keys = DRAWER_ORDER.filter((k) => showEmpty || show(lead?.[k]));
-  const empty = lead ? DRAWER_ORDER.filter((k) => !show(lead[k])).length : 0;
+  const visible = order.filter((k) => !hiddenSet.has(k) || revealHidden);
+  const keys = visible.filter((k) => showEmpty || show(lead?.[k]));
+  const empty = lead ? visible.filter((k) => !show(lead[k])).length : 0;
   // The next step in the brand orange, the other next steps as orange outlines, a losing one as a red outline (never a
   // prominent destructive button); steps already taken here are muted with a check and cannot be pressed again.
   const stepClass = (t: Step["tone"], first: boolean) =>
@@ -879,8 +866,16 @@ function Drawer({ id, me, choices, onClose }: { id: string; me: Me; choices: Cho
             </dl>
             {empty ? (
               <button type="button" onClick={() => setShowEmpty(!showEmpty)} className="inline-flex min-h-11 items-center mt-2 text-sm text-accent-ink hover:underline">
-                {showEmpty ? "Hide empty fields" : `Show empty fields (${empty})`}
+                {showEmpty ? `Hide empty fields (${empty})` : `Show empty fields (${empty})`}
               </button>
+            ) : null}
+            {hiddenSet.size ? (
+              <p className="mt-1 text-sm text-muted">
+                <button type="button" onClick={() => setRevealHidden(!revealHidden)} className="inline-flex min-h-11 items-center text-accent-ink hover:underline">
+                  {revealHidden ? `Hide the ${hiddenSet.size} you keep hidden` : `${hiddenSet.size} hidden`}
+                </button>{" "}
+                · <Link href="/settings/my-view" className="underline">My view</Link>
+              </p>
             ) : null}
             <h3 className="mt-6 font-semibold">History</h3>
             <ol className="mt-2 space-y-2 text-sm">

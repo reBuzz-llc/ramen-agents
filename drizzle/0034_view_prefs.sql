@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "view_prefs" jsonb DEFAULT '{}'::jsonb NOT NULL;

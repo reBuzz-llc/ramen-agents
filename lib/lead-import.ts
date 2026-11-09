@@ -10,6 +10,7 @@ import { placeOf } from "./lead-filters";
 import { HOME_STATES, SOCIAL, type MappedRow } from "./lead-import-map";
 import { domainOf, writeLead } from "./leads";
 import { e164 } from "./phone";
+import { isFreeMailDomain } from "./already-sent";
 
 export { autoMap, BATCH, FIELD_LABEL, IMPORT_FIELDS, isMapsExport, keyOf, listItems, mapRows, MAX_FILE_BYTES, MAX_ROWS, parseCsv, SOCIAL, type ImportField, type MappedRow } from "./lead-import-map";
 
@@ -135,6 +136,17 @@ export function leadFields(r: MappedRow, o: FieldOpts): Record<string, unknown> 
   };
 }
 
+/** The website a business email points at: https://<domain> for an address on the business's own domain, "" for a
+ *  free or shared mailbox (gmail, yahoo, outlook, an internet provider's, a school's or government's). */
+export function websiteFromEmail(email?: string | null): string {
+  const m = /^[^@\s]+@([a-z0-9.-]+\.[a-z]{2,})$/i.exec((email ?? "").trim());
+  if (!m) return "";
+  const domain = m[1].toLowerCase().replace(/^www\./, "");
+  return isFreeMailDomain(domain) ? "" : `https://${domain}`;
+}
+/** History's mark on a website taken from the email's domain: the write's "via". */
+export const EMAIL_DOMAIN_VIA = "website from the email's domain, import";
+
 /** The found_by of an import, always starting "import:": "import:
  *  google maps <date>" for a Maps export, else "import: owner file <date>". */
 export const foundByOf = (maps: boolean, now: Date) => `import: ${maps ? "google maps" : "owner file"} ${now.toISOString().slice(0, 10)}`;
@@ -160,6 +172,10 @@ export async function runImport(
       continue;
     }
     const w = await writeLead(db, tenantId, {}, leadFields(r, { foundBy, maps: opts.maps, packageForWebsite: opts.packageForWebsite, listingOnly: opts.batch === "listing" }), { kind: "person", name: who.name, userId: who.userId }, { create: true });
+    // no website in the file, a business address on its own domain: the website from that domain, as its own History
+    // entry (so a person's correction wins and the Enricher may correct it), filling only an empty cell
+    const guess = w.ok && !ownWebsite(r.website) ? websiteFromEmail(r.business_email) : "";
+    if (w.ok && guess) await writeLead(db, tenantId, { id: w.lead.id }, { website: guess }, { kind: "bot", name: "Import", via: EMAIL_DOMAIN_VIA }, { fillOnly: true });
     if (w.ok) report.push({ row: r.row, business, outcome: "create", reason: opts.batch === "listing" ? "created (no email, listing only)" : "created", existingId: w.lead.id, batch: opts.batch });
     else report.push({ row: r.row, business, outcome: w.code === "duplicate_row" ? "skipped" : "rejected", reason: w.message, existingId: w.existingId });
   }

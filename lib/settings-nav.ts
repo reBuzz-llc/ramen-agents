@@ -10,6 +10,7 @@ export const SETTINGS: readonly SettingsPage[] = [
   { slug: "board", label: "Board", lead: "The Notion board the queue and the leads are read from.", needs: "settings.notion" },
   { slug: "rates", label: "Rates & points", lead: "Default pay for new members and the leaderboard's points per outcome." },
   { slug: "keys", label: "API keys", lead: "The keys your agents use to read and write the board. Shown once when made.", needs: "keys.manage" },
+  { slug: "my-view", label: "My view", lead: "The lead drawer as you like it: the order of its fields, the ones you keep hidden, and empty fields shown or not. Yours on every browser." },
   { slug: "appearance", label: "Appearance", lead: "Light or dark, and the text size, on this browser." },
 ];
 
