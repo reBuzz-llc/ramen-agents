@@ -1,7 +1,8 @@
 // The send pack: on the Clock home, each person's ten leads to email, already taken for them
 // so nobody else sends the same one, each with its draft and its open flags, Copy and Mark sent in place. A pack holds
 // the person's taken leads that are not sent and have no result; "Fill my pack" (and every Mark sent) takes the next
-// ones from Send next's order that nobody holds, up to ten. Marking sends the lead as the person (Email Sent, result
+// ones from Send next's order that nobody holds, up to ten and never past the day's send goal (lib/send-goals).
+// Marking sends the lead as the person (Email Sent, result
 // Emailed, today) and closes the claim. The owner also sees everyone's packs.
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { accept, closeClaim } from "./claims";
@@ -11,6 +12,7 @@ import { changedSince, lastPersonEdit } from "./draft-edits";
 import { attachmentNames } from "./lead-queue";
 import { writeLead, type Actor } from "./leads";
 import { sendNext } from "./send-next";
+import { overGoal, todayOf } from "./send-goals-db";
 
 export const PACK = 10;
 
@@ -55,14 +57,16 @@ export async function packOf(db: Db, tenantId: string, userId: string): Promise<
   }));
 }
 
-/** Top a person's pack up to ten from Send next's order: leads nobody holds, with a draft. Returns how many were taken. */
-export async function fillPack(db: Db, tenantId: string, userId: string): Promise<number> {
-  const have = (await packOf(db, tenantId, userId)).length;
-  if (have >= PACK) return 0;
+/** Top a person's pack up from Send next's order (leads nobody holds, with a draft): up to ten, and never more than the
+ *  emails they may still send today (5 a day unless the owner changes it). Returns how many were taken. */
+export async function fillPack(db: Db, tenantId: string, userId: string, now = new Date()): Promise<number> {
+  const [have, today] = await Promise.all([packOf(db, tenantId, userId).then((p) => p.length), todayOf(db, tenantId, userId, now)]);
+  const target = Math.min(PACK, today.email.left);
+  if (have >= target) return 0;
   const next = await sendNext(db, tenantId);
   let added = 0;
   for (const r of next.rows) {
-    if (have + added >= PACK) break;
+    if (have + added >= target) break;
     if (r.takenBy || !r.draft || r.emailStatus === "Email Sent") continue;
     const got = await accept(db, tenantId, r.id, userId);
     if (got.ok) added++;
@@ -74,11 +78,13 @@ export async function fillPack(db: Db, tenantId: string, userId: string): Promis
 export async function markPackSent(db: Db, tenantId: string, leadId: string, who: { userId: string; name: string }, now = new Date()): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
   const [c] = await db.select({ userId: claims.userId }).from(claims).where(and(eq(claims.tenantId, tenantId), eq(claims.pageId, leadId)));
   if (!c || c.userId !== who.userId) return { ok: false, error: "This lead is not in your pack any more." };
+  const over = await overGoal(db, tenantId, who.userId, ["email"], leadId, now);
+  if (over) return { ok: false, error: over };
   const actor: Actor = { kind: "person", name: who.name, userId: who.userId };
   const r = await writeLead(db, tenantId, { id: leadId }, { email_status: "Email Sent", result: "Emailed", result_date: now.toISOString().slice(0, 10) }, actor);
   if (!r.ok) return { ok: false, error: r.message };
   await closeClaim(db, tenantId, leadId);
-  return { ok: true, added: await fillPack(db, tenantId, who.userId) };
+  return { ok: true, added: await fillPack(db, tenantId, who.userId, now) };
 }
 
 /** Everyone's packs, for the owner: each person holding leads, with how many and which. */

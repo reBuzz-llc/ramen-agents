@@ -13,6 +13,7 @@ import { projectName, projectsOf, type Project } from "@/lib/projects";
 import { hhmm, minutesByProject, type ProjectShift } from "@/lib/timesheet";
 import { startDayOf, weekStart, weekStartDate, WEEKDAYS } from "@/lib/week";
 import { displayName } from "@/lib/display-name";
+import { goalsOf, workingDaysSoFar } from "@/lib/send-goals";
 
 export const metadata = { title: "This week · ramen-agents" };
 
@@ -52,6 +53,9 @@ export default async function WeekPage() {
   const all = scoreboard(people, clicks, leads, tasks, shiftRows, from, new Date(), step);
   const rows = can(who.role, "week.team") ? all : all.filter((r) => r.userId === who.userId);
   const kr = who.settings.keyResults ?? {};
+  // the daily send goals times the working days so far this week: what each person's sends are measured against
+  const goals = goalsOf(who.settings);
+  const days = workingDaysSoFar(from, new Date());
   const total = (k: "sent" | "whatsapp" | "replies" | "meetings" | "tasksDone") => all.reduce((t, r) => t + (r[k] ?? 0), 0);
   const wa = total("whatsapp");
   const tiles: { label: string; value: number; target?: number; note?: string }[] = [
@@ -94,11 +98,14 @@ export default async function WeekPage() {
         <span className="text-muted"> (an agent&apos;s email or WhatsApp draft you rewrote: what the agents learn from)</span>
       </p>
       <div className="relative mt-6 overflow-x-auto">
-      <table className="w-full min-w-[34rem] text-sm tabular-nums">
+      <table className="w-full min-w-[40rem] text-sm tabular-nums">
         <thead>
           <tr className="text-left text-xs text-muted">
             <th className="py-2 font-normal">Person</th>
             <th className="py-2 text-right font-normal">Sent</th>
+            <th className="py-2 text-right font-normal" title={`${goals.email} emails and ${goals.whatsapp} WhatsApp messages a day, times ${days} working day${days === 1 ? "" : "s"} so far`}>
+              Vs goal
+            </th>
             <th className="py-2 text-right font-normal">Replies</th>
             <th className="py-2 text-right font-normal">Meetings</th>
             <th className="py-2 text-right font-normal">Clients</th>
@@ -114,6 +121,9 @@ export default async function WeekPage() {
                 {r.name} <span className="text-xs text-muted">{r.role}</span>
               </td>
               <td className="py-2 text-right whitespace-nowrap">{sendsLabel(r)}</td>
+              <td data-vs-goal className="py-2 text-right whitespace-nowrap text-muted">
+                {r.sent}/{goals.email * days} email · {r.whatsapp ?? 0}/{goals.whatsapp * days} WA
+              </td>
               <td className="py-2 text-right">{r.replies}</td>
               <td className="py-2 text-right">{r.meetings}</td>
               <td className="py-2 text-right">{r.clients}</td>
@@ -129,7 +139,10 @@ export default async function WeekPage() {
         </tbody>
       </table>
       </div>
-      <p className="mt-3 text-xs text-muted">Tasks done come from the team task board.</p>
+      <p className="mt-3 text-xs text-muted">
+        Tasks done come from the team task board. Vs goal: each person&apos;s sends against {goals.email} emails and {goals.whatsapp} WhatsApp messages a day
+        (Settings → Company), times the {days} working day{days === 1 ? "" : "s"} so far this week.
+      </p>
 
       <HoursByProject rows={rows} shiftRows={shiftRows} projectList={projectList} />
     </div>

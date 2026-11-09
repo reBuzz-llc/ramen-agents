@@ -10,6 +10,7 @@ import { changedSince, lastPersonEdit } from "./draft-edits";
 import type { Db } from "./db";
 import { claims, leadFlags, leads } from "./db/schema";
 import { WHATSAPP_SENT, writeLead, type Actor } from "./leads";
+import { overGoal, todayOf } from "./send-goals-db";
 
 export const CHECK = 20;
 export const SEND = 10;
@@ -80,8 +81,12 @@ export async function checkList(db: Db, tenantId: string, userId: string): Promi
   return withFlags(db, tenantId, rows, new Set(rows.map((r) => r.id)));
 }
 
-/** The person's verified leads to send, then verified leads nobody holds, up to ten: drafts first, the rest "draft coming". */
-export async function sendList(db: Db, tenantId: string, userId: string): Promise<WaLead[]> {
+/** The person's verified leads to send, then verified leads nobody holds: up to ten and never more than the WhatsApp
+ *  messages they may still send today (3 a day unless the owner changes it); drafts first, the rest "draft
+ *  coming". Checking numbers is not capped. */
+export async function sendList(db: Db, tenantId: string, userId: string, now = new Date()): Promise<WaLead[]> {
+  const size = Math.min(SEND, (await todayOf(db, tenantId, userId, now)).whatsapp.left);
+  if (size <= 0) return [];
   const mine = await db
     .select(leadCols)
     .from(claims)
@@ -89,7 +94,7 @@ export async function sendList(db: Db, tenantId: string, userId: string): Promis
     .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED)))
     .orderBy(asc(claims.at));
   const free =
-    mine.length >= SEND
+    mine.length >= size
       ? []
       : await db
           .select(leadCols)
@@ -97,10 +102,11 @@ export async function sendList(db: Db, tenantId: string, userId: string): Promis
           .leftJoin(claims, and(eq(claims.tenantId, leads.tenantId), eq(claims.pageId, sql`${leads.id}::text`)))
           .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), isNull(claims.userId)))
           .orderBy(sql`(${leads.draftWhatsapp} is not null and ${leads.draftWhatsapp} not ilike 'skip:%') desc`, desc(leads.leadScore), asc(leads.createdAt))
-          .limit(SEND - mine.length);
-  const rows = [...mine, ...free];
-  const list = await withFlags(db, tenantId, rows, new Set(mine.map((r) => r.id)));
-  return list.sort((a, b) => Number(!!b.draft) - Number(!!a.draft));
+          .limit(size - mine.length);
+  const ids = new Set(mine.map((r) => r.id));
+  const list = await withFlags(db, tenantId, [...mine, ...free], ids);
+  // drafts first, then only as many as are left today
+  return list.sort((a, b) => Number(!!b.draft) - Number(!!a.draft)).slice(0, size);
 }
 
 /** Top the person's numbers to check up to twenty: unchecked numbers nobody holds, best lead score first. */
@@ -143,6 +149,8 @@ export async function markWhatsappSent(db: Db, tenantId: string, leadId: string,
   const [l] = await db.select({ status: leads.whatsappStatus }).from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, leadId)));
   if (!l) return { ok: false, error: "No such lead." };
   if (l.status !== VERIFIED) return { ok: false, error: "Check the number first: only a verified number is sent to." };
+  const over = await overGoal(db, tenantId, who.userId, ["whatsapp"], leadId);
+  if (over) return { ok: false, error: over };
   const r = await writeLead(db, tenantId, { id: leadId }, { whatsapp_status: WHATSAPP_SENT }, actorOf(who));
   if (!r.ok) return { ok: false, error: r.message };
   await closeClaim(db, tenantId, leadId);

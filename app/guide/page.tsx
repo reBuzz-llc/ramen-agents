@@ -8,7 +8,7 @@ export const metadata = { title: "Guide · ramen-agents" };
 // what a person changes in the portal, step by step, and what the agent family and the scoreboard read from that change. Every
 // button and cell name is the one on the page. Edit LAST_UPDATED by hand when the text changes. Each section has an
 // anchor (/guide#send) so an agent or a teammate can link one step.
-const LAST_UPDATED = "2026-11-08";
+const LAST_UPDATED = "2026-11-09";
 
 type Step = { id: string; title: string; intro?: React.ReactNode; steps: React.ReactNode[]; seen: string };
 
@@ -49,13 +49,14 @@ const SECTIONS: Step[] = [
   },
   {
     id: "pick",
-    title: "Your send pack: the next ten leads",
+    title: "Your send pack: today's leads",
+    intro: "Each person sends a few first emails and WhatsApp messages a day, not dozens: many sends from one address in a day land in spam more often, and the replies are what count. The daily goal is 5 emails and 3 WhatsApp messages each, unless the owner changed it in Settings → Company.",
     steps: [
-      <>On the <P href="/">Clock</P>, under the clock, press <B>Fill my pack</B>. Peek takes the next ten leads from Send next for you, best first, that nobody else holds; they are yours until you send them or give them back.</>,
+      <>On the <P href="/">Clock</P>, under the clock, press <B>Fill my pack</B>. The portal takes the next leads from Send next for you, best first, that nobody else holds, as many as you may still send today; they are yours until you send them or give them back. The pack&apos;s title shows how far you are (&ldquo;2 of 5 sent today&rdquo;).</>,
       <>Open a lead in the pack. Read the <B>Draft email</B> and any red line under it: that is the Validator&apos;s flag on this lead (a wrong name, a figure it could not find). If the draft needs fixing, press <B>Open the lead</B> and use <B>Edit</B> on the draft first.</>,
       <>Copy the address shown beside the business, then press <B>Copy draft</B>. If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them (the files are on the <P href="/files">Files</P> page; what we offer is on <P href="/packages">Packages</P> and <P href="/asset">Asset</P>).</>,
       <>Made the sample site for this lead? Paste its link in the lead&apos;s <B>Sample site</B> cell before you send: <B>Copy draft</B> and <B>Copy message</B> then end with &ldquo;Your sample site: …&rdquo;.</>,
-      <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. The next lead comes in, so the pack stays at ten.</>,
+      <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. When the day&apos;s goal is met the pack says &ldquo;Today&apos;s 5 are done; more tomorrow&rdquo;: <B>Fill my pack</B> waits and <B>Mark sent</B> is refused until the next day (midnight in the company&apos;s time zone). Checking WhatsApp numbers has no limit.</>,
       <>Want one particular lead instead? In <P href="/leads">Leads</P> → <B>Send next</B>, press <B>Take it</B>; <B>Give back</B> if you cannot finish it. <B>Copy link</B> in a lead&apos;s drawer shares it with a colleague.</>,
       <>Telling the team in the WhatsApp group? Beside <B>Copy link</B>, <B>Copy for WhatsApp</B> copies the business, its link and the team&apos;s last changes on it (no email addresses or phone numbers); paste it into the group.</>,
     ],
@@ -68,7 +69,7 @@ const SECTIONS: Step[] = [
     steps: [
       <>Paste the draft into a new email from your own mailbox, to the address you copied.</>,
       <>Attach the files the last line names, then delete that line. Send it.</>,
-      <>Back in the portal, press <B>Mark sent</B> in Send next (it shows once the lead is yours) or <B>Mark email sent</B> in the drawer. They are the same step.</>,
+      <>Back in the portal, press <B>Mark sent</B> in Send next (it shows once the lead is yours) or <B>Mark email sent</B> in the drawer. They are the same step, and all count toward your daily goal. Sends from before, recorded with Leads → Mark already sent, do not.</>,
       <>Check the lead now shows <B>Email Sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today. If you pressed it by mistake, the <B>×</B> on the chip clears all three.</>,
     ],
     seen: "Email status, Sent by and Sent at. The Validator counts the team's sends from them, This week shows them as sent this week, and the Leaderboard gives the lead to the person in Sent by on the day in Sent at.",
@@ -89,7 +90,7 @@ const SECTIONS: Step[] = [
     title: "Send a WhatsApp message and record it",
     intro: "Like an email: Peek never sends it. You send from WhatsApp; Peek records that you did.",
     steps: [
-      <>In the pack&apos;s <B>WhatsApp</B> tab on the <P href="/">Clock</P>, <B>Send on WhatsApp</B> lists your verified numbers with a message ready (a verified one without a message shows as &ldquo;draft coming&rdquo;: the agents write it next). Or open <P href={WA_VERIFIED}>Leads filtered to WhatsApp Verified</P> and a lead that has a <B>Draft WhatsApp message</B>.</>,
+      <>In the pack&apos;s <B>WhatsApp</B> tab on the <P href="/">Clock</P>, <B>Send on WhatsApp</B> lists your verified numbers with a message ready, as many as you may still send today (3 a day unless the owner changed it: numbers that message many strangers get reported as spam) (a verified one without a message shows as &ldquo;draft coming&rdquo;: the agents write it next). Or open <P href={WA_VERIFIED}>Leads filtered to WhatsApp Verified</P> and a lead that has a <B>Draft WhatsApp message</B>.</>,
       <>Read the draft. If anything is wrong or weak, press <B>Edit</B> on it and fix it: your version wins over the agents&apos;.</>,
       <>Press <B>Copy message</B> in the tab (or <B>Copy</B> on the draft in the drawer).</>,
       <>Press <B>Open in WhatsApp</B> (or the <B>WhatsApp</B> link in the drawer): it opens a chat with that number. Paste the message and send it from WhatsApp.</>,

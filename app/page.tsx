@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/roles";
 import { allPacks, PACK, packOf } from "@/lib/send-pack";
 import { displayName, namesOf } from "@/lib/display-name";
+import { todayOf } from "@/lib/send-goals-db";
 
 export const metadata = { title: "Clock · ramen-agents" };
 
@@ -27,7 +28,7 @@ export default async function Home(props: { searchParams: Promise<Record<string,
   const d = await db();
   const work = can(who.role, "queue.work");
   const myName = displayName(who.name, who.email);
-  const [pack, others, due, waiting, checks, waSend, samples] = await Promise.all([
+  const [pack, others, due, waiting, checks, waSend, samples, today] = await Promise.all([
     work ? packOf(d, who.tenantId, who.userId) : [],
     who.role === "owner" ? allPacks(d, who.tenantId) : null,
     work ? followUpsDue(d, who.tenantId, namesOf(who.name, who.email)) : [],
@@ -35,6 +36,8 @@ export default async function Home(props: { searchParams: Promise<Record<string,
     work ? checkList(d, who.tenantId, who.userId) : [],
     work ? sendList(d, who.tenantId, who.userId) : [],
     work ? samplesToMake(d, who.tenantId, namesOf(who.name, who.email)) : [],
+    // the day's send goals: "2 of 5 sent today"
+    work ? todayOf(d, who.tenantId, who.userId, new Date(), who.settings) : null,
   ]);
   return (
     <>
@@ -44,10 +47,10 @@ export default async function Home(props: { searchParams: Promise<Record<string,
           <ClockView />
           {work ? (
             <PackTabs
-              email={<SendPack pack={pack} size={PACK} me={myName} others={others} />}
+              email={<SendPack pack={pack} size={PACK} me={myName} others={others} today={today!.email} />}
               whatsapp={
                 <section aria-label="WhatsApp">
-                  <WhatsAppPack checks={checks} send={waSend} size={CHECK} />
+                  <WhatsAppPack checks={checks} send={waSend} size={CHECK} today={today!.whatsapp} />
                 </section>
               }
               waCount={waSend.filter((l) => l.draft).length}
