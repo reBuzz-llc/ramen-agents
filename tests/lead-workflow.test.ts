@@ -84,6 +84,14 @@ describe("the board's Mine and Corrected filters", () => {
     const asAnn = await boardOf(db, tenantId, ann.id);
     expect(asAnn.filter((r) => r.mine).map((r) => r.business)).toEqual(["Cedar Clinic"]);
   });
+  it("carries whether a lead has a WhatsApp number, for the No website, has WhatsApp chip", async () => {
+    const { db, tenantId, owner, make } = await board();
+    await make("Dosa Corner", { whatsapp: "+1 718 555 0100" });
+    await make("Elm Florist", { whatsapp: "  " });
+    await make("Fig Deli");
+    const rows = await boardOf(db, tenantId, owner.id);
+    expect(Object.fromEntries(rows.map((r) => [r.business, r.hasWhatsapp]))).toEqual({ "Dosa Corner": true, "Elm Florist": false, "Fig Deli": false });
+  });
 });
 
 describe("send next", () => {

@@ -111,4 +111,19 @@ export function filtersToQuery(f: Filters): string {
 /** The Leads page's filters read from the address (?whatsapp=…, ?city=…): one list for the server page and the client
  *  view. It lives here, not in the client view: a server component that imports a plain value from a "use client" file
  *  gets a client reference, not the array (FILTER_KEYS.map is not a function: the filters in a link were ignored). */
-export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role"] as const;
+export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role", "site"] as const;
+
+/** The "No website" quick filters: the businesses with no site of their own, the website
+ *  pitch; "none-wa" keeps those with a WhatsApp number, the channel that pitch goes out on. An empty or blank website
+ *  cell is no website. */
+export type SiteFilter = "" | "none" | "none-wa";
+export const SITE_FILTERS: [Exclude<SiteFilter, "">, string][] = [
+  ["none", "No website"],
+  ["none-wa", "No website, has WhatsApp"],
+];
+export const hasNoWebsite = (website: string | null | undefined) => !website?.trim();
+export function siteMatches(r: { website: string | null; hasWhatsapp: boolean }, site: string): boolean {
+  if (site === "none") return hasNoWebsite(r.website);
+  if (site === "none-wa") return hasNoWebsite(r.website) && r.hasWhatsapp;
+  return true;
+}

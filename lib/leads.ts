@@ -541,6 +541,7 @@ function boardColumns(userId: string) {
     result: leads.result,
     sentBy: leads.sentBy,
     hasDraft: sql<boolean>`${leads.draftEmail} is not null and ${leads.draftEmail} not ilike 'skip:%'`,
+    hasWhatsapp: sql<boolean>`coalesce(trim(${leads.whatsapp}), '') <> ''`,
     updatedAt: leads.updatedAt,
     takenBy: sql<string | null>`(select coalesce(nullif(trim(u.name), ''), split_part(u.email, '@', 1)) from ${claims} c join ${users} u on u.id = c.user_id where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text)`,
     mine: sql<boolean>`exists (select 1 from ${claims} c where c.tenant_id = "leads"."tenant_id" and c.page_id = "leads"."id"::text and c.user_id = ${userId})
