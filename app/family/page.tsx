@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
 import { latestReports, olderThan, type Stored } from "@/lib/family";
 import { pageMe } from "@/lib/page-me";
+import { displayName } from "@/lib/display-name";
+import { worldBase, worldLink } from "@/lib/world-share";
+import LiveWorld from "./live-world";
 
 export const metadata = { title: "Family · ramen-agents" };
 
@@ -42,10 +45,13 @@ export default async function FamilyPage() {
   ];
   const roles = Object.entries(t.contact_roles ?? {}).sort((a, b) => b[1] - a[1]);
   const stale = tick ? olderThan(tick.at, 30) : false;
+  // the live office on top: a link signed for this person per page load, when the owner saved the address
+  const world = worldLink(worldBase(who.settings.worldUrl), process.env.WORLD_SHARE_SECRET, displayName(who.name, who.email));
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Family</h1>
       <p className="mt-1 text-sm text-muted">What the agents did today and this week, as they report it. The Guide is what you do; this is what they do. Names of businesses and people are left out.</p>
+      {world ? <LiveWorld src={world} /> : null}
       {!tick && !morning && !week ? (
         <p className="mt-6 rounded-lg bg-panel p-4 text-sm text-muted">No report from the agents yet. Once the Validator is connected it posts here every few minutes.</p>
       ) : null}

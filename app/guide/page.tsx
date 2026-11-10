@@ -178,6 +178,10 @@ export default async function Guide() {
           The agents find the businesses and write the drafts. You <B>check</B> each draft and fix it, <B>send</B> it yourself, and <B>record</B> what happened.
           The agents read what you recorded, and so does the scoreboard: <P href="/week">This week</P> and the <P href="/leaderboard">Leaderboard</P>.
         </p>
+        <p className="mt-3 text-sm text-muted">
+          Want to see the agents at work? The <P href="/family">Family</P> page shows their office live and read-only (when the agents&apos; machine is on):
+          tap a member for what it is doing and its last actions. Businesses show as their first word and an initial; no addresses or numbers.
+        </p>
       </section>
 
       <section id="edits" aria-labelledby="edits-title" className="mt-4 scroll-mt-20 rounded-xl border-2 border-accent bg-accent-tint p-4">

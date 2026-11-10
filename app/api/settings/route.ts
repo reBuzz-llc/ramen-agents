@@ -16,6 +16,7 @@ import { sectionOf } from "@/lib/settings-nav";
 import { canSetRate, dayOf, money } from "@/lib/rates";
 import { displayName } from "@/lib/display-name";
 import { goalFromForm, validTimeZone } from "@/lib/send-goals";
+import { worldBase } from "@/lib/world-share";
 
 // Back to the page the form was on: its Settings page (lib/settings-nav.ts sectionOf), or the Clock page's "Manage
 // projects" (a form there sends return=/). Kept per request, never in a module variable shared by requests running at once.
@@ -104,6 +105,18 @@ export async function POST(req: Request) {
     s.timezone = tz || undefined;
     await d.update(tenants).set({ settings: s }).where(eq(tenants.id, g.who.tenantId));
     return back(req, "Daily send goals saved. They apply from the next Fill my pack or Mark sent.");
+  }
+  if (action === "worldUrl") {
+    // the live office's address on the Family page: the owner's
+    const g = await guard("settings.rates");
+    if ("res" in g) return g.res;
+    const raw = String(form.get("world_url") ?? "").trim();
+    const base = worldBase(raw);
+    if (raw && !base) return back(req, "The live office's address starts with https:// (the address your tunnel printed).");
+    const s = await settingsOf(d, g.who.tenantId);
+    s.worldUrl = base ?? undefined;
+    await d.update(tenants).set({ settings: s }).where(eq(tenants.id, g.who.tenantId));
+    return back(req, base ? "Live world address saved: the Family page shows the office from it." : "Live world address cleared: the Family page shows no office.");
   }
   if (action === "rates") {
     const g = await guard("settings.rates");
