@@ -122,6 +122,29 @@ export default async function Company(props: PageProps<"/settings/company">) {
         </PendingForm>
       </section>
 
+      <section aria-labelledby="world">
+        <h2 id="world" className={sectionTitle}>
+          Live world
+        </h2>
+        <p className={helper}>
+          The office, read-only, at the top of the Family page. It runs on the machine that runs the agents; paste the
+          address your tunnel printed (see the fleet&apos;s webapp/docs/world-public.md). Empty: no office on the Family page.
+        </p>
+        <PendingForm action="/api/settings" method="post" className="mt-4 grid gap-4 sm:grid-cols-3">
+          <input type="hidden" name="action" value="worldUrl" />
+          <label className={`${fieldLabel} sm:col-span-2`}>
+            Live world address
+            <input name="world_url" type="url" inputMode="url" defaultValue={s.worldUrl ?? ""} placeholder="https://…" disabled={!owner} className={control} />
+          </label>
+          {owner ? (
+            <div className="sm:col-span-3">
+              <button className={btnOutline}>Save address</button>
+              {s.worldUrl && !process.env.WORLD_SHARE_SECRET ? <p className={`${helper} mt-2`}>The link secret (WORLD_SHARE_SECRET) is not set on this server yet: the frame stays hidden until it is.</p> : null}
+            </div>
+          ) : null}
+        </PendingForm>
+      </section>
+
       <section aria-labelledby="krs">
         <h2 id="krs" className={sectionTitle}>
           This week&apos;s key results
