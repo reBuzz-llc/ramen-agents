@@ -171,7 +171,7 @@ export function parseOkr(md: string): Okr | null {
   return { objective, week: week ? `${week[1].slice(5)} to ${week[2].slice(5)}` : "", krs };
 }
 
-/** Each bot's own output: the accepted action that is its job, as SQL on the actions table. */
+/** Each bot's own output (creatorCC queue 6): the accepted action that is its job, as SQL on the actions table. */
 export const OWN_OUTPUT: Record<string, { label: string; where: string }> = {
   "lead-gen": { label: "lead", where: "action_type = 'lead'" },
   "lead-enricher": { label: "lead update", where: "action_type = 'update_lead'" },

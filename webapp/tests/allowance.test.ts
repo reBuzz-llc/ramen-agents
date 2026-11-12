@@ -1,8 +1,8 @@
-// Run: npm test. The Allowance list: the chain's use against each free tier, and the keys out of it.
+// Run: npm test. The Allowance list (creatorCC queue 230): the chain's use against each free tier, and the keys out of it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
-import { allowanceOf, daysLeft, parseConfig } from "../lib/allowance.ts";
+import { allowanceOf, daysLeft, nextMonthFirst, parseConfig } from "../lib/allowance.ts";
 
 const CONFIG = `
 [model]
@@ -64,28 +64,82 @@ test("a row per chain provider: calls against the cap, Groq's daily tokens, the 
   assert.deepEqual(a.alerts, ["groq at 90%", "speka not answering", "ollama-cloud at 93%"]);
 });
 
-test("keys out of the chain: searches and verifiers with their counts, models with their last day; no peek or notion", () => {
+test("keys out of the chain: searches and verifiers with their counts, models with their last day; no portal or notion", () => {
   const idle = run().idle;
   assert.deepEqual(idle.map((r) => r.name), ["dahl-inference", "openai", "quickemailverification", "tavily"]);
   const by = (n: string) => idle.find((r) => r.name === n)!;
-  assert.deepEqual([by("tavily").lastUse, by("tavily").today, by("tavily").cap], ["2026-10-09", 0, "30 a day"]);
+  assert.deepEqual([by("tavily").lastUse, by("tavily").today, by("tavily").cap], ["2026-10-09", 0, "25 a day (the Analyst) + The CEO's by hand"]);
   assert.deepEqual([by("quickemailverification").lastUse, by("quickemailverification").today], ["2026-11-06 12:50", 1]);
   assert.deepEqual([by("dahl-inference").kind, by("dahl-inference").lastUse], ["model", "2026-11-05"]);
   assert.equal(by("openai").cap, "paid key, in no chain");
 });
 
-test("allowance: the other free tiers pass through, and those at 80% or more warn on the ticker", async () => {
+test("a provider table's note shows first, with the dead line after it (creatorCC queue 257)", () => {
+  const config = CONFIG.replace('provider_chain = ["zai",', 'provider_chain = ["mistral", "zai",') +
+    `[model.providers.mistral]\nbase_url = "https://api.mistral.ai/v1"\ncalls_per_day = 1\nnote = "1 a day until activated"\n`;
+  const calls = { ...CALLS, counts: { ...CALLS.counts, "api.mistral.ai": 1 },
+    health: { ...CALLS.health, "api.mistral.ai": { last_fail: "2026-11-06T07:20:39", last_reason: "empty reply" } } };
+  const row = run({ config, calls }).chain.find((r: { name: string }) => r.name === "mistral");
+  assert.ok(row);
+  assert.equal(row!.note, "1 a day until activated · has never answered (empty reply)");
+  assert.equal(row!.callsCap, 1);
+});
+
+test("allowance: each provider's calls split between the bots and the Validator's own jobs (queue 286)", async () => {
+  // @ts-ignore TS5097
+  const { splitOf } = await import("../lib/allowance.ts");
+  assert.deepEqual(splitOf({ "Lead Gen": 300, "The CEO": 100, unnamed: 6, "validator:polish": 40, "validator:pain-refresh": 12 }, 458), { bots: 406, validator: 52 });
+  assert.equal(splitOf(undefined, 458), null); // the ledger has no split yet
+  assert.equal(splitOf({ "validator:polish": 40 }, 458), null); // only the Validator's entries while the bots' are not in yet
+  assert.deepEqual(splitOf({ "validator:polish": 40 }, 40), { bots: 0, validator: 40 }); // the Validator made every call
+  const rows = run({ calls: { ...CALLS, by_caller: { "api.z.ai": { "Lead Gen": 10, "validator:second-opinion": 3 } } } }).chain;
+  assert.ok(rows.some((r: { host: string; split: unknown }) => r.host === "api.z.ai" && JSON.stringify(r.split) === JSON.stringify({ bots: 10, validator: 3 })));
+});
+
+test("allowance: the other free tiers pass through, and those at 80% or more warn on the ticker (queue 304)", async () => {
   // @ts-ignore TS5097
   const { otherAlerts } = await import("../lib/allowance.ts");
   const rows = [
-    { name: "Supabase", what: "database size", used: 420, limit: 500, unit: "MB", resets: "", status: "near", how: "" },
+    { name: "Supabase", what: "database size (the portal's primary)", used: 420, limit: 500, unit: "MB", resets: "", status: "near", how: "" },
     { name: "Vercel Hobby", what: "fast data transfer", used: null, limit: 100, unit: "GB/month", resets: "", status: "unknown", how: "not measurable" },
     { name: "Kaggle", what: "GPU hours", used: 6, limit: 30, unit: "hours/week", resets: "", status: "ok", how: "" },
   ] as const;
-  assert.deepEqual(otherAlerts([...rows]), ["Supabase database size at 84%"]);
+  assert.deepEqual(otherAlerts([...rows]), ["Supabase database size (the portal's primary) at 84%"]);
   const a = run({ other: { at: "2026-11-06T20:00:00", rows: [...rows] } });
   assert.equal(a.other.length, 3);
   assert.equal(a.otherAt, "2026-11-06T20:00:00");
-  assert.ok(a.alerts.includes("Supabase database size at 84%"));
+  assert.ok(a.alerts.includes("Supabase database size (the portal's primary) at 84%"));
   assert.deepEqual(run().other, []); // no file yet: nothing, and no alert
+});
+
+test("allowance: Tavily counts The CEO's and the Analyst's files together; LangSearch and Parallel share Lead Gen's searches; ezverify 200 a month (queue 329)", async () => {
+  // @ts-ignore TS5097
+  const { mergeDays } = await import("../lib/allowance.ts");
+  assert.deepEqual(mergeDays([{ "2026-11-08": 2, "2026-11-07": 1 }, { "2026-11-08": 5 }, {}]), { "2026-11-08": 7, "2026-11-07": 1 });
+  const a = run({
+    keys: ["tavily", "langsearch", "parallel", "ezverify"],
+    search: { tavily: mergeDays([{ "2026-11-06": 1 }, { "2026-11-06": 4 }]), langsearch: { "2026-11-06": 3 }, parallel: {} },
+    verify: { a: { at: "2026-11-06T09:00:00", by: "ezverify" }, b: { at: "2026-11-06T10:00:00", by: "ezverify" }, c: { at: "2026-11-06T11:00:00" } },
+  });
+  const by = (n: string) => a.idle.find((r: { name: string }) => r.name === n)!;
+  assert.deepEqual([by("tavily").today, by("tavily").cap], [5, "25 a day (the Analyst) + The CEO's by hand"]);
+  assert.match(by("tavily").note, /Research Analyst.*25 a day.*The CEO/);
+  assert.deepEqual([by("langsearch").today, by("langsearch").cap, by("langsearch").note], [3, "100 a day", "a share of Lead Gen's searches by allowance left"]);
+  assert.deepEqual([by("parallel").cap, by("parallel").note], ["30 a day", "a share of Lead Gen's searches by allowance left"]);
+  assert.deepEqual([by("ezverify").today, by("ezverify").cap], [2, "200 a month"]);
+});
+
+test("a spent allowance (engine 2cbe08a): 'spent today' or 'spent this month' with the renew time; an old mark is ignored (queue 449)", () => {
+  const withSpent = (zai: string, speka: string) =>
+    run({ calls: { ...CALLS, health: { ...CALLS.health, "api.z.ai": { ...CALLS.health["api.z.ai"], spent: zai }, "speka.me": { ...CALLS.health["speka.me"], spent: speka } } } });
+  const a = withSpent("2026-11-06", "2026-11");
+  const row = (n: string) => a.chain.find((r) => r.name === n)!;
+  assert.deepEqual([row("zai").status, row("zai").note, row("zai").health.spent], ["spent", "spent today · renews at midnight", "day"]);
+  assert.deepEqual([row("speka").status, row("speka").note], ["spent", "spent this month · renews on the 1st (12-01)"]);
+  assert.deepEqual(a.alerts, ["zai spent today", "groq at 90%", "speka spent this month", "ollama-cloud at 93%"]);
+  // yesterday's day mark and last month's month mark no longer hold: back to the health lines
+  const b = withSpent("2026-11-05", "2026-10");
+  assert.equal(b.chain.find((r) => r.name === "zai")!.status, "ok");
+  assert.match(b.chain.find((r) => r.name === "speka")!.note, /^not answering since/);
+  assert.deepEqual([nextMonthFirst("2026-11"), nextMonthFirst("2026-12")], ["2026-12-01", "2027-01-01"]);
 });

@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Attention } from "@/lib/work-plan";
+import { tabOfPath } from "@/lib/work-plan-rows";
 import { useVisibleInterval } from "./hooks";
-import { Icon } from "./ui";
 
 const SEEN_KEY = "workplan-seen";
 
@@ -33,11 +32,11 @@ export function markWorkPlanSeen(): void {
 }
 
 /**
- * The toolbar shortcut to the Work plan (owner, 2026-09-26), with a red dot when the agents' checklists moved since
- * the owner last looked: a job finished or stuck, or three or more steps ticked.
+ * What moved on the agents' checklists since the owner last looked (owner, 2026-09-26): a job finished or stuck, or
+ * three or more steps ticked. The nav's Work plan tab shows it as a red dot (2026-10-31: the check icon is gone).
  */
-export default function WorkPlanShortcut() {
-  const here = usePathname() === "/work-plan";
+export function useWorkPlanAttention(): { dot: boolean; why: string } {
+  const here = tabOfPath(usePathname()) !== null; // any of its pages
   const [att, setAtt] = useState<Attention | null>(null);
   const load = useCallback(async () => {
     try {
@@ -54,7 +53,7 @@ export default function WorkPlanShortcut() {
     return () => window.removeEventListener("workplanseen", again);
   }, [load]);
 
-  const dot = !here && att?.needed;
+  const dot: boolean = !here && !!att?.needed;
   const why = att
     ? [
         att.finished.length ? `finished: ${att.finished.join(", ")}` : "",
@@ -64,18 +63,5 @@ export default function WorkPlanShortcut() {
         .filter(Boolean)
         .join("; ")
     : "";
-  const label = dot ? `Work plan: needs a look (${why})` : "Work plan";
-
-  return (
-    <Link
-      href="/work-plan"
-      aria-label={label}
-      title={label}
-      aria-current={here ? "page" : undefined}
-      className={`glass pressable relative grid h-11 w-11 shrink-0 place-items-center rounded-full ${here ? "text-accent" : "text-ink"}`}
-    >
-      <Icon name="check" className="h-[18px] w-[18px]" />
-      {dot ? <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-sys-red ring-2 ring-bg" aria-hidden /> : null}
-    </Link>
-  );
+  return { dot, why };
 }

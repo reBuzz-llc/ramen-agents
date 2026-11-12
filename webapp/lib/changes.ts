@@ -1,4 +1,4 @@
-// Server-side only: the shared change log, common-data/knowledge/changes.jsonl: one line per
+// Server-side only: the shared change log, common-data/knowledge/changes.jsonl (owner, 2026-10-06): one line per
 // change that can move a metric, appended by every session, so a jump on the dashboard's charts has a visible cause.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -46,8 +46,8 @@ export async function readChanges(days = 14): Promise<Change[]> {
 const ENGINE = process.env.BOT_CODE_ROOT ?? path.join(homedir(), "Projects", "bot");
 const TICK = path.join(BOTS_DIR, "common-data", "shared-state", "tick-report.json");
 
-/** The change markers under the Checks bars: the engine's commits, each bot's last restart (the
- *  tick report), and the shared change log's notes, newest first. */
+/** The change markers under the Checks bars (creatorCC queue 377): the engine's commits, each bot's last restart (the
+ *  tick report), and the shared change log's notes (valiCC appends its fixes there again), newest first. */
 export async function readMarkers(days = 14): Promise<Marker[]> {
   const [notes, engine, tick] = await Promise.all([
     readChanges(days),

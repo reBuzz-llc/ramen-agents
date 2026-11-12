@@ -1,18 +1,19 @@
-// Server-side only: the Work plan page. One grid of every agent with:
+// Server-side only: the Work plan page (owner, 2026-09-26). One grid of every agent with:
 //   - its current checklist, written by the engine to <bot>/workspace/plan.json (read-only here);
 //   - the owner's future goal and current rules for it, one line each, in common-data/work-plan.json, which this
 //     app writes and the engine reads into every decide prompt ("## The owner's work plan");
 //   - today's score: accepted outputs against the tokens the bot spent, from model_calls.json and its actions table.
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rmdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { BotProfile } from "./bot";
-import { BOTS_DIR } from "./bots";
+import { BOTS_DIR, byName } from "./bots";
 import { workspaceDir } from "./control";
 import { dbPath, query, type Row } from "./episodes";
 import { readPersona } from "./persona";
 import { capabilitiesOf, type Capabilities } from "./capabilities";
 import { fillTarget, readTarget } from "./target";
 import { localIso, sq } from "./summary";
+import { lastEnded, type EndedPlan } from "./work-plan-rows";
 import { kindOf, reasonLabel, type Case, type Kind } from "./checks";
 
 const MAX_GOAL = 200;
@@ -27,7 +28,8 @@ const FLAGS_FILE = path.join(BOTS_DIR, "validator", "workspace", "flags.json");
 const OUTPUT_TYPES = ["lead", "update_lead", "task", "update_task", "package", "publish_package", "provider"];
 
 // Each rule keeps a stable id (r1, r2, ...) so a reworded rule is still the same rule to the Validator's checks.
-export type Rule = { id: string; text: string };
+/** One rule: the owner's (r1, r2, ...; unmarked) or The CEO's own (c1, c2, ..., by "ceo", since engine a5d7a66). */
+export type Rule = { id: string; text: string; by?: "ceo" };
 export type OwnerPlan = { goal: string; rules: Rule[] };
 // Time on a job is WORKING time: the gaps between the bot's own actions, each capped at IDLE_CAP_MIN, so a night with
 // the Mac off or the bots paused for a game does not count. Estimates are the bot's own, written with the plan
@@ -77,6 +79,8 @@ export type WorkCard = {
   capabilities: Capabilities; // what it can and cannot do, from its config (the back of its card)
   score: Score;
   stopped: boolean; // the owner's STOP file is there: the page folds these away
+  stoppedSince: string | null; // the STOP file's date (YYYY-MM-DD)
+  lastPlan: EndedPlan | null; // the newest ended plan (plan-history.jsonl), shown greyed when no plan is in hand (queue 56)
 };
 
 type PlanDoc = { version: 1; updatedAt: string | null; bots: Record<string, OwnerPlan> };
@@ -86,6 +90,7 @@ const line = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s
 function cleanOwner(raw: unknown, previous?: OwnerPlan): OwnerPlan {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const used = new Set<string>();
+  const was = new Map((previous?.rules ?? []).map((x) => [x.id, x]));
   let next = Math.max(0, ...[...(previous?.rules ?? []), ...(Array.isArray(r.rules) ? r.rules : [])].map((x) => {
     const m = /^r(\d{1,4})$/.exec(String((x as Rule)?.id ?? ""));
     return m ? Number(m[1]) : 0;
@@ -95,10 +100,14 @@ function cleanOwner(raw: unknown, previous?: OwnerPlan): OwnerPlan {
     // Accept {id, text} or a bare string (a hand-edited file); a missing or repeated id gets the next free one.
     const text = line(typeof x === "string" ? x : (x as Rule)?.text, MAX_RULE);
     if (!text) continue;
-    let id = typeof x === "object" && x && /^r\d{1,4}$/.test(String((x as Rule).id)) ? String((x as Rule).id) : "";
+    let id = typeof x === "object" && x && /^[rc]\d{1,4}$/.test(String((x as Rule).id)) ? String((x as Rule).id) : "";
     if (!id || used.has(id)) id = `r${++next}`;
     used.add(id);
-    rules.push({ id, text });
+    // A CEO rule keeps its mark while its text is The CEO's: one the owner rewords on the page becomes the owner's (queue 411).
+    const ceo = typeof x === "object" && x && String((x as Rule).by ?? "").toLowerCase() === "ceo";
+    const prior = was.get(id);
+    const keep = ceo && (!previous || (prior?.by === "ceo" && prior.text === text));
+    rules.push(keep ? { id, text, by: "ceo" } : { id, text });
     if (rules.length >= MAX_RULES) break;
   }
   return { goal: line(r.goal, MAX_GOAL), rules };
@@ -115,8 +124,34 @@ async function readOwnerPlans(): Promise<PlanDoc> {
   }
 }
 
-/** Save one bot's goal and rules; the rest of the file is kept. Atomic, with a unique temp name per save. */
-export async function writeOwnerPlan(slug: string, raw: unknown): Promise<OwnerPlan> {
+/** The engine's lock on work-plan.json ("work-plan.json.lock", mkdir, broken after 30 s): The CEO writes the file too. */
+async function withPlanLock<T>(fn: () => Promise<T>): Promise<T> {
+  const lock = `${PLAN_FILE}.lock`;
+  await mkdir(/*turbopackIgnore: true*/ path.dirname(PLAN_FILE), { recursive: true });
+  for (let i = 0; ; i++) {
+    try {
+      await mkdir(/*turbopackIgnore: true*/ lock);
+      break;
+    } catch {
+      const age = await stat(/*turbopackIgnore: true*/ lock).then((st) => Date.now() - st.mtimeMs, () => 0);
+      if (age > 30_000) await rmdir(/*turbopackIgnore: true*/ lock).catch(() => {});
+      else if (i > 100) throw new Error("the work plan is locked; try again in a moment");
+      else await new Promise((ok) => setTimeout(ok, 100));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await rmdir(/*turbopackIgnore: true*/ lock).catch(() => {});
+  }
+}
+
+/** Save one bot's goal and rules; the rest of the file is kept. Atomic, with a unique temp name per save, under the lock. */
+export function writeOwnerPlan(slug: string, raw: unknown): Promise<OwnerPlan> {
+  return withPlanLock(() => writeOwnerPlanLocked(slug, raw));
+}
+
+async function writeOwnerPlanLocked(slug: string, raw: unknown): Promise<OwnerPlan> {
   const doc = await readOwnerPlans();
   const plan = cleanOwner(raw, doc.bots[slug]);
   doc.bots[slug] = plan;
@@ -230,6 +265,16 @@ async function readBotPlan(bot: BotProfile): Promise<BotPlan | null> {
   }
 }
 
+/** The newest ended plan: plan-history.jsonl's newest line, else plan.json when it ended and the history has none. */
+async function lastPlanOf(bot: BotProfile, plan: BotPlan | null): Promise<EndedPlan | null> {
+  const text = await readFile(/*turbopackIgnore: true*/ path.join(await workspaceDir(bot), "plan-history.jsonl"), "utf8").catch(() => "");
+  const last = lastEnded(text);
+  if (plan && plan.status !== "active" && (!last || (plan.updated ?? "") > (last.ended ?? ""))) {
+    return { task: plan.task, status: plan.status, ended: plan.updated, note: plan.note, steps: plan.steps.map((st) => ({ text: st.text, done: st.done })) };
+  }
+  return last;
+}
+
 /** Open Validator findings per bot slug, split by severity. */
 async function openFlags(): Promise<Record<string, Flags>> {
   const out: Record<string, Flags> = {};
@@ -292,11 +337,15 @@ async function scoreOf(bot: BotProfile, tokens: number | undefined): Promise<Sco
 export async function workCards(bots: BotProfile[]): Promise<{ cards: WorkCard[]; updatedAt: string | null }> {
   const [doc, tokens, flags, target] = await Promise.all([readOwnerPlans(), tokensToday(), openFlags(), readTarget()]);
   const cards = await Promise.all(
-    bots.map(async (bot) => ({
+    bots.map(async (bot) => {
+      const plan = await readBotPlan(bot);
+      const stop = await workspaceDir(bot).then((ws) => stat(/*turbopackIgnore: true*/ path.join(ws, "STOP")).catch(() => null));
+      return {
       slug: bot.slug,
       name: bot.name,
       handle: bot.handle,
-      plan: await readBotPlan(bot),
+      plan,
+      lastPlan: await lastPlanOf(bot, plan),
       owner: doc.bots[bot.slug] ?? { goal: "", rules: [] },
       // The goal its persona already states (the first sentence of its "## ...goal" section), shown as a hint.
       personaGoal: await readPersona(bot)
@@ -305,9 +354,11 @@ export async function workCards(bots: BotProfile[]): Promise<{ cards: WorkCard[]
       selfGoal: await selfGoalOf(bot),
       flags: flags[bot.slug] ?? { errors: 0, warns: 0 },
       capabilities: await capabilitiesOf(bot).catch(() => ({ state: "Unknown", can: [], cannot: [] })),
-      score: await scoreOf(bot, tokens[bot.name]),
-      stopped: await workspaceDir(bot).then((ws) => stat(/*turbopackIgnore: true*/ path.join(ws, "STOP")).then(() => true, () => false)),
-    })),
+      score: await scoreOf(bot, byName(tokens, bot)),
+      stopped: stop !== null,
+      stoppedSince: stop ? localIso(stop.mtimeMs).slice(0, 10) : null,
+      };
+    }),
   );
   return { cards, updatedAt: doc.updatedAt };
 }
@@ -354,8 +405,9 @@ export type PastJob = {
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
 
 /** Finished jobs from every agent's workspace/plan-history.jsonl (the engine appends one line when a plan ends; the
- * file is append-only and survives fresh starts), newest first. */
-export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob[]> {
+ * file is append-only and survives fresh starts), newest first. All of them (queue 80: a cap of 200 hid every job
+ * older than the 200th, 103 of 303 on 2026-11-02, while "More" claimed to reach them). */
+export async function pastJobs(bots: BotProfile[], limit = 5000): Promise<PastJob[]> {
   const all: PastJob[] = [];
   for (const bot of bots) {
     let text = "";
@@ -399,7 +451,7 @@ export async function pastJobs(bots: BotProfile[], limit = 200): Promise<PastJob
   return all.sort((a, b) => ((a.ended ?? "") < (b.ended ?? "") ? 1 : -1)).slice(0, limit);
 }
 
-// The rate is refused / (allowed + refused). Counted apart and never against the 20 % target:
+// The rate is refused / (allowed + refused). Counted apart and never against the 20 % target (creatorCC queue 377):
 // the fence (the safety rules working: a personal mailbox, an email not on the business's own site, an invented value,
 // a site that asks bots not to read it), "held" (waiting for someone), "failed" (ran and did not work, e.g. a row already
 // drafted) and "closed" (a site closed for the day). lib/checks.ts kindOf decides.

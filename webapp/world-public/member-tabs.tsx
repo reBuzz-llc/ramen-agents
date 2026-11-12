@@ -1,8 +1,14 @@
 "use client";
-// The member panel's tabs for the public bundle: Feed from /state; no Screen (the world never offers it when READ_ONLY).
+// The member panel's tabs for the public bundle: Feed from /state, the WEB terminal as on the dashboard; no Chat and no
+// Screen (the world never offers them when READ_ONLY).
 import type { BotCard } from "@/lib/board";
+import { WebTab as DashboardWebTab } from "@/app/member-tabs";
 import { useWorldState } from "./state";
 
+export const WebTab = DashboardWebTab;
+export function ChatTab(_p: { slug: string; name: string }) {
+  return null;
+}
 export function ScreenTab(_p: { slug: string; tick: string; last: BotCard["last"] }) {
   return null;
 }

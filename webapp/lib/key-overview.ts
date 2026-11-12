@@ -9,16 +9,17 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { BotProfile } from "./bot";
-import { BOTS_DIR, readConfig } from "./bots";
+import { BOTS_DIR, byName, readConfig } from "./bots";
 import { agentPids, flags } from "./control";
 import { KEYS_DIR, providerCatalog, type ProviderInfo } from "./keys";
 import { serviceStatuses } from "./services";
+import { healthLine, type Health, type KeyTest } from "./key-health";
 
 const SHARED = path.join(BOTS_DIR, "common-data", "shared-state");
 const WATCH = path.join(BOTS_DIR, "common-data", "provider-watch-report.md");
 const PAUSE_MIN = 15;
 
-export type KeyKind = "AI model" | "Email check" | "Search" | "Storage" | "Workspace";
+export type KeyKind = "AI model" | "Email check" | "Search" | "Storage" | "Workspace" | "Writing" | "Portal API" | "Training";
 export type KeyRow = {
   name: string;
   file: string | null; // the key file on disk, or null when the provider is known but has no key
@@ -73,8 +74,16 @@ const FREE: Record<string, string> = {
   tavily: "1,000 credits a month (fleet cap 30/day)",
   notion: "free plan (single-member workspace)",
   "cloudflare-r2": "10 GB storage free (needs R2 switched on)",
+  // The Scout's finds the owner saved keys for on 2026-11-04 (providers-found.md); terms as the Scout recorded them.
+  "dahl-inference": "free models (GLM-5.3 Flash, MiniMax M2.7, DeepSeek V4 Flash); limits not checked yet",
+  textperfector: "10 corrections a day",
 };
 const PAID = new Set(["deepseek", "openai", "moonshot", "replicate", "together", "cerebras"]);
+// Keys saved before any bot is wired to them: what they wait for.
+const NEW_KEY: Record<string, string> = {
+  "dahl-inference": "Saved 11-04 from the Scout's find; in no chain until the dev agent adds it",
+  textperfector: "Saved 11-04 from the Scout's find (grammar and rewriting, 15 languages); no bot calls it yet",
+};
 const SERVICE_KIND: Record<string, KeyKind> = {
   quickemailverification: "Email check",
   sniffmail: "Email check",
@@ -83,6 +92,8 @@ const SERVICE_KIND: Record<string, KeyKind> = {
   "cloudflare-r2": "Storage",
   notion: "Workspace",
   orcarouter: "AI model",
+  textperfector: "Writing",
+  kaggle: "Training",
 };
 
 const localDay = () => {
@@ -140,10 +151,11 @@ const g = globalThis as { __keyOverview?: { at: number; data: KeyOverview } };
 export async function keyOverview(bots: BotProfile[], fresh = false): Promise<KeyOverview> {
   if (!fresh && g.__keyOverview && Date.now() - g.__keyOverview.at < 60_000) return g.__keyOverview.data;
   const day = localDay();
-  const [files, catalogs, calls, verify, tavily, events, services] = await Promise.all([
+  const [files, catalogs, calls, keyTests, verify, tavily, events, services] = await Promise.all([
     readdir(/*turbopackIgnore: true*/ KEYS_DIR).catch(() => [] as string[]),
     Promise.all(bots.map(async (b) => ({ bot: b, cat: await providerCatalog(b).catch(() => null) }))),
-    json<{ day?: string; counts?: Record<string, number>; usage?: Record<string, Record<string, number[]>> }>(path.join(SHARED, "model_calls.json"), {}),
+    json<{ day?: string; counts?: Record<string, number>; usage?: Record<string, Record<string, number[]>>; health?: Record<string, Health> }>(path.join(SHARED, "model_calls.json"), {}),
+    json<Record<string, KeyTest>>(path.join(SHARED, "key-tests.json"), {}),
     json<Record<string, { at?: string; credits?: string; by?: string }>>(path.join(SHARED, "email-verify.json"), {}),
     json<Record<string, number>>(path.join(SHARED, "tavily-usage.json"), {}),
     limitEvents(bots),
@@ -187,6 +199,9 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
     const ev = events.get(host);
     const pausedNow = ev ? now - new Date(ev.last).getTime() < ev.pauseMin * 60000 : false;
     const hasKey = keyNames.has(name) || m.info.hasKey;
+    // the shared ledger's health (owner, 2026-11-12: Gemini showed Ready while every call since 17:51 failed with a 429):
+    // a run of failures since the last answer is "not working", an allowance the engine marked spent is "limited"
+    const down = healthLine(calls.health?.[host], day, keyTests[name]);
     // Group the running bots by position: "1st for Lead Gen, Scout" (one shared chain makes these the same).
     const live = m.chains.filter((c) => running.has(c.bot));
     const byPos = new Map<number, string[]>();
@@ -206,8 +221,10 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       limitHits24h: ev?.n ?? 0,
       lastLimit: ev?.last ?? null,
       pauseMin: ev?.pauseMin ?? PAUSE_MIN,
-      available: !hasKey ? "no key" : pausedNow ? "paused" : (ev?.n ?? 0) > 0 ? "limited" : live.length ? "ready" : "unused",
-      note: !hasKey
+      available: !hasKey ? "no key" : down && down.state !== "ready" ? down.state : (pausedNow ? "paused" : (ev?.n ?? 0) > 0 ? "limited" : live.length ? "ready" : "unused"),
+      note: down && hasKey
+        ? down.note
+        : !hasKey
         ? "Known to the bots, but no key on this Mac"
         : PAID.has(name)
           ? "Paid per call: in no chain (no spending)"
@@ -247,7 +264,8 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       today = callsToday ? `${callsToday} checks today (third in line)` : "third in line: used when the first two do not answer";
     } else if (name === "notion") today = "the bots' board writes";
     else today = "not used yet";
-    const kind = SERVICE_KIND[name] ?? "AI model";
+    // The team portal's own API keys (portal-engine, portal-validator, ...) are not models.
+    const kind = SERVICE_KIND[name] ?? (name.startsWith("portal-") ? "Portal API" : "AI model");
     rows.push({
       name,
       file: files.find((f) => f.replace(/\.(key|json)$/, "") === name) ?? null,
@@ -265,7 +283,7 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       pauseMin: PAUSE_MIN,
       // (1) "Ready" only when a check actually ran; a key nobody may call for free is "on file".
       available: s ? (s.ok === null ? "on file" : s.ok ? (s.verified === false ? "on file" : "ready") : "not working") : "on file",
-      note: s?.detail ?? "",
+      note: s?.detail ?? NEW_KEY[name] ?? "",
     });
   }
 
@@ -368,7 +386,7 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       const own = Number(cfg?.get("model.daily_token_budget") ?? 0);
       const f = await flags(bot).catch(() => [] as string[]);
       const running = !f.includes("STOP") && !f.includes("PAUSE") && (await agentPids(bot.configPath, path.join(path.dirname(bot.configPath), "workspace", "explorer.pid")).catch(() => [])).length > 0;
-      return { bot, scope, weight, pool, own, running, used: Number(byBot[bot.name] ?? 0) };
+      return { bot, scope, weight, pool, own, running, used: Number(byName(byBot, bot) ?? 0) };
     }),
   );
   const pooled = cfgs.filter((c) => c.scope === "active");

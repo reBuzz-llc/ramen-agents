@@ -4,5 +4,8 @@ export async function register() {
     // Watch the bots for things worth a notification (lib/alerts.ts).
     const { startAlertWatcher } = await import("./lib/alerts");
     startAlertWatcher();
+    // Keep a daily usage history for Settings > Key providers > Reports (lib/usage-history.ts).
+    const { startUsageRecorder } = await import("./lib/usage-history");
+    startUsageRecorder();
   }
 }

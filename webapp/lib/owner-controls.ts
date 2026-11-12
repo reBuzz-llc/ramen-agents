@@ -1,4 +1,4 @@
-// The owner's hand on each bot, from the world's text box (2026-10-31): pause for a while, stop
+// The owner's hand on each bot, from the world's text box (creatorCC queue 23, 2026-10-31): pause for a while, stop
 // (send it home), start again. Every action is asked first in the box and logged to
 // common-data/shared-state/owner-controls.jsonl {who, bot, action, reason, ts, result}.
 //   pause:  workspace/PAUSE holds the local time it ends, bare ("2026-10-31T09:30"): the engine (889a604) pauses until
@@ -85,15 +85,15 @@ const TEMPLATE_BOTS = ["lead-gen", "research-analyst", "package-designer", "lead
 async function recreateAgents(ctx: Ctx): Promise<string> {
   const dir = ctx.agents ?? path.join(process.env.HOME ?? "", "Library", "LaunchAgents");
   const have = new Set(await readdir(/*turbopackIgnore: true*/ dir).catch(() => [] as string[]));
-  const src = TEMPLATE_BOTS.find((b) => b !== ctx.slug && have.has(`com.ramen-agents.bot.${b}.plist`) && have.has(`com.ramen-agents.data.${b}.plist`));
+  const src = TEMPLATE_BOTS.find((b) => b !== ctx.slug && have.has(`com.rebuzz.bot.${b}.plist`) && have.has(`com.rebuzz.data.${b}.plist`));
   if (!src) throw new Error("no other bot's launch agents to copy from");
   const made: string[] = [];
   for (const kind of ["bot", "data"]) {
-    const target = path.join(dir, `com.ramen-agents.${kind}.${ctx.slug}.plist`);
+    const target = path.join(dir, `com.rebuzz.${kind}.${ctx.slug}.plist`);
     if (have.has(path.basename(target))) continue;
-    const text = (await readFile(path.join(dir, `com.ramen-agents.${kind}.${src}.plist`), "utf8"))
-      .split(`com.ramen-agents.bot.${src}`).join(`com.ramen-agents.bot.${ctx.slug}`)
-      .split(`com.ramen-agents.data.${src}`).join(`com.ramen-agents.data.${ctx.slug}`)
+    const text = (await readFile(path.join(dir, `com.rebuzz.${kind}.${src}.plist`), "utf8"))
+      .split(`com.rebuzz.bot.${src}`).join(`com.rebuzz.bot.${ctx.slug}`)
+      .split(`com.rebuzz.data.${src}`).join(`com.rebuzz.data.${ctx.slug}`)
       .split(`/bots/${src}/`).join(`/bots/${ctx.slug}/`);
     if (text.includes(`/bots/${src}/`) || !text.includes(`/bots/${ctx.slug}/`)) throw new Error(`the copy of ${src}'s ${kind} plist still names ${src}`);
     await writeFile(target, text);
@@ -102,8 +102,9 @@ async function recreateAgents(ctx: Ctx): Promise<string> {
   return made.length ? `recreated ${made.join(", ")} from ${src}'s` : "launch agents already there";
 }
 
-/** The STOP file's first line for the owner's Stop: "Owner: <reason>", or "Owner: stopped from the dashboard HH:MM"
- *  without one, so a STOP is never an empty file that reads as a stray. owner-controls.jsonl records the same text. */
+/** The STOP file's first line for the owner's Stop (creatorCC queue 238, 2026-11-06: an empty reason left a 0-byte
+ *  STOP that read as a stray file, and the bot was restarted twice): "Owner: <reason>", or "Owner: stopped from the
+ *  dashboard HH:MM" without one. owner-controls.jsonl records the same text. */
 export function ownerStopLine(reason: string, now: number): string {
   return `Owner: ${reason || `stopped from the dashboard ${localIso(now).slice(11, 16)}`}`;
 }
@@ -119,7 +120,7 @@ async function start(ctx: Ctx): Promise<Result> {
     return { ok: false, text: `did not start: ${why}. STOP put back.${more ? ` ${more}` : ""}` };
   };
   if (!e.ok) return fail("enable-bot.sh failed", e.text);
-  if (/no plists found/.test(e.text)) return fail(`it has no launch agents (no com.ramen-agents.bot.${ctx.slug} plist)`);
+  if (/no plists found/.test(e.text)) return fail(`it has no launch agents (no com.rebuzz.bot.${ctx.slug} plist)`);
   // restart-bot.sh waits up to 120 s for a loop to exit, then 15 s more: give it the time
   const r = await script(ctx.scripts, "restart-bot.sh", ctx.slug, 160_000);
   if (!r.ok) return fail("restart-bot.sh failed", r.text);
@@ -128,7 +129,7 @@ async function start(ctx: Ctx): Promise<Result> {
 }
 
 /** Do one action and log it; the result line is what happened (the scripts' output for stop and start). */
-export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFor; reason?: string } = {}): Promise<Result & { until?: string }> {
+export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFor; reason?: string; via?: string } = {}): Promise<Result & { until?: string }> {
   const now = ctx.now ?? Date.now();
   let reason = (opts.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
   let res: Result & { until?: string };
@@ -165,6 +166,6 @@ export async function control(ctx: Ctx, action: Action, opts: { choice?: PauseFo
     }
   }
   await mkdir(path.dirname(ctx.log), { recursive: true });
-  await appendFile(ctx.log, JSON.stringify({ who: ctx.who, bot: ctx.slug, action, ...(opts.choice && action === "pause" ? { for: opts.choice } : {}), reason, ts: localIso(now), ok: res.ok, result: res.text.slice(0, 500) }) + "\n");
+  await appendFile(ctx.log, JSON.stringify({ who: ctx.who, bot: ctx.slug, action, ...(opts.choice && action === "pause" ? { for: opts.choice } : {}), reason, ...(opts.via ? { via: opts.via.slice(0, 200) } : {}), ts: localIso(now), ok: res.ok, result: res.text.slice(0, 500) }) + "\n");
   return res;
 }

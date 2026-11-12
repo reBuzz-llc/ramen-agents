@@ -1,5 +1,5 @@
 /** The family's name on screen and the way home: "ramen-agents" with the accent on the hyphen, near-black text, top
- *  left of every page (2026-10-30). A plain <a>, not a client-side Link: going home is a full load,
+ *  left of every page (creatorCC queue 19, 2026-10-30). A plain <a>, not a client-side Link: going home is a full load,
  *  so it works from any page and from a tab still holding an older build. */
 export default function Wordmark({ className = "" }: { className?: string }) {
   return (

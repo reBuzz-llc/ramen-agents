@@ -1,5 +1,5 @@
 // "Just enough markdown" for the Validator's reports (headings, one or more tables, bullet lists, paragraphs), as the
-// Family review drew them; now the Reports page under Settings. Pure, so the test reads fixtures.
+// Family review drew them; now the Reports page under Settings (creatorCC queue 18). Pure, so the test reads fixtures.
 
 export type Block =
   | { kind: "h1" | "h2" | "p" | "li"; text: string }

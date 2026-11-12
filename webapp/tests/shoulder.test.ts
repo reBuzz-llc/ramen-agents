@@ -1,4 +1,4 @@
-// Run: npm test. Over the shoulder (2026-10-31): the screenshot only while fresh, the page from the
+// Run: npm test. Over the shoulder (creatorCC queue 22, 2026-10-31): the screenshot only while fresh, the page from the
 // newest trace, the last 20 actions with their verdicts, on fixtures.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,15 +14,15 @@ const PROMPT = [
   "Episode 12",
   "",
   "## Current page",
-  "URL: https://www.chamber.example/meet-our-members",
+  "URL: https://www.sbidc.org/meet-our-members",
   "Title: Meet Our Members",
   "Already noted: no.",
   "Text:",
-  "100 Main Street, Springfield",
+  "4223 1st Avenue, Brooklyn",
   "",
   "",
   "",
-  "Phone: 555-010-0100",
+  "Phone: 718-965-3100",
   "",
   "## Your move",
   "Reply with JSON.",
@@ -30,10 +30,10 @@ const PROMPT = [
 
 test("trace page: URL, domain, title and the text the bot read; none without a page", () => {
   assert.deepEqual(tracePage(PROMPT), {
-    url: "https://www.chamber.example/meet-our-members",
-    domain: "chamber.example",
+    url: "https://www.sbidc.org/meet-our-members",
+    domain: "sbidc.org",
     title: "Meet Our Members",
-    text: "100 Main Street, Springfield\n\nPhone: 555-010-0100",
+    text: "4223 1st Avenue, Brooklyn\n\nPhone: 718-965-3100",
   });
   assert.equal(tracePage("## Your state\n## Current page\nURL: (none)\n## Your move"), null);
   assert.equal(tracePage("no page at all"), null);
@@ -78,7 +78,7 @@ test("screenshot: shown when under 10 minutes old, not when older or missing; pa
   });
   const s = await shoulder(ws, db, now);
   assert.equal(s.shot, null);
-  assert.equal(s.page?.domain, "chamber.example");
+  assert.equal(s.page?.domain, "sbidc.org");
   assert.equal(s.feed.length, 20);
   assert.equal(s.feed[0].words, "opened s24.com");
   assert.equal(s.feed.find((f: { verdict: string }) => f.verdict === "refused")?.reason, "blocked for today");

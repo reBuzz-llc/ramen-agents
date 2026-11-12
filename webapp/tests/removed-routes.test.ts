@@ -1,4 +1,4 @@
-// Run: npm test. The pages removed on 2026-10-30 redirect home; the pages that stay do not.
+// Run: npm test. The pages removed on 2026-10-30 redirect home (creatorCC queue 18); the pages that stay do not.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

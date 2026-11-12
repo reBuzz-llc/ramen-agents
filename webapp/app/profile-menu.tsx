@@ -6,7 +6,6 @@ import { useVisibleInterval } from "./hooks";
 import type { Identity } from "@/lib/identity";
 import { ThemeSegmented } from "./theme-picker";
 import { Icon } from "./ui";
-import WorkPlanShortcut from "./work-plan-shortcut";
 
 /** The profile button at the trailing end of the toolbar: who you are, appearance, and Settings. */
 export default function ProfileMenu({ identity }: { identity: Identity }) {
@@ -43,7 +42,6 @@ export default function ProfileMenu({ identity }: { identity: Identity }) {
   return (
     // The Work plan shortcut sits beside the profile button in every toolbar that has one.
     <div className="flex shrink-0 items-center gap-2">
-      <WorkPlanShortcut />
       <div ref={root} className="relative shrink-0">
       <button
         type="button"
@@ -90,29 +88,6 @@ export default function ProfileMenu({ identity }: { identity: Identity }) {
             <ThemeSegmented />
           </div>
           <div className="border-t border-line pt-1.5">
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full load, as the wordmark: always gets home */}
-            <a
-              href="/"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-[0.875rem] px-2.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-fill-3"
-            >
-              <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-sys-blue text-white">
-                <Icon name="grid" className="h-4 w-4" />
-              </span>
-              <span className="flex-1">Home</span>
-              <Icon name="chevron-right" className="h-3.5 w-3.5 text-muted" />
-            </a>
-            <Link
-              href="/work-plan"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-[0.875rem] px-2.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-fill-3"
-            >
-              <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-sys-green text-white">
-                <Icon name="check" className="h-4 w-4" />
-              </span>
-              <span className="flex-1">Work plan</span>
-              <Icon name="chevron-right" className="h-3.5 w-3.5 text-muted" />
-            </Link>
             <Link
               href="/settings"
               onClick={() => setOpen(false)}

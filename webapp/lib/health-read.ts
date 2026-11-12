@@ -1,7 +1,7 @@
 // Reads the files behind the health banner (lib/health.ts holds the checks) for the dashboard: the Validator's
 // state.json, `last reboot shutdown`, and each running bot's accepted actions and explorer.jsonl. Read-only, cached a
 // minute, like the family review.
-import { readFile, stat } from "node:fs/promises";
+import { open, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR, listBots } from "./bots";
 import { workspaceDir } from "./control";
@@ -16,6 +16,24 @@ const g = globalThis as { __health?: { at: number; issues: Issue[] } };
 const VALIDATOR_STATE = path.join(BOTS_DIR, "validator", "workspace", "state.json");
 const VALIDATOR_HEALTH = path.join(BOTS_DIR, "common-data", "shared-state", "validator-health.json");
 const MODEL_CALLS = path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json");
+const REPORTS = ["/Library/Logs/DiagnosticReports", "/Library/Logs/DiagnosticReports/Retired"];
+
+/** macOS's newest kernel panic reports, and whether each was in the GPU memory driver (queue 54). */
+async function panicReports(): Promise<{ name: string; gpu: boolean }[]> {
+  const out: { name: string; gpu: boolean }[] = [];
+  for (const dir of REPORTS) {
+    const names = (await readdir(/*turbopackIgnore: true*/ dir).catch(() => [] as string[])).filter((n) => n.startsWith("panic-full-"));
+    for (const name of names.sort().slice(-10)) {
+      const fh = await open(/*turbopackIgnore: true*/ path.join(dir, name), "r").catch(() => null);
+      if (!fh) continue;
+      const buf = Buffer.alloc(8192);
+      const { bytesRead } = await fh.read(buf, 0, buf.length, 0).catch(() => ({ bytesRead: 0 }));
+      await fh.close();
+      out.push({ name, gpu: /IOGPU/.test(buf.subarray(0, bytesRead).toString("utf8")) });
+    }
+  }
+  return out;
+}
 
 async function running() {
   const bots = await listBots();
@@ -33,12 +51,13 @@ export async function health(): Promise<Issue[]> {
   if (g.__health && Date.now() - g.__health.at < CACHE_MS) return g.__health.issues;
   const now = Date.now();
   const from7 = now - 7 * 86400e3;
-  const [bots, stateText, healthText, lastText, callsText] = await Promise.all([
+  const [bots, stateText, healthText, lastText, callsText, panics] = await Promise.all([
     running(),
     readFile(VALIDATOR_STATE, "utf8").catch(() => "{}"),
     readFile(VALIDATOR_HEALTH, "utf8").catch(() => null),
     lastOutput(),
     readFile(MODEL_CALLS, "utf8").catch(() => "{}"),
+    panicReports(),
   ]);
   const before = lastActionBefore(bots.map((b) => b.db).filter((d): d is string => !!d));
   const off = await offSpans(parseLast(lastText, now), from7, now, before);
@@ -54,7 +73,7 @@ export async function health(): Promise<Issue[]> {
       return idleIssue(b.bot.name, last, restIntervals(texts.join("\n"), now), offIv, now);
     }),
   );
-  const issues = [...validatorHealthIssues(healthText, stateText, now), rebootIssue(off24), providerIssue(callsText, now), ...idle].filter((x): x is Issue => x !== null);
+  const issues = [...validatorHealthIssues(healthText, stateText, now), rebootIssue(off24, panics), providerIssue(callsText, now), ...idle].filter((x): x is Issue => x !== null);
   g.__health = { at: now, issues };
   return issues;
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { BotCard, Tone } from "@/lib/board";
 import type { Board } from "@/lib/board-read";
 import { useEffect, useState } from "react";
+import { AIR_MAX, airLabel, flyerOf, inTheAir, unreadReplies } from "@/lib/world";
+import { useChatSeen } from "./chat-seen";
 import { usePoll } from "./hooks";
 import KeyResults from "./key-results";
 import Portrait from "./portrait";
@@ -25,9 +27,10 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 /** The live family: the office world (owner, 10-30) or, as "List", one card per running bot with the stopped ones in a
  *  grey row; then the team line. No list of latest outputs (owner, 10-30): the world's speech bubbles carry them.
  *  Polls /api/board every 12 s while the tab is visible; the choice of view is remembered in this browser. */
-export default function FamilyBoard({ initial }: { initial: Board | null }) {
+export default function FamilyBoard({ initial, below }: { initial: Board | null; below?: React.ReactNode }) {
   const poll = usePoll<Board>("board", 12000);
   const data = poll.data ?? initial;
+  const seen = useChatSeen();
   const [view, setView] = useState<View>("world");
   useEffect(() => {
     const t = setTimeout(() => {
@@ -40,7 +43,7 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
     }, 0);
     return () => clearTimeout(t);
   }, []);
-  // "#allowance": the List view at the Allowance (a link from anywhere)
+  // "#allowance" (the world's ticker while a provider is out of allowance, queue 230): the List view at the Allowance
   useEffect(() => {
     const go = () => {
       if (window.location.hash !== "#allowance") return;
@@ -60,14 +63,12 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
     }
   };
   if (!data) return <p className="mt-6 text-sm text-muted">{poll.error ?? "Reading the family…"}</p>;
+  const unread = unreadReplies(data.replies, seen);
   const hour = new Date(data.at).getHours();
   return (
     <>
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">
-          Live · read at {new Date(data.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-          {poll.error ? <span className="text-bad"> · last refresh failed: {poll.error}</span> : null}
-        </p>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-xs text-bad">{poll.error ? `Last refresh failed: ${poll.error}` : null}</p>
         <div role="group" aria-label="View" className="flex shrink-0 rounded-full bg-fill-3 p-0.5 text-xs font-semibold">
           {(["world", "list"] as const).map((v) => (
             <button
@@ -83,13 +84,28 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
           ))}
         </div>
       </div>
-      {view === "world" ? <World data={data} /> : null}
+      {data.portalLocal ? (
+        <p role="status" className="mt-2 rounded-xl bg-sys-orange/15 px-4 py-2.5 text-sm text-ink">
+          <span className="font-semibold">Portal (local mode):</span>{" "}
+          {data.portalLocal.url ? (
+            <a href={data.portalLocal.url} target="_blank" rel="noreferrer" className="break-all underline">
+              {data.portalLocal.url}
+            </a>
+          ) : (
+            "the tunnel is not up yet"
+          )}{" "}
+          <span className="text-muted">· running on this Mac while Neon is out; the address changes when the tunnel restarts.</span>
+        </p>
+      ) : null}
+      {view === "world" ? <World data={data} below={below} /> : null}
       <div hidden={view !== "list"} className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {data.cards.map((c) => (
-          <Card key={c.slug} c={c} hour={hour} />
+          <Card key={c.slug} c={c} hour={hour} replied={unread.includes(c.slug)} />
         ))}
       </div>
+      {view === "list" ? <InTheAir messages={data.messages ?? []} at={data.at} cards={data.cards} /> : null}
       {view === "list" ? <AllowanceView /> : null}
+      {view === "list" ? below : null}
       {view === "list" && data.stopped.length ? (
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-fill-3/50 px-3 py-2 text-xs text-muted">
           {data.stopped.map((s) => (
@@ -135,15 +151,16 @@ export default function FamilyBoard({ initial }: { initial: Board | null }) {
   );
 }
 
-function Card({ c, hour }: { c: BotCard; hour: number }) {
+function Card({ c, hour, replied }: { c: BotCard; hour: number; replied: boolean }) {
   const tone = TONE[c.state.tone];
   return (
     <article className="flex min-w-0 flex-col rounded-xl bg-panel px-4 py-3">
       <header className="flex items-center gap-2">
-        <Portrait slug={c.slug} size={26} grey={c.state.word === "stalled" || c.state.word.startsWith("no heartbeat")} />
+        <Portrait slug={c.slug} size={52} grey={c.state.word === "stalled" || c.state.word.startsWith("no heartbeat")} />
         <Link href={`/work-plan#${c.slug}`} className="min-w-0 flex-1 truncate font-semibold text-ink hover:underline">
           {c.name} <span className="font-mono text-xs font-normal text-muted">{c.handle}</span>
         </Link>
+        {replied ? <span className="h-2 w-2 shrink-0 rounded-full bg-[#ff6600]" title={`${c.name} answered you: open its Chat tab in the World view`} aria-label="new reply" /> : null}
       </header>
       <p className={`mt-0.5 flex items-center gap-1.5 text-sm font-semibold ${tone.text}`}>
         <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
@@ -194,5 +211,31 @@ function Spark({ hours, hour }: { hours: number[]; hour: number }) {
         );
       })}
     </svg>
+  );
+}
+
+/** The List view's "In the air" (queue 46): the same planes the world flies, oldest first; the oldest of three lands next. */
+function InTheAir({ messages, at, cards }: { messages: Board["messages"]; at: string; cards: BotCard[] }) {
+  const handleOf = (name: string) => cards.find((c) => c.name === name)?.handle || name.split(/[\s-]/)[0];
+  const up = inTheAir(messages, Date.parse(at)); // the board's own read time, so server and browser render the same
+  return (
+    <section className="mt-3 rounded-lg bg-fill-3/50 px-3 py-2 text-xs" aria-label="In the air">
+      <h3 className="text-xs font-semibold text-ink">In the air</h3>
+      {up.length ? (
+        <ol className="mt-1 space-y-0.5">
+          {up.map((m, i) => (
+            <li key={m.id} title={m.text60} data-air-line>
+              <span className="text-muted">{flyerOf(m) === "bee" ? "bee" : "butterfly"} · </span>
+              <span className="font-mono text-ink">{airLabel(m, handleOf)}</span>
+              <span className="text-muted"> · {m.ts.slice(11, 16)}</span>
+              <span className="text-muted"> · {m.text60}</span>
+              {i === 0 && up.length >= AIR_MAX ? <span className="ml-1 font-semibold" style={{ color: BRAND }}>lands next</span> : null}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-1 text-muted">No messages in the last 24 hours.</p>
+      )}
+    </section>
   );
 }

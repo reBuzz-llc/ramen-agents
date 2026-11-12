@@ -5,9 +5,9 @@ import { currentIdentity } from "@/lib/identity";
 import { control, type Action, type PauseFor } from "@/lib/owner-controls";
 import { sameOrigin } from "@/lib/same-origin";
 
-// The owner's Pause / Resume / Stop / Start from the world's text box: POST {bot, action, for?,
+// The owner's Pause / Resume / Stop / Start from the world's text box (creatorCC queue 23): POST {bot, action, for?,
 // reason?}. Same-origin only; runs the fleet scripts as the dashboard's user and answers with what they printed.
-// Engine restarts for updates stay with whoever maintains the engine; this is the owner's hand on one bot.
+// Engine restarts for updates stay with creatorCC; this is the owner's hand on one bot.
 export const maxDuration = 200;
 const ACTIONS: Action[] = ["pause", "resume", "stop", "start", "bringback"];
 const PAUSES: PauseFor[] = ["30m", "2h", "tomorrow"];

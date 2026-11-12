@@ -1,4 +1,4 @@
-// The home page's live family board (2026-10-30, owner: "first change the home page to a live board
+// The home page's live family board (creatorCC queue 16, 2026-10-30, owner: "first change the home page to a live board
 // where I can see all family working on what"). Read-only, per running bot:
 //   - its state word, from the newest heartbeat row (explorer.sqlite3), the tail of logs/explorer.jsonl (resting,
 //     day_block_rest, quiet, quiet_over, action), day-blocks.json, the owner's PAUSE file and The CEO's HOLD;
@@ -28,8 +28,9 @@ export type Hb = {
 };
 type Ev = { ts: string; at: number; kind: string; reason: string; minutes: number | null };
 type Hold = { mode: string; until: number; why: string } | null;
+type RestFile = { until: string; why: string; reason: string };
 
-const NO_HEARTBEAT_MIN = 10;
+const NO_HEARTBEAT_MIN = 10; // at least; a slow bot gets two of its cycles (see stateOf)
 const STALL_MIN = 15; // the stall threshold when the heartbeat row carries none (an engine before cb57a61)
 const KINDS = new Set(["resting", "day_block_rest", "quiet", "quiet_over", "action", "episode", "stop", "resume"]);
 
@@ -74,7 +75,7 @@ const minWords = (min: number) => (min < 90 ? `${Math.round(min)} min` : `${Math
 
 /** The bot's state word. Order matters: the owner's pause and The CEO's hold first, then a rest or quiet that is still
  *  on (the engine ticks the heartbeat only when a rest starts), then a missing heartbeat, then the heartbeat's own say. */
-export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks: number; paused: boolean; pauseUntil?: string; hold: Hold; restarting?: boolean }): State {
+export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks: number; paused: boolean; pauseUntil?: string; hold: Hold; restarting?: boolean; rest?: RestFile | null }): State {
   const { hb, events, now } = i;
   // restart-bot.sh keeps workspace/RESTARTING for its run (its own STOP is in place meanwhile): not the owner's stop
   if (i.restarting) return { word: "restarting", tone: "muted", why: "back in a minute" };
@@ -87,6 +88,13 @@ export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks
   }
   if (i.hold && i.hold.mode === "pause" && i.hold.until * 1000 > now)
     return { word: "blocked on The CEO's hold", tone: "warn", why: `until ${hhmm(i.hold.until * 1000)}${i.hold.why ? `: ${clip(i.hold.why, 80)}` : ""}` };
+  // A rest in progress: the engine keeps workspace/rest-until.json exactly while it runs, through a restart (engine
+  // 158c746: the log then says rest_resumed, not resting), and removes it when a message wakes the bot early.
+  const fileEnd = i.rest ? new Date(i.rest.until).getTime() : NaN;
+  if (i.rest && Number.isFinite(fileEnd) && fileEnd > now) {
+    const why = i.rest.why === "day_block_rest" ? `${i.dayBlocks || 3} things blocked today` : restWhy(i.rest.reason);
+    return { word: `resting until ${hhmm(fileEnd)}`, tone: "muted", why };
+  }
   const lastOf = (...kinds: string[]) => [...events].reverse().find((e) => kinds.includes(e.kind));
   const rest = lastOf("resting", "day_block_rest");
   const after = (e: Ev) => events.some((x) => x.at > e.at && (x.kind === "action" || x.kind === "episode" || x.kind === "resume"));
@@ -102,11 +110,18 @@ export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks
   const signs = [hb ? new Date(hb.ts).getTime() : NaN, events.length ? events[events.length - 1].at : NaN].filter(Number.isFinite);
   if (!signs.length) return { word: "no heartbeat", tone: "bad", why: "none written yet" };
   const silent = (now - Math.max(...signs)) / 60e3;
-  if (silent > NO_HEARTBEAT_MIN) return { word: `no heartbeat ${minWords(silent)}`, tone: "bad", why: `last sign ${hhmm(Math.max(...signs))}` };
+  // A bot beats once a cycle: silent for two cycles is "no heartbeat", never under 10 minutes. The engine's stall_minutes
+  // is max(15, 3 x cycle), so for a slow bot it gives the cycle (queue 38: Scout, 600 s a cycle, read "no heartbeat"
+  // between two normal beats 10.5 minutes apart).
+  const noBeat = Math.max(NO_HEARTBEAT_MIN, ((hb?.stall_minutes ?? 0) * 2) / 3);
+  if (silent > noBeat) return { word: `no heartbeat ${minWords(silent)}`, tone: "bad", why: `last sign ${hhmm(Math.max(...signs))}` };
   if (hb?.status === "quiet") return { word: "quiet", tone: "muted", why: one(hb.next_planned) };
   if (hb?.status === "paused") return { word: "paused", tone: "muted", why: "" };
-  if (hb?.status === "model_failure")
-    return { word: "blocked on the model provider", tone: "warn", why: `${hb.model_failures} failed call${hb.model_failures === 1 ? "" : "s"} in a row` };
+  // queue 49: one or two failed calls are normal noise the chain retries (14:04-14:07 on 10-31, five screens went red on
+  // one empty reply each); the red state takes three in a row, or the provider outage rule (board-read)
+  if (hb?.status === "model_failure" && hb.model_failures >= MODEL_FAILURES_RED)
+    return { word: "blocked on the model provider", tone: "warn", why: `${hb.model_failures} failed calls in a row` };
+  if (hb?.status === "model_failure") return { word: "working", tone: "good", why: retrying(hb.model_failures) };
   if (hb?.status.startsWith("idle")) return { word: "waiting for a task", tone: "muted", why: "in chat" };
   // A rest or quiet spell is not a stall: count from when the bot went back to work (its first episode, action or
   // resume after the last one), since the heartbeat keeps the progress time from before the rest until its next tick
@@ -150,7 +165,7 @@ const host = (u: unknown) => {
 };
 const q = (v: unknown, n = 60) => `'${clip(one(v), n)}'`;
 
-/** An action in words: "opened salon.example", "listed lead 'Lina'". */
+/** An action in words: "opened examplebrows.com", "listed lead 'Marlo'". */
 export function actionWords(type: string, payloadJson: string | null): string {
   let p: Record<string, unknown> = {};
   try {
@@ -270,22 +285,101 @@ export type BotCard = {
   hours: number[]; // actions per hour today, 0..23
   questions: string[]; // its open questions, most pursued first (up to 3)
   interests: string[]; // its strongest interests (up to 3)
-  model: { label: string; ts: string } | null; // the provider/model its last call used, from the log (never the configured fallback)
+  model: { label: string; ts: string } | null; // the provider/model its last call used, from its newest trace (queue 49)
   feed: FeedItem[];
-  // what the member's dialogue shows first: the row or item it is on (its newest naming write of the last hour, e.g.
-  // "Sunrise Bakery · Draft email"; "" = its page or search), its last model call's age, the last 30 minutes'
-  // allowed/all actions, and its daily goal when common-data/daily-goals.json names one
+  // queue 287: the screen's activity feed (newest first, ACTIVITY_LINES at most) and its newest refusal, in words with
+  // the reason, for a stuck member's first line
+  activity: ActivityLine[];
+  refusal: { ts: string; words: string; reason: string } | null;
+  // the newest action whatever its verdict (queue 40: the world animates what really happened) and how many refusals
+  // in a row end its log
+  act: Act | null;
+  refusedRun: number;
+  cycleSec: number | null; // seconds between its steps (queue 52: pranks between steps)
+  failing: number; // failed model calls in a row now (0 unless its heartbeat says model_failure; queue 49)
+  sent: FamilyMessage[]; // its last 5 allowed messages (queue 46); board-read merges them into Board.messages
+  // the world's screen (creatorCC queue 233, the owner's four lines): the row or item it is on (its newest write of the
+  // last hour, e.g. "Fiesta Lounge · Draft email"; "" = the screen shows its page or search), its last model call's age,
+  // the last 30 minutes' allowed/all actions, and its daily goal when common-data/daily-goals.json names one
   item: string;
   modelAgo: string;
   window: { allowed: number; total: number };
   goal: number | null;
 };
+export const MODEL_FAILURES_RED = 3;
+export const retrying = (n: number) => `${Math.max(1, n)} failed call${n > 1 ? "s" : ""}, retrying`;
+/** The provider outage rule (the health banner's: the main provider failing since first_fail): a bot with any failed
+ *  call in a row shows the red state then, whatever its count. */
+export function withOutage<C extends { state: State; failing: number }>(card: C, outage: boolean): C {
+  if (!outage || card.failing < 1 || card.state.word !== "working") return card;
+  return { ...card, state: { word: "blocked on the model provider", tone: "warn", why: `${card.failing} failed call${card.failing === 1 ? "" : "s"} in a row; the provider is out` } };
+}
 
-/** The provider and model of the bot's last call, and when: the newest decision trace,
- *  <ws>/traces/<YYYY-MM-DD>/<HHMMSS>-<cycle>-<action>.json, which records the model that answered. The log's "using"
- *  line marks only a provider switch, so it read hours old while the same provider kept answering. Null when there is
- *  no trace (then the log line below). */
-export async function lastTraceModel(ws: string): Promise<{ label: string; ts: string } | null> {
+export type Act = { id: number; ts: string; type: string; verdict: "allowed" | "refused" | "failed"; to: string; thought: string };
+
+/** The screen's activity feed (creatorCC queue 287, the owner: the screen about the work, not the guards): a member's
+ *  newest allowed actions, newest first, each in plain words with its time; "web" and "search" lines get the orange
+ *  square. Never an email address or a phone number (masked), never a draft's text. */
+export type ActivityLine = { ts: string; hhmm: string; words: string; kind: "web" | "search" | "other" };
+export const ACTIVITY_LINES = 20;
+
+const EMAILISH = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const PHONEISH = /\+?\d[\d\s().-]{7,}\d/g;
+/** Words for a screen: emails and phone numbers out. */
+export const unpersonal = (s: string) => s.replace(EMAILISH, "…").replace(PHONEISH, "…");
+
+/** "menu page" from https://cibao.example/menu (the last part of the path, its words), "home page" for the root. */
+function pageKind(url: unknown): string {
+  try {
+    const u = new URL(String(url));
+    const last = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    const words = decodeURIComponent(last).replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[-_+]+/g, " ").trim();
+    return words && !/^\d+$/.test(words) ? `${clip(words.toLowerCase(), 24)} page` : "home page";
+  } catch {
+    return "";
+  }
+}
+
+/** One action as a feed line: "opened cibao-restaurant.com · menu page", "searched 'Cibao Restaurant Bronx'",
+ *  "updated Fiesta Lounge · Phone", "messaged The CEO", "note: the brunch crowd", else actionWords. */
+export function activityLine(type: string, payloadJson: string | null, ts: string): ActivityLine {
+  let p: Record<string, unknown> = {};
+  try {
+    p = JSON.parse(payloadJson ?? "{}") ?? {};
+  } catch {
+    /* words from the type alone */
+  }
+  const hhmm = /T(\d{2}:\d{2})/.exec(ts)?.[1] ?? "";
+  let words: string;
+  let kind: ActivityLine["kind"] = "other";
+  if (type === "open" || type === "follow") {
+    kind = "web";
+    const where = host(p.url);
+    const page = pageKind(p.url);
+    words = where ? `opened ${where}${page ? ` · ${page}` : ""}` : actionWords(type, payloadJson);
+  } else if (type === "search") {
+    kind = "search";
+    words = `searched ${q(p.query)}`;
+  } else if (type === "update_lead") {
+    const subject = subjectOf(type, payloadJson);
+    words = subject ? `updated ${subject}` : actionWords(type, payloadJson);
+  } else if (type === "lead") {
+    words = `listed ${q(p.name)}`;
+  } else if (type === "message") {
+    words = `messaged ${one(p.to) || "the family"}`;
+  } else if (type === "note") {
+    words = `note: ${clip(one(p.title ?? p.text), 60)}`;
+  } else {
+    words = actionWords(type, payloadJson);
+  }
+  return { ts, hhmm, words: unpersonal(words), kind };
+}
+
+/** The provider and model of the bot's last call, and when (queue 49: the log's "using <label>" line marks only a
+ *  switch, so it read "last call 10:47" for a bot that drafted all afternoon): the newest decision trace,
+ *  <ws>/traces/<YYYY-MM-DD>/<HHMMSS>-<cycle>-<action>.json, which records the model that answered. Null when there is
+ *  none (the line is left out). */
+export async function lastModel(ws: string): Promise<{ label: string; ts: string } | null> {
   const root = path.join(ws, "traces");
   const days = (await readdir(/*turbopackIgnore: true*/ root).catch(() => [] as string[])).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
   for (const day of days.slice(0, 2)) {
@@ -301,26 +395,6 @@ export async function lastTraceModel(ws: string): Promise<{ label: string; ts: s
     }
   }
   return null;
-}
-
-/** The provider and model the bot's last call used: the newest "using <label>" line (the engine logs one on each switch),
- *  or the provider= of a repaired or model_failure event, whichever is newer. */
-function lastModel(text: string): { label: string; ts: string } | null {
-  let out: { label: string; ts: string } | null = null;
-  for (const line of text.split("\n")) {
-    if (!line.includes('"using ') && !line.includes('"provider"')) continue;
-    let e: Record<string, unknown>;
-    try {
-      e = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const ts = String(e.ts ?? "");
-    const msg = String(e.msg ?? "");
-    const label = msg.startsWith("using ") ? msg.slice(6).trim() : e.kind === "repaired" || e.kind === "model_failure" ? one(e.provider) : "";
-    if (label && ts && (!out || ts >= out.ts)) out = { label, ts };
-  }
-  return out;
 }
 
 /** Today's per-hour rows -> 24 counts, the total, refused and own-output sums. */
@@ -375,11 +449,19 @@ function cardSql(today: string, own: string, stall = true): string {
      SELECT substr(ts, 12, 2) AS h, COUNT(*) AS n, SUM(NOT (${ALLOWED})) AS r, SUM((${ALLOWED}) AND (${own})) AS o
        FROM actions WHERE ts >= ${sq(today)} GROUP BY 1)) AS hours,
   (SELECT json_object('ts', ts, 't', action_type, 'p', payload, 'r', substr(result, 1, 400)) FROM actions WHERE ${ALLOWED} ORDER BY id DESC LIMIT 1) AS last,
+  (SELECT json_object('t', action_type, 'p', payload, 'r', substr(result, 1, 400)) FROM actions WHERE ${ALLOWED} AND action_type IN ('open', 'follow') ORDER BY id DESC LIMIT 1) AS page,
+  (SELECT json_object('id', id, 'ts', ts, 't', action_type, 'p', substr(payload, 1, 300), 'v', substr(verdict, 1, 60), 'th', substr(thought, 1, 200)) FROM actions ORDER BY id DESC LIMIT 1) AS act,
+  (SELECT COUNT(*) FROM actions WHERE id > COALESCE((SELECT MAX(id) FROM actions WHERE verdict NOT LIKE 'rejected%'), 0)) AS run,
+  (SELECT json_group_array(json_object('id', id, 'ts', ts, 'p', substr(payload, 1, 400))) FROM (
+     SELECT id, ts, payload FROM actions WHERE action_type = 'message' AND ${ALLOWED} ORDER BY id DESC LIMIT 5)) AS msgs,
   (SELECT thought FROM actions WHERE thought IS NOT NULL AND thought != '' ORDER BY id DESC LIMIT 1) AS thought,
   (SELECT json_group_array(question) FROM (SELECT question FROM questions WHERE status = 'open' ORDER BY times_pursued DESC, id DESC LIMIT 3)) AS questions,
   (SELECT json_group_array(topic) FROM (SELECT topic FROM interests ORDER BY weight DESC LIMIT 3)) AS interests,
   (SELECT json_group_array(json_object('ts', ts, 't', action_type, 'p', payload)) FROM (
-     SELECT ts, action_type, payload FROM actions WHERE ${ALLOWED} AND (${own}) ORDER BY id DESC LIMIT 30)) AS feed`;
+     SELECT ts, action_type, payload FROM actions WHERE ${ALLOWED} AND (${own}) ORDER BY id DESC LIMIT 30)) AS feed,
+  (SELECT json_group_array(json_object('ts', ts, 't', action_type, 'p', payload)) FROM (
+     SELECT ts, action_type, payload FROM actions WHERE ${ALLOWED} ORDER BY id DESC LIMIT ${ACTIVITY_LINES})) AS activity,
+  (SELECT json_object('ts', ts, 't', action_type, 'p', substr(payload, 1, 600), 'v', substr(verdict, 1, 300)) FROM actions WHERE verdict LIKE 'rejected%' ORDER BY id DESC LIMIT 1) AS refusal`;
 }
 
 const json = <T>(v: unknown, dflt: T): T => {
@@ -390,8 +472,58 @@ const json = <T>(v: unknown, dflt: T): T => {
   }
 };
 
-// What a member is on, by the write that names it. The Lead Gen and anyone not listed show their page or search; the
-// Analyst its open question.
+// The family's messages (queue 46: the planes in the air): bot-to-bot, to everyone, replies to the Owner, and the
+// owner's chat lines. text60: the text on one line, cut to 60 characters; text120 the same cut to 120 (queue 51: the
+// card shown on a hovered or tapped butterfly or bee).
+export type FamilyMessage = { id: string; ts: string; from: string; to: string; text60: string; text120: string };
+
+/** A bot's message rows -> messages from it. A payload cut at 400 characters still gives its "to" and the text's start. */
+export function sentOf(bot: { slug: string; name: string }, rows: { id: number; ts: string; p: string | null }[]): FamilyMessage[] {
+  return rows.map((r) => {
+    let to = "";
+    let text = "";
+    try {
+      const o = JSON.parse(r.p ?? "{}") as { to?: unknown; text?: unknown };
+      to = String(o.to ?? "");
+      text = String(o.text ?? "");
+    } catch {
+      to = /"to":\s*"([^"]*)"/.exec(r.p ?? "")?.[1] ?? "";
+      text = /"text":\s*"((?:[^"\\]|\\.)*)/.exec(r.p ?? "")?.[1]?.replace(/\\(.)/g, "$1") ?? "";
+    }
+    return { id: `${bot.slug}:${r.id}`, ts: r.ts, from: bot.name, to: one(to) || "everyone", text60: clip(one(text), 60), text120: clip(one(text), 120) };
+  });
+}
+
+/** The family's newest messages, newest first: every bot's own plus the owner's chat lines to each, `limit` in all. */
+export function familyMessages(sent: FamilyMessage[], owner: { slug: string; name: string; ts: string; text: string }[], limit = 5): FamilyMessage[] {
+  const lines = owner.map((l) => ({ id: `owner:${l.slug}:${l.ts}`, ts: l.ts, from: "Owner", to: l.name, text60: clip(one(l.text), 60), text120: clip(one(l.text), 120) }));
+  return [...sent, ...lines].sort((a, b) => b.ts.localeCompare(a.ts) || b.id.localeCompare(a.id)).slice(0, limit);
+}
+
+/** The newest action as the world animates it: its type, its verdict in a word, whom a message went to, its thought. */
+function actOf(a: { id: number; ts: string; t: string; p: string | null; v: string | null; th: string | null } | null): Act | null {
+  if (!a) return null;
+  let to = "";
+  try {
+    to = String((JSON.parse(a.p ?? "{}") as { to?: unknown }).to ?? "");
+  } catch {
+    /* a payload cut at 300 characters: look for the field */
+    to = /"to":\s*"([^"]*)"/.exec(a.p ?? "")?.[1] ?? "";
+  }
+  const v = a.v ?? "";
+  return { id: Number(a.id), ts: a.ts, type: a.t, verdict: /^allowed/i.test(v) ? "allowed" : /^rejected/i.test(v) ? "refused" : "failed", to, thought: one(a.th) };
+}
+
+/** A read or back names no page: it is on the page the bot last opened or followed, so it takes that page's domain and
+ *  title (queue 38, as /api/web does for its list). */
+function onPage(sc: Screen, page: { t: string; p: string | null; r: string | null } | null): Screen {
+  if (sc.kind !== "web" || sc.domain || !page) return sc;
+  const was = screenOf(page.t, page.p, page.r, null);
+  return { ...sc, domain: was.domain, title: sc.title || was.title };
+}
+
+// What a member is on, by the write that names it (queue 233). The Lead Gen and anyone not listed show their page or
+// search; the Analyst its open question.
 const SUBJECT: Record<string, string[]> = {
   "outreach-writer": ["update_lead"],
   "lead-enricher": ["update_lead"],
@@ -436,7 +568,7 @@ export function subjectOf(type: string, payload: string | null): string {
 
 /** Everything on one bot's card. `own` is its own-output SQL (null: no kind of its own; the feed then skips it). */
 export async function boardBot(
-  bot: { slug: string; name: string; handle: string },
+  bot: { slug: string; name: string; handle: string; cycleSec?: number },
   ws: string,
   db: string | null,
   own: { label: string; where: string } | null,
@@ -457,8 +589,8 @@ export async function boardBot(
   const x = (extra[0] ?? {}) as Record<string, unknown>;
   const subj = json<{ t: string; p: string | null } | null>(x.subj, null);
   const win = json<[number, number]>(x.win, [0, 0]);
-  const goal = Number(goals[bot.slug]);
-  const [rows, jsonl, plan, blocks, paused, hold] = await Promise.all([
+  const goal = Number((goals as Record<string, unknown>)[bot.slug]);
+  const [rows, jsonl, plan, blocks, paused, hold, rest, model] = await Promise.all([
     // an engine before cb57a61 has no stall_minutes column: ask again without it
     db ? sqlite(db, cardSql(today, own?.where ?? "0")).catch(() => sqlite(db, cardSql(today, own?.where ?? "0", false))).catch(() => []) : Promise.resolve([]),
     tail(path.join(ws, "logs", "explorer.jsonl")),
@@ -481,9 +613,16 @@ export async function boardBot(
       },
       () => null,
     ),
+    readFile(/*turbopackIgnore: true*/ path.join(ws, "rest-until.json"), "utf8").then(
+      (t): RestFile => {
+        const d = JSON.parse(t) as Record<string, unknown>;
+        return { until: String(d.until ?? ""), why: String(d.why ?? ""), reason: one(d.reason) };
+      },
+      () => null,
+    ),
+    lastModel(ws).catch(() => null),
   ]);
   const r = rows[0] ?? {};
-  const model = (await lastTraceModel(ws).catch(() => null)) ?? lastModel(jsonl);
   const hb = json<Hb | null>(r.hb, null);
   const h = hourly(json(r.hours, []));
   const last = json<{ ts: string; t: string; p: string; r: string | null } | null>(r.last, null);
@@ -492,10 +631,10 @@ export async function boardBot(
     slug: bot.slug,
     name: bot.name,
     handle: bot.handle,
-    state: stateOf({ hb, events: parseEvents(jsonl), now, dayBlocks: blocks, paused: paused.on, pauseUntil: paused.until, hold, restarting }),
+    state: stateOf({ hb, events: parseEvents(jsonl), now, dayBlocks: blocks, paused: paused.on, pauseUntil: paused.until, hold, restarting, rest }),
     on: nowOn(plan, hb?.current_question ?? null, typeof r.thought === "string" ? r.thought : null),
     onKind: onKindOf(plan, hb?.current_question ?? null, typeof r.thought === "string" ? r.thought : null),
-    last: last ? { ts: last.ts, words: actionWords(last.t, last.p), ago: ago(last.ts, now), screen: screenOf(last.t, last.p, last.r, hb?.current_url ?? null) } : null,
+    last: last ? { ts: last.ts, words: actionWords(last.t, last.p), ago: ago(last.ts, now), screen: onPage(screenOf(last.t, last.p, last.r, hb?.current_url ?? null), json(r.page, null)) } : null,
     output: own ? { label: own.label, today: h.own } : null,
     refusedShare: h.total ? h.refused / h.total : null,
     actionsToday: h.total,
@@ -504,11 +643,24 @@ export async function boardBot(
     interests: json<string[]>(r.interests, []).map((x) => clip(one(x), 60)),
     model,
     feed: feed.map((f) => ({ slug: bot.slug, name: bot.name, ts: f.ts, words: actionWords(f.t, f.p) })),
+    activity: json<{ ts: string; t: string; p: string }[]>(r.activity, []).map((a) => activityLine(a.t, a.p, a.ts)),
+    refusal: refusalOf(json(r.refusal, null)),
+    act: actOf(json(r.act, null)),
+    refusedRun: Number(r.run) || 0,
+    cycleSec: bot.cycleSec ?? null,
+    failing: hb?.status === "model_failure" ? Number(hb.model_failures) || 1 : 0,
+    sent: sentOf(bot, json(r.msgs, [])),
     item: subj ? clip(subjectOf(subj.t, subj.p), 160) : "",
     modelAgo: model ? ago(model.ts, now) : "",
     window: { allowed: Number(win[0]) || 0, total: Number(win[1]) || 0 },
     goal: Number.isFinite(goal) && goal > 0 ? goal : null,
   };
+}
+
+/** The newest refusal in words and its reason ("rejected: <why>" in the log), emails and phones out. */
+function refusalOf(r: { ts: string; t: string; p: string | null; v: string | null } | null): BotCard["refusal"] {
+  if (!r) return null;
+  return { ts: r.ts, words: unpersonal(actionWords(r.t, r.p)), reason: unpersonal(clip(one((r.v ?? "").replace(/^rejected:\s*/i, "")), 160)) };
 }
 
 /** The newest `n` items across the family, newest first. */
@@ -519,7 +671,7 @@ export function mergeFeed(cards: { feed: FeedItem[] }[], n = 30): FeedItem[] {
     .slice(0, n);
 }
 
-// ---- Over the shoulder: a large view of one bot, opened from its desk ----
+// ---- Over the shoulder (creatorCC queue 22): a large view of one bot, opened from its desk ----
 
 const SHOT_FRESH_MS = 10 * 60_000;
 export type TracePage = { url: string; domain: string; title: string; text: string };
@@ -590,4 +742,183 @@ export async function shoulder(ws: string, db: string | null, now: number): Prom
     feed,
     thought: feed.find((f) => f.thought)?.thought ?? "",
   };
+}
+
+// ---- The family's web activity (queue 33): the WEB terminal in the world shows what the bots really browsed ----
+// From each running bot's actions table: open, follow, read and back are pages, search a search. A row is marked
+// refused (verdict "rejected…"), captcha (Cloudflare, a 403 or a captcha in the verdict or result), empty (an empty
+// page or 0 chars) or ok, in that order.
+const WEB_TYPES = "('open','follow','read','back','search')";
+type WebMark = "ok" | "refused" | "captcha" | "empty";
+export type WebEvent = { slug: string; name: string; ts: string; ago: string; kind: "web" | "search"; domain: string; title: string; query: string; mark: WebMark; reason: string };
+export type WebToday = { opens: number; searches: number; refused: number };
+export type WebPage = { slug: string; name: string; ts: string; ago: string; domain: string; title: string; url: string; shot: string | null };
+export type WebData = { at: string; events: WebEvent[]; today: WebToday; perBot: Record<string, { lastTs: string; domain: string }>; recent_pages: WebPage[] };
+type Deny = { domains: string[]; paths: string[] };
+
+/** common-data/denylist.txt: "domain:<host>" blocks the host and its subdomains, "path:<segment>" any path holding it. */
+export function parseDenylist(text: string): Deny {
+  const out: Deny = { domains: [], paths: [] };
+  for (const raw of text.split("\n")) {
+    const l = raw.trim().toLowerCase();
+    if (l.startsWith("domain:")) out.domains.push(l.slice(7).trim());
+    else if (l.startsWith("path:")) out.paths.push(l.slice(5).trim());
+  }
+  return out;
+}
+
+const SEARCH_HOSTS = /(^|\.)(google|bing|duckduckgo|yahoo|yandex|baidu|startpage|ecosia|brave|searx[a-z]*|search)\./;
+
+/** A page the owner would approve on the floating screens (queue 39): an allowed open or follow of an http(s) page with
+ *  a title and at least 500 characters read, nothing refused, blocked or empty about it, not on the denylist, and not a
+ *  search engine or a sign-in page. The page's address, or null when it is out. */
+export function validPage(row: { t: string; p: string | null; v: string; r: string | null }, deny: Deny): string | null {
+  if (row.t !== "open" && row.t !== "follow") return null;
+  if (!/^allowed/i.test(row.v ?? "") || webMark(row.v ?? "", row.r) !== "ok") return null;
+  const res = one(row.r);
+  const m = /(?:opened|to) (https?:\/\/\S+?):? '([^']*)'?/.exec(res);
+  const chars = Number((/\(([\d ]+) chars/.exec(res)?.[1] ?? "0").replace(/ /g, ""));
+  if (!m || !one(m[2]) || chars < 500) return null;
+  let u: URL;
+  try {
+    u = new URL(m[1].replace(/[),.]+$/, ""));
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+  const host = u.hostname.toLowerCase();
+  const pathLow = u.pathname.toLowerCase();
+  if (/login|signin|sign-in|accounts\./.test(host) || /\/(login|signin|sign-in)\b/.test(pathLow) || SEARCH_HOSTS.test(host)) return null;
+  if (deny.domains.some((d) => host === d || host.endsWith(`.${d}`))) return null;
+  if (deny.paths.some((seg) => pathLow.split("/").some((part) => part.replace(/\.[a-z0-9]+$/, "") === seg))) return null;
+  return u.toString();
+}
+type WebRow = { ts: string; t: string; p: string | null; v: string; r: string | null };
+
+/** One query per bot: its last 20 web actions, today's counts (pages opened = open and follow allowed; searches allowed;
+ *  refused), and its latest allowed web action. `today` is local midnight as the bots write ts ("2026-10-31T00:00:00"). */
+function webSql(today: string): string {
+  return `SELECT
+  (SELECT json_group_array(json_object('ts', ts, 't', action_type, 'p', payload, 'v', substr(verdict, 1, 300), 'r', substr(result, 1, 400))) FROM (
+     SELECT ts, action_type, payload, verdict, result FROM actions WHERE action_type IN ${WEB_TYPES} ORDER BY id DESC LIMIT 20)) AS recent,
+  (SELECT json_object('opens', COALESCE(SUM(action_type IN ('open','follow') AND ${ALLOWED}), 0), 'searches', COALESCE(SUM(action_type = 'search' AND ${ALLOWED}), 0),
+          'refused', COALESCE(SUM(verdict LIKE 'rejected%'), 0)) FROM actions WHERE action_type IN ${WEB_TYPES} AND ts >= ${sq(today)}) AS today,
+  (SELECT json_object('ts', ts, 't', action_type, 'p', payload, 'v', verdict, 'r', substr(result, 1, 400)) FROM actions
+     WHERE action_type IN ${WEB_TYPES} AND ${ALLOWED} ORDER BY id DESC LIMIT 1) AS latest`;
+}
+
+export function webMark(verdict: string, result: string | null): WebMark {
+  const both = `${verdict} ${result ?? ""}`;
+  if (/^rejected/i.test(verdict)) return "refused";
+  if (/captcha|cloudflare|\b403\b/i.test(both)) return "captcha";
+  if (/empty page|\(0 chars|\b0 chars\b/i.test(result ?? "")) return "empty";
+  return "ok";
+}
+
+// Why a row was refused, in plain words (queue 44): the engine's standing phrases shortened; anything else is the
+// verdict's own text cut to about 110 characters at a sentence end.
+const REASONS: [RegExp, string | ((m: RegExpExecArray) => string)][] = [
+  [/you have read this site enough today/i, "site read enough today; blocked until tomorrow"],
+  [/you searched that today; the answer did not change/i, "same search as earlier today"],
+  [/already searched .* this episode/i, "same search twice in one episode"],
+  [/refused or done already today/i, "refused or done earlier today; blocked until tomorrow"],
+  [/blocked for this episode/i, "blocked for this episode (repeated or refused before)"],
+  [/open only an address you have actually seen/i, "address typed from memory, not from a link list"],
+  [/move on: (\d+) pages on (\S+) today and nothing written/i, (m) => `${m[1]} pages on ${m[2]} today, nothing written; move on`],
+  [/opened or read (\d+) pages without noting/i, (m) => `${m[1]} pages read without a note`],
+  [/asks bots not to read that page \(robots\.txt\)/i, "the site asks bots not to read it (robots.txt)"],
+  [/episode budget used up|episode is over budget/i, "episode budget used up"],
+  [/private networks and localhost/i, "private network address"],
+];
+const NOTE_MAX = 110;
+
+/** The verdict text after "rejected:" in plain words, about 110 characters at most, cut at a sentence end when one is
+ *  near enough (else at a word, with "…"). */
+export function refusalWords(verdict: string): string {
+  const text = one(verdict.replace(/^(rejected|failed):\s*/i, ""));
+  for (const [re, out] of REASONS) {
+    const m = re.exec(text);
+    if (m) return typeof out === "string" ? out : out(m);
+  }
+  if (text.length <= NOTE_MAX) return text;
+  const head = text.slice(0, NOTE_MAX + 1);
+  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("; "), head.lastIndexOf(": "));
+  if (end >= 40) return text.slice(0, end + (head[end] === "." ? 1 : 0));
+  return text.slice(0, head.lastIndexOf(" ") > 40 ? head.lastIndexOf(" ") : NOTE_MAX).replace(/[\s,;:.-]+$/, "") + "…";
+}
+
+/** A row's note: the refusal in plain words, "captcha or access wall" or "empty page"; empty for an ok row. */
+export function webReason(mark: WebMark, verdict: string): string {
+  if (mark === "refused") return refusalWords(verdict) || "refused";
+  if (mark === "captcha") return "captcha or access wall";
+  if (mark === "empty") return "empty page";
+  return "";
+}
+
+/** A row in the terminal's words: its domain and title (as the desk monitor reads them), or the search's query. */
+function webEvent(bot: { slug: string; name: string }, row: WebRow, now: number): WebEvent {
+  const s = screenOf(row.t, row.p, row.r, null);
+  const search = row.t === "search";
+  return {
+    slug: bot.slug,
+    name: bot.name,
+    ts: row.ts,
+    ago: ago(row.ts, now),
+    kind: search ? "search" : "web",
+    domain: search ? "" : s.domain,
+    title: s.title,
+    query: search ? s.title : "",
+    mark: webMark(row.v ?? "", row.r),
+    reason: webReason(webMark(row.v ?? "", row.r), row.v ?? ""),
+  };
+}
+
+/** The family's web activity from each bot's query result: the newest 20 events across all of them, today's totals and
+ *  each bot's latest allowed web action (lastTs moves on when it opened or searched something new). */
+export function webData(bots: { slug: string; name: string; row: Record<string, unknown> | null }[], now: number, deny: Deny = { domains: [], paths: [] }): WebData {
+  const events: WebEvent[] = [];
+  const pages: WebPage[] = [];
+  const today: WebToday = { opens: 0, searches: 0, refused: 0 };
+  const perBot: WebData["perBot"] = {};
+  for (const b of bots) {
+    if (!b.row) continue;
+    // a read (or back) names no page: it is on the page the bot opened before it, so it takes that one's domain and title
+    const rows = json<WebRow[]>(b.row.recent, []);
+    const mine = rows.map((r) => webEvent(b, r, now));
+    rows.forEach((r, k) => {
+      const url = validPage(r, deny);
+      if (url) pages.push({ slug: b.slug, name: b.name, ts: r.ts, ago: ago(r.ts, now), domain: mine[k].domain, title: mine[k].title, url, shot: null });
+    });
+    for (let i = mine.length - 2; i >= 0; i--) {
+      const e = mine[i];
+      const before = mine[i + 1];
+      if (e.kind === "web" && !e.domain && before.kind === "web" && before.domain) Object.assign(e, { domain: before.domain, title: e.title || before.title });
+    }
+    events.push(...mine);
+    const t = json<Partial<WebToday>>(b.row.today, {});
+    today.opens += Number(t.opens) || 0;
+    today.searches += Number(t.searches) || 0;
+    today.refused += Number(t.refused) || 0;
+    const l = json<WebRow | null>(b.row.latest, null);
+    if (l) perBot[b.slug] = { lastTs: l.ts, domain: l.t === "search" ? "search" : screenOf(l.t, l.p, l.r, null).domain || (mine.find((e) => e.ts <= l.ts && e.domain)?.domain ?? "") };
+  }
+  events.sort((a, b) => b.ts.localeCompare(a.ts));
+  // the floating screens: the last 8 valid pages across the family, one per address (the newest visit wins)
+  pages.sort((a, b) => b.ts.localeCompare(a.ts));
+  const seen = new Set<string>();
+  const recent_pages = pages.filter((p) => !seen.has(p.url) && seen.add(p.url)).slice(0, 8);
+  return { at: new Date(now).toISOString(), events: events.slice(0, 20), today, perBot, recent_pages };
+}
+
+/** One bot's web rows (null when its database cannot be read). */
+export async function webRow(db: string | null, now: number): Promise<Record<string, unknown> | null> {
+  if (!db) return null;
+  const rows = await sqlite(db, webSql(`${localIso(now).slice(0, 10)}T00:00:00`)).catch(() => []);
+  return rows[0] ?? null;
+}
+
+/** A STOP file's reason: its first non-empty line, trimmed, at most 160 characters; "" for none. */
+export function stopReason(text: string | null): string {
+  const line = (text ?? "").split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+  return line.length > 160 ? `${line.slice(0, 159)}…` : line;
 }

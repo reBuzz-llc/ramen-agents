@@ -14,7 +14,7 @@ const mask = makeMasker({
     { business: "Sasson's Yarn Shop", contact: null },
     { business: "Udonis", contact: "Al" }, // one word, too short: left alone
   ],
-  team: ["Anna Example"],
+  team: ["Sam Example"],
 });
 
 test("lead names become first word and initial; contacts and teammates their first name", () => {
@@ -23,7 +23,7 @@ test("lead names become first word and initial; contacts and teammates their fir
   assert.equal(shortBusiness("Joe & Pat's"), "Joe P."); // "&" has no letter: the next word's initial
   assert.equal(mask("drafted an email for 'Cobot Partners LLC' to Jane Doe"), "drafted an email for 'Cobot P.' to Jane");
   assert.equal(mask("updated lead 'sasson's yarn shop'"), "updated lead 'Sasson's Y.'");
-  assert.equal(mask("Anna Example sent it"), "Anna sent it");
+  assert.equal(mask("Sam Example sent it"), "Sam sent it");
   assert.equal(mask("Udonis is fine"), "Udonis is fine");
 });
 
@@ -35,6 +35,9 @@ test("no email address, phone number or web address survives; dates and times do
   assert.equal(mask("opened blckalpaca.at · ai agents page; read tick-report.json and v1.2"), "opened [link] · ai agents page; read tick-report.json and v1.2");
   assert.equal(leaks("call 7185551000"), true);
   assert.equal(leaks({ ts: "2026-11-09T18:25:52", share: 0.0229007633587786 }), false);
+  // a file name's date stamp is not a phone; a real number in the same text still is
+  assert.equal(leaks("opened the-ceo/raw/packages/2026-11-12-142233-launch-kit.md"), false);
+  assert.equal(leaks("opened 2026-11-12-142233 and called 7185551000"), true);
 });
 
 test("address keys are emptied, times kept, the Board's private parts dropped, Feeds trimmed", () => {
@@ -66,8 +69,8 @@ test("address keys are emptied, times kept, the Board's private parts dropped, F
 
 test("a signed link: round trip, expiry, tampering, too long", () => {
   const now = 1_800_000_000;
-  const t = signToken("s3cret-s3cret-s3cret-s3cret-s3cret!", "Anna Example", now + 7200);
-  assert.deepEqual(verifyToken("s3cret-s3cret-s3cret-s3cret-s3cret!", t, now), { person: "Anna Example", exp: now + 7200 });
+  const t = signToken("s3cret-s3cret-s3cret-s3cret-s3cret!", "Sam Example", now + 7200);
+  assert.deepEqual(verifyToken("s3cret-s3cret-s3cret-s3cret-s3cret!", t, now), { person: "Sam Example", exp: now + 7200 });
   assert.equal(verifyToken("s3cret-s3cret-s3cret-s3cret-s3cret!", t, now + 7200), null); // expired
   assert.equal(verifyToken("another-secret-another-secret-123", t, now), null);
   const [p, sig] = t.split(".");
@@ -104,7 +107,7 @@ test("the server: 403 without a link, the page with one (cookie, frame rule), /s
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
-    const t = signToken(secret, "Anna Example", Math.floor(Date.now() / 1000) + 3600);
+    const t = signToken(secret, "Sam Example", Math.floor(Date.now() / 1000) + 3600);
     const bad = await fetch(`${base}/`);
     assert.equal(bad.status, 403);
     assert.match(await bad.text(), new RegExp(FORBIDDEN.slice(0, 30)));
@@ -120,7 +123,7 @@ test("the server: 403 without a link, the page with one (cookie, frame rule), /s
     assert.equal((await fetch(`${base}/api/board?t=${t}`)).status, 404);
     assert.equal((await fetch(`${base}/`)).status, 429); // the sixth request from this address in a minute
     assert.equal(lines.some((l) => l.includes(t) || l.includes("?t=")), false); // no token in the log
-    assert.ok(lines.some((l) => / GET \/ 200 Anna /.test(l)));
+    assert.ok(lines.some((l) => / GET \/ 200 Sam /.test(l)));
     assert.equal(reads, 1);
   } finally {
     server.close();

@@ -1,5 +1,5 @@
 // Run: npm test. The Reports page under Settings reads two files: the Validator's refusal report (markdown) and this
-// week's OKR (okr-week.md); both parsed from fixtures here (2026-10-30).
+// week's OKR (okr-week.md); both parsed from fixtures here (creatorCC queue 18, 2026-10-30).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

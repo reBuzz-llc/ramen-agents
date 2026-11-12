@@ -8,6 +8,8 @@ export const SETTINGS_SECTIONS = [
   { href: "/settings/providers", label: "Key providers", detail: "Every key: availability, usage and limits", icon: "sparkles", tile: "bg-sys-purple" },
   { href: "/settings/notifications", label: "Notifications", detail: "Alerts from your bots", icon: "bell", tile: "bg-sys-red" },
   { href: "/settings/reports", label: "Reports", detail: "The team's week and the refusal report", icon: "chart", tile: "bg-[#ff6600]" },
+  { href: "/settings/personas", label: "Personas", detail: "Each member's persona: yours or the CEO's", icon: "person-circle", tile: "bg-sys-purple" },
+  { href: "/settings/glossary", label: "Glossary", detail: "What is called what and who is who", icon: "note", tile: "bg-sys-orange" },
   { href: "/settings/remote", label: "Remote access", detail: "Open it from your iPhone", icon: "link", tile: "bg-sys-green" },
   { href: "/settings/about", label: "About", detail: "Versions and design kit", icon: "info", tile: "bg-sys-gray" },
 ] as const;

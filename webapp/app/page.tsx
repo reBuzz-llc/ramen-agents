@@ -5,12 +5,14 @@ import { currentIdentity } from "@/lib/identity";
 import CeoProposals from "./ceo-proposals";
 import FamilyBoard from "./family-board";
 import HealthBanner from "./health-banner";
+import TrialLine from "./trial-line";
+import FamilyWeekCard from "./family-week-card";
 import OwnerDecisions from "./owner-decisions";
 import PageShell from "./page-shell";
 
 export const metadata = { title: "Family · Bot Dashboard" };
 
-// The home page is the live family board (owner, 2026-10-30): who is working on what, now. The
+// The home page is the live family board (owner, 2026-10-30, creatorCC queue 16): who is working on what, now. The
 // board polls /api/board; the boxes above it are server-rendered.
 export default async function Home() {
   const [bots, identity] = await Promise.all([listBots(), currentIdentity()]);
@@ -28,20 +30,34 @@ export default async function Home() {
   const initial = await liveBoard().catch(() => null);
   return (
     <PageShell identity={identity}>
-      <h1 className="pt-2 text-3xl font-bold text-ink">Family</h1>
-      <p className="mt-0.5 text-sm text-muted">Who is working on what, right now. Tap a member to see what they are on.</p>
-      <Suspense fallback={null}>
-        <HealthBanner className="mt-4" />
-      </Suspense>
-      <div className="mt-3 space-y-2">
-        <Suspense fallback={null}>
-          <OwnerDecisions compact />
-        </Suspense>
-        <Suspense fallback={null}>
-          <CeoProposals compact />
-        </Suspense>
-      </div>
-      <FamilyBoard initial={initial} />
+      {/* queue 55 (owner, 15:50-15:52): no visible heading; the world starts right under the top bar, and the health
+          banner, the decisions and the CEO proposals sit below it (or below the List view), at the scene's width */}
+      <h1 className="sr-only">Family</h1>
+      <FamilyBoard
+        initial={initial}
+        below={
+          // a key on this block: it crosses into the client World as one child among World's own, where React asks for
+          // one (queue 405: "Each child in a list should have a unique key ... passed a child from Home")
+          <div key="below" className="mt-3 space-y-2">
+            <Suspense fallback={null}>
+              <TrialLine />
+            </Suspense>
+            {/* queue 381: the newest "This week in the family" post, under the world and the list view */}
+            <Suspense fallback={null}>
+              <FamilyWeekCard />
+            </Suspense>
+            <Suspense fallback={null}>
+              <HealthBanner />
+            </Suspense>
+            <Suspense fallback={null}>
+              <OwnerDecisions compact />
+            </Suspense>
+            <Suspense fallback={null}>
+              <CeoProposals compact />
+            </Suspense>
+          </div>
+        }
+      />
     </PageShell>
   );
 }

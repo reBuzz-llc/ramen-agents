@@ -1,4 +1,4 @@
-// The family review's downtime line (2026-10-29): when the Mac was off and when every bot sat quiet,
+// The family review's downtime line (creatorCC queue 4, 2026-10-29): when the Mac was off and when every bot sat quiet,
 // so a low day is not read as bad bots. Mac-off spans come from `last reboot shutdown`; a reboot with no shutdown just
 // before it was unplanned, and its gap starts at the latest action any bot logged before that boot. Quiet spans come
 // from one running bot's explorer.jsonl ("quiet" reason=..., then "quiet_over" minutes=...): all bots pause together.

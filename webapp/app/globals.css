@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* a touch screen with no hover (the copy button shows its icon there). Arbitrary media variants written in square
+   brackets broke the production CSS parse on 2026-11-12; use a named variant like this one, or the built-in pointer-coarse. */
+@custom-variant hover-none (@media (hover: none));
 
 /* Apple theme for the web, built from applebrandkit.md (iOS 27 / Liquid Glass).
  * Values come from Apple's Human Interface Guidelines (Color, Typography, Materials, Accessibility),
