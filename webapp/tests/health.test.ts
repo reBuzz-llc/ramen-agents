@@ -1,4 +1,4 @@
-// Run: npm test. One fixture per health-banner condition (2026-10-29).
+// Run: npm test. One fixture per health-banner condition (creatorCC queue 5, 2026-10-29).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

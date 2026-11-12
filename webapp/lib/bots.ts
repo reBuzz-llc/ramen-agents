@@ -83,18 +83,20 @@ export async function readConfig(configPath: string, seen: string[] = []): Promi
   return merged;
 }
 
-/** slug -> handle from the family's one roster (common-data/family-roster.toml, 2026-10-10), so the dashboard
- *  shows the handle the bots themselves are told. A member not on it falls back to handleFor(name). */
-async function rosterHandles(): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
+/** slug -> handle and earlier names from the family's one roster (common-data/family-roster.toml, creatorCC
+ *  2026-10-10), so the dashboard shows the handle the bots themselves are told. A member not on it falls back to
+ *  handleFor(name). `aliases` (queue 440): the names a rename left behind (roster_apply.py keeps them), so a member
+ *  still running under its old name until its restart, and its ledgers keyed by that name, stay its own. */
+async function rosterHandles(): Promise<Map<string, { handle?: string; aliases: string[] }>> {
+  const out = new Map<string, { handle?: string; aliases: string[] }>();
   let text = "";
   try {
     text = await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "family-roster.toml"), "utf8");
   } catch {
     return out;
   }
-  let cur: { slug?: string; handle?: string } = {};
-  const flush = () => cur.slug && cur.handle && out.set(cur.slug, cur.handle);
+  let cur: { slug?: string; handle?: string; aliases?: string[] } = {};
+  const flush = () => cur.slug && out.set(cur.slug, { handle: cur.handle, aliases: cur.aliases ?? [] });
   for (const line of text.split("\n")) {
     if (line.trim() === "[[member]]") {
       flush();
@@ -103,6 +105,8 @@ async function rosterHandles(): Promise<Map<string, string>> {
     }
     const m = line.match(/^\s*(slug|handle)\s*=\s*"([^"]*)"/);
     if (m) cur[m[1] as "slug" | "handle"] = m[2];
+    const a = line.match(/^\s*aliases\s*=\s*\[(.*)\]\s*(?:#.*)?$/);
+    if (a) cur.aliases = [...a[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1].replace(/\\(["\\])/g, "$1"));
   }
   flush();
   return out;
@@ -117,7 +121,9 @@ export async function listBots(): Promise<BotProfile[]> {
   }
   const handles = await rosterHandles();
   const bots = await Promise.all(
-    entries.filter((e) => SLUG.test(e)).map(async (slug): Promise<(BotProfile & { portSet: boolean }) | null> => {
+    // only the family's members (creatorCC queue 481: the owner removed Jobless-Bot and the Desk Agent completely): a folder
+    // whose member left the roster is not listed; with no roster to read, every bot folder is
+    entries.filter((e) => SLUG.test(e) && (!handles.size || handles.has(e))).map(async (slug): Promise<(BotProfile & { portSet: boolean }) | null> => {
       const configPath = path.join(BOTS_DIR, slug, "config.toml");
       try {
         const toml = await readConfig(configPath);
@@ -132,7 +138,9 @@ export async function listBots(): Promise<BotProfile[]> {
           port: typeof port === "number" && port > 0 && port < 65536 ? port : DEFAULT_PORT,
           portSet: typeof port === "number" && port > 0 && port < 65536,
           configPath,
-          handle: handles.get(slug) ?? handleFor(String(toml.get("agent.name") ?? slug)),
+          handle: handles.get(slug)?.handle ?? handleFor(String(toml.get("agent.name") ?? slug)),
+          ...(handles.get(slug)?.aliases.length ? { aliases: handles.get(slug)!.aliases } : {}),
+          ...(typeof toml.get("agent.cycle_delay_seconds") === "number" ? { cycleSec: Number(toml.get("agent.cycle_delay_seconds")) } : {}),
         };
       } catch {
         return null; // not a bot folder
@@ -150,6 +158,15 @@ export async function listBots(): Promise<BotProfile[]> {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The member's name and the names a rename left behind (a ledger keyed by name counts all of them). */
+export const namesOf = (bot: { name: string; aliases?: string[] }): string[] => [bot.name, ...(bot.aliases ?? [])];
+
+/** A by-name ledger's value for a member, its earlier names included. */
+export const byName = (map: Record<string, number>, bot: { name: string; aliases?: string[] }): number | undefined => {
+  const hits = namesOf(bot).filter((n) => map[n] !== undefined);
+  return hits.length ? hits.reduce((t, n) => t + Number(map[n] || 0), 0) : undefined;
+};
+
 export async function findBot(slug: string): Promise<BotProfile | null> {
   if (!SLUG.test(slug)) return null;
   return (await listBots()).find((b) => b.slug === slug) ?? null;
@@ -166,7 +183,7 @@ export async function fetchState(bot: BotProfile, timeoutMs = 2000): Promise<Bot
     if (!res.ok) return null;
     const s = (await res.json()) as BotState;
     // Two bots with the same port would show one bot's data under the other's name; trust the name it reports.
-    return s.agent?.name === bot.name ? s : null;
+    return s.agent?.name !== undefined && namesOf(bot).includes(s.agent.name) ? s : null;
   } catch {
     return null;
   }

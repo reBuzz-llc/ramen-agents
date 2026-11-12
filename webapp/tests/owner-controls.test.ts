@@ -1,4 +1,4 @@
-// Run: npm test. The owner's Pause / Resume / Stop / Start (2026-10-31) on a fixture workspace with
+// Run: npm test. The owner's Pause / Resume / Stop / Start (creatorCC queue 23, 2026-10-31) on a fixture workspace with
 // a fake scripts folder (each script prints a line and leaves a marker; nothing touches launchd), and the confirm text.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,8 +20,8 @@ async function fixture() {
   await mkdir(ws, { recursive: true });
   await mkdir(scripts, { recursive: true });
   for (const [name, says] of [
-    ["disable-bot.sh", "com.ramen-agents.bot.$1(unloaded, disabled)"],
-    ["enable-bot.sh", "com.ramen-agents.bot.$1(loaded)"],
+    ["disable-bot.sh", "com.rebuzz.bot.$1(unloaded, disabled)"],
+    ["enable-bot.sh", "com.rebuzz.bot.$1(loaded)"],
     ["restart-bot.sh", "exited on STOP; restarted (run loop + data server)"],
   ])
     await writeFile(path.join(scripts, name), `#!/bin/sh\necho "$1: ${says}"\ntouch "${root}/ran-${name}"\n`);
@@ -58,13 +58,13 @@ test("stop writes STOP and runs disable-bot.sh; start removes STOP, runs enable-
   assert.equal(s.ok, true);
   assert.equal(await has(path.join(ws, "STOP")), true);
   assert.equal(await has(path.join(root, "ran-disable-bot.sh")), true);
-  assert.match(s.text, /^STOP written\. lead-gen: com\.ramen-agents\.bot\.lead-gen\(unloaded, disabled\)$/);
+  assert.match(s.text, /^STOP written\. lead-gen: com\.rebuzz\.bot\.lead-gen\(unloaded, disabled\)$/);
   const st = await control(ctx, "start", { reason: "back to work" });
   assert.equal(st.ok, true);
   assert.equal(await has(path.join(ws, "STOP")), false);
   assert.equal(await has(path.join(root, "ran-enable-bot.sh")), true);
   assert.equal(await has(path.join(root, "ran-restart-bot.sh")), true);
-  assert.equal(st.text, "lead-gen: com.ramen-agents.bot.lead-gen(loaded) · lead-gen: exited on STOP; restarted (run loop + data server) · run loop alive");
+  assert.equal(st.text, "lead-gen: com.rebuzz.bot.lead-gen(loaded) · lead-gen: exited on STOP; restarted (run loop + data server) · run loop alive");
   assert.deepEqual(await control(ctx, "start"), { ok: false, text: "It is not stopped." });
   const log = (await readFile(ctx.log, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
   assert.deepEqual(log.map((l: { action: string; ok: boolean }) => [l.action, l.ok]), [["stop", true], ["start", true], ["start", false]]);
@@ -82,7 +82,7 @@ test("confirm flow: the question first, the pause end times", () => {
   assert.equal(confirmText("stop", "Lead Gen"), "Send Lead Gen home? It stops until you start it again.");
   assert.equal(confirmText("pause", "Lead Gen", "30m"), "Pause Lead Gen for 30 minutes?");
   assert.equal(confirmText("pause", "Lead Gen", "tomorrow"), "Pause Lead Gen until tomorrow morning?");
-  assert.equal(confirmText("start", "Scout"), "Wake Scout and bring it back to its desk?");
+  assert.equal(confirmText("start", "Scout"), "Wake Scout and bring it back to its screen?");
   assert.equal(confirmText("resume", "Lead Gen"), "Let Lead Gen get back to work now?");
   assert.equal(pauseUntil("30m", NOW), "2026-10-31T14:30:00");
   assert.equal(pauseUntil("tomorrow", NOW), "2026-11-01T07:00:00");
@@ -96,7 +96,7 @@ test("start says it did not start, and puts STOP back, with no launch agents or 
   assert.equal(a.ok, false);
   assert.match(a.text, /^did not start: it has no launch agents/);
   assert.equal(await has(path.join(ws, "STOP")), true);
-  await writeFile(path.join(ctx.scripts, "enable-bot.sh"), '#!/bin/sh\necho "$1: com.ramen-agents.bot.$1(loaded)"\n');
+  await writeFile(path.join(ctx.scripts, "enable-bot.sh"), '#!/bin/sh\necho "$1: com.rebuzz.bot.$1(loaded)"\n');
   const b = await control({ ...ctx, alive: async () => false }, "start");
   assert.equal(b.ok, false);
   assert.match(b.text, /^did not start: no run loop is running after the restart/);
@@ -114,17 +114,17 @@ test("a retired bot: Start refused, Bring back recreates its launch agents from 
   assert.equal(none.ok, false);
   assert.match(none.text, /no other bot's launch agents to copy from/);
   for (const kind of ["bot", "data"])
-    await writeFile(path.join(ctx.agents, `com.ramen-agents.${kind}.lead-gen.plist`), `<string>com.ramen-agents.${kind}.lead-gen</string><string>/Users/x/bots/lead-gen/config.toml</string>`);
+    await writeFile(path.join(ctx.agents, `com.rebuzz.${kind}.lead-gen.plist`), `<string>com.rebuzz.${kind}.lead-gen</string><string>/Users/x/bots/lead-gen/config.toml</string>`);
   const r = await control(job, "bringback", { reason: "owner wants it back" });
   assert.equal(r.ok, true, r.text);
-  assert.match(r.text, /^recreated com\.ramen-agents\.bot\.jobless-bot\.plist, com\.ramen-agents\.data\.jobless-bot\.plist from lead-gen's\./);
-  assert.equal(await readFile(path.join(ctx.agents, "com.ramen-agents.bot.jobless-bot.plist"), "utf8"), "<string>com.ramen-agents.bot.jobless-bot</string><string>/Users/x/bots/jobless-bot/config.toml</string>");
+  assert.match(r.text, /^recreated com\.rebuzz\.bot\.jobless-bot\.plist, com\.rebuzz\.data\.jobless-bot\.plist from lead-gen's\./);
+  assert.equal(await readFile(path.join(ctx.agents, "com.rebuzz.bot.jobless-bot.plist"), "utf8"), "<string>com.rebuzz.bot.jobless-bot</string><string>/Users/x/bots/jobless-bot/config.toml</string>");
   assert.equal(await has(path.join(ws, "..", "RETIRED.md")), false);
   assert.equal(await has(path.join(ws, "..", "RETIRED-until-2026-10-31.md")), true);
   assert.equal(await has(path.join(root, "ran-restart-bot.sh")), true);
 });
 
-test("the owner's Stop says so in the STOP file and the log, with or without a reason; a failed Start puts the same line back", async () => {
+test("the owner's Stop says so in the STOP file and the log, with or without a reason; a failed Start puts the same line back (queue 238)", async () => {
   const { ws, ctx } = await fixture();
   await control(ctx, "stop", { reason: "  too many repeats today " });
   assert.equal(await readFile(path.join(ws, "STOP"), "utf8"), "Owner: too many repeats today\n");

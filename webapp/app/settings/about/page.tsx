@@ -75,7 +75,7 @@ export default async function AboutPage() {
             </span>
           </Row>
           <Row label="Runs as">
-            <span className="font-mono text-xs">com.ramen-agents.bot-dashboard</span>
+            <span className="font-mono text-xs">com.rebuzz.bot-dashboard</span>
           </Row>
           <Row label="Logs">
             <span className="font-mono text-xs">~/bots/webapp/logs</span>
@@ -120,8 +120,10 @@ export default async function AboutPage() {
               <span className="font-mono text-xs">{code.hash}</span> · {code.when}
             </Row>
             <Row label="Message">{code.subject}</Row>
-            <Row label="Folder">
-              <span className="font-mono text-xs">~/Projects/bot</span>
+            <Row label="GitHub">
+              <a href="https://github.com/reBuzz-llc/macBot1" className="text-accent hover:underline">
+                reBuzz-llc/macBot1
+              </a>
             </Row>
           </div>
         </Panel>

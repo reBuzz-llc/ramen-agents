@@ -1,11 +1,15 @@
 "use client";
-// The Allowance list (the goal "drain every free token"): each provider in the
+// The Allowance list (creatorCC queue 230, the owner's standing goal "drain every free token"): each provider in the
 // family's chain with today's calls and tokens against its cap, a thin meter, what is left today, and its last good and
 // failed answer; monthly tiers show today's paced share (what is left this month / days left). Then the keyed providers
-// that are not in the chain, with their last use. Names only, never a key. A link to #allowance opens it.
+// that are not in the chain, with their last use. Names only, never a key. The world's ticker links here (#allowance)
+// while a provider is dead or above 90%.
 import type { Allowance, ChainRow } from "@/lib/allowance";
 import { usePoll } from "./hooks";
+import { pausedTick, tickOf } from "@/lib/tick";
+import TickLine from "./tick-line";
 import { Panel } from "./ui";
+import SortableTable from "./sortable-table";
 
 const big = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n.toLocaleString());
 const hm = (iso: string | null) => (iso ? iso.slice(5, 16).replace("T", " ") : "never");
@@ -15,6 +19,7 @@ const STATUS: Record<ChainRow["status"], { label: string; cls: string; bar: stri
   idle: { label: "not used today", cls: "text-muted", bar: "bg-accent" },
   near: { label: "above 90%", cls: "font-semibold text-ink", bar: "bg-[#d97706]" },
   dead: { label: "not answering", cls: "font-semibold text-bad", bar: "bg-bad" },
+  spent: { label: "allowance spent", cls: "font-semibold text-ink", bar: "bg-muted" },
 };
 
 function Meter({ used, status }: { used: number | null; status: ChainRow["status"] }) {
@@ -50,6 +55,7 @@ export default function AllowanceView() {
   const a = poll.data;
   return (
     <div id="allowance" className="mt-6 scroll-mt-24 space-y-3">
+      {a ? <TickLine tick={pausedTick(tickOf(a.tickAt ?? null, Date.parse(a.at)), a.paused)} /> : null}
       <Panel
         title="Allowance"
         aside={a ? `today, ${a.day}` : null}
@@ -59,7 +65,7 @@ export default function AllowanceView() {
           <p className="text-sm text-muted">{poll.error ?? "Reading the allowance…"}</p>
         ) : (
           <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[46rem] text-sm">
+            <SortableTable className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
                   <th className="py-1.5 pr-3 font-medium">Provider</th>
@@ -77,12 +83,18 @@ export default function AllowanceView() {
                       <p className="font-medium text-ink">{r.name}</p>
                       <p className={`text-xs ${STATUS[r.status].cls}`}>
                         {/* a dead row's note already says how long; the others get the status word first */}
-                        {r.status === "dead" && r.note ? r.note : [STATUS[r.status].label, r.note].filter(Boolean).join(" · ")}
+                        {(r.status === "dead" || r.status === "spent") && r.note ? r.note : [STATUS[r.status].label, r.note].filter(Boolean).join(" · ")}
                       </p>
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {r.calls.toLocaleString()}
                       {r.callsCap ? <span className="text-muted"> of {r.callsCap.toLocaleString()}</span> : null}
+                      {/* who drained it (queue 286): the bots and the Validator's own jobs share these keys */}
+                      {r.calls ? (
+                        <span className="block text-[11px] whitespace-nowrap text-muted">
+                          {r.split ? `bots ${r.split.bots.toLocaleString()} · Validator jobs ${r.split.validator.toLocaleString()}` : "no split yet"}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{tokensCell(r)}</td>
                     <td className="py-2 pr-3">
@@ -97,14 +109,14 @@ export default function AllowanceView() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         )}
       </Panel>
       {a ? (
         <Panel title="Keyed, not in the chain" hint="Keys on file that the chain does not use: the search backups, the email verifiers, and model providers out of the chain. Their last recorded use.">
           <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[36rem] text-sm">
+            <SortableTable className="w-full min-w-[36rem] text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
                   <th className="py-1.5 pr-3 font-medium">Provider</th>
@@ -128,19 +140,19 @@ export default function AllowanceView() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
-          <p className="mt-2 text-xs text-muted">&ldquo;—&rdquo;: no use recorded today, or no allowance on file.</p>
+          <p className="mt-2 text-xs text-muted">&ldquo;—&rdquo;: no use recorded today, or no allowance on file (Tavily: the CEO&rsquo;s special searches, no daily number).</p>
         </Panel>
       ) : null}
-      {/* every other free limit the family can hit; "not measurable" with the reason, never a guess */}
+      {/* queue 304: every other free limit the family can hit; "not measurable" with the reason, never a guess */}
       <Panel
         title="Other free tiers"
         hint={`Hosting, the databases, file storage and training. Checked hourly by scripts/free-tiers.py${a?.otherAt ? `, last ${a.otherAt.slice(11, 16)}` : " (not run yet)"}; the dashboard holds no key. The ticker warns from 80%.`}
       >
         {a?.other?.length ? (
           <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[40rem] text-sm">
+            <SortableTable className="w-full min-w-[40rem] text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
                   <th className="py-1.5 pr-3 font-medium">Service</th>
@@ -175,10 +187,10 @@ export default function AllowanceView() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         ) : (
-          <p className="text-sm text-muted">Not checked yet: the hourly job (launchd com.ramen-agents.free-tiers) writes common-data/shared-state/free-tiers.json.</p>
+          <p className="text-sm text-muted">Not checked yet: the hourly job (launchd com.rebuzz.free-tiers) writes common-data/shared-state/free-tiers.json.</p>
         )}
       </Panel>
     </div>

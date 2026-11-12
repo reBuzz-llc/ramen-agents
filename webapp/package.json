@@ -15,6 +15,8 @@
     "brandkit:accept": "node scripts/brandkit-check.mjs --accept",
     "predeploy": "node scripts/brandkit-check.mjs --quiet || true",
     "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\"",
+    "web-shots": "PLAYWRIGHT_SKIP_BROWSER_GC=1 ${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python scripts/web-shots.py",
+    "test:web-shots": "${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python -m unittest scripts/test_web_shots.py",
     "test:world-screens": "PLAYWRIGHT_SKIP_BROWSER_GC=1 ${BOT_CODE_ROOT:-$HOME/Projects/bot}/.venv/bin/python -m unittest scripts/world-screens-check.py"
   },
   "dependencies": {

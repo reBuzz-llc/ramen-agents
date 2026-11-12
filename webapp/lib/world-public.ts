@@ -113,7 +113,9 @@ export function publicState(input: { board: Record<string, unknown>; web: unknow
 /** True when a masked text still holds an address or a long number. */
 export function leaksText(text: string): boolean {
   if (ISO.test(text)) return false;
-  const digits = text.replace(/\d{4}-\d\d-\d\d[T ][\d:.]+/g, "").replace(/[ ()./-]/g, "");
+  // a date with its time, "2026-11-12T14:22" or a file name's stamp "2026-11-12-142233" (a package's file: it read as a
+  // 14-digit phone and stopped the whole public world), is not a number to hide
+  const digits = text.replace(/\d{4}-\d\d-\d\d(?:[T ][\d:.]+|-\d{4,6}\b)/g, "").replace(/[ ()./-]/g, "");
   return /[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(text) || /https?:\/\//i.test(text) || /\bwww\./i.test(text) || /\+?\d{9,}/.test(digits);
 }
 

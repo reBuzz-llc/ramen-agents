@@ -1,4 +1,4 @@
-// Run: npm test. A fake `last reboot shutdown` output and a fixture explorer.jsonl (2026-10-29).
+// Run: npm test. A fake `last reboot shutdown` output and a fixture explorer.jsonl (creatorCC queue 4, 2026-10-29).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

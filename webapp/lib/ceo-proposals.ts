@@ -1,4 +1,4 @@
-// The CEO's proposals (2026-10-30, step one of the CEO steering plan): The CEO proposes a change to
+// The CEO's proposals (creatorCC queue 14, 2026-10-30, step one of the CEO steering plan): The CEO proposes a change to
 // one bot's line in the owner's work plan (its goal, or a rule added or dropped); the owner approves or declines it on
 // the dashboard. Nothing is applied without the owner.
 //   common-data/shared-state/ceo-proposals.json = {version: 1, proposals: [...]}, oldest first. The engine only appends
@@ -20,12 +20,13 @@ export type Proposal = {
   reason: string;
   metric: string;
   expected: string;
-  status: "open" | "approved" | "declined";
+  status: "open" | "approved" | "declined" | "expired";
   validator_note: string;
   owner_note: string;
-  decided_at: string;
+  decided_at: string; // for an expired one (creatorCC queue 425): its expired_at, so it sorts and ages as a decision
+  expired_note: string;
 };
-type Rule = { id: string; text: string };
+type Rule = { id: string; text: string; by?: "ceo" };
 type Plan = { goal: string; rules: Rule[] };
 type Files = { proposals: string; plan: string; applied: string };
 
@@ -35,6 +36,8 @@ const MAX_RULE = 160;
 const MAX_RULES = 8;
 const LOCK_STALE_MS = 30_000;
 const KEEP_DECIDED_DAYS = 7;
+// the owner's rules are r1, r2, ...; The CEO's own (step two, engine a5d7a66) are c1, c2, ... and carry by: "ceo"
+const RULE_ID = /^[rc]\d{1,4}$/;
 
 const BOTS = process.env.BOTS_DIR ?? path.join(process.env.HOME ?? "", "bots");
 const FILES: Files = {
@@ -56,14 +59,19 @@ function parseChange(raw: unknown): Change | null {
   const text = line(c.text);
   if (c.kind === "goal" && text) return { kind: "goal", text };
   if (c.kind === "add_rule" && text) return { kind: "add_rule", text };
-  if (c.kind === "drop_rule" && /^r\d{1,4}$/.test(String(c.rule_id))) return { kind: "drop_rule", rule_id: String(c.rule_id), text };
+  if (c.kind === "drop_rule" && RULE_ID.test(String(c.rule_id))) return { kind: "drop_rule", rule_id: String(c.rule_id), text };
   return null;
 }
 
 function parseOne(raw: unknown): Proposal | null {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   if (!r || typeof r.id !== "string" || !r.id || typeof r.bot !== "string" || !r.bot) return null;
-  const status = r.status === "approved" || r.status === "declined" ? r.status : "open";
+  // The CEO's own changes (status applied, undone, reverted: lib/ceo-changes.ts) share the file and are not proposals.
+  // "expired" (queue 425): an open proposal step two superseded, with expired_at and expired_note; listed as decided.
+  // Roster proposals (creatorCC queue 440) have their own list: lib/roster-proposals.ts.
+  if (r.change && typeof r.change === "object" && (r.change as Record<string, unknown>).kind === "roster") return null;
+  if (r.status !== undefined && r.status !== "open" && r.status !== "approved" && r.status !== "declined" && r.status !== "expired") return null;
+  const status = r.status === "approved" || r.status === "declined" || r.status === "expired" ? r.status : "open";
   return {
     id: r.id,
     ts: line(r.ts, 40),
@@ -75,7 +83,8 @@ function parseOne(raw: unknown): Proposal | null {
     status,
     validator_note: line(r.validator_note),
     owner_note: line(r.owner_note),
-    decided_at: line(r.decided_at, 40),
+    decided_at: line(status === "expired" ? r.expired_at : r.decided_at, 40),
+    expired_note: status === "expired" ? line(r.expired_note) : "",
   };
 }
 
@@ -144,8 +153,9 @@ function planOf(raw: unknown): Plan {
   const rules: Rule[] = [];
   for (const x of Array.isArray(r.rules) ? r.rules : []) {
     const text = line(typeof x === "string" ? x : (x as Rule)?.text, MAX_RULE);
-    const id = typeof x === "object" && x && /^r\d{1,4}$/.test(String((x as Rule).id)) ? String((x as Rule).id) : "";
-    if (text && id) rules.push({ id, text });
+    const id = typeof x === "object" && x && RULE_ID.test(String((x as Rule).id)) ? String((x as Rule).id) : "";
+    const by = typeof x === "object" && x && String((x as Rule).by ?? "").toLowerCase() === "ceo" ? { by: "ceo" as const } : {};
+    if (text && id) rules.push({ id, text, ...by });
   }
   return { goal: line(r.goal, MAX_GOAL), rules };
 }
@@ -156,7 +166,7 @@ function applyChange(before: Plan, c: Change | null): Plan | string {
   if (c.kind === "goal") return { goal: c.text.slice(0, MAX_GOAL), rules: before.rules };
   if (c.kind === "add_rule") {
     if (before.rules.length >= MAX_RULES) return `this bot already has ${MAX_RULES} rules; drop one first`;
-    const next = Math.max(0, ...before.rules.map((r) => Number(r.id.slice(1)))) + 1;
+    const next = Math.max(0, ...before.rules.filter((r) => r.id.startsWith("r")).map((r) => Number(r.id.slice(1)))) + 1;
     return { goal: before.goal, rules: [...before.rules, { id: `r${next}`, text: c.text.slice(0, MAX_RULE) }] };
   }
   const rule = before.rules.find((r) => r.id === c.rule_id);

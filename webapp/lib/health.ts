@@ -1,4 +1,4 @@
-// The health banner (2026-10-29): one red line at the top of the dashboard when something needs a
+// The health banner (creatorCC queue 5, 2026-10-29): one red line at the top of the dashboard when something needs a
 // human, nothing when all is well. Each condition is one short sentence with the time it started:
 //   (a) the Validator's last_run older than 8 h, or its last_full_sweep older than 30 h;
 //   (b) an unplanned reboot (no shutdown logged) in the last 24 h;
@@ -32,7 +32,7 @@ export function validatorIssue(stateText: string, now: number): Issue | null {
   return null;
 }
 
-/** (a) from the Validator's own shared-state/validator-health.json (written after every run): the same
+/** (a) from the Validator's own shared-state/validator-health.json (valiCC 46d55d7, written after every run): the same
  *  last_run / last_full_sweep conditions read from it, plus one line per board job whose last result failed, "The
  *  Validator's <job> failed at HH:MM: <error>", which clears when the job next succeeds. Without the file (or when it
  *  cannot be read) the conditions come from its state.json as before. */
@@ -62,11 +62,28 @@ export function validatorHealthIssues(healthText: string | null, stateText: stri
 }
 
 /** (b) Unplanned reboots in the last 24 h, from the downtime spans ("no clean shutdown logged"). */
-export function rebootIssue(off: { from: string; to: string; note: string }[]): Issue | null {
+export function rebootIssue(off: { from: string; to: string; note: string }[], panics: { name: string; gpu: boolean }[] = []): Issue | null {
   const bad = off.filter((s) => s.note === "no clean shutdown logged");
   if (!bad.length) return null;
   const s = bad[bad.length - 1];
-  return { key: "reboot", since: s.from, text: `The Mac went off without a clean shutdown at ${hhmm(s.from)} and came back at ${hhmm(s.to)}.` };
+  // what it was, in one clause, when macOS filed a panic report for those minutes (queue 54); just the times otherwise
+  const p = panicFor(panics, s.from, s.to);
+  const why = p ? ` (a kernel panic${p.gpu ? " in the GPU memory driver" : ""}; the bots restarted on their own)` : "";
+  return { key: "reboot", since: s.from, text: `The Mac went off without a clean shutdown at ${hhmm(s.from)} and came back at ${hhmm(s.to)}${why}.` };
+}
+
+/** The panic report (panic-full-YYYY-MM-DD-HHMMSS…) filed from a minute before the Mac went off to three after it came
+ *  back, or null. */
+export function panicFor<P extends { name: string }>(panics: P[], from: string, to: string): P | null {
+  const lo = new Date(from).getTime() - 60e3;
+  const hi = new Date(to).getTime() + 180e3;
+  for (const p of panics) {
+    const m = /panic-full-(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})(\d{2})/.exec(p.name);
+    if (!m) continue;
+    const at = new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}`).getTime();
+    if (at >= lo && at <= hi) return p;
+  }
+  return null;
 }
 
 type Interval = [number, number];
@@ -126,7 +143,7 @@ type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: stri
 export type Provider = { host: string; label: string; calls: number; ok: boolean | null; dot: boolean };
 
 // Ledger keys that are not chain providers, with their label: the Validator's judge calls Gemini directly and keeps its
-// own key, with no health record (2026-10-29); the chain's Gemini calls count under "gemini".
+// own key, with no health record (creatorCC, 2026-10-29); the chain's Gemini calls count under "gemini".
 const SIDE_KEYS: Record<string, string> = { "generativelanguage.googleapis.com": "Gemini (Validator judge)" };
 const LABELS: Record<string, string> = { gemini: "Gemini" };
 type ModelCalls = { counts?: Record<string, number>; health?: Record<string, ProviderHealth> };

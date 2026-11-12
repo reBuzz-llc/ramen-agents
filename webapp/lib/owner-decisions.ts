@@ -1,10 +1,11 @@
-// Decisions waiting for the owner (2026-10-31; was a read-only owner-decisions.md since queue 9):
+// Decisions waiting for the owner (creatorCC queue 32, 2026-10-31; was a read-only owner-decisions.md since queue 9):
 //   common-data/shared-state/owner-decisions.json = {version, items: [{id, since, text, options: [...], link?: {label,
-//   href}, status: open | done | later | decided, choice?, note?, decided_at?, wake?}]}.
-// The planner (a person or a planning agent) adds items; the owner answers on the dashboard, one click per item: one of its options (status "decided",
+//   href}, status: open | done | later | decided, choice?, note?, decided_at?, wake?}]}; creatorCC's items may instead
+//   carry {ts, from, title, status: open | answered, answer?, answered_at?} (read as since, text, decided, choice).
+// creatorCC adds items; the owner answers on the dashboard, one click per item: one of its options (status "decided",
 // choice), Done, or Later (status "later", wake = three days on; the item shows again from then). Each answer sets
 // status, choice, note and decided_at in the file and appends the record to shared-state/owner-decisions-log.jsonl,
-// which the planner reads to act on each answer. Two writers share the file, so every read-modify-write holds the lock
+// which creatorCC reads on every loop tick. Two writers share the file, so every read-modify-write holds the lock
 // directory "owner-decisions.json.lock", as the CEO proposals do (a lock older than 30 s is broken). Unknown fields
 // are kept. Node imports only, so the test runs with Node's own runner.
 import { appendFile, mkdir, readFile, rename, rmdir, stat, writeFile } from "node:fs/promises";
@@ -39,21 +40,25 @@ function localIso(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+/** One item, in either shape the file holds: the dashboard's {since, text, status decided, choice, decided_at} or
+ *  creatorCC's {ts, from, title, status answered, answer, answered_at} (queue 284: its open items had no "text" and were
+ *  left out). An answered item reads as decided, with its answer as the choice. */
 function parseOne(raw: unknown): Decision | null {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
-  if (!r || typeof r.id !== "string" || !r.id || !line(r.text)) return null;
+  const text = r ? line(r.text) || line(r.title) : "";
+  if (!r || typeof r.id !== "string" || !r.id || !text) return null;
   const l = r.link && typeof r.link === "object" ? (r.link as Record<string, unknown>) : null;
-  const status = r.status === "done" || r.status === "later" || r.status === "decided" ? r.status : "open";
+  const status = r.status === "done" || r.status === "later" || r.status === "decided" ? r.status : r.status === "answered" ? "decided" : "open";
   return {
     id: r.id,
-    since: line(r.since, 40),
-    text: line(r.text),
+    since: line(r.since, 40) || line(r.ts, 10),
+    text,
     options: Array.isArray(r.options) ? r.options.map((o) => line(o, 120)).filter(Boolean) : [],
     link: l && line(l.href, 300) ? { label: line(l.label, 80) || "Open", href: line(l.href, 300) } : null,
     status,
-    choice: line(r.choice, 120),
+    choice: line(r.choice, 120) || line(r.answer, 120),
     note: line(r.note, 300),
-    decided_at: line(r.decided_at, 40),
+    decided_at: line(r.decided_at, 40) || line(r.answered_at, 40),
     wake: line(r.wake, 40),
   };
 }

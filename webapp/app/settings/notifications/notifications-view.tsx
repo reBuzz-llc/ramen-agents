@@ -6,6 +6,8 @@ import type { AlertsView } from "@/lib/alerts";
 import type { BotSummary } from "@/lib/bot";
 import { sendJson } from "@/lib/client";
 import { ago } from "@/lib/format";
+import { chatTime, unreadReplies } from "@/lib/world";
+import { useChatSeen } from "../../chat-seen";
 import HandleTag from "../../handle-tag";
 import { useNow, usePoll, useVisibleInterval } from "../../hooks";
 import { buttonClass, Icon, Panel, Spinner, Toggle } from "../../ui";
@@ -83,6 +85,7 @@ export default function NotificationsView() {
           </div>
         </div>
       ) : null}
+      <ChatReplies />
       {failed ? (
         <p role="alert" className="mb-3 rounded-lg bg-sys-red/10 px-3 py-2 text-sm text-bad">
           {failed}
@@ -191,5 +194,30 @@ export default function NotificationsView() {
         </div>
       </Panel>
     </>
+  );
+}
+
+/** "<name> answered you at HH:MM" for each agent whose reply in the owner's chat is not read yet (queue 35); computed
+ *  from the agents' last reply times and what this browser has seen, so no alert is written. Opening the agent's Chat
+ *  tab on the home page clears it. */
+function ChatReplies() {
+  const poll = usePoll<{ replies: Record<string, string | null>; names: Record<string, string> }>("chat/replies", 30000);
+  const seen = useChatSeen();
+  const now = useNow(60000);
+  const r = poll.data;
+  const unread = r ? unreadReplies(r.replies, seen) : [];
+  if (!r || !unread.length || !now) return null;
+  return (
+    <ul className="mb-4 space-y-1.5" aria-label="Unread replies">
+      {unread.map((slug) => (
+        <li key={slug} className="rounded-xl bg-panel px-4 py-2.5 text-sm ring-1 ring-[#ff6600]/40">
+          <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#ff6600] align-middle" aria-hidden />
+          <span className="font-semibold text-ink">{r.names[slug] ?? slug}</span> answered you at {chatTime(r.replies[slug] ?? "", now)}.{" "}
+          <Link href="/" className="font-semibold text-accent">
+            Open its Chat tab
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

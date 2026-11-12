@@ -1,4 +1,4 @@
-// Run: npm test. A fixture ceo-proposals.json and work-plan.json in a temp folder (2026-10-30).
+// Run: npm test. A fixture ceo-proposals.json and work-plan.json in a temp folder (creatorCC queue 14, 2026-10-30).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, stat } from "node:fs/promises";

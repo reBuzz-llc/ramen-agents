@@ -1,4 +1,4 @@
-// The free allowance, provider by provider (the goal "drain every free token"):
+// The free allowance, provider by provider (creatorCC queue 230, the owner's standing goal "drain every free token"):
 // how much of each free tier the family has used today and how much is left, so nothing free goes unspent and nothing
 // dead stays unnoticed. Read-only, from files on this Mac; no key is ever read, only the key files' names.
 //
@@ -9,7 +9,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-export type Health = { lastOk: string | null; lastFail: string | null; firstFail: string | null; reason: string };
+export type Health = { lastOk: string | null; lastFail: string | null; firstFail: string | null; reason: string; spent?: "day" | "month" | "" };
 export type ChainRow = {
   name: string;
   host: string;
@@ -23,23 +23,28 @@ export type ChainRow = {
   /** The larger of the calls and tokens shares used today (0..1), for the meter; null without any cap. */
   used: number | null;
   health: Health;
-  status: "ok" | "near" | "dead" | "idle";
+  status: "ok" | "near" | "dead" | "spent" | "idle";
   note: string;
+  /** Who made today's calls (creatorCC queue 286): the bots, and the Validator's own jobs (polish, second opinion,
+   *  pain refresh), from the ledger's by_caller; null until the ledger carries a split for this host (the bots write
+   *  it after their restart on engine d9575ff; a host with only the Validator's entries while its count is larger is
+   *  not split yet either). */
+  split: { bots: number; validator: number } | null;
 };
 export type IdleRow = { name: string; kind: "search" | "verifier" | "model" | "other"; lastUse: string | null; today: number | null; cap: string; note: string };
-/** A free limit beyond the models: hosting, the databases, file storage, training. Written hourly by
- *  scripts/free-tiers.py (which alone calls the providers); "unknown" with the reason when the free plan gives no
+/** A free limit beyond the models (creatorCC queue 304): hosting, the databases, file storage, training. Written hourly
+ *  by scripts/free-tiers.py (which alone calls the providers); "unknown" with the reason when the free plan gives no
  *  number. */
 export type OtherTier = { name: string; what: string; used: number | null; limit: number | null; unit: string; resets: string; status: "ok" | "near" | "over" | "unknown"; how: string };
-export type Allowance = { at: string; day: string; chain: ChainRow[]; idle: IdleRow[]; since: string | null; alerts: string[]; other: OtherTier[]; otherAt: string | null };
+export type Allowance = { at: string; day: string; chain: ChainRow[]; idle: IdleRow[]; since: string | null; alerts: string[]; other: OtherTier[]; otherAt: string | null; tickAt?: string | null; paused?: string | null };
 
 /** The other tiers that warn on the ticker: 80 % and over. */
 export const otherAlerts = (rows: OtherTier[]) =>
   rows.filter((r) => (r.status === "near" || r.status === "over") && r.used !== null && r.limit).map((r) => `${r.name} ${r.what} at ${Math.round(((r.used ?? 0) / (r.limit ?? 1)) * 100)}%`);
 
-// Token-bound tiers the config does not state yet (set tokens_per_day or tokens_per_month in the
+// Token-bound tiers the config does not state yet (valiCC's queue 226 adds tokens_per_day / tokens_per_month to the
 // provider tables; a value there wins). Groq: gpt-oss-120b's 200k tokens a day (its rate-limit headers). Gonka Broker:
-// about 1M tokens a month (freellm.net). Ollama Cloud: a monthly cap whose size is not published.
+// about 1M tokens a month (freellm.net, the owner's key note). Ollama Cloud: a monthly cap whose size is not published.
 const TOKEN_TIERS: Record<string, { per: "day" | "month"; limit: number | null; note?: string }> = {
   groq: { per: "day", limit: 200_000 },
   "gonka-broker": { per: "month", limit: 1_000_000 },
@@ -54,16 +59,31 @@ const KNOWN_HOSTS: Record<string, string> = {
   replicate: "api.replicate.com",
 };
 // Key files that are not providers of free work, or not this page's business.
-const NOT_PROVIDERS = /^(peek-|notion$|cloudflare-r2$)/;
-const SEARCH: Record<string, { file: string; capKey: string; cap: number; note: string }> = {
-  tavily: { file: "tavily-usage.json", capKey: "tavily_per_day", cap: 30, note: "keyed search, kept for special searches" },
-  langsearch: { file: "langsearch-usage.json", capKey: "langsearch_per_day", cap: 100, note: "automatic backup when the keyless engines fail" },
-  parallel: { file: "parallel-usage.json", capKey: "parallel_per_day", cap: 30, note: "second automatic backup" },
+const NOT_PROVIDERS = /^(portal-|peek-|notion$|cloudflare-r2$)/;
+// The keyed search engines (creatorCC queue 329, after valiCC's 274: engine 8720b69, fleet 8ffa3ff). Each engine's day
+// counts are the sum of its usage files: Tavily's are The CEO's by hand and the Research Analyst's own daily share.
+const SEARCH: Record<string, { files: string[]; capKey: string; cap: number; capText?: string; note: string }> = {
+  tavily: {
+    files: ["tavily-usage.json", "tavily-usage-analyst.json"],
+    capKey: "tavily_per_day",
+    cap: 25,
+    capText: "25 a day (the Analyst) + The CEO's by hand",
+    note: "the Research Analyst's searches, up to 25 a day, and The CEO's special searches by hand",
+  },
+  langsearch: { files: ["langsearch-usage.json"], capKey: "langsearch_per_day", cap: 100, note: "a share of Lead Gen's searches by allowance left" },
+  parallel: { files: ["parallel-usage.json"], capKey: "parallel_per_day", cap: 30, note: "a share of Lead Gen's searches by allowance left" },
 };
+
+/** Day counts from several usage files, summed per day. */
+export function mergeDays(files: Record<string, number>[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const f of files) for (const [d, n] of Object.entries(f ?? {})) if (typeof n === "number") out[d] = (out[d] ?? 0) + n;
+  return out;
+}
 const VERIFIERS: Record<string, { by: string | null; cap: string }> = {
   quickemailverification: { by: null, cap: "100 a day" },
   sniffmail: { by: "sniffmail", cap: "500 a month" },
-  ezverify: { by: "ezverify", cap: "on file, unused" },
+  ezverify: { by: "ezverify", cap: "200 a month" },
 };
 
 type Toml = { chain: string[]; top: Record<string, string>; providers: Record<string, Record<string, string>> };
@@ -110,11 +130,33 @@ type Calls = {
   day?: string;
   counts?: Record<string, number>;
   usage?: Record<string, Record<string, [number, number, number]>>;
-  health?: Record<string, { last_ok?: string; last_fail?: string; first_fail?: string; last_reason?: string }>;
+  health?: Record<string, { last_ok?: string; last_fail?: string; first_fail?: string; last_reason?: string; spent?: string }>;
+  by_caller?: Record<string, Record<string, number>>;
 };
+
+/** A host's calls by caller: Validator = the "validator:*" entries, bots = the rest ("unnamed" included); null when the
+ *  ledger has no split for it yet, or only the Validator's entries while the day's count is larger (the bots not yet
+ *  writing theirs). */
+export function splitOf(byCaller: Record<string, number> | undefined, calls: number): ChainRow["split"] {
+  if (!byCaller || !Object.keys(byCaller).length) return null;
+  let validator = 0;
+  let bots = 0;
+  for (const [caller, n] of Object.entries(byCaller)) {
+    if (caller.startsWith("validator:")) validator += Number(n) || 0;
+    else bots += Number(n) || 0;
+  }
+  if (bots === 0 && calls > validator) return null;
+  return { bots, validator };
+}
 type History = { since?: string; days?: Record<string, { hosts?: Record<string, { calls: number; tokens: number }> }> };
 
 /** Days left in the month, today included (local date "YYYY-MM-DD"). */
+/** "2026-11" -> "2026-12-01", "2026-12" -> "2027-01-01": the day a monthly allowance renews. */
+export function nextMonthFirst(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+}
+
 export function daysLeft(day: string): number {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, m, 0).getDate() - d + 1;
@@ -159,16 +201,25 @@ export function allowanceOf(
     }
     const callShare = callsCap ? calls / callsCap : null;
     const h = input.calls.health?.[host] ?? {};
-    const health: Health = { lastOk: h.last_ok ?? null, lastFail: h.last_fail ?? null, firstFail: h.first_fail ?? null, reason: h.last_reason ?? "" };
+    // engine 2cbe08a (queue 447/449): health[host].spent is the day ("2026-11-11") or the month ("2026-11") the allowance
+    // ran out; it holds only while that day or month lasts, and an answer clears it
+    const spent = h.spent === day ? "day" : h.spent === month ? "month" : "";
+    const health: Health = { lastOk: h.last_ok ?? null, lastFail: h.last_fail ?? null, firstFail: h.first_fail ?? null, reason: h.last_reason ?? "", spent };
     const dead = !!health.lastFail && (!health.lastOk || health.lastFail > health.lastOk);
     const used = callShare === null && tokenShare === null ? null : Math.max(callShare ?? 0, tokenShare ?? 0);
-    const status: ChainRow["status"] = dead ? "dead" : used !== null && used >= 0.9 ? "near" : calls === 0 ? "idle" : "ok";
-    const note = dead
+    const status: ChainRow["status"] = spent ? "spent" : dead ? "dead" : used !== null && used >= 0.9 ? "near" : calls === 0 ? "idle" : "ok";
+    const deadNote = spent
+      ? spent === "day"
+        ? "spent today · renews at midnight"
+        : `spent this month · renews on the 1st (${nextMonthFirst(month).slice(5)})`
+      : dead
       ? health.lastOk
         ? `not answering since ${(health.firstFail ?? health.lastFail ?? "").slice(5, 16).replace("T", " ")}${health.reason ? ` (${health.reason})` : ""}`
         : `has never answered${health.reason ? ` (${health.reason})` : ""}`
-      : (TOKEN_TIERS[name]?.note ?? "");
-    return { name, host, calls, callsCap, tokens, tokenLimit, left: { calls: callsCap ? Math.max(0, callsCap - calls) : null, tokens: tokensLeft }, used, health, status, note };
+      : "";
+    // a provider table's own `note` comes first (creatorCC queue 257: Mistral "1 a day until activated")
+    const note = [p.note ?? "", deadNote || (p.note ? "" : (TOKEN_TIERS[name]?.note ?? ""))].filter(Boolean).join(" · ");
+    return { name, host, calls, callsCap, tokens, tokenLimit, left: { calls: callsCap ? Math.max(0, callsCap - calls) : null, tokens: tokensLeft }, used, health, status, note, split: splitOf(input.calls.by_caller?.[host], calls) };
   });
 
   const inChain = new Set(cfg.chain);
@@ -185,7 +236,8 @@ export function allowanceOf(
         const days = input.search[name] ?? {};
         const used = Object.entries(days).filter(([, n]) => n > 0).map(([d]) => d).sort();
         const cap = num(cfg.top[s.capKey]) ?? s.cap;
-        return { name, kind: "search", lastUse: used.at(-1) ?? null, today: days[day] ?? 0, cap: `${cap} a day`, note: s.note };
+        // Tavily: the Analyst's daily share plus The CEO's by hand (capText); the others a daily number to use up
+        return { name, kind: "search", lastUse: used.at(-1) ?? null, today: days[day] ?? 0, cap: s.capText ?? `${cap} a day`, note: s.note };
       }
       const v = VERIFIERS[name];
       if (v) {
@@ -205,11 +257,11 @@ export function allowanceOf(
         lastUse: lastInHistory(host),
         today: null,
         cap: p ? "paid key, in no chain" : "",
-        note: p ? "a paid key: kept on file, in no chain" : "",
+        note: p ? "the owner pays for nothing: kept on file only" : name === "freeai" ? "left the chain 10-30: its allowance was used up" : name === "dahl-inference" ? "keyed, out of the chain: allowance exhausted" : "",
       };
     });
 
-  const alerts = chain.filter((r) => r.status === "dead" || r.status === "near").map((r) => (r.status === "dead" ? `${r.name} not answering` : `${r.name} at ${Math.round((r.used ?? 0) * 100)}%`));
+  const alerts = chain.filter((r) => r.status === "dead" || r.status === "near" || r.status === "spent").map((r) => (r.status === "spent" ? `${r.name} spent ${r.health.spent === "day" ? "today" : "this month"}` : r.status === "dead" ? `${r.name} not answering` : `${r.name} at ${Math.round((r.used ?? 0) * 100)}%`));
   const other = input.other?.rows ?? [];
   return { at: now.toISOString(), day, chain, idle, since: input.history.since ?? null, alerts: [...alerts, ...otherAlerts(other)], other, otherAt: input.other?.at ?? null };
 }
@@ -230,8 +282,13 @@ export async function readAllowance(bots: string, now = new Date()): Promise<All
     readdir(/*turbopackIgnore: true*/ path.join(bots, "common-data", "keys")).catch(() => [] as string[]),
     readJson<Record<string, { at?: string; by?: string }>>(path.join(shared, "email-verify.json"), {}),
     readJson<{ at?: string; rows?: OtherTier[] }>(path.join(shared, "free-tiers.json"), {}),
-    ...Object.values(SEARCH).map((s) => readJson<Record<string, number>>(path.join(shared, s.file), {})),
+    ...Object.values(SEARCH).map((s) => Promise.all(s.files.map((file) => readJson<Record<string, number>>(path.join(shared, file), {}))).then(mergeDays)),
   ]);
+  // the Validator's last tick, for the stale line above the allowance (creatorCC queue 315)
+  const tickAt = await readJson<{ at?: unknown }>(path.join(shared, "tick-report.json"), {}).then((d) => (typeof d.at === "string" ? d.at : null));
+  // a planned pause (queue 371): the old tick is expected, the line says why
+  // (loaded here, not at the top: the test runner loads this file without the server-side readers)
+  const paused = (await import("./trial-read").then((m) => m.readTrial(bots)).catch(() => null))?.line ?? null;
   const keys = [...new Set(keyFiles.filter((f) => f.endsWith(".key")).map((f) => f.replace(/\.key$/, "")))];
-  return allowanceOf({ config, calls, history, keys, search: Object.fromEntries(Object.keys(SEARCH).map((k, i) => [k, search[i] as Record<string, number>])), verify, other: other as { at?: string; rows?: OtherTier[] } }, now);
+  return { ...allowanceOf({ config, calls, history, keys, search: Object.fromEntries(Object.keys(SEARCH).map((k, i) => [k, search[i] as Record<string, number>])), verify, other: other as { at?: string; rows?: OtherTier[] } }, now), tickAt, paused };
 }

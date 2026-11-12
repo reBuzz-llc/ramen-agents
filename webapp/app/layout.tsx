@@ -4,8 +4,8 @@ import { GLASS_COOKIE, GLASS_DEFAULT, parseGlass, parseTheme, THEME_COLORS, THEM
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-// The member dialogue's four lines read in JetBrains Mono: fetched from Google Fonts at build and served from this app,
-// so the browser asks Google for nothing.
+// The world's screens read in JetBrains Mono (owner, 2026-11-06, creatorCC queue 232): fetched from Google Fonts at build
+// and served from this app, so the browser asks Google for nothing. The canvas reads the family from --font-screen.
 const screenFont = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-screen", display: "swap", fallback: ["ui-monospace", "Menlo", "monospace"] });
 
 export const metadata: Metadata = {

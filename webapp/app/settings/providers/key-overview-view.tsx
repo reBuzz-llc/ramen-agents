@@ -3,6 +3,10 @@
 import { useState } from "react";
 import type { KeyOverview, KeyRow, UsageBar } from "@/lib/key-overview";
 import { ago } from "@/lib/format";
+import { keyPage, NEEDS_FIX } from "@/lib/key-pages";
+import { sortOrder, sortValue } from "@/lib/sort-value";
+import type { Verdict } from "@/lib/provider-finds";
+import KeyRowActions, { MarksContext } from "./key-row-actions";
 import { useNow, usePoll } from "../../hooks";
 import { buttonClass, Icon, Panel, Spinner } from "../../ui";
 
@@ -88,7 +92,7 @@ function TodayBar({ row, bars, totalCalls }: { row: KeyRow; bars: UsageBar[]; to
     caption = row.callsToday ? `${fill}% of today's model calls` : "";
   }
   return (
-    <div className="min-w-[10rem]">
+    <div className="min-w-0">
       <span className="block text-ink/85">{row.today}</span>
       {quota || (row.kind === "AI model" && totalCalls > 0) ? (
         <>
@@ -102,21 +106,276 @@ function TodayBar({ row, bars, totalCalls }: { row: KeyRow; bars: UsageBar[]; to
   );
 }
 
-function UsagePanel({ bars, now }: { bars: UsageBar[]; now: number }) {
-  const groups = ["Free quotas", "Bot daily budgets"] as const;
+/** 10,978,864 -> "11.0M"; under ten thousand as it is. */
+const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n.toLocaleString());
+
+/** "1st for Lead Enricher, Lead Gen, Outreach Writer, ...; 2nd for Outreach Writer" -> "1st for 6 bots · 2nd for
+ *  Outreach Writer": a group of three or more bots by its count (the names stay in the hover title). */
+function shortPosition(position: string): string {
+  return position
+    .split("; ")
+    .map((part) => {
+      const m = /^(\S+) for (.+)$/.exec(part);
+      if (!m) return part;
+      const names = m[2].split(", ");
+      return names.length >= 3 ? `${m[1]} for ${names.length} bots` : part;
+    })
+    .join(" · ");
+}
+
+function StatusLine({ row }: { row: KeyRow }) {
   return (
-    <section className="grid grid-cols-1 gap-5 md:grid-cols-2">
+    <span className="flex items-center gap-1.5 whitespace-nowrap">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${DOT[row.available]}`} role="img" aria-label={LABEL[row.available]} />
+      {LABEL[row.available]}
+    </span>
+  );
+}
+
+/** Where to fix a key that is refused, limited, paused or missing (owner, 2026-11-12): the provider's key page and the
+ *  file a new key goes into. A limited or paused key usually only waits; its page shows the plan and the usage. */
+function FixLine({ row: r }: { row: KeyRow }) {
+  if (!(NEEDS_FIX as readonly string[]).includes(r.available)) return null;
+  const page = keyPage(r.name);
+  const file = `common-data/keys/${r.file ?? `${r.name}.key`}`;
+  // a new key only when the key itself was refused (401/403, rejected, invalid) or is missing; a provider that did not
+  // answer (an empty reply, a timeout) needs a Test, not a key (owner, 2026-11-12)
+  const refused = r.available === "no key" || (r.available === "not working" && /\b(401|403)\b|reject|invalid|unauthori[sz]ed|refused/i.test(r.note));
+  if (r.available === "not working" && !refused)
+    return <span className="mt-1 block text-xs break-words text-ink">Press Test: if it passes, the key is fine and the provider was only busy; the bots clear this on their next good call.</span>;
+  return (
+    <span className="mt-1 block text-xs break-words text-ink">
+      {page ? (
+        <>
+          {refused ? "Fix: make a new key at " : "Check the plan at "}
+          <a href={page.url} target="_blank" rel="noopener noreferrer" className="font-medium text-accent underline">
+            {page.host}
+          </a>
+          {refused ? (
+            <>
+              , then save it as <code className="break-all">{file}</code>
+            </>
+          ) : null}
+        </>
+      ) : refused ? (
+        <>
+          Fix: save a working key as <code className="break-all">{file}</code>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/** One key as a row that fits the panel: on a wide screen five columns (key and who uses it, status, today, free limit,
+ *  limit hits), on a phone stacked; no sideways scroll. */
+function KeyLine({ row: r, bars, totalCalls, now }: { row: KeyRow; bars: UsageBar[]; totalCalls: number; now: number }) {
+  const used = r.position ? shortPosition(r.position) : r.usedBy.join(", ");
+  const full = [r.position || r.usedBy.join(", "), r.stoppedBy?.length ? `stopped: ${r.stoppedBy.join(", ")}` : ""].filter(Boolean).join(" · ");
+  return (
+    <li className="grid grid-cols-1 gap-x-4 gap-y-1.5 py-3 text-sm md:grid-cols-[minmax(0,13rem)_minmax(0,14rem)_minmax(0,1fr)_minmax(0,9rem)_4.5rem]">
+      <div className="min-w-0">
+        {keyPage(r.name) ? (
+          // every provider's key page (owner, 2026-11-12: "link on all rows so I can add new to our Ramen")
+          <a href={keyPage(r.name)!.url} target="_blank" rel="noopener noreferrer" className="block font-semibold break-words text-ink underline decoration-line underline-offset-2 hover:text-accent"
+             title={`Make or replace the key at ${keyPage(r.name)!.host}`}>
+            {r.name} ↗
+          </a>
+        ) : (
+          <span className="block font-semibold break-words text-ink">{r.name}</span>
+        )}
+        <span className="block text-xs text-muted">
+          {r.kind}
+          {r.paid ? " · paid" : ""}
+        </span>
+        {used ? (
+          <span className="mt-0.5 line-clamp-3 text-xs break-words text-ink/75" title={full}>
+            {used}
+          </span>
+        ) : null}
+      </div>
+      <div className="min-w-0">
+        <StatusLine row={r} />
+        {r.note ? (
+          <span className="mt-0.5 line-clamp-2 text-xs break-words text-muted" title={r.note}>
+            {r.note}
+          </span>
+        ) : null}
+        <FixLine row={r} />
+      </div>
+      <div className="min-w-0 text-xs">
+        <TodayBar row={r} bars={bars} totalCalls={totalCalls} />
+        {/* Test and Usable / Unusable on every key, under the Today bar (owner, 2026-11-12) */}
+        {r.file || r.available !== "no key" ? <KeyRowActions name={r.name} kind={r.kind} /> : null}
+      </div>
+      <div className="min-w-0 text-xs break-words text-muted">
+        <span className="text-muted md:hidden">Free limit: </span>
+        {r.free || "–"}
+      </div>
+      <div className="text-xs tabular-nums md:text-right">
+        <span className="text-muted md:hidden">Limit hits, 24 h: </span>
+        {r.limitHits24h ? (
+          <span className="text-sys-orange" title={r.lastLimit ? `last ${ago(r.lastLimit, now)}` : undefined}>
+            {r.limitHits24h}
+            <span className="block text-[11px]">{r.lastLimit ? ago(r.lastLimit, now) : ""}</span>
+          </span>
+        ) : (
+          <span className="text-muted">0</span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// The key list's columns, sortable like every table (owner, 2026-11-12): a heading click sorts, again reverses, a third
+// time restores the page's own order; on a phone a menu does the same.
+const KEY_COLS: { label: string; value: (r: KeyRow) => string | number; right?: boolean }[] = [
+  { label: "Key · used by", value: (r) => r.name },
+  { label: "Status", value: (r) => r.available },
+  { label: "Today", value: (r) => r.tokensToday || r.callsToday },
+  { label: "Free limit", value: (r) => r.free },
+  { label: "Limit hits, 24 h", value: (r) => r.limitHits24h, right: true },
+];
+
+function KeyGroup({ title, rows, empty, bars, totalCalls, now }: { title: string; rows: KeyRow[]; empty?: string; bars: UsageBar[]; totalCalls: number; now: number }) {
+  const [sort, setSort] = useState<{ col: number; dir: "asc" | "desc" } | null>(null);
+  if (!rows.length && !empty) return null;
+  const click = (col: number) => setSort((s) => (!s || s.col !== col ? { col, dir: "asc" } : s.dir === "asc" ? { col, dir: "desc" } : null));
+  const shown = sort ? sortOrder(rows.map((r) => sortValue(KEY_COLS[sort.col].value(r))), sort.dir).map((i) => rows[i]) : rows;
+  return (
+    <section className="mt-4 first:mt-0">
+      <h3 className="flex flex-wrap items-baseline gap-2 text-sm font-semibold text-ink">
+        {title} <span className="text-xs font-normal text-muted tabular-nums">{rows.length}</span>
+        {rows.length > 1 ? (
+          <select
+            aria-label={`Sort ${title}`}
+            value={sort ? `${sort.col}-${sort.dir}` : ""}
+            onChange={(e) => setSort(e.target.value ? { col: Number(e.target.value.split("-")[0]), dir: e.target.value.split("-")[1] as "asc" | "desc" } : null)}
+            className="ml-auto rounded-md bg-fill-3 px-2 py-0.5 text-xs font-normal text-ink md:hidden"
+          >
+            <option value="">Page order</option>
+            {KEY_COLS.flatMap((c, i) => [
+              <option key={`${i}-asc`} value={`${i}-asc`}>{c.label} ↑</option>,
+              <option key={`${i}-desc`} value={`${i}-desc`}>{c.label} ↓</option>,
+            ])}
+          </select>
+        ) : null}
+      </h3>
+      {rows.length ? (
+        <>
+          <div role="row" className="mt-1 hidden grid-cols-[minmax(0,13rem)_minmax(0,14rem)_minmax(0,1fr)_minmax(0,9rem)_4.5rem] gap-x-4 border-b border-line pb-1 text-xs text-muted md:grid">
+            {KEY_COLS.map((c, i) => {
+              const on = sort?.col === i;
+              return (
+                <span key={c.label} role="columnheader" aria-sort={on ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"} className={c.right ? "text-right" : ""}>
+                  <button type="button" onClick={() => click(i)} className="inline-flex items-center gap-1 hover:text-ink" title="Sort by this column">
+                    {c.label}
+                    <span aria-hidden className={`text-[10px] ${on ? "text-ink" : "text-muted/60"}`}>{on ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+          <ul className="divide-y divide-line">
+            {shown.map((r) => (
+              <KeyLine key={r.name} row={r} bars={bars} totalCalls={totalCalls} now={now} />
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="mt-1 text-sm text-muted">{empty}</p>
+      )}
+    </section>
+  );
+}
+
+/** Keys on file nobody has tried, and keys not in use: one short line each. */
+function IdleList({ rows }: { rows: KeyRow[] }) {
+  return (
+    <ul className="mt-2 divide-y divide-line">
+      {rows.map((r) => (
+        <li key={r.name} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs">
+          {keyPage(r.name) ? (
+            <a href={keyPage(r.name)!.url} target="_blank" rel="noopener noreferrer" className="w-36 shrink-0 font-semibold text-ink underline decoration-line underline-offset-2 hover:text-accent"
+               title={`Make or replace the key at ${keyPage(r.name)!.host}`}>
+              {r.name} ↗
+            </a>
+          ) : (
+            <span className="w-36 shrink-0 font-semibold text-ink">{r.name}</span>
+          )}
+          <span className="w-20 shrink-0 text-muted">{r.kind}</span>
+          <span className="min-w-0 flex-1 break-words text-muted">{r.note || r.free || "–"}</span>
+          {r.file ? (
+            <div className="w-full">
+              <KeyRowActions name={r.name} kind={r.kind} />
+            </div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type UsageSort = "used" | "name" | "resets";
+const USAGE_SHOWN = 6;
+
+/** The bars as units: a bar and the bots drawn under it (sub) stay together when sorted. */
+function usageUnits(list: UsageBar[]): UsageBar[][] {
+  const units: UsageBar[][] = [];
+  for (const b of list) {
+    if (b.sub && units.length) units[units.length - 1].push(b);
+    else units.push([b]);
+  }
+  return units;
+}
+const usedShare = (b: UsageBar) => (b.limit ? b.used / b.limit : -1);
+
+/** Usage and token budget (owner, 2026-11-12): sortable (most used, name, resets soonest), the bars in two columns on a
+ *  wide screen, the first six and "Show all n". */
+function UsagePanel({ bars, now }: { bars: UsageBar[]; now: number }) {
+  const [sort, setSort] = useState<UsageSort>("used");
+  const [all, setAll] = useState<Record<string, boolean>>({});
+  const groups = (["Free quotas", "Bot daily budgets"] as const).filter((g) => bars.some((b) => b.group === g));
+  const order = (units: UsageBar[][]) =>
+    [...units].sort((x, y) => {
+      const a = x[0], b = y[0];
+      if (sort === "name") return a.label.localeCompare(b.label);
+      if (sort === "resets") return (a.resetsAt ?? "9999").localeCompare(b.resetsAt ?? "9999") || a.label.localeCompare(b.label);
+      return usedShare(b) - usedShare(a) || a.label.localeCompare(b.label);
+    });
+  return (
+    <section className="space-y-5">
       {groups.map((g) => {
-        const list = bars.filter((b) => b.group === g);
-        if (!list.length) return null;
+        const units = order(usageUnits(bars.filter((b) => b.group === g)));
+        if (!units.length) return null;
+        const open = all[g] || units.length <= USAGE_SHOWN;
+        const shown = open ? units : units.slice(0, USAGE_SHOWN);
         return (
           <div key={g} className="rounded-xl bg-panel px-4 pt-3.5 pb-4">
-            <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">{g === "Free quotas" ? "Usage" : "Token budget"}</h2>
-            <div className="mt-3 space-y-4">
-              {list.map((b) => (
-                <Meter key={b.label} bar={b} now={now} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">{g === "Free quotas" ? "Usage" : "Token budget"}</h2>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                Sort
+                <select value={sort} onChange={(e) => setSort(e.target.value as UsageSort)} className="rounded-md bg-fill-3 px-2 py-1 text-xs text-ink">
+                  <option value="used">Most used first</option>
+                  <option value="name">Name</option>
+                  <option value="resets">Resets soonest</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
+              {shown.map((u) => (
+                <div key={u[0].label} className="space-y-3">
+                  {u.map((b) => (
+                    <Meter key={b.label} bar={b} now={now} />
+                  ))}
+                </div>
               ))}
             </div>
+            {units.length > USAGE_SHOWN ? (
+              <button type="button" onClick={() => setAll((m) => ({ ...m, [g]: !open }))} className="mt-3 text-xs font-semibold text-accent hover:underline" aria-expanded={open}>
+                {open ? "Show fewer" : `Show all ${units.length}`}
+              </button>
+            ) : null}
           </div>
         );
       })}
@@ -127,6 +386,7 @@ function UsagePanel({ bars, now }: { bars: UsageBar[]; now: number }) {
 /** Every key in one view: availability, today's usage, free limit and where it sits in the bots' chains. */
 export default function KeyOverviewView() {
   const feed = usePoll<KeyOverview>("key-overview", 60000);
+  const finds = usePoll<{ decided: Verdict[] }>("provider-finds", 5 * 60_000);
   const [fresh, setFresh] = useState<KeyOverview | null>(null);
   const [busy, setBusy] = useState(false);
   const now = useNow(60000);
@@ -154,7 +414,11 @@ export default function KeyOverviewView() {
   const rows = data.rows;
   // Keys nothing uses (paid ones kept off every chain, providers with no key) fold away under the working ones.
   const idle = rows.filter((r) => r.available === "unused" || r.available === "no key");
-  const active = rows.filter((r) => !idle.includes(r));
+  // Three groups, so what needs a look is first and the keys nobody has tried yet fold away (owner 2026-11-06: "UX
+  // here is poor": one 34-row table, the broken and limited keys lost among the idle ones).
+  const attention = rows.filter((r) => r.available === "not working" || r.available === "limited" || r.available === "paused");
+  const working = rows.filter((r) => r.available === "ready");
+  const onFile = rows.filter((r) => r.available === "on file");
   const totalCalls = rows.filter((r) => r.kind === "AI model").reduce((t, r) => t + r.callsToday, 0);
   const count = (a: KeyRow["available"][]) => rows.filter((r) => a.includes(r.available)).length;
   const tokens = data.fleetTokens ?? rows.reduce((t, r) => t + r.tokensToday, 0); // the same count as the token pool
@@ -163,17 +427,18 @@ export default function KeyOverviewView() {
     { label: "Ready", value: count(["ready", "on file"]), tone: "text-good" },
     { label: "Limited or paused today", value: count(["limited", "paused"]), tone: "text-sys-orange" },
     { label: "Not working", value: count(["not working"]), tone: "text-bad" },
-    { label: "Fleet tokens today", value: tokens.toLocaleString(), tone: "text-ink" },
+    { label: "Fleet tokens today", value: compact(tokens), title: tokens.toLocaleString(), tone: "text-ink" },
   ];
 
   return (
+    <MarksContext.Provider value={{ marks: finds.data?.decided ?? [], reload: finds.reload, tested: () => void refresh() }}>
     <div className="space-y-5">
       {data.usage?.length ? <UsagePanel bars={data.usage} now={now} /> : null}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {tiles.map((t) => (
-          <div key={t.label} className="rounded-xl bg-panel px-4 py-3">
-            <p className="text-xs text-muted">{t.label}</p>
-            <p className={`mt-0.5 text-2xl font-bold tabular-nums ${t.tone}`}>{t.value}</p>
+          <div key={t.label} className="min-w-0 rounded-xl bg-panel px-4 py-3" title={"title" in t ? t.title : undefined}>
+            <p className="truncate text-xs text-muted">{t.label}</p>
+            <p className={`mt-0.5 truncate text-2xl font-bold tabular-nums ${t.tone}`}>{t.value}</p>
           </div>
         ))}
       </div>
@@ -187,73 +452,18 @@ export default function KeyOverviewView() {
           </button>
         }
       >
-        <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[52rem] text-sm">
-            <thead>
-              <tr className="text-left text-xs text-muted">
-                <th className="py-1.5 pr-3 font-medium">Key</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
-                <th className="py-1.5 pr-3 font-medium">Used by</th>
-                <th className="py-1.5 pr-3 font-medium">Today</th>
-                <th className="py-1.5 pr-3 font-medium">Free limit</th>
-                <th className="py-1.5 font-medium whitespace-nowrap">Limit hits, 24 h</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line align-top">
-              {active.map((r) => (
-                <tr key={r.name}>
-                  <td className="py-2 pr-3">
-                    <span className="block font-semibold text-ink">{r.name}</span>
-                    <span className="block text-xs text-muted">
-                      {r.kind}
-                      {r.paid ? " · paid" : ""}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3">
-                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${DOT[r.available]}`} role="img" aria-label={LABEL[r.available]} />
-                      {LABEL[r.available]}
-                    </span>
-                    {r.note ? (
-                      <span className="mt-0.5 line-clamp-2 max-w-[18rem] text-xs break-words text-muted" title={r.note}>
-                        {r.note}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="py-2 pr-3 text-xs break-words">
-                    <span className="text-ink/85">{r.position || r.usedBy.join(", ") || "–"}</span>
-                    {r.stoppedBy?.length ? <span className="mt-0.5 block text-muted">stopped: {r.stoppedBy.join(", ")}</span> : null}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">
-                    <TodayBar row={r} bars={data.usage ?? []} totalCalls={totalCalls} />
-                  </td>
-                  <td className="py-2 pr-3 text-xs text-muted">{r.free || "–"}</td>
-                  <td className="py-2 text-xs whitespace-nowrap tabular-nums">
-                    {r.limitHits24h ? (
-                      <span className="text-sys-orange">
-                        {r.limitHits24h} · last {r.lastLimit ? ago(r.lastLimit, now) : ""}
-                      </span>
-                    ) : (
-                      <span className="text-muted">0</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <KeyGroup title="Needs attention" rows={attention} empty="Nothing: every key in use answers." bars={data.usage ?? []} totalCalls={totalCalls} now={now} />
+        <KeyGroup title="Working" rows={working} bars={data.usage ?? []} totalCalls={totalCalls} now={now} />
+        {onFile.length ? (
+          <details className="mt-4 border-t border-line pt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-muted">On file, not tested ({onFile.length})</summary>
+            <IdleList rows={onFile} />
+          </details>
+        ) : null}
         {idle.length ? (
           <details className="mt-3 border-t border-line pt-3">
             <summary className="cursor-pointer text-sm font-semibold text-muted">Not in use ({idle.length})</summary>
-            <ul className="mt-2 divide-y divide-line">
-              {idle.map((r) => (
-                <li key={r.name} className="flex flex-wrap items-baseline gap-x-3 py-1.5 text-xs">
-                  <span className="w-32 shrink-0 font-semibold text-ink">{r.name}</span>
-                  <span className="text-muted">{LABEL[r.available]}</span>
-                  <span className="min-w-0 flex-1 break-words text-muted">{r.note || r.free}</span>
-                </li>
-              ))}
-            </ul>
+            <IdleList rows={idle} />
           </details>
         ) : null}
       </Panel>
@@ -266,5 +476,6 @@ export default function KeyOverviewView() {
         </p>
       ) : null}
     </div>
+    </MarksContext.Provider>
   );
 }

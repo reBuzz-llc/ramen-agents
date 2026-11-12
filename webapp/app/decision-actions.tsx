@@ -26,6 +26,10 @@ export function useDecisionAnswer(onSaved: () => void) {
   return { answer, busy, error };
 }
 
+/** A long option wraps inside the box on a narrow screen (queue 405): its text breaks onto more lines and the button
+ *  takes at most the row's width, so the buttons stack under the item's text instead of running past the edge. */
+const OPTION_FIT = "h-auto! min-h-7 max-w-full py-1 text-left whitespace-normal! pointer-coarse:min-h-9";
+
 /** One button per option (the owner's choice), Done and Later (back in three days), and a one-line note. */
 export default function DecisionActions({ id, options }: { id: string; options: string[] }) {
   const router = useRouter();
@@ -34,7 +38,7 @@ export default function DecisionActions({ id, options }: { id: string; options: 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-2">
       {options.map((o, i) => (
-        <button key={o} type="button" className={buttonClass(i === 0 ? "prominent" : "gray", "sm")} disabled={busy !== null} onClick={() => void answer(id, "choose", note, o)}>
+        <button key={o} type="button" className={`${buttonClass(i === 0 ? "prominent" : "gray", "sm")} ${OPTION_FIT}`} disabled={busy !== null} onClick={() => void answer(id, "choose", note, o)}>
           {busy === o ? <Spinner small /> : null}
           {o}
         </button>

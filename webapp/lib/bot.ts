@@ -57,6 +57,10 @@ export type BotProfile = {
   configPath: string;
   /** ceoA for an agent (its own model-driven loop), valB for a bot (a timer job): lib/handle.ts. */
   handle: string;
+  /** Seconds between its steps ([agent] cycle_delay_seconds), when set (queue 52: when a member is between steps). */
+  cycleSec?: number;
+  /** Earlier names from the roster's `aliases` (a rename, queue 440). */
+  aliases?: string[];
 };
 
 // A profile plus a live status summary, for the switcher.

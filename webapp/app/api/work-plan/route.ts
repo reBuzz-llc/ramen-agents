@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { attentionSince, pastJobs, refusalStats, workCards, writeOwnerPlan } from "@/lib/work-plan";
 import { candidateFunnel } from "@/lib/candidates";
 import { readMarkers } from "@/lib/changes";
+import { readTick } from "@/lib/tick-read";
 import { leadResults } from "@/lib/lead-results";
 import { testRuns } from "@/lib/test-runs";
 import { ceoMeasure } from "@/lib/ceo-measure";
@@ -21,6 +22,20 @@ export async function GET(req: NextRequest) {
   }
   try {
     const bots = await listBots();
+    // One section of the page at a time (owner, 2026-10-31: the tabs are pages of their own, each loading only its
+    // data). No part: everything, as before.
+    const part = req.nextUrl.searchParams.get("part");
+    if (part === "plan") return jsonResponse(req, await workCards(bots));
+    if (part === "past") return jsonResponse(req, { past: await pastJobs(bots) });
+    if (part === "leads") {
+      const [candidates, results, tests] = await Promise.all([candidateFunnel(bots.find((b) => b.slug === "lead-gen")), leadResults(), testRuns()]);
+      return jsonResponse(req, { candidates, results, tests });
+    }
+    if (part === "checks") {
+      // B8 (queue 377): when this was read, and the Validator's tick line (red when stale)
+      const [refusals, changes, ceo, tick] = await Promise.all([refusalStats(bots), readMarkers(14), ceoMeasure(), readTick(BOTS_DIR).catch(() => null)]);
+      return jsonResponse(req, { refusals, changes, ceo, tick, at: new Date().toISOString() });
+    }
     const [cards, past, refusals, candidates, changes, results, tests, ceo] = await Promise.all([
       workCards(bots),
       pastJobs(bots),
@@ -31,7 +46,7 @@ export async function GET(req: NextRequest) {
       testRuns(),
       ceoMeasure(),
     ]);
-    return jsonResponse(req, { ...cards, past, refusals, candidates, changes, results, tests, ceo, at: new Date().toISOString() });
+    return jsonResponse(req, { ...cards, past, refusals, candidates, changes, results, tests, ceo });
   } catch (err) {
     return Response.json({ error: `could not read the work plan: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
   }

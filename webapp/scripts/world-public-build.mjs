@@ -1,4 +1,4 @@
-// Builds the public office into one self-contained page, dist/world-public/index.html: the
+// Builds the public world (creatorCC queue 376) into one self-contained page, dist/world-public/index.html: the
 // dashboard's world code bundled by esbuild with a few modules swapped for the read-only ones in world-public/, and the
 // dashboard's Tailwind CSS, both inlined. scripts/world-public.ts serves it at GET /; nothing else is served.
 //   node scripts/world-public-build.mjs
@@ -55,7 +55,7 @@ export async function buildWorld({ quiet = false } = {}) {
   const css = (await postcss([tailwind({ base: ROOT, optimize: { minify: true } })]).process(cssIn, { from: path.join(ROOT, "app", "globals.css") })).css;
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow"><title>The office, live</title>
+<meta name="robots" content="noindex,nofollow"><title>The family, live</title>
 <style>:root{--font-screen:ui-monospace,Menlo,monospace}${css}</style></head>
 <body class="min-h-full font-sans bg-bg text-ink"><div id="root"></div><script>${code}</script></body></html>
 `;

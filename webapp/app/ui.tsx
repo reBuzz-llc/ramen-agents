@@ -76,7 +76,7 @@ const BUTTON: Record<ButtonKind, string> = {
 
 /** Class names for a capsule button, for links and buttons alike. */
 export function buttonClass(kind: ButtonKind = "gray", size: "sm" | "md" = "md"): string {
-  const box = size === "md" ? "h-9 px-4 text-sm [@media(pointer:coarse)]:h-11" : "h-7 px-3 text-xs [@media(pointer:coarse)]:h-9";
+  const box = size === "md" ? "h-9 px-4 text-sm pointer-coarse:h-11" : "h-7 px-3 text-xs pointer-coarse:h-9";
   return `pressable hit inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-semibold whitespace-nowrap select-none disabled:cursor-not-allowed disabled:opacity-40 ${box} ${BUTTON[kind]}`;
 }
 
@@ -109,7 +109,10 @@ type IconName =
   | "xmark"
   | "plus"
   | "person-2"
-  | "grid";
+  | "grid"
+  | "house"
+  | "checklist"
+  | "clock";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   "chevron-left": <path d="M14.5 5 8 12l6.5 7" />,
@@ -211,6 +214,14 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  house: <path d="M4 11 12 4.5l8 6.5M6.5 9.5V19a.5.5 0 0 0 .5.5h3.5v-5h3v5H17a.5.5 0 0 0 .5-.5V9.5" />,
+  checklist: <path d="m4 7 1.5 1.5L8.5 5.5M4 13l1.5 1.5 3-3M4 19l1.5 1.5 3-3M11.5 7.2H20M11.5 13.2H20M11.5 19.2H20" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
   "person-2": (
     <>
       <circle cx="9" cy="8.5" r="3.2" />

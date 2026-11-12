@@ -12,7 +12,7 @@
 #   sh ~/bots/webapp/scripts/deploy.sh        (or: npm run deploy)
 set -eu
 cd "$(dirname "$0")/.."
-LABEL="gui/$(id -u)/com.ramen-agents.bot-dashboard"
+LABEL="gui/$(id -u)/com.rebuzz.bot-dashboard"
 PROBE_PORT=3099
 PAGES="/ /work-plan /settings/providers /settings/reports /api/board"
 

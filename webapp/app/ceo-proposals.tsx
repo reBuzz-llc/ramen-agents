@@ -30,12 +30,13 @@ export default async function CeoProposals({ className = "", compact = false }: 
             {decided.map((p) => (
               <li key={p.id} className="py-1.5">
                 <span className={`mr-2 text-xs font-semibold ${p.status === "approved" ? "text-good" : "text-muted"}`}>
-                  {p.status === "approved" ? "Approved" : "Declined"} {p.decided_at.replace("T", " ").slice(5, 16)}
+                  {p.status === "approved" ? "Approved" : p.status === "expired" ? "Expired" : "Declined"} {p.decided_at.replace("T", " ").slice(5, 16)}
                 </span>
                 <span className="text-ink">
                   {name(p.bot)}: {describe(p.change)}
                 </span>
                 {p.owner_note ? <span className="text-muted"> · “{p.owner_note}”</span> : null}
+                {p.expired_note ? <span className="text-muted"> · {p.expired_note}</span> : null}
               </li>
             ))}
           </ul>

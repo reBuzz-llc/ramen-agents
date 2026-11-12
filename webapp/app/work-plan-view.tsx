@@ -1,25 +1,30 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BotSummary } from "@/lib/bot";
 import type { Identity } from "@/lib/identity";
 import { ago } from "@/lib/format";
+import { localIso } from "@/lib/summary";
 import { summaryStatus, TONE_DOT } from "@/lib/status";
 import type { CandidateFunnel } from "@/lib/candidates";
-import { localIso } from "@/lib/summary";
 import { deltaOf, rateOf, REFUSAL_TARGET, verdictOf, type Kind, type Marker } from "@/lib/checks";
+import type { Tick } from "@/lib/tick";
+import TickLine from "./tick-line";
 import type { LeadResults, Pipeline, ResultGroup } from "@/lib/lead-results";
 import type { TestRun } from "@/lib/test-runs";
 import type { CeoMeasure } from "@/lib/ceo-measure";
 import type { OwnerPlan, PastJob, RefusalDay, RefusalReason, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
-import { partition, pastLine, readHash, type Tab } from "@/lib/work-plan-rows";
+import type { Board } from "@/lib/board-read";
+import { attempts, endedLine, noPlanHeader, partition, pastDay, pastKey, pastLine, readHash, TAB_PATH, type Tab } from "@/lib/work-plan-rows";
 import { sendJson } from "@/lib/client";
 import { Avatar } from "./bot-switcher";
 import { useLeaveGuard, useNow, usePoll } from "./hooks";
 import PageShell from "./page-shell";
 import { markWorkPlanSeen } from "./work-plan-shortcut";
-import { compact, Segmented } from "./summary-parts";
+import { compact } from "./summary-parts";
 import { buttonClass, Icon, Spinner } from "./ui";
+import SortableTable from "./sortable-table";
 
 const MAX_GOAL = 200;
 const MAX_RULE = 160;
@@ -36,14 +41,52 @@ const same = (a: OwnerPlan, b: OwnerPlan) =>
 const tidy = (p: OwnerPlan): OwnerPlan => ({ goal: p.goal.trim(), rules: p.rules.map((r) => ({ ...r, text: r.text.trim() })).filter((r) => r.text) });
 
 /**
- * Every agent on one line: tap a line for what it is working through now (the
+ * Every agent on one line (owner, 2026-09-26; folded 2026-10-30): tap a line for what it is working through now (the
  * engine's checklist) and the goal and rules the owner sets for it in one line each (read by the engine into every
- * step). Past jobs, the Leads numbers and the checks are their own tabs.
+ * step). Past jobs, the Leads numbers and the checks are pages of their own under a nav bar (owner, 2026-10-31), and
+ * each page loads only its own part of /api/work-plan.
  */
-export default function WorkPlanView({ identity }: { identity: Identity }) {
-  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null; past?: PastJob[]; refusals?: RefusalStats[]; candidates?: CandidateFunnel; changes?: Marker[]; results?: LeadResults; tests?: TestRun[]; ceo?: CeoMeasure; at?: string }>("work-plan", 15000);
+export default function WorkPlanView({ identity, tab }: { identity: Identity; tab: Tab }) {
+  // Looking at these pages is what clears the header's red dot: mark it seen now and while one stays open.
+  useEffect(() => {
+    markWorkPlanSeen();
+    const t = setInterval(markWorkPlanSeen, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <PageShell identity={identity} title="Work plan">
+      {/* the section's name; the app's nav (top bar, or the tab bar on a phone) moves between them (2026-10-31) */}
+      <h1 className="pt-2 pb-3 text-3xl font-bold text-ink">{TABS.find((t) => t.key === tab)?.label}</h1>
+      {tab === "plan" ? <PlanTab /> : tab === "past" ? <PastTab /> : tab === "leads" ? <LeadsTab /> : <ChecksTab />}
+    </PageShell>
+  );
+}
+
+/** The loading line or the error, until a section's first answer arrives. */
+function Waiting({ error }: { error: string | null }) {
+  return error ? (
+    <p className="rounded-xl bg-sys-red/10 p-4 text-sm text-bad">{error}</p>
+  ) : (
+    <p className="flex items-center gap-2 text-sm text-muted">
+      <Spinner /> Loading…
+    </p>
+  );
+}
+
+function PlanTab() {
+  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null }>("work-plan?part=plan", 15000);
   const fleet = usePoll<BotSummary[]>("bots", 15000);
   const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
+  // What each agent is doing now, for the header of a card with no plan in hand (queue 56): the board's state word,
+  // its last action in words, and whether a stopped one is retired.
+  const board = usePoll<Board>("board", 15000);
+  const nowOf = useMemo(() => {
+    const m = new Map<string, NowLine>();
+    for (const c of board.data?.cards ?? []) m.set(c.slug, { state: c.state.word, last: c.last?.words ?? null, retired: false });
+    for (const st of board.data?.stopped ?? []) m.set(st.slug, { state: null, last: null, retired: st.retired === true });
+    return m;
+  }, [board.data]);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const markDirty = useCallback((slug: string, on: boolean) => {
     setDirty((d) => {
@@ -55,26 +98,23 @@ export default function WorkPlanView({ identity }: { identity: Identity }) {
     });
   }, []);
   useLeaveGuard(dirty.size > 0, "You have unsaved goals or rules. Leave this page and lose them?");
-  // Looking at this page is what clears the header's red dot: mark it seen now and while it stays open.
-  useEffect(() => {
-    markWorkPlanSeen();
-    const t = setInterval(markWorkPlanSeen, 60000);
-    return () => clearInterval(t);
-  }, []);
 
   const cards = useMemo(() => feed.data?.cards ?? [], [feed.data]);
   const { running, stopped } = useMemo(() => partition(cards), [cards]);
   const slugs = useMemo(() => cards.map((c) => c.slug).join(" "), [cards]);
 
-  // Folded rows, one open at a time. The tab and the open row live
-  // in the address: #past, #leads, #checks, or #<slug> (the world's nameplates link there).
-  const [tab, setTab] = useState<Tab>("plan");
+  // The open card lives in the address: #<slug> (the world's nameplates link there). The older #past, #leads and
+  // #checks links go to those sections' own pages.
+  const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
   const [showStopped, setShowStopped] = useState(false);
   useEffect(() => {
     const read = () => {
       const h = readHash(window.location.hash, slugs.split(" "));
-      setTab(h.tab);
+      if (h.tab !== "plan") {
+        router.replace(TAB_PATH[h.tab]);
+        return;
+      }
       if (h.open) {
         setOpen(h.open);
         if (stopped.some((c) => c.slug === h.open)) setShowStopped(true);
@@ -86,67 +126,62 @@ export default function WorkPlanView({ identity }: { identity: Identity }) {
       clearTimeout(t);
       window.removeEventListener("hashchange", read);
     };
-  }, [slugs, stopped]);
-  const go = (hash: string) => window.history.replaceState(window.history.state, "", hash ? `#${hash}` : window.location.pathname);
-  const pickTab = (t: Tab) => {
-    setTab(t);
-    go(t === "plan" ? (open ?? "") : t);
-  };
+  }, [slugs, stopped, router]);
 
+  if (!feed.data) return <Waiting error={feed.error} />;
   return (
-    <PageShell identity={identity} title="Work plan">
-        <h1 className="pt-2 text-3xl font-bold text-ink">Work plan</h1>
+    <div>
+      <p className="mb-2 text-xs text-muted">Each agent reads its goal and rules on its next step. “Can do” flips a card to what the agent can and cannot do.</p>
+      <TargetPanel />
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {running.map((c) => (
+          <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} now={nowOf.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+        ))}
+      </ul>
+      {stopped.length ? (
+        <div className="mt-3">
+          <button type="button" onClick={() => setShowStopped((v) => !v)} className={buttonClass("plain", "sm")} aria-expanded={showStopped}>
+            {showStopped ? "Hide stopped" : `Show stopped (${stopped.length})`}
+          </button>
+          <ul className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" hidden={!showStopped}>
+            {stopped.map((c) => (
+              <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} now={nowOf.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
-        {feed.error && !feed.data ? <p className="mt-3 rounded-xl bg-sys-red/10 p-4 text-sm text-bad">{feed.error}</p> : null}
-        {!feed.data && !feed.error ? (
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-            <Spinner /> Loading…
-          </p>
-        ) : null}
+function PastTab() {
+  const feed = usePoll<{ past: PastJob[] }>("work-plan?part=past", 30000);
+  return feed.data ? <PastList jobs={feed.data.past ?? []} /> : <Waiting error={feed.error} />;
+}
 
-        {feed.data ? (
-          <>
-            <div className="mt-3 mb-3">
-              <Segmented label="Work plan section" options={TABS} value={tab} onChange={pickTab} />
-            </div>
-            {/* Every tab and row stays mounted and is only hidden, so an unsaved goal or target edit survives a switch. */}
-            <div hidden={tab !== "plan"}>
-              <p className="mb-2 text-xs text-muted">Each agent reads its goal and rules on its next step. “Can do” flips a card to what the agent can and cannot do.</p>
-              <TargetPanel />
-              <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {running.map((c) => (
-                  <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
-                ))}
-              </ul>
-              {stopped.length ? (
-                <div className="mt-3">
-                  <button type="button" onClick={() => setShowStopped((v) => !v)} className={buttonClass("plain", "sm")} aria-expanded={showStopped}>
-                    {showStopped ? "Hide stopped" : `Show stopped (${stopped.length})`}
-                  </button>
-                  <ul className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" hidden={!showStopped}>
-                    {stopped.map((c) => (
-                      <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-            <div hidden={tab !== "past"}>
-              <PastList jobs={feed.data.past ?? []} />
-            </div>
-            <div hidden={tab !== "leads"}>
-              {feed.data.results ? <HowWeSend results={feed.data.results} /> : null}
-              {feed.data.results ? <ResultsPanel results={feed.data.results} /> : null}
-              {feed.data.candidates ? <CandidatesPanel funnel={feed.data.candidates} /> : null}
-              {feed.data.tests?.length ? <TestRunsPanel runs={feed.data.tests} /> : null}
-            </div>
-            <div hidden={tab !== "checks"}>
-              {feed.data.ceo ? <CeoPanel m={feed.data.ceo} /> : null}
-              <RefusalPanel stats={feed.data.refusals ?? []} changes={feed.data.changes ?? []} at={feed.data.at ?? null} />
-            </div>
-          </>
-        ) : null}
-    </PageShell>
+function LeadsTab() {
+  const feed = usePoll<{ candidates?: CandidateFunnel; results?: LeadResults; tests?: TestRun[] }>("work-plan?part=leads", 30000);
+  if (!feed.data) return <Waiting error={feed.error} />;
+  const d = feed.data;
+  return (
+    <div>
+      {d.results ? <HowWeSend results={d.results} /> : null}
+      {d.results ? <ResultsPanel results={d.results} /> : null}
+      {d.candidates ? <CandidatesPanel funnel={d.candidates} /> : null}
+      {d.tests?.length ? <TestRunsPanel runs={d.tests} /> : null}
+    </div>
+  );
+}
+
+function ChecksTab() {
+  const feed = usePoll<{ refusals?: RefusalStats[]; changes?: Marker[]; ceo?: CeoMeasure; tick?: Tick | null; at?: string }>("work-plan?part=checks", 30000);
+  if (!feed.data) return <Waiting error={feed.error} />;
+  const d = feed.data;
+  return (
+    <div>
+      {d.ceo ? <CeoPanel m={d.ceo} /> : null}
+      <RefusalPanel stats={d.refusals ?? []} changes={d.changes ?? []} at={d.at ?? null} tick={d.tick ?? null} />
+    </div>
   );
 }
 
@@ -160,62 +195,92 @@ const TABS: { key: Tab; label: string }[] = [
 /** A card in the grid, with its #slug anchor: the address /work-plan#<slug> (the world's nameplates) scrolls to it and
  *  outlines it. Keyed on the saved values: a change to the file starts the card afresh, while polls that bring the same
  *  values leave an edit in progress alone. */
-function CardSlot({ card, tone, target, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; target: boolean; onDirty: (slug: string, on: boolean) => void }) {
+type NowLine = { state: string | null; last: string | null; retired: boolean };
+
+function CardSlot({ card, tone, now, target, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; now?: NowLine; target: boolean; onDirty: (slug: string, on: boolean) => void }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (target) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [target]);
   return (
     <li ref={ref} id={card.slug} className={`min-w-0 scroll-mt-24 rounded-xl ${target ? "ring-2 ring-[#ff6600]" : ""}`}>
-      <AgentCard key={JSON.stringify(card.owner)} card={card} tone={tone} onDirty={onDirty} />
+      <AgentCard key={JSON.stringify(card.owner)} card={card} tone={tone} nowLine={now} onDirty={onDirty} />
     </li>
   );
 }
 
-/** Past jobs, one line each, newest first, 20 at a time: bot, task, when it ran, how it ended,
- *  active minutes. Tap a line for its steps. */
+/** Past jobs, one line each, newest first, 50 at a time under a heading per day (owner, 2026-10-30; queue 80): bot,
+ *  task (with "attempt n of m" when the bot planned it more than once), when it ran, how it ended (and why it was
+ *  stuck), active minutes. Tap a line for its steps; an open line stays on its job when newer jobs arrive. */
 function PastList({ jobs }: { jobs: PastJob[] }) {
-  const [shown, setShown] = useState(20);
-  const [open, setOpen] = useState<number | null>(null);
+  const [shown, setShown] = useState(50);
+  const [open, setOpen] = useState<string | null>(null);
   if (!jobs.length) return <p className="text-sm text-muted">No finished jobs yet.</p>;
+  const tries = attempts(jobs);
+  const now = new Date();
+  const visible = jobs.slice(0, shown);
   return (
     <>
-      <ol className="divide-y divide-line rounded-xl bg-panel px-4">
-        {jobs.slice(0, shown).map((j, i) => {
-          const l = pastLine(j);
+      <div className="space-y-4">
+        {visible.map((j, i) => {
+          const day = pastDay(j.ended, now);
+          if (i > 0 && pastDay(visible[i - 1].ended, now) === day) return null;
+          const ofDay = visible.filter((x) => pastDay(x.ended, now) === day);
           return (
-            <li key={i} className="py-2">
-              <button type="button" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i} className="flex w-full items-baseline gap-3 text-left text-sm">
-                <span className={`h-2 w-2 shrink-0 self-center rounded-full ${l.ended === "done" ? "bg-sys-green" : l.ended === "stuck" ? "bg-sys-orange" : "bg-sys-gray"}`} aria-hidden />
-                <span className="w-24 shrink-0 truncate font-medium text-ink sm:w-32">{l.bot}</span>
-                <span className="min-w-0 flex-1 truncate text-ink">{l.task}</span>
-                <span className="hidden shrink-0 text-xs text-muted tabular-nums md:inline">{l.when}</span>
-                <span className="w-16 shrink-0 text-right text-xs text-muted">{l.ended}</span>
-                <span className="hidden w-28 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{l.active}</span>
-              </button>
-              {open === i ? (
-                <div className="mt-1.5 ml-5 space-y-1 text-xs">
-                  <p className="text-muted md:hidden">
-                    {l.when} · {l.active}
-                  </p>
-                  {j.note ? <p className="break-words text-muted">{j.note}</p> : null}
-                  {j.steps.map((st, k) => (
-                    <p key={k} className={`break-words ${st.done ? "text-ink" : "text-muted"}`}>
-                      {st.done ? "✓ " : "○ "}
-                      {st.text}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-            </li>
+            <section key={day}>
+              <h3 className="mb-1 px-1 text-xs font-semibold text-muted">
+                {day} · {ofDay.length} {ofDay.length === 1 ? "job" : "jobs"}
+              </h3>
+              <ol className="divide-y divide-line rounded-xl bg-panel px-4">
+                {ofDay.map((j2) => {
+                  const k = pastKey(j2);
+                  const l = pastLine(j2);
+                  const why = j2.status === "stuck" && j2.closedReason ? j2.closedReason : "";
+                  return (
+                    <li key={k} className="py-2">
+                      <button type="button" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k} className="flex w-full items-baseline gap-3 text-left text-sm">
+                        <span className={`h-2 w-2 shrink-0 self-center rounded-full ${l.ended === "done" ? "bg-sys-green" : l.ended === "stuck" ? "bg-sys-orange" : "bg-sys-gray"}`} aria-hidden />
+                        <span className="w-24 shrink-0 truncate font-medium text-ink sm:w-32">{l.bot}</span>
+                        <span className="min-w-0 flex-1 truncate text-ink">
+                          {l.task}
+                          {tries.get(k) ? <span className="ml-2 text-xs text-muted">{tries.get(k)}</span> : null}
+                        </span>
+                        <span className="hidden shrink-0 text-xs text-muted tabular-nums md:inline">{l.when.replace(/^\d\d-\d\d /, "")}</span>
+                        <span className="w-16 shrink-0 text-right text-xs text-muted" title={why || undefined}>
+                          {l.ended}
+                        </span>
+                        <span className="hidden w-28 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{l.active}</span>
+                      </button>
+                      {open === k ? (
+                        <div className="mt-1.5 ml-5 space-y-1 text-xs">
+                          <p className="text-muted">
+                            {l.when} · {l.active}
+                            {why ? ` · closed by the engine: ${why}` : j2.status === "stuck" && j2.closedBy === "bot" ? " · the bot gave it up" : ""}
+                          </p>
+                          {j2.note ? <p className="break-words text-muted">{j2.note}</p> : null}
+                          {j2.steps.map((st, s2) => (
+                            <p key={s2} className={`break-words ${st.done ? "text-ink" : "text-muted"}`}>
+                              {st.done ? "✓ " : "○ "}
+                              {st.text}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           );
         })}
-      </ol>
+      </div>
       {jobs.length > shown ? (
-        <button type="button" onClick={() => setShown((n) => n + 20)} className={`${buttonClass("plain", "sm")} mt-2`}>
+        <button type="button" onClick={() => setShown((n) => n + 50)} className={`${buttonClass("plain", "sm")} mt-2`}>
           More ({jobs.length - shown} older)
         </button>
-      ) : null}
+      ) : (
+        <p className="mt-2 px-1 text-xs text-muted">All {jobs.length} past jobs shown.</p>
+      )}
     </>
   );
 }
@@ -288,20 +353,43 @@ function TargetPanel() {
           <Spinner /> Loading…
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {TARGET_FIELDS.map((f) => (
-            <label key={f.key} className="block min-w-0">
-              <span className="mb-1 block text-xs font-semibold text-muted">{f.label}</span>
-              <input
-                className={input}
-                value={draft[f.key]}
-                maxLength={200}
-                placeholder={f.hint}
-                onChange={(e) => setDraft((d) => (d ? { ...d, [f.key]: e.target.value } : d))}
-                onKeyDown={(e) => e.key === "Enter" && void save()}
-              />
-            </label>
-          ))}
+        // Trades and Areas grow to four lines and wrap; the short three stay one line. Under 1100 px the five take two
+        // rows, Market, Short name and Segment over Trades and Areas, so nothing is clipped (queue 60; owner, 19:45).
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6 min-[68.75rem]:grid-cols-[1fr_0.7fr_1fr_1.6fr_1.6fr]">
+          {TARGET_FIELDS.map((f) => {
+            const long = f.key === "trades" || f.key === "areas";
+            const change = (v: string) => setDraft((d) => (d ? { ...d, [f.key]: v } : d));
+            return (
+              <label key={f.key} className={`block min-w-0 ${long ? "sm:col-span-3" : "sm:col-span-2"} min-[68.75rem]:col-span-1`}>
+                <span className="mb-1 block text-xs font-semibold text-muted">{f.label}</span>
+                {long ? (
+                  <textarea
+                    data-field={f.key}
+                    rows={1}
+                    className={`${input} h-auto max-h-[calc(4lh+1rem)] resize-none overflow-y-auto py-2 leading-snug [field-sizing:content] [scrollbar-width:none]`}
+                    value={draft[f.key]}
+                    maxLength={200}
+                    placeholder={f.hint}
+                    onChange={(e) => change(e.target.value.replace(/\n/g, " "))}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault(); // one line of text that wraps: Enter saves
+                      void save();
+                    }}
+                  />
+                ) : (
+                  <input
+                    className={input}
+                    value={draft[f.key]}
+                    maxLength={200}
+                    placeholder={f.hint}
+                    onChange={(e) => change(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void save()}
+                  />
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
       {draft ? (
@@ -358,7 +446,7 @@ function CeoStat({ label, value, prev, hint }: { label: string; value: number; p
   );
 }
 
-/** The CEO's two weekly numbers: tasks the team finished, leads that answered. Tasks created
+/** The CEO's two weekly numbers (owner, 2026-10-06): tasks the team finished, leads that answered. Tasks created
  * is deliberately not shown: it is activity, not result. This week large, the three before as small bars. */
 function CeoPanel({ m }: { m: CeoMeasure }) {
   if (!m.ok)
@@ -463,7 +551,7 @@ function TestRunsPanel({ runs }: { runs: TestRun[] }) {
 
 /** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
  * people send from the business mailbox. */
-// The routine lives on the Leads board itself, in the board's description; rows are not assigned per person.
+// The routine lives on the Leads board itself, in the board's description (owner, 2026-10-10); rows are not assigned per person.
 const SEND_GUIDE = "https://app.notion.com/p/3e3d905fccff80f1af6afe3c063ed179";
 
 function HowWeSend({ results }: { results: LeadResults }) {
@@ -482,7 +570,7 @@ function HowWeSend({ results }: { results: LeadResults }) {
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink/90">
         <li>On the Leads board, filter to rows with a Draft email and an empty Status (WhatsApp statuses count as empty).</li>
         <li>Read the draft against the business&apos;s own site and fix anything wrong. A draft starting &quot;skip:&quot; needs nothing.</li>
-        <li>Send it from Anna&apos;s mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
+        <li>Send it from your team&apos;s mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
         <li>Set Status to &quot;Email Sent&quot;.</li>
         <li>
           When they answer, set Result (Replied, Meeting, Client, Not interested, Bounced) and Result date. This is the only way the
@@ -509,7 +597,7 @@ const STAGES_SHOWN: { key: keyof Pipeline; label: string; who: string }[] = [
   { key: "client", label: "Client", who: "the team" },
 ];
 
-/** How far the leads got, and where they pile up. A pipeline from the
+/** How far the leads got, and where they pile up (owner, 2026-10-10: "how could this be better?"). A pipeline from the
  * board to a client, the first stage that stalls marked; then the same steps per source and per industry, so the
  * source whose leads answer shows itself. Sent and later come from the team's Status and Result; bots never set them. */
 function ResultsPanel({ results }: { results: LeadResults }) {
@@ -577,10 +665,10 @@ function GroupTable({ title, groups, cols }: { title: string; groups: ResultGrou
     <div className="min-w-0">
       <h3 className="mb-1 text-xs font-semibold text-muted">{title}</h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
+        <SortableTable className="w-full text-sm tabular-nums">
           <thead>
             <tr className="text-[11px] text-muted">
-              <th className="py-1 pr-2 text-left font-normal" />
+              <th className="py-1 pr-2 text-left font-normal">Source</th>
               {cols.map((c) => (
                 <th key={c.key} className="px-1.5 py-1 text-right font-normal whitespace-nowrap">
                   {c.key === "leads" ? "Leads" : c.label}
@@ -600,7 +688,7 @@ function GroupTable({ title, groups, cols }: { title: string; groups: ResultGrou
               </tr>
             ))}
           </tbody>
-        </table>
+        </SortableTable>
       </div>
     </div>
   );
@@ -608,54 +696,75 @@ function GroupTable({ title, groups, cols }: { title: string; groups: ResultGrou
 
 /** Lead Gen's daily candidate lists, per source: offered, visited, turned into leads (owner, 2026-10-05: which source
  * pays off). A bar per step, as a share of what that source offered. */
+/** Where Lead Gen's leads come from (owner, 2026-10-31: "I do not understand this"): one sentence first, then one bar
+ *  per daily-list source on one shared scale (the businesses each offered), visited inside it and the leads darkest
+ *  inside that, and the yield in words, "1 lead in 10 offered". A small source draws a small bar. */
 function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
   if (!funnel.sources.length) return null;
-  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  const fromLists = funnel.sources.reduce((a, s) => a + s.leads, 0);
+  const total = fromLists + (funnel.own ?? 0);
+  const max = Math.max(...funnel.sources.map((s) => s.candidates), 1);
+  const w = (n: number) => `${(n / max) * 100}%`;
+  const yieldOf = (s: (typeof funnel.sources)[number]) =>
+    s.leads ? `1 lead in ${Math.max(1, Math.round(s.candidates / s.leads))} offered` : s.visited ? "no leads yet" : "none visited yet";
+  const KEY = [
+    { label: "Offered", tone: "bg-fill-2" },
+    { label: "Visited", tone: "bg-sys-blue/45" },
+    { label: "Became a lead", tone: "bg-sys-blue" },
+  ];
   return (
     <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-ink">Lead Gen&apos;s candidates</h2>
-        <span className="text-xs text-muted">
-          Last {funnel.files} daily list{funnel.files === 1 ? "" : "s"} · offered → visited → became a lead
-        </span>
-      </header>
-      <ul className="mt-3 space-y-4">
-        {funnel.sources.map((s) => (
-          <li key={s.source}>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-              <span className="text-sm font-medium text-ink">{s.source}</span>
-              <span className="text-xs text-muted tabular-nums">
-                {s.candidates.toLocaleString()} offered · {s.visited.toLocaleString()} visited ({pct(s.visited, s.candidates)}%) ·{" "}
-                <span className="font-semibold text-good">{s.leads.toLocaleString()} leads</span> ({pct(s.leads, s.candidates)}% of offered,{" "}
-                {pct(s.leads, s.visited)}% of visited)
-              </span>
-            </div>
-            <div className="mt-1.5 space-y-1">
-              {[
-                { label: "visited", value: s.visited, tone: "bg-sys-blue/70" },
-                { label: "leads", value: s.leads, tone: "bg-sys-green" },
-              ].map((b) => (
-                <div key={b.label} className="flex items-center gap-2">
-                  <span className="w-12 shrink-0 text-[11px] text-muted">{b.label}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fill-3">
-                    <div className={`h-full rounded-full ${b.tone}`} style={{ width: `${pct(b.value, s.candidates)}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+      <h2 className="text-lg font-semibold text-ink">Where Lead Gen&apos;s leads come from</h2>
+      <p className="mt-1 text-sm text-ink">
+        <span className="font-semibold tabular-nums">{total}</span> new lead{total === 1 ? "" : "s"} in the last {funnel.files} day{funnel.files === 1 ? "" : "s"}:{" "}
+        <span className="tabular-nums">{fromLists}</span> from the daily lists of businesses below, <span className="tabular-nums">{funnel.own ?? 0}</span> found by Lead Gen
+        on its own.
+      </p>
+      {funnel.batches?.length ? <p className="mt-0.5 text-xs text-muted">Latest lists: {funnel.batches.join(" · ")}</p> : null}
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Key">
+        {KEY.map((k) => (
+          <li key={k.label} className="flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-sm ${k.tone}`} aria-hidden />
+            {k.label}
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted">A lead counts when an accepted lead or lead fix names the business&apos;s site. FreeSerp joins from the next daily list.</p>
+      <ul className="mt-3 space-y-3.5">
+        {funnel.sources.map((s) => {
+          const words = `${s.candidates.toLocaleString()} offered, ${s.visited.toLocaleString()} visited, ${s.leads.toLocaleString()} became lead${s.leads === 1 ? "" : "s"}`;
+          return (
+            <li key={s.source}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="text-sm font-medium text-ink">{s.source}</span>
+                <span className="text-sm text-ink tabular-nums">{yieldOf(s)}</span>
+              </div>
+              {/* offered, visited and leads nested from the left, all on the scale of the largest list */}
+              <div className="relative mt-1.5 h-3" role="img" aria-label={`${s.source}: ${words}`} title={words}>
+                <div className="absolute inset-y-0 left-0 rounded-[4px] bg-fill-2" style={{ width: w(s.candidates) }} />
+                {s.visited ? <div className="absolute inset-y-0 left-0 rounded-[4px] bg-sys-blue/45" style={{ width: w(s.visited) }} /> : null}
+                {s.leads ? <div className="absolute inset-y-0 left-0 min-w-[3px] rounded-[4px] bg-sys-blue" style={{ width: w(s.leads) }} /> : null}
+              </div>
+              <p className="mt-1 text-xs text-muted tabular-nums">
+                {s.candidates.toLocaleString()} offered · {s.visited.toLocaleString()} visited · {s.leads.toLocaleString()} became lead{s.leads === 1 ? "" : "s"}
+                {!s.visited && /no website/i.test(s.source) ? " · no website to open, so Lead Gen only lists them from a listing page" : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 text-xs text-muted">
+        A business counts once, under the list that offered it first; a lead counts when Lead Gen lists it (by its site or its name). FreeSerp joins from the
+        next daily list.
+      </p>
     </section>
   );
 }
 
-// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts
+// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts (queue 377)
 const pctOf = (d: RefusalDay) => rateOf(d);
 const BRAND = "#ff6600";
 
-/** Refused / all actions per agent: today and seven days against the 20 % target; one 100 % bar per
+/** Refused / all actions per agent (creatorCC queue 377): today and seven days against the 20 % target; one 100 % bar per
  * day stacked by kind (refused red at the bottom, failed outlined, held grey, closed hatched, fence light, accepted
  * green); a day under 30 actions dimmed and hatched with its count; an empty outline for a day without actions; the
  * top reasons in plain words, a tap opening their last three cases; a source that cannot be read or is stale says so. */
@@ -694,7 +803,7 @@ function DayBar({ d, marks, today }: { d: RefusalDay; marks: Marker[]; today: bo
       <span className={`mt-0.5 text-[9px] leading-none tabular-nums ${low ? "text-muted" : "text-transparent"}`} aria-hidden={!low}>
         {low ? `${d.refused}/${total}` : "·"}
       </span>
-      {/* the weekday's initial, today's marked */}
+      {/* B4: the weekday's initial, today's marked */}
       <span className={`mt-0.5 text-[10px] leading-none ${today ? "rounded-sm px-0.5 font-bold text-ink ring-1" : "text-muted"}`} style={today ? { ["--tw-ring-color" as string]: BRAND } : undefined} title={today ? `${d.day} (today)` : d.day}>
         {WEEKDAY[new Date(`${d.day}T12:00:00`).getDay()]}
       </span>
@@ -792,7 +901,7 @@ function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; change
       </div>
       {open ? (
         <div className="mt-2 rounded-lg bg-grouped-3 px-3 py-2 text-xs">
-          <table className="w-full tabular-nums">
+          <SortableTable className="w-full tabular-nums">
             <thead>
               <tr className="text-left text-muted">
                 <th className="py-0.5 font-normal">Day</th>
@@ -816,7 +925,7 @@ function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; change
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
           {b.days.some((d) => changesFor(b.slug, d.day).length) ? (
             <ul className="mt-2 space-y-0.5 text-muted">
               {[...b.days].reverse().flatMap((d) => changesFor(b.slug, d.day)).slice(0, 12).map((c, i) => (
@@ -833,7 +942,7 @@ function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; change
             <a href="/settings/reports#refusals" className="font-semibold text-ink underline">
               Refusal report
             </a>
-            <span className="text-muted">{restart ? `Last restart ${stamp(restart.at)}` : "No restart recorded"}</span>
+            <span className="text-muted">{restart ? `Last restart ${stamp(restart.at)}` : "No restart in the tick report"}</span>
           </p>
         </div>
       ) : null}
@@ -841,7 +950,7 @@ function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; change
   );
 }
 
-function RefusalPanel({ stats, changes, at = null }: { stats: RefusalStats[]; changes: Marker[]; at?: string | null }) {
+function RefusalPanel({ stats, changes, at, tick }: { stats: RefusalStats[]; changes: Marker[]; at: string | null; tick: Tick | null }) {
   if (!stats.length) return null;
   // Changes that touch a bot (or every bot), by day: marked under that day's bar so a jump has a visible cause.
   const changesFor = (slug: string, day: string) => changes.filter((c) => c.at.startsWith(day) && (c.bots.includes("*") || c.bots.includes(slug)));
@@ -859,7 +968,7 @@ function RefusalPanel({ stats, changes, at = null }: { stats: RefusalStats[]; ch
           {at ? `As of ${stamp(localIso(new Date(at).getTime()))} · ` : ""}refused / (accepted + refused) · target under {REFUSAL_TARGET}% · fence, held, failed and closed sites counted apart
         </span>
       </header>
-      {/* the one line, with the worst agent above target called out */}
+      {/* B1 and B10: the one line, with the worst agent above target called out */}
       <p className="mt-1 text-sm text-ink">
         {verdict.text}
         {verdict.worst ? (
@@ -868,6 +977,7 @@ function RefusalPanel({ stats, changes, at = null }: { stats: RefusalStats[]; ch
           </span>
         ) : null}
       </p>
+      {tick ? <TickLine tick={tick} className="mt-1" /> : null}
       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted" aria-label="Legend">
         {SEGMENTS.map((seg) => (
           <span key={seg.kind} className="flex items-center gap-1">
@@ -909,7 +1019,7 @@ function RefusalPanel({ stats, changes, at = null }: { stats: RefusalStats[]; ch
   );
 }
 
-function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; onDirty: (slug: string, on: boolean) => void }) {
+function AgentCard({ card, tone, nowLine, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; nowLine?: NowLine; onDirty: (slug: string, on: boolean) => void }) {
   const [saved, setSaved] = useState<OwnerPlan>(card.owner);
   const [draft, setDraft] = useState<OwnerPlan>(card.owner);
   const [fresh, setFresh] = useState(0);
@@ -975,25 +1085,53 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
       <section className="mt-4">
         <h3 className="mb-1.5 flex items-baseline justify-between gap-2 text-xs font-semibold text-muted">
           <span>Checklist</span>
-          {plan && !(plan.status !== "active" && plan.workedSince > 0) ? (
+          {plan && plan.status === "active" ? (
             <span className="font-normal">
               {doneSteps}/{plan.steps.length} · {plan.status}
               {plan.updated ? ` · ${ago(plan.updated, now)}` : ""}
             </span>
           ) : null}
         </h3>
-        {plan && plan.status !== "active" && plan.workedSince > 0 ? (
-          // The plan ended and the bot kept working without a new one: show it as history, not as the job in hand
-          // (Lead Gen read as "stuck" for a day while it listed 11 leads, 2026-09-30). The full record is in Past jobs.
-          <p className="text-sm text-muted">
-            No active plan. Last: “{plan.task || "untitled job"}”, {plan.status}
-            {plan.updated ? ` ${ago(plan.updated, now)}` : ""}; {plan.workedSince} action{plan.workedSince === 1 ? "" : "s"} since.
-          </p>
-        ) : plan ? (
+        {!plan || plan.status !== "active" ? (
+          // No plan in hand (queue 56; owner, 18:50: "Enricher, Analyst and Scout show no checklist"): what the agent
+          // is doing now, from the board, and its last ended plan greyed under it. Never an empty box.
+          <>
+            <p className="text-sm break-words text-muted">
+              {noPlanHeader({ stoppedSince: card.stopped ? (card.stoppedSince ?? "?") : null, retired: nowLine?.retired, state: nowLine?.state, last: nowLine?.last })}
+            </p>
+            {card.lastPlan ? (
+              <div className="mt-2 rounded-lg bg-fill-3 px-3 py-2 opacity-70">
+                <p className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
+                  <span className="min-w-0 break-words text-ink">Last plan: {card.lastPlan.task || "(untitled job)"}</span>
+                  <span className="shrink-0 text-xs text-muted">{endedLine(card.lastPlan, localIso(now).slice(0, 10))}</span>
+                </p>
+                {card.lastPlan.note ? <p className="mt-0.5 text-xs break-words text-muted">{card.lastPlan.note}</p> : null}
+                {card.lastPlan.steps.length ? (
+                  <ul className="mt-1.5 space-y-1">
+                    {card.lastPlan.steps.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted">
+                        <span
+                          className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ${s.done ? "bg-sys-gray text-white" : "ring-1 ring-line"}`}
+                          role="img"
+                          aria-label={s.done ? "done" : "not done"}
+                        >
+                          {s.done ? <Icon name="check" className="h-2.5 w-2.5" /> : null}
+                        </span>
+                        <span className={`min-w-0 flex-1 break-words ${s.done ? "line-through" : ""}`}>{s.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted">No plan has ended yet.</p>
+            )}
+          </>
+        ) : (
           <>
             <p className="text-sm font-medium break-words text-ink">{plan.task || "(untitled job)"}</p>
             {plan.doneWhen ? <p className="mt-0.5 text-xs break-words text-muted">Done when: {plan.doneWhen}</p> : null}
-            {/* Progress, not estimate against actual: steps ticked, how soon the first one was in
+            {/* Progress, not estimate against actual (owner, 2026-10-15): steps ticked, how soon the first one was in
                 active minutes (the engine's measure, pauses left out), and how many actions it has taken. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
               <span>
@@ -1006,7 +1144,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
               {plan.started ? <span>· started {ago(plan.started, now)}</span> : null}
             </p>
             {plan.note ? (
-              <p className={`mt-1 rounded-md px-2 py-1 text-xs break-words ${plan.status === "stuck" ? "bg-sys-orange/10 text-sys-orange" : "bg-fill-3 text-muted"}`}>{plan.note}</p>
+              <p className="mt-1 rounded-md bg-fill-3 px-2 py-1 text-xs break-words text-muted">{plan.note}</p>
             ) : null}
             <ul className="mt-2 space-y-1">
               {plan.steps.map((s, i) => (
@@ -1028,8 +1166,6 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
               ))}
             </ul>
           </>
-        ) : (
-          <p className="text-sm text-muted">No checklist yet. It appears once the agent starts a job on the new engine.</p>
         )}
       </section>
 
@@ -1038,7 +1174,7 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
         <label className="mb-1.5 block text-xs font-semibold text-muted" htmlFor={`goal-${card.slug}`}>
           Future goal
         </label>
-        {/* Wraps instead of scrolling sideways; still one line of text: Enter saves, no newlines. */}
+        {/* Wraps instead of scrolling sideways (owner, 2026-10-03); still one line of text: Enter saves, no newlines. */}
         <textarea
           id={`goal-${card.slug}`}
           className={`${input} h-auto resize-none py-2 leading-snug [field-sizing:content]`}
@@ -1079,6 +1215,12 @@ function AgentCard({ card, tone, onDirty }: { card: WorkCard; tone?: ReturnType<
                 onChange={(e) => setDraft((d) => ({ ...d, rules: d.rules.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) }))}
                 onKeyDown={(e) => e.key === "Enter" && void save()}
               />
+              {r.by === "ceo" ? (
+                // queue 411: a rule The CEO wrote itself; rewording it here makes it the owner's
+                <span className="shrink-0 text-xs text-muted" title="The CEO added or edited this rule itself; reword it to make it yours">
+                  (CEO)
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setDraft((d) => ({ ...d, rules: d.rules.filter((_, j) => j !== i) }))}

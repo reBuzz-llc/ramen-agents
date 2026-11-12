@@ -4,7 +4,7 @@ import { workspaceDir } from "@/lib/control";
 import { dbPath } from "@/lib/episodes";
 import type { NextRequest } from "next/server";
 
-// Over the shoulder: what one bot sees now and its last 20 actions, for the world's large view.
+// Over the shoulder (creatorCC queue 22): what one bot sees now and its last 20 actions, for the world's large view.
 // Read-only: its fresh screenshot (served by ./shot), the page in its newest trace, its actions table.
 export async function GET(req: NextRequest) {
   const bot = await findBot(req.nextUrl.searchParams.get("bot") ?? "");

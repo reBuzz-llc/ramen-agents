@@ -65,7 +65,7 @@ export default function CopyButton({ text, what, reveal = false, onAccent = fals
           ? "text-white/80 hover:text-white hover:bg-white/15"
           : "text-muted hover:text-ink hover:bg-fill-3";
   const visibility = reveal
-    ? "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+    ? "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover-none:opacity-100"
     : "";
 
   return (

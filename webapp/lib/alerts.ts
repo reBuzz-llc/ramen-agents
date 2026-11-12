@@ -221,7 +221,7 @@ async function checkBot(s: Store, bot: BotProfile): Promise<void> {
     if (prev.running && !state.running && !stopFlag) next.stopSince = now;
     if (state.running || stopFlag) next.stopSince = null;
     if (next.stopSince && now - next.stopSince > STOP_GRACE_MS && cooled("stopped")) {
-      await add(s, bot, "stopped", "Stopped unexpectedly", "It stopped without a STOP flag and has not restarted. Restart it with scripts/restart-bot.sh.", `/work-plan#${bot.slug}`);
+      await add(s, bot, "stopped", "Stopped unexpectedly", "It stopped without a STOP flag and has not restarted. creatorCC restarts bots (scripts/restart-bot.sh).", `/work-plan#${bot.slug}`);
       mark("stopped");
       next.stopSince = null;
     }

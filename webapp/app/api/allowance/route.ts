@@ -3,7 +3,7 @@ import { readAllowance } from "@/lib/allowance";
 import { BOTS_DIR } from "@/lib/bots";
 import { jsonResponse } from "@/lib/json-response";
 
-// The free allowance, provider by provider: the chain's use today and what is left, and the keyed
+// The free allowance, provider by provider (creatorCC queue 230): the chain's use today and what is left, and the keyed
 // providers that are not in the chain with their last use. Names only, never a key.
 export async function GET(req: NextRequest) {
   try {

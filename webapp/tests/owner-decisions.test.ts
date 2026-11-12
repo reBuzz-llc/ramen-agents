@@ -1,4 +1,4 @@
-// Run: npm test. The owner's decisions (2026-10-31): shared-state/owner-decisions.json answered from
+// Run: npm test. The owner's decisions (creatorCC queue 32, 2026-10-31): shared-state/owner-decisions.json answered from
 // the dashboard: the lists the box renders, choose, done, later with its wake time, the note, and the log line.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -76,4 +76,24 @@ test("decisions: Done; Later hides it for three days with a wake time, then it i
   assert.ok((await decide("d-okr", { kind: "choose", choice: "Approve as written" }, "", { files, now: NOW + 4 * 86400e3 })).ok);
   const after = JSON.parse(await readFile(files.items, "utf8")).items.find((d: { id: string }) => d.id === "d-okr");
   assert.deepEqual([after.status, after.wake], ["decided", undefined]);
+});
+
+test("decisions: creatorCC's shape (ts, from, title; open or answered) shows like the dashboard's (queue 284)", () => {
+  const text = JSON.stringify({
+    version: 1,
+    items: [
+      { id: "d-blog-contact-card", ts: "2026-11-05T14:51:04", from: "creatorCC", title: "The blog's Contact page?", options: ["Keep the card", "Remove it"], status: "open" },
+      { id: "d-judge-trial-night", ts: "2026-10-30T13:43:59", from: "creatorCC", title: "14B judge trial night?", options: ["Yes"], status: "open" },
+      { id: "d-answered", ts: "2026-10-30T07:48:24", from: "creatorCC", title: "Which row to keep?", options: ["Keep A", "Keep B"], status: "answered", answer: "Keep A", answered_at: "2026-10-30T14:41:16" },
+      { id: "d-no-words", ts: "2026-10-30T07:48:24", status: "open" },
+    ],
+  });
+  const items = parseItems(text);
+  assert.deepEqual(items.map((d) => d.id), ["d-blog-contact-card", "d-judge-trial-night", "d-answered"]); // no title and no text: left out
+  const { open, decided } = partition(items, NOW);
+  assert.deepEqual(open.map((d) => [d.id, d.since, d.text]), [
+    ["d-blog-contact-card", "2026-11-05", "The blog's Contact page?"],
+    ["d-judge-trial-night", "2026-10-30", "14B judge trial night?"],
+  ]);
+  assert.deepEqual(decided.map((d) => [d.id, d.choice, d.decided_at]), [["d-answered", "Keep A", "2026-10-30T14:41:16"]]);
 });

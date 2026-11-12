@@ -3,14 +3,16 @@ import path from "node:path";
 import { BOTS_DIR } from "@/lib/bots";
 import { parseOkr } from "@/lib/family-stats";
 import { providerStrip, type Provider } from "@/lib/health";
+import { judgeText, lanesToday, parseModelsQuality, pct } from "@/lib/models-quality";
 import { parseReport, type Block } from "@/lib/report-md";
 import KeyResults from "../../key-results";
 import { SettingsPage } from "../../settings-ui";
+import SortableTable from "../../sortable-table";
 
 export const metadata = { title: "Reports · Settings" };
 export const dynamic = "force-dynamic";
 
-// Read-only: the team's numbers with this week's key results, then the Validator's refusal report
+// Read-only (creatorCC queue 18): the team's numbers with this week's key results, then the Validator's refusal report
 // and its near-duplicate packages (queue 31: off the home page), then the clean-up inventory (#cleanup, the target of
 // the owner's clean-up decision), as their files have them. The Family review page that used to show them is gone.
 const SHARED = path.join(BOTS_DIR, "common-data", "shared-state");
@@ -25,6 +27,19 @@ export default async function ReportsPage() {
     read(path.join(SHARED, "package-near-duplicates.md")),
     read(path.join(SHARED, "cleanup-inventory.md")),
   ]);
+  const quality = await read(path.join(SHARED, "models-quality.json")).then((t) => {
+    try {
+      return parseModelsQuality(JSON.parse(t));
+    } catch {
+      return null;
+    }
+  });
+  let lanes: ReturnType<typeof lanesToday> = [];
+  try {
+    lanes = lanesToday(JSON.parse(calls));
+  } catch {
+    /* no ledger */
+  }
   let t: Record<string, unknown> = {};
   try {
     t = JSON.parse(team) as Record<string, unknown>;
@@ -51,6 +66,74 @@ export default async function ReportsPage() {
         {typeof t.note === "string" ? <p className="mt-1 text-xs text-muted">{t.note}</p> : null}
         {kr ? <KeyResults okr={kr} /> : null}
         <Providers list={providerStrip(calls)} />
+      </section>
+      <section id="models" className="scroll-mt-24 rounded-xl bg-panel px-4 py-3" aria-labelledby="models-title">
+        <h2 id="models-title" className="text-lg font-semibold text-ink">
+          Models: which one does our work best
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          The quality lane (writing, judging, the CEO&apos;s decisions) goes to the best-ranked free model with allowance left; bulk work to the
+          one with the most left. Per model over {quality?.days ?? 7} days{quality?.at ? `, as of ${quality.at.replace("T", " ").slice(0, 16)}` : ""}: a dash means its
+          source does not log the model yet.
+        </p>
+        {lanes.length ? (
+          <p className="mt-2 text-sm text-ink">
+            <span className="text-muted">Today: </span>
+            {lanes.map((l, i) => (
+              <span key={`${l.lane}-${l.model}`}>
+                {i ? " · " : ""}
+                {l.lane} {l.model} <span className="tabular-nums">{l.calls.toLocaleString()}</span>
+              </span>
+            ))}
+          </p>
+        ) : null}
+        {quality?.models.length ? (
+          <div className="-mx-4 mt-2 overflow-x-auto px-4">
+            <SortableTable className="w-full min-w-[52rem] text-sm tabular-nums">
+              <thead>
+                <tr className="text-left text-xs text-muted">
+                  <th className="py-1.5 pr-3 font-medium">Model</th>
+                  <th className="py-1.5 pr-3 font-medium">Lane</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Written</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Refused</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Judge yes / no</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Second opinion disagreed</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Redo rate</th>
+                  <th className="py-1.5 font-medium">Members</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {quality.models.map((m) => (
+                  <tr key={`${m.lane}-${m.model}`}>
+                    <td className="py-1.5 pr-3 text-ink">
+                      {m.model}
+                      {m.provider ? <span className="block text-xs text-muted">{m.provider}</span> : null}
+                    </td>
+                    <td className="py-1.5 pr-3">{m.lane}</td>
+                    <td className="py-1.5 pr-3 text-right">{m.written.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right" data-sort={m.refusedShare ?? ""}>
+                      {pct(m.refusedShare)}
+                      {m.refused ? <span className="text-xs text-muted"> ({m.refused})</span> : null}
+                    </td>
+                    <td className="py-1.5 pr-3 text-right" data-sort={m.judgeYes !== null && (m.judgeYes + (m.judgeNo ?? 0)) ? m.judgeYes / (m.judgeYes + (m.judgeNo ?? 0)) : ""}>
+                      {judgeText(m)}
+                    </td>
+                    <td className="py-1.5 pr-3 text-right">{m.disagree ?? "–"}</td>
+                    <td className="py-1.5 pr-3 text-right" data-sort={m.redoRate ?? ""}>{pct(m.redoRate)}</td>
+                    <td className="py-1.5 text-xs text-muted">
+                      {Object.entries(m.members)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([k, n]) => `${k} ${n}`)
+                        .join(", ") || "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </SortableTable>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">No model numbers yet: the Validator writes models-quality.json once a day.</p>
+        )}
       </section>
       <section className="rounded-xl bg-panel px-4 py-3" aria-labelledby="refusals">
         <h2 id="refusals" className="text-lg font-semibold text-ink">
@@ -130,7 +213,7 @@ function Report({ blocks }: { blocks: Block[] }) {
       {blocks.map((b, i) =>
         b.kind === "table" ? (
           <div key={i} className="my-2 overflow-x-auto">
-            <table className="w-full text-sm tabular-nums">
+            <SortableTable className="w-full text-sm tabular-nums">
               <thead>
                 <tr className="text-left text-xs text-muted">
                   {b.head.map((c, k) => (
@@ -151,7 +234,7 @@ function Report({ blocks }: { blocks: Block[] }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         ) : b.kind === "h1" ? (
           <h3 key={i} className="mt-2 text-base font-semibold text-ink">

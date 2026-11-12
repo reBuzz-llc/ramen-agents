@@ -1,4 +1,4 @@
-// The family review (a review table built by hand each review, 2026-10-28): per running bot, its actions,
+// The family review (creatorCC builds this table by hand each review; owner, 2026-10-28): per running bot, its actions,
 // refusals, accepted outputs, last action, plan in hand and crashes, for the last 7 days and 24 hours; then the
 // Validator's refusal report and the team's sending. Read-only; one read per bot, side by side, cached a minute.
 import { readFile, stat } from "node:fs/promises";
