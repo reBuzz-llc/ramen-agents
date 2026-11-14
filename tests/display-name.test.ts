@@ -9,8 +9,8 @@ import { createTenant } from "@/lib/tenants";
 
 describe("displayName", () => {
   it("the name, else the part before @, never the whole address", () => {
-    expect(displayName("Sampada Adhikary", "s@acme.example")).toBe("Sampada Adhikary");
-    expect(displayName("  ", "owner.pos@gmail.com")).toBe("owner.pos");
+    expect(displayName("Robin Vale", "s@acme.example")).toBe("Robin Vale");
+    expect(displayName("  ", "owner@example.com")).toBe("owner");
     expect(displayName(null, "olu@acme.example")).toBe("olu");
     expect(displayName(null, null)).toBe("");
     expect(namesOf("", "olu@acme.example")).toEqual(["olu", "olu@acme.example"]);

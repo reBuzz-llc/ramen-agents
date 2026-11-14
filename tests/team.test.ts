@@ -57,8 +57,8 @@ describe("adding a member by Google address", () => {
   });
 
   it("copy text for Slack", () => {
-    expect(copyText("https://peek.example/", { email: "ann@acme.example", name: "Ann Lee", ownerName: "Dai Shrestha" })).toBe(
-      "Hi Ann, you're set up on ramen-agents, our team's queue and clock. Sign in here: https://peek.example/sign-in — use Continue with Google with ann@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send. Questions, ask Dai.",
+    expect(copyText("https://peek.example/", { email: "ann@acme.example", name: "Ann Lee", ownerName: "Kai Morgan" })).toBe(
+      "Hi Ann, you're set up on ramen-agents, our team's queue and clock. Sign in here: https://peek.example/sign-in — use Continue with Google with ann@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send. Questions, ask Kai.",
     );
     // copied on someone's own Mac, the link is still the live app's; no names, no empty greeting or "ask"
     expect(copyText("http://localhost:3100", { email: "bo@acme.example" })).toBe(

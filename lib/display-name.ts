@@ -3,7 +3,7 @@
 // People warns about a missing name. Pure (client components use it too); the list reads write the same rule in SQL:
 // coalesce(nullif(trim(name), ''), split_part(email, '@', 1)).
 
-/** "Sampada Adhikary", or "sampada" for sampada@example.com when no name is set. */
+/** "Robin Vale", or "robin" for robin@example.com when no name is set. */
 export function displayName(name: string | null | undefined, email: string | null | undefined): string {
   const n = (name ?? "").trim();
   if (n) return n;

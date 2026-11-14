@@ -10,16 +10,16 @@ describe("Copy for WhatsApp", () => {
   it("one bullet per save, newest first: steps by what they mean, edits by the cell", () => {
     const h = [
       ch("draft_email", "Hi Ana, call me on +1 718 555 0100", "Jasmine", at(10, 14, 10)),
-      ch("email_status", "Email Sent", "Sampada", at(9, 11)),
-      ch("sent_by", ["Sampada"], "Sampada", at(9, 11)),
-      ch("sent_at", "2026-11-09", "Sampada", at(9, 11)),
+      ch("email_status", "Email Sent", "Robin", at(9, 11)),
+      ch("sent_by", ["Robin"], "Robin", at(9, 11)),
+      ch("sent_at", "2026-11-09", "Robin", at(9, 11)),
       ch("result", "Meeting", "Ann", at(6, 9)),
       ch("result_date", "2026-11-06", "Ann", at(6, 9)),
       ch("notes", null, "Ann", at(5, 9), { old: "x" }),
     ];
     expect(recentBullets(h, now)).toEqual([
       "• Jasmine set Draft email (today 14:10)",
-      "• Sampada marked Email sent (yesterday)",
+      "• Robin marked Email sent (yesterday)",
       "• Ann set Result to Meeting (6 Nov)",
       "• Ann cleared Notes (5 Nov)",
     ]);
