@@ -199,13 +199,8 @@ enabled = false
 database_id = ""
 api_key_env = "NOTION_API_KEY"
 api_key_file = "~/bots/common-data/keys/notion.key"
-api_version = "2022-06-28"
-title_property = "Task"
 status_property = "Status"
 status_value = "Not started"
-assignee_property = "Assign"
-priority_property = "Priority"
-due_property = "Dead Line"
 max_tasks_per_episode = 1
 max_tasks_per_day = 8
 # After this many finished episodes with no task, the next episode opens with a nudge to turn the
