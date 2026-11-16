@@ -20,7 +20,7 @@ fake_web_dir = "~/Projects/bot/workspace/fake_web"
 
 [policy]
 # The Validator's rules run BEFORE a lead, task or package is written (validator/gate.py); what breaks a hard rule
-# never reaches Notion. Fails open if the gate is missing or broken.
+# never reaches the board. Fails open if the gate is missing or broken.
 write_gate = "~/bots/validator/gate.py"
 # The gate's model-judged questions (MGnn in validator/instructions/<bot>.md) are asked at write time by the local
 # model; one answer per content, cached in shared-state/write-gate-model.json. "" turns it off.
@@ -43,9 +43,10 @@ enabled = true
 # false = pause only while a listed game app is in front; true = pause whenever the owner is using the Mac.
 when_owner_active = false
 
-# The team portal (the `portal` branch): uncomment to move the Leads board from Notion to the portal. The agents, the
-# Validator and the dashboard then read and write leads there, each with its own key in common-data/keys/
-# (portal-engine.key, portal-validator.key, portal-dashboard.key: setup-queue step 9). Unset, the board stays on Notion.
+# The team's board: the dashboard serves it locally at http://127.0.0.1:3000 (the default). The agents, the Validator
+# and the dashboard read and write it there, each with its own key in common-data/keys/ (portal-engine.key,
+# portal-validator.key, portal-dashboard.key; setup writes them). To use the hosted portal instead, set its address in
+# common-data/configs/local.toml (never here):
 # [leads]
 # portal_url = "https://your-portal.example.com"
 # With the portal, the Validator also posts the agents' day to its Family page; the weekly write-up

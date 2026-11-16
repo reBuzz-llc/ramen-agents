@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- The Validator bot (~/bots/validator): checks the other bots' Notion tasks, packages and reports
+  <!-- The Validator bot (~/bots/validator): checks the other bots' tasks, packages and reports on the board
        against the owner's format instructions every 6 hours; a full re-check of all past data daily
-       and whenever ~/bots/validator/instructions/*.md changes. Read-only on Notion. -->
+       and whenever ~/bots/validator/instructions/*.md changes. Reads the board; writes only its own few cells. -->
   <key>Label</key><string>com.ramen-agents.validator</string>
   <key>ProgramArguments</key>
   <array>

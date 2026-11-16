@@ -1,12 +1,12 @@
 # The CEO — output format instructions
 
-The limits come from `the-ceo/config.toml` `[notion]` (`min_details_chars`, `max_tasks_per_day`).
+The limits come from `the-ceo/config.toml` `[tasks]` (`min_details_chars`, `max_per_day`).
 
-The CEO's outputs are (1) rows on the Notion task board "tasks" and (2) the marketing
-wrapper of each toggle on the Notion packages page. The sources and company facts inside a toggle are
+The CEO's outputs are (1) tasks on the team's board and (2) the marketing
+wrapper of each package on the board's Packages list. The sources and company facts inside a toggle are
 the Package Designer's and are checked under `package-designer.md`.
 
-## Notion task (one row on the tasks board)
+## Task (one task on the board)
 
 - T01 — Title stands alone a year from now: an imperative sentence of at least four words that says what to do ("Draft ten LinkedIn messages for {market_short} bakery owners"), never a bare word like "fixes", "deploy", "QA", "ad", "Outreach".
 - T02 — Status is set and uses the board vocabulary, Title Case: Not started, In progress, Blocker, In Review, QA, Done, Archived.
@@ -17,7 +17,7 @@ the Package Designer's and are checked under `package-designer.md`.
 - T09 — No duplicate: no other row on the board with the same title. A task that exists is not created again.
 - T10 — No commitments: a task never signs anything, hires anyone, or promises a price or a deadline to a client. Money, contracts, hiring and legal matters go in the details as a recommendation for the owner. [warn]
 - T11 — The Dead Line is not already in the past on the day the task is created.
-- T12 — The acceptance criteria under "Done when" are a Notion checklist (to-do blocks the person can tick off), not bullets or plain lines.
+- T12 — The acceptance criteria under "Done when" are a checklist the person can tick off ("- [ ] ..." items), not bullets or plain lines.
 
 ## Package toggle on the Packages page (the CEO's marketing wrapper)
 

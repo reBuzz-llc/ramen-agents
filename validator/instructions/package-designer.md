@@ -4,7 +4,7 @@ The code fence is `policy.py` `_check_package`; your own domains come from `[han
 
 The Package Designer's outputs are the package files it hands to The CEO
 (`the-ceo/raw/packages/*.md`), and, through the CEO's `publish_package`, the "Sources & company"
-section of each toggle on the Notion packages page. Both are checked.
+section of each package on the board's Packages list. Both are checked.
 
 ## Packages-page toggle: sources and company facts (the "Sources & company" section)
 

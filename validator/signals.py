@@ -20,7 +20,6 @@ from typing import Callable
 import httpx
 
 BOTS = Path.home() / "bots"
-API = "https://api.notion.com/v1"
 RECHECK_DAYS = 14
 PER_RUN = 40
 LOG = BOTS / "common-data" / "shared-state" / "leads-facts-applied.jsonl"
@@ -135,11 +134,10 @@ def score(ld, sig: dict, *, draft_ok: bool, pain_ok: bool, today: dt.date) -> in
     return round(min(fit, 50) * 0.7) + min(means, 25) + round(min(reach, 35) * 25 / 35) + min(ready, 15)
 
 
-def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_version: str, now: dt.datetime,
-        draft_ok: Callable, pain_ok: Callable, dry_run: bool = False, get: Callable | None = None, per_run: int = PER_RUN,
-        write: Callable | None = None) -> dict:
-    """Read up to PER_RUN sites due for a check, then write Tools / Site health / Lead score where they changed. With
-    `write(page_id, {column: value}) -> bool` (the team portal, portal_leads.writer) the cells go there instead of Notion."""
+def run(leads: list, state: dict | None, *, now: dt.datetime, draft_ok: Callable, pain_ok: Callable, dry_run: bool = False,
+        get: Callable | None = None, per_run: int = PER_RUN, write: Callable | None = None) -> dict:
+    """Read up to PER_RUN sites due for a check, then write Tools / Site health / Lead score where they changed, through
+    `write(page_id, {column: value}) -> bool` (the board, portal_leads.writer). No writer: nothing is written."""
     try:
         cache: dict = json.loads(CACHE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -149,7 +147,6 @@ def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_
                  key=lambda ld: str(cache.get(ld.page_id, {}).get("at", "")))[:per_run]
     for ld in due:
         cache[ld.page_id] = {**cache.get(ld.page_id, {}), "at": now.date().isoformat(), "sig": read_site(ld.website, get=get)}
-    client = None if dry_run or write is not None else httpx.Client(headers={"Authorization": f"Bearer {api_key}", "Notion-Version": api_version}, timeout=60)
     written = 0
     for ld in leads:
         sig = (cache.get(ld.page_id) or {}).get("sig", {}) if ld.website.strip() else {}
@@ -160,16 +157,9 @@ def run(leads: list, state: dict | None, *, api_key: str, data_source: str, api_
         had = (cache.get(ld.page_id) or {}).get("written") or {}
         if had.get("tools") == want["tools"] and had.get("score") == want["score"] and had.get("health", "")[:40] == want["health"][:40]:
             continue
-        if write is not None and not dry_run:
-            if not write(ld.page_id, {"Tools on site": want["tools"], "Site health": want["health"][:300], "Lead score": want["score"]}):
-                continue
-        elif client is not None:
-            props = {"Tools on site": {"multi_select": [{"name": t} for t in want["tools"]]},
-                     "Site health": {"rich_text": [{"text": {"content": want["health"][:300]}}] if want["health"] else []},
-                     "Lead score": {"number": want["score"]}}
-            r = client.patch(f"{API}/pages/{ld.page_id}", json={"properties": props})
-            if r.status_code != 200:
-                continue
+        if not dry_run and (write is None or not write(ld.page_id, {"Tools on site": want["tools"], "Site health": want["health"][:300],
+                                                                    "Lead score": want["score"]})):
+            continue
         cache.setdefault(ld.page_id, {})["written"] = want
         written += 1
     if not dry_run:

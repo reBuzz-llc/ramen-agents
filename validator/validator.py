@@ -5,13 +5,14 @@ the responsible bot to fix what is wrong.
     ~/Projects/bot/.venv/bin/python ~/bots/validator/validator.py [--full] [--dry-run] [--no-notify] [--json]
 
 Each run: re-read instructions/<bot>.md (a change triggers a full sweep of all past data), read what
-changed on the Notion task board since the last run plus the whole packages page, the package files in
+changed on the team's task board since the last run plus every package on the board, the package files in
 the-ceo/raw/packages/ and the Scout's providers-found.md, run the checks in checks.py, reconcile with the
 flags already raised (workspace/flags.json), write a report (workspace/reports/, latest-report.md), send
 each responsible bot one inbox message with its new defects, and post a one-line summary to the fleet
 chatroom. A full sweep of every task row also happens every `full_sweep_every_hours`.
 
-Read-only on Notion. Writes only to its own workspace, the bots' inboxes and the chatroom.
+Reads the team's board (the dashboard's local board, or the hosted portal at [leads] portal_url); writes only its own
+few cells there, its own workspace, the bots' inboxes and the chatroom.
 """
 from __future__ import annotations
 
@@ -43,7 +44,7 @@ import claims  # noqa: E402
 import family  # noqa: E402
 import portal_leads  # noqa: E402
 from blockers import Blocker, parse_blocker, parse_resolved, reply_text, unanswered_owner_messages, verify  # noqa: E402
-from sources import BOTS, NotionReader, bot_task_page_ids, norm_title, package_files, providers, team_members, utc_now  # noqa: E402
+from sources import BOTS, bot_task_page_ids, norm_title, package_files, providers, team_members, utc_now  # noqa: E402
 
 WS = HERE / "workspace"
 STATE = WS / "state.json"
@@ -53,11 +54,7 @@ SENDER = "Validator"
 FULL_KINDS = {"package", "package_file", "provider", "request", "agent", "plan"}   # scanned completely on every run
 
 DEFAULTS: dict[str, Any] = {
-    "task_data_source_id": "",
-    "package_page_id": "",
-    "notion_api_version": "2025-09-03",
     "task_owner_bot": "the-ceo",
-    "leads_data_source_id": "",
     "lead_owner_bot": "lead-gen",
     "full_sweep_every_hours": 24,
     "notify": True,
@@ -94,6 +91,10 @@ PROVIDER_KEYS = {"name", "base_url", "model", "key_file"}
 def load_settings() -> dict[str, Any]:
     data = tomllib.loads((HERE / "config.toml").read_text(encoding="utf-8"))
     v = data.get("validator") or {}
+    local = HERE / "config.local.toml"      # the user's own values, untracked (queue 572); key by key over the tracked file
+    if local.is_file():
+        mine = tomllib.loads(local.read_text(encoding="utf-8")).get("validator") or {}
+        v = {**v, **{k: ({**v[k], **val} if isinstance(val, dict) and isinstance(v.get(k), dict) else val) for k, val in mine.items()}}
     # A key written below a [[validator.model.chain]] entry belongs to that provider in TOML, silently: the cutoff and
     # family settings sat there unseen from 2026-09-22 to 09-28. Refuse to run on such a file rather than ignore them.
     for entry in (v.get("model") or {}).get("chain") or []:
@@ -118,10 +119,12 @@ def save_json(path: Path, data: Any) -> None:
 
 
 def min_details_for(bot: str) -> int:
-    """The bot's own [notion] min_details_chars, so the Validator holds it to the bar its policy sets."""
+    """The bot's own [tasks] min_details_chars (its local overlay wins), so the Validator holds it to the bar its policy sets."""
     try:
         data = tomllib.loads((BOTS / bot / "config.toml").read_text(encoding="utf-8"))
-        return int((data.get("notion") or {}).get("min_details_chars", 300))
+        local = BOTS / bot / "config.local.toml"
+        mine = tomllib.loads(local.read_text(encoding="utf-8")) if local.is_file() else {}
+        return int({**(data.get("tasks") or {}), **(mine.get("tasks") or {})}.get("min_details_chars", 300))
     except (OSError, ValueError, TypeError):
         return 300
 
@@ -160,7 +163,7 @@ class Run:
         self.notes: list[str] = []
         self.judged_now: set[tuple[str, str]] = set()
         self.pending_cells: dict[str, Any] = {}
-        # keys "<page id>|<rule>"; Notion ids come with or without dashes, so both are normalised to no dashes
+        # keys "<page id>|<rule>"; board ids come with or without dashes, so both are normalised to no dashes
         self.exceptions: dict[str, Any] = {k.replace("-", ""): v for k, v in
                                            load_json(BOTS / "common-data" / "shared-state" / "validator-exceptions.json", {}).items()}          # "<page id>|<column>" the team emptied, waiting for The CEO's assignee
         self.pending_messages: dict[str, list[str]] = {}  # bot -> work messages (not defects) to send this run
@@ -204,7 +207,7 @@ class Run:
             self._leads_quick_look()
             self._clear_false_whatsapp()
             return
-        self._gather_notion(own)
+        self._gather_board(own)
         folder = BOTS / self.s["task_owner_bot"] / "raw" / "packages"
         files = package_files(folder)
         self.counts["package files"] = len(files)
@@ -258,15 +261,10 @@ class Run:
     def _clear_false_whatsapp(self) -> None:
         """Rows the team marked "False Whatsapp Number": rule the number out, clear the cell and the Status, and ask
         Lead Gen once for another number (owner, 2026-10-07). The Validator's one write to the Leads board."""
-        ds = self.s.get("leads_data_source_id")
-        portal = portal_leads.portal_url()
-        if not ds and not portal:
-            return
-        from whatsapp_false import ask_text, clear_false, clear_false_portal
+        from whatsapp_false import ask_text, clear_false_portal
         try:
-            cleared = (clear_false_portal(portal_leads.PortalLeads(self.state, portal), now=self.now, dry_run=self.args.dry_run) if portal else
-                       clear_false(ds, now=self.now, api_version=self.s["notion_api_version"], dry_run=self.args.dry_run))
-        except (OSError, httpx.HTTPError, KeyError, ValueError) as exc:
+            cleared = clear_false_portal(portal_leads.PortalLeads(self.state, portal_leads.portal_url()), now=self.now, dry_run=self.args.dry_run)
+        except (OSError, httpx.HTTPError, KeyError, ValueError, RuntimeError) as exc:
             self.errors.append(f"false-WhatsApp clean-up failed: {exc}")
             return
         if not cleared:
@@ -287,12 +285,9 @@ class Run:
         """On the 10-minute loop: only rows edited since the last look, for the deleted-cell verdicts and the
         blank-cell work list. Cheap (one query, no page bodies) and it is what makes the team's deletions land
         with Lead Gen in minutes rather than at the next six-hourly sweep."""
-        ds = self.s.get("leads_data_source_id")
-        portal = portal_leads.portal_url()
-        if not ds and not portal:
-            return
+        ds = ""
         try:
-            reader = portal_leads.PortalLeads(self.state, portal) if portal else NotionReader(self.s["notion_api_version"])
+            reader = portal_leads.PortalLeads(self.state, portal_leads.portal_url())
             since = self.state.get("last_leads_look_utc") or self.state.get("last_run_utc")
             edited_after = None
             if since:
@@ -309,11 +304,12 @@ class Run:
             self.counts["lead rows (quick look)"] = len(leads)
             self._lead_upkeep(leads)
 
-    def _gather_notion(self, own: list[str]) -> None:
+    def _gather_board(self, own: list[str]) -> None:
+        """Tasks, packages and leads from the team's board (queue 572: in place of Notion)."""
         try:
-            reader = NotionReader(self.s["notion_api_version"])
+            reader = portal_leads.PortalLeads(self.state, portal_leads.portal_url())
         except Exception as exc:  # noqa: BLE001 - reported, the file checks still run
-            self.errors.append(f"Notion unavailable: {exc}")
+            self.errors.append(f"board unavailable: {exc}")
             return
         owner_bot = self.s["task_owner_bot"]
         edited_after = None
@@ -324,11 +320,11 @@ class Run:
             except ValueError:
                 edited_after = None
         try:
-            tasks = reader.tasks(self.s["task_data_source_id"], edited_after) if self.s["task_data_source_id"] else []
+            tasks = reader.tasks(edited_after)
         except Exception as exc:  # noqa: BLE001
             self.errors.append(f"task board: {exc}")
             tasks = []
-        self.counts["Notion tasks"] = len(tasks)
+        self.counts["board tasks"] = len(tasks)
         created_by_bot = bot_task_page_ids(BOTS / owner_bot / "workspace" / "explorer.sqlite3")
         team = team_members(BOTS / "common-data" / "team.json")
         index: dict[str, dict[str, str]] = {} if self.full else dict(self.state.get("tasks_index") or {})
@@ -345,26 +341,19 @@ class Run:
                 self.state.setdefault("_open_titles_run", []).append(t.title)
         self.state["tasks_index"] = index
         toggles = []
-        if self.s["package_page_id"]:
-            try:
-                toggles = reader.package_toggles(self.s["package_page_id"])
-            except Exception as exc:  # noqa: BLE001
-                self.errors.append(f"packages page: {exc}")
-                toggles = []
-            self.counts["package toggles"] = len(toggles)
-            for p in toggles:
-                self.checked.add(("package", p.block_id))
-                self.current += check_package_toggle(self.ck, p, own_domains=own)
-        if self.s.get("leads_data_source_id") or portal_leads.portal_url():
-            try:      # the team portal when common.toml sets [leads] portal_url, else this Notion reader
-                lead_reader = portal_leads.reader_for(self.state, reader)
-            except RuntimeError as exc:
-                self.errors.append(f"leads board: {exc}")
-            else:
-                self._gather_leads(lead_reader, edited_after, [p.title.split(" — ", 1)[0].strip() for p in toggles])
+        try:
+            toggles = reader.package_toggles()
+        except Exception as exc:  # noqa: BLE001
+            self.errors.append(f"packages page: {exc}")
+            toggles = []
+        self.counts["package toggles"] = len(toggles)
+        for p in toggles:
+            self.checked.add(("package", p.block_id))
+            self.current += check_package_toggle(self.ck, p, own_domains=own)
+        self._gather_leads(reader, edited_after, [p.title.split(" — ", 1)[0].strip() for p in toggles])
         if "_open_titles_run" in self.state:
             self.state["open_task_titles"] = self.state.pop("_open_titles_run")[:60]
-        self.notes.append(f"Notion requests: {reader.requests}")
+        self.notes.append(f"board requests: {reader.requests}")
         if (self.s.get("model") or {}).get("enabled"):
             if self.args.dry_run:
                 self.notes.append("judgment pass skipped (dry run spends no tokens)")
@@ -372,7 +361,7 @@ class Run:
                 self._model_pass(tasks, toggles)
 
     def _gather_leads(self, reader, edited_after: str | None, package_names: list[str]) -> None:
-        ds = self.s.get("leads_data_source_id") or ""
+        ds = ""
         try:
             leads = reader.leads(ds, edited_after)
             # The board's own dropdown is the authority for a package name; the packages page titles are marketing
@@ -380,7 +369,7 @@ class Run:
             # allowance for a package published but not yet in the dropdown. Taking them first flagged every row
             # on the board as a wrong package name (2026-09-24).
             allowed = sorted({*reader.select_options(ds, "How can I help"), *package_names})
-            # the write gate accepts only the board's own options: any other value makes Notion add a new option
+            # the write gate accepts only the board's own package names
             self.state["lead_package_names"] = sorted(reader.select_options(ds, "How can I help"))
         except Exception as exc:  # noqa: BLE001
             self.errors.append(f"leads board: {exc}")
@@ -390,10 +379,7 @@ class Run:
             import signals          # Tools on site / Site health / Lead score (owner, 2026-10-14)
             try:
                 from checks import draft_issues as _di, pain_point_issue as _pi, pain_point_parts as _pp
-                on_portal = isinstance(reader, portal_leads.PortalLeads)
-                res = signals.run(leads, self.state, api_key="" if on_portal else self._notion_key(), data_source=ds,
-                                  write=portal_leads.writer(reader) if on_portal else None,
-                                  api_version=self.s["notion_api_version"], now=self.now,
+                res = signals.run(leads, self.state, write=portal_leads.writer(reader), now=self.now,
                                   draft_ok=lambda ld: bool(ld.draft_email.strip()) and not ld.draft_email.lower().startswith("skip:")
                                   and not _di(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp, status=ld.status),
                                   pain_ok=lambda ld: bool(_pp(ld.pain_point)) and not _pi(ld.pain_point))
@@ -689,8 +675,6 @@ class Run:
         if todo:
             self.notes.append(f"email checks: {len(fetched)} site(s) read this run, {max(0, len(todo) - len(fetched))} waiting, {len(cache)} cached")
 
-    def _notion_key(self) -> str:
-        return (BOTS / "common-data" / "keys" / "notion.key").read_text(encoding="utf-8").strip()
 
     def _fact_check_enricher(self, leads: list) -> None:
         """EN05: the Lead Enricher's founder, city and size are printed on a page it cites or on the business's site
@@ -981,14 +965,14 @@ class Run:
                 if rec.get("status") == "resolved":
                     rec["status"], rec["resolved_at"] = "open", None
                     reopened.append(fp)
-        kinds_fully_scanned = set(FULL_KINDS) | ({"task"} if self.full and "Notion tasks" in self.counts else set()) \
+        kinds_fully_scanned = set(FULL_KINDS) | ({"task"} if self.full and "board tasks" in self.counts else set()) \
             | ({"lead"} if self.full and "lead rows" in self.counts else set())
         kinds_fully_scanned |= {"blocker", "chat"}          # both are re-derived completely on every run
         if self.args.inbox:
             kinds_fully_scanned = {"blocker", "chat", "request"}
-        if self.errors and any("Notion" in e or "packages page" in e for e in self.errors):
+        if self.errors and any("board unavailable" in e or "packages page" in e for e in self.errors):
             kinds_fully_scanned.discard("package")
-        if any("task board" in e or "Notion unavailable" in e for e in self.errors):
+        if any("task board" in e or "board unavailable" in e for e in self.errors):
             kinds_fully_scanned.discard("task")
         for fp, rec in self.flags.items():
             if rec.get("status") != "open" or fp in seen:
@@ -1307,7 +1291,7 @@ class Run:
                 last_run=self.stamp, last_run_utc=self.now_utc.isoformat(timespec="seconds"),
                 instructions_digest=self.ins.digest, instructions_files=self.ins.files,
             )
-            if self.full and not any("task board" in e or "Notion unavailable" in e for e in self.errors):
+            if self.full and not any("task board" in e or "board unavailable" in e for e in self.errors):
                 self.state["last_full_sweep"] = self.stamp
             self.state["runs"] = int(self.state.get("runs", 0)) + 1
             save_json(STATE, self.state)
@@ -1328,7 +1312,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="print the report; write nothing, message nobody")
     ap.add_argument("--no-notify", action="store_true", help="write the report and state but send no messages")
     ap.add_argument("--json", action="store_true", help="print a JSON summary instead of the report")
-    ap.add_argument("--inbox", action="store_true", help="only read the inbox (Desk Agent blockers) and the desk chat; no Notion, no files")
+    ap.add_argument("--inbox", action="store_true", help="only read the inbox (Desk Agent blockers) and the desk chat; no board sweep, no files")
     args = ap.parse_args(argv)
     LOG.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",

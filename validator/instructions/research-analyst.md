@@ -5,7 +5,7 @@ research questions from The CEO (by message) with notes citing their source page
 Harmless while the research-analyst folder does not exist.
 
 The Research Analyst's output is its notes (its own sqlite `notes`, which become the findings post on the public
-blog) and its messages to The CEO. It never writes to the task board or to Notion.
+blog) and its messages to The CEO. It never writes to the task board or the Leads board.
 
 ## Notes (checked every sweep)
 
@@ -16,7 +16,7 @@ blog) and its messages to The CEO. It never writes to the task board or to Notio
 
 ## Writes (refused at write time)
 
-- RA05 — No task-board or Notion writes: research is never a task, and the board is for the human team (task, update_task, lead, update_lead, package are refused for this bot).
+- RA05 — No task-board or Leads-board writes: research is never a task, and the board is for the human team (task, update_task, lead, update_lead, package are refused for this bot).
 
 ## Questions for a person reviewing by hand (retired from model judging 2026-10-14: only task rows and package toggles are model-judged; these overlap the exact rules above and would cost a page read per item on the shared free tier)
 

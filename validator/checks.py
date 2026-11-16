@@ -1,6 +1,6 @@
 """The Validator's built-in checks: pure functions from an artefact plus the enabled rules to a list of
 flags. Each check is keyed to a rule id; a rule id absent from the instructions file is not enforced.
-No I/O here, so it is unit-tested without Notion.
+No I/O here, so it is unit-tested without the board.
 """
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 extends = "../common-data/configs/web-bots.toml"
 
 # Research Analyst (anaA), optional member: the family's research desk: The CEO's research questions come by message;
-# each episode answers one question with notes citing the pages read; the episode is its findings post. It writes nothing to Notion.
+# each episode answers one question with notes citing the pages read; the episode is its findings post. It writes nothing to the board.
 
 [agent]
 name = "Research Analyst"
