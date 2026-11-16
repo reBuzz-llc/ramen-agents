@@ -18,6 +18,9 @@ without it Playwright's clean-up can delete the browser every member uses.
   `<member>/config.local.toml`: the two local files are git-ignored and win. `config.py` reads them in that order.
 - An unknown section or key in any of them stops the member at load and names the file: never add a key the
   dataclasses in `config.py` do not define, and never keep an old one "for later".
+- Quiet mode pauses a member while the person uses the Mac. To pause it also while an app is in front or a process
+  runs (a game, a video call), put `apps = ["..."]` / `processes = ["..."]` under `[quiet]` in
+  `common-data/configs/local.toml`; both are empty by default.
 - The person's own answers (company, what they sell, to whom, where, the sign-off, the team, the steer) are in
   `common-data/local/family.toml`. Cards, bios, seed interests and sign-offs say `{company}`, `{sells}`, `{buyers}`,
   `{place}`, `{owner}`, `{signoff}`, `{market}` ...; `target.py` fills them. Never write a person's value into a tracked

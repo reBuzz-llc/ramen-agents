@@ -774,8 +774,10 @@ class QuietConfig:
     enabled: bool = True
     when_owner_active: bool = True  # any input within idle_seconds means quiet
     idle_seconds: float = 180.0
-    apps: list[str] = field(default_factory=lambda: ["Steam", "Epic Games Launcher"])  # frontmost app names
-    processes: list[str] = field(default_factory=lambda: ["steam_osx", "Epic Games Launcher"])  # substrings
+    # Apps (frontmost names) and processes (name substrings) that also mean "quiet". Empty by default: a person who wants
+    # their agents to pause while, say, a game runs names it in common-data/configs/local.toml [quiet].
+    apps: list[str] = field(default_factory=list)
+    processes: list[str] = field(default_factory=list)
     check_interval_seconds: float = 15.0
     unload_model: bool = True
     close_browser: bool = True
