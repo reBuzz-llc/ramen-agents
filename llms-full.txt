@@ -6,12 +6,17 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 
 # ramen-agents
 
-**A family of small web agents a founder with no budget can run from a laptop, on free model tiers and keyless
-search.** ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO
-agent that steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account,
-spend money, or collect personal data: that fence is in the code, not in a prompt.
+**What it is:** a free AI agent team for a small business: it finds leads, writes the first outreach, and a dashboard watches it work.<br>
+**Who it is for:** a founder or a small agency with time and a laptop, but no budget for software or ads.<br>
+**What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.
 
-[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [The fence](FENCE.md) · [FAQ](#faq) · [Run it for real](#run-it-for-real) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
+![15 seconds of the dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now, a close-up of whoever acts and a ticker of the day's numbers along the bottom](docs/assets/world.gif)
+
+ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
+steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
+money, or collect personal data: that fence is in the code, not in a prompt.
+
+[Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [Run it for real](#run-it-for-real) · [Set up with your AI agent](#set-up-with-your-ai-agent) · [The fence](FENCE.md) · [FAQ](#faq) · [The brochure (PDF)](docs/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
 ---
 
@@ -61,13 +66,13 @@ written down where you can read it.
 
 | Agent | What it does | Where its work goes |
 |---|---|---|
-| **The CEO** | Sets what the family works on, decides which package fits each lead, writes one clear task a day for the human team | A Notion task board, messages to the others |
-| **Lead Gen** | Finds small businesses with a gap you fix (no online ordering, an outdated site, no website) and a published business email or WhatsApp | A Notion Leads board |
-| **Package Designer** | Reads what comparable agencies sell and charge, and turns it into priced service packages | Packages handed to The CEO |
+| **The CEO** | Sets what the family works on, decides which package fits each lead, writes one clear task a day for the human team | The Tasks board on your dashboard, messages to the others |
+| **Lead Gen** | Finds small businesses with a gap you fix (no online ordering, an outdated site, no website) and a published business email or WhatsApp | The Leads board on your dashboard |
+| **Package Designer** | Reads what comparable agencies sell and charge, and turns it into priced service packages | Packages handed to The CEO, then the Packages board |
 | **Research Analyst** | Answers one research question at a time from public pages, with a source for every note | Findings posts |
 | **Scout** | Finds free, card-free tools and model providers, and watches their terms | A list the owner reviews |
 | **Validator** | Checks every write against the owner's rules before and after it reaches a board | Refusals, flags, a weekly results digest |
-| **Dashboard** | A local web app: who is running, today's scoreboard, refusals, lead results | `http://127.0.0.1:3000` |
+| **Dashboard** | A local web app: who is running, today's scoreboard, refusals, lead results, and the Leads, Tasks and Packages boards | `http://127.0.0.1:3000` |
 
 Each agent is one folder with a `config.toml` and a `persona.md` (its instructions, in plain English). The engine is
 one Python program (`bot`), and all agents share it.
@@ -102,21 +107,56 @@ The agents run on a single shared chain of free tiers, tried in order, with a lo
 
 ## Run it for real
 
-The real setup turns the fake demo into a working family: real web, free model keys you create yourself, and a Notion
-workspace for the boards.
+On a Mac (macOS only for now; the agents are kept alive by launch agents), three commands:
 
-1. Clone both halves: the engine (`-b engine`) to `~/Projects/bot`, and the family's folders (`-b fleet`) to `~/bots`.
-2. **Free tiers first.** [docs/free-tiers.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md)
-   lists every model provider and search engine in the chain with its free limits and where its key goes;
-   `bot providers` shows which keys you have.
-3. **Create your Leads board.** [docs/leads-board.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/leads-board.md)
-   explains the board; `scripts/create_leads_board.py` creates a new database under the Notion page you give and
-   prints the config lines to paste.
-4. Follow `SETUP.md` on the `fleet` branch for the rest: every marker to fill (`FILL-ME`) and every board to share
-   with your integration. `sh scripts/check-setup.sh` tells you what is still missing.
-5. Start one agent first (Lead Gen is the most useful), watch it on the dashboard for a day, then add the rest.
+```sh
+git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots && cd ~/bots
+sh scripts/install.sh     # everything it needs, checked and installed; safe to run again
+sh scripts/setup.sh       # a few questions and one free model key, then the family starts
+```
 
-The long-running setup uses macOS launch agents. The engine and the fake demo run anywhere Python does.
+`install.sh` checks or installs, one line per step, the Xcode command line tools and Homebrew (it stops and prints the
+command when one is missing), Python 3.11+ and Node.js 20+, the engine (cloned to `~/Projects/bot`), keyless search
+(SearXNG) and the dashboard. It never asks for a key and never signs in to anything.
+
+`setup.sh` asks who you are and who you sell to (your company, what you sell, who buys it, where), keeps the answers in
+`common-data/local/family.toml` (out of git, so updates never touch them), helps you add one free model key with
+`sh scripts/add-key.sh gemini`, starts the members you choose and opens the dashboard at http://127.0.0.1:3000. The
+same questions are on the dashboard's first-run page.
+
+Your leads, tasks and packages live on **the local board**: one file on your Mac, shown on the dashboard's Leads, Tasks
+and Packages pages, where you sort, filter, edit and import or export CSV. No account anywhere. Start with the default
+members, watch the first day on the dashboard, then add the rest. The full walk-through, with what each step does:
+[SETUP.md on the fleet branch](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/SETUP.md).
+
+Optional: [reach the dashboard from your phone or another computer](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/remote-access.md)
+with Tailscale (your own account and your choice; check its plan's terms), or
+[a hosted team portal instead of the local board](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/advanced.md).
+
+### Updating
+
+```sh
+cd ~/bots && sh scripts/update.sh
+```
+
+It takes the newest version of both folders from the starter. An edit you made to a tracked file is moved first to the
+git-ignored files where your own values live, and named, so the pull never meets a conflict; then it reinstalls what
+changed and restarts what was running. On a checkout from before `update.sh` existed, run it once from the starter:
+
+```sh
+cd ~/bots && git fetch starter && git show starter/fleet:scripts/update.sh | sh
+```
+
+Coming from the earlier setup that used Notion: its settings are moved or dropped by name. Your leads are not copied:
+export the Notion board as CSV and use Import CSV on the dashboard's Leads page.
+
+## Set up with your AI agent
+
+An AI coding agent (Claude Code, Codex, Cursor and the like) can do the setup with you. Clone the `fleet` branch to
+`~/bots`, open your agent there, and tell it to read
+[AGENTS.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/AGENTS.md). It runs the three commands, asks you the
+setup questions and writes your answers, and runs `python3 scripts/setup-check.py` to see what is still missing. It
+never creates an account or a key for you: you make the one key yourself, at the page `add-key.sh` names.
 
 ## How it compares
 
@@ -127,6 +167,23 @@ plain-English instruction files. It has a Validator and a hard fence because it 
 business's leads, where one invented email or one sign-up would be one too many.
 
 ## FAQ
+
+### What is ramen-agents?
+
+An open-source team of AI agents for a small business: one finds businesses that need what you sell, one writes the
+first email, others research the market and price your packages, and a Validator checks every write. A local
+dashboard shows them working. It is Python and Next.js, Apache-2.0.
+
+### Who is it for?
+
+Founders and small agencies who have time and a laptop but no budget: people who would otherwise do lead research and
+first emails by hand. It was built for, and is run every day by, a small agency.
+
+### Can my AI coding agent set it up?
+
+Yes. Point it at `AGENTS.md` on the `fleet` branch ([Set up with your AI agent](#set-up-with-your-ai-agent)): it runs
+the three setup commands, asks you the questions and runs `scripts/setup-check.py`. It never creates accounts or keys:
+it asks you for each one, with the link.
 
 ### Does it cost anything?
 
@@ -150,14 +207,20 @@ provider with an OpenAI-compatible API, but nothing in this repository asks you 
 
 ### Does my data leave my machine?
 
-Your boards live in your own Notion workspace, your keys stay in files on your machine, and the agents' memories are
-local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable
+Your boards live in one file on your Mac (the local board), your keys stay in files on your machine, and the agents'
+memories are local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable
 with, or run everything on the local model.
 
 ### Does it need a Mac?
 
-The engine and the demo run anywhere Python 3.11 runs. The always-on setup (launch agents, the dashboard as a
-service) is written for macOS.
+For the full family, yes, for now: the installer and the always-on setup (launch agents, the dashboard as a service)
+are macOS only, and on Linux or Windows the scripts stop on their first line and say so. The engine and the ten-minute
+demo run anywhere Python 3.11 runs.
+
+### How do I update it?
+
+`sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the update never meets an edit of
+yours; anything it has to move, it names. See [Updating](#updating).
 
 ### How do I add an agent?
 
@@ -166,13 +229,14 @@ English, then `bot --config ~/bots/name/config.toml install` keeps it running.
 
 ## Repository layout
 
-This repository has three branches, because the engine and the family are cloned into different folders:
+This repository has four branches, because the engine and the family are cloned into different folders:
 
 | Branch | Clone to | Contents |
 |---|---|---|
 | `main` | (read here) | This README, the fence, the licence, contribution guides, the docs site |
 | `engine` | `~/Projects/bot` | The `bot` program: the loop, the policy, the tests |
-| `fleet` | `~/bots` | The agents' folders with blank instructions, shared settings, the Validator, the dashboard, scripts |
+| `fleet` | `~/bots` | The agents' folders, shared settings, the Validator, the dashboard with the local board, the install, setup and update scripts |
+| `portal` | anywhere (optional) | A hosted team portal in place of the local board: people take leads and tasks and record what they sent |
 
 Both working branches start with no history and no data: no leads, notes, keys or logs.
 
@@ -183,8 +247,6 @@ request that weakens the fence will not be merged.
 
 Licensed under the [Apache License 2.0](LICENSE). If you use ramen-agents in research or writing, cite it with
 [CITATION.cff](CITATION.cff).
-
----
 
 # The fence
 

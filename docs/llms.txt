@@ -19,8 +19,13 @@
   `bot --config ./demo-fleet/my-explorer/config.toml demo`. No key, no network.
 - Safety: sign-in pages are blocked (`workspace/denylist.txt`); goals about credentials, spending or self-replication are
   refused (`src/explorer/policy.py`); the Validator's gate refuses personal or invented data (`validator/gate.py`).
-- Requirements: Python 3.11+. The always-on setup (launch agents, dashboard service) targets macOS.
-- Branches: `engine` (the `bot` program), `fleet` (the agents, the Validator, the dashboard), `main` (docs).
+- The real setup, on a Mac: clone `-b fleet` to `~/bots`, then `sh scripts/install.sh` and `sh scripts/setup.sh` (a few
+  questions, one free model key, then the family starts). Leads, tasks and packages live on the local board, one file on
+  the Mac shown on the dashboard; no account anywhere. An AI coding agent reads `AGENTS.md` on the `fleet` branch.
+  Updating: `sh scripts/update.sh`.
+- Requirements: macOS for the full family (for now); Python 3.11+ for the engine and the demo anywhere.
+- Branches: `engine` (the `bot` program), `fleet` (the agents, the Validator, the dashboard with the local board),
+  `portal` (an optional hosted team portal), `main` (docs).
 
 ## Optional
 

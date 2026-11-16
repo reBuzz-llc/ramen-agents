@@ -5,6 +5,36 @@ All notable changes to ramen-agents. Dates are when a change reached the public 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
+Local-first: from an empty Mac to a running family in three commands, and no Notion on any branch.
+
+### Added
+
+- **The local board** in the dashboard: Leads, Tasks and Packages on one file on your Mac, with the hosted portal's
+  board API and write rules, row history, Import CSV and Export CSV.
+- **`scripts/install.sh`** (everything checked and installed, safe to run again), **`scripts/setup.sh`** (a few
+  questions and one free key, then the family starts) and the dashboard's **first-run page**.
+- **`scripts/add-key.sh <provider>`**: where the free key is made, read without showing it, saved private, tested.
+- **`scripts/update.sh`**: the newest version from the starter; your edits to tracked files moved to git-ignored
+  overlays first and named, so the pull never conflicts.
+- **`common-data/local/family.toml`**, `config.local.toml` and `common-data/configs/local.toml`: your values, out of git.
+- **`AGENTS.md`** (and a `CLAUDE.md` pointing at it) on `fleet` and `engine`.
+- **`docs/your-family.md`**, **`docs/remote-access.md`** (Tailscale, optional) and **`docs/advanced.md`** (the hosted
+  portal).
+
+### Changed
+
+- The README's quick start is the three commands; `SETUP.md` is three steps (it was ten sections).
+- Quiet mode's default app list is empty: agents no longer pause while a game launcher runs.
+- The leak test also refuses Notion links, tailnet names and timestamps with a local UTC offset.
+
+### Removed
+
+- **Notion**, everywhere: the task board, the Leads board, the packages page, `notion.key`, `create_leads_board.py` and
+  the portal's Notion connection. The old settings are moved or dropped by `update.sh`.
+- The `FILL-ME` markers: the cards read your answers instead.
+
 ## [0.1.0] - 2026-11-14
 
 The first release: the agent team we run every day at our own small agency, opened under Apache-2.0. A starter for a
@@ -44,5 +74,6 @@ and the docs site).
 - Drafts still need a person, and there is no send step: people send.
 - Page text goes to whichever model provider answers; choose providers you trust, or use the local model.
 
-[Unreleased]: https://github.com/reBuzz-llc/ramen-agents/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/reBuzz-llc/ramen-agents/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/reBuzz-llc/ramen-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/reBuzz-llc/ramen-agents/releases/tag/v0.1.0

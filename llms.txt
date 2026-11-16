@@ -8,7 +8,7 @@
 
 ## What it is
 
-- A family of web agents (The CEO, Lead Gen, Outreach Writer, Package Designer, Research Analyst, Scout), a Validator
+- A family of web agents (The CEO, Lead Gen, Package Designer, Research Analyst, Scout), a Validator
   that checks every write against the owner's rules, and a local Next.js dashboard drawn as a small pixel world.
 - Each agent is a folder with a `config.toml` and a `persona.md` in plain English; one Python program (`bot`) runs them.
 
@@ -26,15 +26,21 @@
 
 - Ten minutes, no key, no network: `git clone -b engine https://github.com/reBuzz-llc/ramen-agents`, `pip install -e .`,
   `bot new "My Explorer" --fake --dir ./demo-fleet`, `bot --config ./demo-fleet/my-explorer/config.toml demo`.
-- The real setup, by hand or with an AI coding agent: clone `-b fleet` to `~/bots`, follow `docs/setup-queue.md`, and run
-  `python3 scripts/setup-check.py` after each step (it names what is missing and where to get it). The agent never
-  creates accounts or keys; it asks the person for each one.
-- Requirements: Python 3.11+ for the engine; the always-on setup (launch agents, dashboard service) targets macOS.
+- The real setup, on a Mac: `git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots`, then in
+  `~/bots` `sh scripts/install.sh` (checks and installs everything) and `sh scripts/setup.sh` (a few questions, one free
+  model key, then the family starts). Leads, tasks and packages live on the local board: one file on the Mac, shown on
+  the dashboard. No account anywhere.
+- With an AI coding agent: it reads `AGENTS.md` on the `fleet` branch, runs the same commands and
+  `python3 scripts/setup-check.py`. It never creates accounts or keys; it asks the person for each one.
+- Updating: `sh scripts/update.sh` in `~/bots`; the person's own values live in git-ignored files, so updates never meet
+  an edit.
+- Requirements: macOS for the full family (for now); Python 3.11+ for the engine and the demo anywhere.
 
 ## Links
 
 - [README](https://github.com/reBuzz-llc/ramen-agents#readme): what it is, the quickstart, setting up with an AI agent, the FAQ
-- [Setup queue](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/setup-queue.md): the ordered setup as checkbox steps
+- [SETUP.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/SETUP.md): the three commands and what each does
+- [AGENTS.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/AGENTS.md): the setup for an AI coding agent
 - [The fence](https://github.com/reBuzz-llc/ramen-agents/blob/main/FENCE.md): every rule no agent may break, and the file that enforces it
 - [Free tiers](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md): each provider's free limits and where its key goes
 - [Brochure (PDF)](https://github.com/reBuzz-llc/ramen-agents/blob/main/docs/brochure.pdf): the project on one tri-fold page

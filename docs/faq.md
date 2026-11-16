@@ -26,14 +26,28 @@ provider with an OpenAI-compatible API, but nothing in this repository asks you 
 
 ## Does my data leave my machine?
 
-Your boards live in your own Notion workspace, your keys stay in files on your machine, and the agents' memories are
-local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable
+Your boards live in one file on your Mac (the local board, shown on the dashboard), your keys stay in files on your
+machine, and the agents' memories are local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable
 with, or run everything on the local model.
 
 ## Does it need a Mac?
 
-The engine and the demo run anywhere Python 3.11 runs. The always-on setup (launch agents, the dashboard as a
-service) is written for macOS.
+For the full family, yes, for now: the installer and the always-on setup (launch agents, the dashboard as a service)
+are macOS only, and on Linux or Windows the scripts stop on their first line and say so. The engine and the ten-minute
+demo run anywhere Python 3.11 runs.
+
+## How do I set it up?
+
+Three commands on a Mac: `git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots`, then in
+`~/bots` `sh scripts/install.sh` and `sh scripts/setup.sh`. The installer checks and installs what the family needs; the
+setup asks who you are and who you sell to, helps you add one free model key and starts the family. An AI coding agent
+can do it with you: point it at `AGENTS.md` on the `fleet` branch.
+
+## How do I update it?
+
+`sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the update never meets an edit of
+yours; anything it has to move, it names. On a checkout from before the script existed:
+`cd ~/bots && git fetch starter && git show starter/fleet:scripts/update.sh | sh`.
 
 ## How do I add an agent?
 
@@ -82,7 +96,7 @@ English, then `bot --config ~/bots/name/config.toml install` keeps it running.
    "name": "Does my data leave my machine?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Your boards live in your own Notion workspace, your keys stay in files on your machine, and the agents' memories are\nlocal SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable\nwith, or run everything on the local model."
+    "text": "Your boards live in one file on your Mac (the local board, shown on the dashboard), your keys stay in files on your\nmachine, and the agents' memories are local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable\nwith, or run everything on the local model."
    }
   },
   {
@@ -90,7 +104,23 @@ English, then `bot --config ~/bots/name/config.toml install` keeps it running.
    "name": "Does it need a Mac?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "The engine and the demo run anywhere Python 3.11 runs. The always-on setup (launch agents, the dashboard as a\nservice) is written for macOS."
+    "text": "For the full family, yes, for now: the installer and the always-on setup (launch agents, the dashboard as a service)\nare macOS only, and on Linux or Windows the scripts stop on their first line and say so. The engine and the ten-minute\ndemo run anywhere Python 3.11 runs."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How do I set it up?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Three commands on a Mac: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots, then in\n~/bots sh scripts/install.sh and sh scripts/setup.sh. The installer checks and installs what the family needs; the\nsetup asks who you are and who you sell to, helps you add one free model key and starts the family. An AI coding agent\ncan do it with you: point it at AGENTS.md on the fleet branch."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How do I update it?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "sh scripts/update.sh in ~/bots. Your own values live in git-ignored files, so the update never meets an edit of\nyours; anything it has to move, it names. On a checkout from before the script existed:\ncd ~/bots && git fetch starter && git show starter/fleet:scripts/update.sh | sh."
    }
   },
   {

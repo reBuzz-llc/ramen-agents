@@ -1,3 +1,6 @@
+> This is the v0.1.0 note, kept as history. Since v0.2.0 the boards are local and Notion is gone: see
+> [RELEASE-v0.2.0.md](RELEASE-v0.2.0.md).
+
 **ramen-agents** is a free AI agent team for a small business: it finds businesses that need what you sell, drafts the
 first email, researches the market, and a dashboard shows it working. It runs on the free tiers model providers already
 give away, with keyless search. No step asks for a card.

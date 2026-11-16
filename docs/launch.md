@@ -13,7 +13,7 @@ any of it.
 - [ ] **About (⚙ next to "About" on the repo page):**
   - Description: `Free AI agents for startups: an open-source agent family that runs on free tiers and keyless search, with a hard fence (no accounts, no spending, no personal data).`
   - Website: `https://rebuzz-llc.github.io/ramen-agents/`
-  - Topics: `ai-agents` `multi-agent` `free-tier` `startups` `agent-framework` `lead-generation` `llm` `autonomous-agents` `open-source` `python` `notion` `searxng` `ollama` `agent-safety` `bootstrapping` `small-business` `research-agent` `local-first` `founders` `prompt-injection-defense`
+  - Topics: `ai-agents` `multi-agent` `free-tier` `startups` `agent-framework` `lead-generation` `llm` `autonomous-agents` `open-source` `python` `searxng` `ollama` `agent-safety` `bootstrapping` `small-business` `research-agent` `local-first` `founders` `prompt-injection-defense`
 - [ ] **Settings → General → Social preview:** upload `docs/assets/og.png`.
 - [ ] **Settings → General → Features:** Discussions on; Wiki off.
 - [ ] **Settings → Pages:** Deploy from a branch → `main` → `/docs`. The site appears at `https://rebuzz-llc.github.io/ramen-agents/`.
