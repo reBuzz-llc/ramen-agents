@@ -190,7 +190,7 @@ export default function AllowanceView() {
             </SortableTable>
           </div>
         ) : (
-          <p className="text-sm text-muted">Not checked yet: the hourly job (launchd com.rebuzz.free-tiers) writes common-data/shared-state/free-tiers.json.</p>
+          <p className="text-sm text-muted">Not checked yet: the hourly job (launchd com.ramen-agents.free-tiers) writes common-data/shared-state/free-tiers.json.</p>
         )}
       </Panel>
     </div>

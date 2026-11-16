@@ -26,8 +26,10 @@ echo "ramen-agents update ($ROOT)"
 before=$(git rev-parse --short HEAD)
 ebefore=$( [ -d "$ENGINE/.git" ] && git -C "$ENGINE" rev-parse --short HEAD || echo "")
 
-git fetch -q || { echo "  STOP     could not reach the starter (git fetch): are you online?"; exit 1; }
-UP=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || { echo "  STOP     this branch follows no upstream: git branch -u starter/fleet"; exit 1; }
+# updates come from the starter (the remote named `starter`), also once you push to an `origin` of your own
+if git remote | grep -qx starter; then FROM="starter fleet"; UP=starter/fleet; else FROM=""; UP=""; fi
+git fetch -q ${FROM%% *} || { echo "  STOP     could not reach the starter (git fetch): are you online?"; exit 1; }
+[ -n "$UP" ] || UP=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || { echo "  STOP     no remote named starter and no upstream: git remote add starter https://github.com/reBuzz-llc/ramen-agents"; exit 1; }
 
 echo "1. Your own values, out of the tracked files"
 # the newest migration (an old checkout has none yet): from the version about to be pulled, run against this folder
@@ -40,10 +42,12 @@ mig=$(RAMEN_ROOT="$ROOT" "$PY" "$MIG")
 printf '%s\n' "$mig"
 
 echo "2. The newest version"
-git pull -q --ff-only --autostash 2>/dev/null || git pull -q --rebase --autostash || { echo "  STOP     the pull did not apply cleanly: git status says what; then run this again"; exit 1; }
+# a fast-forward; with commits of your own, a merge (never a rebase: your pushed history stays as it is)
+git pull -q --ff-only --autostash $FROM 2>/dev/null || git pull -q --no-rebase --no-edit --autostash $FROM || { echo "  STOP     the pull did not apply cleanly: git status says what; then run this again"; exit 1; }
 echo "  ok       this folder: $before -> $(git rev-parse --short HEAD)"
 if [ -d "$ENGINE/.git" ]; then
-  git -C "$ENGINE" pull -q --ff-only --autostash 2>/dev/null || git -C "$ENGINE" pull -q --rebase --autostash || { echo "  STOP     the engine's pull did not apply: git -C $ENGINE status"; exit 1; }
+  EFROM=""; git -C "$ENGINE" remote | grep -qx starter && EFROM="starter engine"
+  git -C "$ENGINE" pull -q --ff-only --autostash $EFROM 2>/dev/null || git -C "$ENGINE" pull -q --no-rebase --no-edit --autostash $EFROM || { echo "  STOP     the engine's pull did not apply: git -C $ENGINE status"; exit 1; }
   echo "  ok       the engine: $ebefore -> $(git -C "$ENGINE" rev-parse --short HEAD)"
 fi
 # the new version's migration may know more (a renamed setting): once more, quietly

@@ -9,7 +9,7 @@ import { filterGlossary, parseGlossary } from "../lib/glossary.ts";
 const RAW = {
   _note: "kept by creatorCC", updated: "2026-11-12",
   sections: [
-    { title: "The engine", items: [{ term: "Ramen", what: "the engine every agent runs on (was macBot1)", since: "2026-11-12" }, { term: "", what: "no term" }] },
+    { title: "The engine", items: [{ term: "Ramen", what: "the engine every agent runs on (was Explorer)", since: "2026-11-12" }, { term: "", what: "no term" }] },
     { title: "Rhythms", items: [{ term: "the tick", what: "the Validator's report every 10 to 30 minutes" }, { term: "Café hour", what: "a made-up entry with an accent" }] },
     { title: "Empty", items: [] },
     "junk",
@@ -30,7 +30,7 @@ test("the file's sections, malformed parts left out; no file is empty", async ()
 test("the search: every word in the term, meaning or section title, across sections, accents folded", () => {
   const s = parseGlossary(RAW).sections;
   assert.equal(filterGlossary(s, "  ").length, 2);
-  assert.deepEqual(filterGlossary(s, "macbot").map((x: { title: string }) => x.title), ["The engine"]);
+  assert.deepEqual(filterGlossary(s, "explorer").map((x: { title: string }) => x.title), ["The engine"]);
   assert.deepEqual(filterGlossary(s, "validator report").flatMap((x: { items: { term: string }[] }) => x.items.map((i) => i.term)), ["the tick"]);
   assert.deepEqual(filterGlossary(s, "cafe").flatMap((x: { items: { term: string }[] }) => x.items.map((i) => i.term)), ["Café hour"]);
   assert.deepEqual(filterGlossary(s, "rhythms tick").flatMap((x: { items: { term: string }[] }) => x.items.map((i) => i.term)), ["the tick"]);

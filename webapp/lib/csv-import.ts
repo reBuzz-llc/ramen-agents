@@ -109,3 +109,10 @@ export function csvRows(text: string, fields: { key: string; label: string }[]):
   });
   return { rows: rows.filter((r) => Object.keys(r).length), unmatched, columns: map.filter(Boolean).length };
 }
+
+/** One CSV cell for the export: quoted when needed, and a would-be formula (= + - @ first) opened as text. */
+export function csvCell(v: unknown): string {
+  let s = v === null || v === undefined ? "" : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}

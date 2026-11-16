@@ -40,7 +40,7 @@ type PlanStep = {
   doneAt: string | null;
   estimateMin: number | null;
   spentMin: number | null;
-  activeMin: number | null; // the engine's active minutes on this step (macBot1 2d43ea0), null before it writes them
+  activeMin: number | null; // the engine's active minutes on this step (the engine), null before it writes them
   actionsEngine: number | null;
 };
 export type BotPlan = {
@@ -55,7 +55,7 @@ export type BotPlan = {
   spentMin: number; // working minutes since the plan started (until it ended, when done or stuck)
   actions: number; // the bot's actions in that time
   note: string; // why it ended stuck (the bot's reason, or the engine's overrun note)
-  // The engine's own measures (macBot1 2d43ea0, refreshed once a cycle): active minutes (gaps capped at twice the
+  // The engine's own measures (refreshed once a cycle): active minutes (gaps capped at twice the
   // cycle), actions, and active minutes to the first ticked step (null until a step is ticked). Null before it writes them.
   activeMin: number | null;
   actionsEngine: number | null;
@@ -383,7 +383,7 @@ export async function attentionSince(bots: BotProfile[], since: string): Promise
 }
 
 export type PastStep = { text: string; done: boolean; activeMin: number | null; actions: number | null };
-/** A finished plan as the engine archived it. The active-time fields come from macBot1 a2b80a5 (2026-10-15); older
+/** A finished plan as the engine archived it. The active-time fields come from the engine (2026-10-15); older
  *  lines have none of them, and the page shows "—" for those rather than a guess. */
 export type PastJob = {
   slug: string;

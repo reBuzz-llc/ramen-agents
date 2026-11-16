@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 process.env.LOCAL_BOARD_FILE = ":memory:";
 // @ts-expect-error TS5097
-import { csvRows, mapHeaders, parseCsv } from "../lib/csv-import.ts";
+import { csvRows, mapHeaders, parseCsv, csvCell } from "../lib/csv-import.ts";
 // @ts-expect-error TS5097
 import { closeBoard, getRow, importLeads, LEAD_FIELDS, writeRow } from "../lib/local-board.ts";
 
@@ -34,4 +34,15 @@ test("an import adds new leads and only fills a known lead's empty cells, never 
     assert.equal(row.size, "2-10");
   }
   closeBoard();
+});
+
+test("the export: a label header Import reads back, quoting, and no formula runs in a spreadsheet", () => {
+  assert.equal(csvCell('say "hi", then go'), '"say ""hi"", then go"');
+  assert.equal(csvCell("=HYPERLINK(\"x\")"), `"'=HYPERLINK(""x"")"`);
+  assert.equal(csvCell("-1"), "'-1");
+  assert.equal(csvCell(["a", "b"]), '"a, b"');
+  assert.equal(csvCell(null), "");
+  const head = ["Business", "Website", "Business email"].map(csvCell).join(",");
+  const { rows } = csvRows(`${head}\nCobalt Bakery,https://cobalt.example,hi@cobalt.example\n`, LEAD_FIELDS);
+  assert.equal(rows[0].business, "Cobalt Bakery");
 });

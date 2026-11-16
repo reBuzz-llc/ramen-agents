@@ -73,7 +73,7 @@ FILES_DIR=$FILES
 TEAMS_ENCRYPTION_KEY=$ENC
 EOF
   )
-  [ -n "$ENC" ] || say "warning: no TEAMS_ENCRYPTION_KEY in $PORTAL/.env.local; encrypted settings (the Notion token) will not open"
+  [ -n "$ENC" ] || say "warning: no TEAMS_ENCRYPTION_KEY in $PORTAL/.env.local; encrypted settings will not open"
 fi
 
 # 4. the portal's migrations on it (the same script its hosted build runs)

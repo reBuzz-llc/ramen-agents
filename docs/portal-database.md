@@ -1,7 +1,7 @@
 # The portal's database: a standby, local mode, and what to do in an outage
 
-The team portal (the `portal` branch) keeps its data in one Postgres database. Once `common.toml` names the portal
-(`[leads] portal_url`, setup-queue step 9), the agents read and write their leads there, so that database is the
+The team portal (the `portal` branch) keeps its data in one Postgres database. Once `common-data/configs/local.toml` names the
+portal (`[leads] portal_url`, [advanced.md](advanced.md)), the agents read and write their leads there, so that database is the
 family's Leads board. Free database plans have quotas, and
 when one runs out the portal stops answering until the quota resets. Three tools in this folder keep that from costing
 you the data or the week:

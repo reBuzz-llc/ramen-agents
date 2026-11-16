@@ -38,4 +38,4 @@ other companies' own pricing pages, or "could not find" and why. Our own site is
 ## What we have
 
 The owner's page about the company (services, team, products, rates) is the truth about us and outranks any market
-figure. What is not on it is a proposal. FILL-ME: paste or sync that page into the bots' files.
+figure. What is not on it is a proposal. To give it to the bots, drop it as a text file in `the-ceo/raw/` (not in git).

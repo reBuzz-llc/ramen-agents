@@ -1,15 +1,6 @@
 {
  "version": 1,
  "updatedAt": "",
- "members": [
-  {
-   "id": "",
-   "name": "FILL-ME: a person on your team",
-   "email": "",
-   "role": "FILL-ME: their role",
-   "details": "FILL-ME: what kind of task goes to this person. The dashboard's Team page edits this file.",
-   "default": true,
-   "avatar": null
-  }
- ]
+ "members": [],
+ "_note": "Your team is in common-data/local/family.toml [[team]] (sh scripts/setup.sh writes it; not in git). This file is the empty fallback."
 }

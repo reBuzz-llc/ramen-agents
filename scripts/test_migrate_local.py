@@ -40,7 +40,7 @@ def test_edits_lift_to_the_overlays_and_git_is_clean(tmp_path, monkeypatch):
     (r / "the-ceo/config.toml").write_text('extends = "../common-data/configs/common.toml"\n[agent]\nname = "The CEO"\nbio = "We build sites."\n'
                                            '[notion]\nenabled = true\ndatabase_id = "0123456789abcdef0123456789abcdef"\nmax_tasks_per_day = 7\n'
                                            'default_project_id = "0123456789abcdef0123456789abcdef"\napi_version = "2025-09-03"\n[leads]\nenabled = true\n'
-                                           'database_id = "fedcba9876543210fedcba9876543210"\n'
+                                           'database_id = "abcdef0123456789abcdef0123456789"\n'
                                            '[[messaging.peers]]\nname = "Lead Gen"\nfolder = "~/bots/lead-gen"\n')
     (r / "validator/config.toml").write_text('[validator]\nown_domains = ["cobalt.example"]\ntask_data_source_id = "abc"\n')
     (r / "common-data/knowledge/target.toml").write_text('market = "Springfield, IL"\nsegment = "small businesses"\n')

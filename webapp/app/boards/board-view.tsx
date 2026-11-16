@@ -99,6 +99,11 @@ function Table({ board, initial, fields }: { board: Board; initial: Row[]; field
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter" aria-label="Filter rows" className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-panel px-3 text-sm sm:max-w-xs" />
         <AddRow board={board} title={byKey.get(TITLE[board])?.label ?? "Name"} onAdd={(v) => save(undefined, { [TITLE[board]]: v }, { create: true })} />
         {board === "leads" ? <ImportCsv onDone={(msg, added) => { setNote(msg); if (added) location.reload(); }} /> : null}
+        {board !== "rates" ? (
+          <a href={`/api/local-board/export?board=${board}`} download className="inline-flex h-11 items-center rounded-xl border border-line px-4 text-sm font-semibold hover:bg-panel">
+            Export CSV
+          </a>
+        ) : null}
         <span className="text-sm text-muted tabular-nums">{shown.length} of {rows.length}</span>
       </div>
       {note ? (

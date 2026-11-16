@@ -5,6 +5,7 @@ import { liveBoard } from "@/lib/board-read";
 import { BOTS_DIR, findBot } from "@/lib/bots";
 import { workspaceDir } from "@/lib/control";
 import { dbPath } from "@/lib/episodes";
+import { familyFile, teamPeople } from "@/lib/family";
 import { leaks, makeMasker, publicState, STATE_MAX_AGE_MS, type FeedOf, type Masker, type PublicState } from "@/lib/world-public";
 
 // The public world's state: the Board and each member's Feed, masked by
@@ -15,16 +16,15 @@ const TEAM = path.join(BOTS_DIR, "common-data", "team.json");
 
 const g = globalThis as { __worldMask?: { key: string; mask: Masker }; __worldState?: { at: number; data: Promise<PublicState> } };
 
-/** The masker, rebuilt when the leads cache or the team list changes. */
+/** The masker, rebuilt when the leads cache or the team list (team.json or family.toml) changes. */
 async function masker(): Promise<Masker> {
   const mt = async (p: string) => (await stat(/*turbopackIgnore: true*/ p).catch(() => null))?.mtimeMs ?? 0;
-  const key = `${await mt(LEADS)}:${await mt(TEAM)}`;
+  const key = `${await mt(LEADS)}:${await mt(TEAM)}:${await mt(familyFile())}`;
   if (g.__worldMask?.key === key) return g.__worldMask.mask;
   const read = async (p: string) => JSON.parse(await readFile(/*turbopackIgnore: true*/ p, "utf8").catch(() => "{}")) as Record<string, unknown>;
-  const [leads, team] = await Promise.all([read(LEADS), read(TEAM)]);
+  const [leads, team] = await Promise.all([read(LEADS), teamPeople()]);
   const rows = Object.values((leads.rows ?? {}) as Record<string, { business?: string; contact_person?: string }>);
-  const members = ((team.members ?? []) as { name?: string }[]).map((m) => String(m.name ?? ""));
-  const mask = makeMasker({ leads: rows.map((r) => ({ business: r.business, contact: r.contact_person })), team: members });
+    const mask = makeMasker({ leads: rows.map((r) => ({ business: r.business, contact: r.contact_person })), team });
   g.__worldMask = { key, mask };
   return mask;
 }

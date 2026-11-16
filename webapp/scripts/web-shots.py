@@ -7,7 +7,7 @@ refused, captcha, login, search or denylisted) that has no picture yet: headless
 page's own images and any stylesheet stay). A page that lands on a login, consent or captcha page is discarded. The
 file goes into the ring as <slug>-<YYYYMMDDTHHMMSS>-<8 hex of sha1(url)>.png, where /api/web matches it to its page by
 the address hash. Every attempt is logged in web-shots/attempts.json {url: {at, ok, reason}}; an address is tried at
-most once a day. One Chromium per run, closed at the end. Run by launchd every 2 minutes (com.rebuzz.web-shots), or:
+most once a day. One Chromium per run, closed at the end. Run by launchd every 2 minutes (com.ramen-agents.web-shots), or:
     npm run web-shots
 It uses the engine's venv (Playwright for Python, the browser already installed there), never Node Playwright.
 """

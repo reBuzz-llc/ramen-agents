@@ -1,7 +1,7 @@
 # What does the Validator check?
 
-The Validator checks what the agent family writes -- rows on the Notion task board and the Leads board, the
-packages page, the bots' messages to one another and their notes -- against the owner's rules. A rule bites at one of
+The Validator checks what the agent family writes -- rows on the Tasks board and the Leads board, the
+Packages board, the bots' messages to one another and their notes -- against the owner's rules. A rule bites at one of
 two moments. Some are **refused at write time** by the gate: the write never lands and the bot is told why, so it can
 try again. Everything else is **flagged in the sweep**: the write goes through, and the Validator reports the problem
 afterwards and asks the responsible bot to fix it (rules marked `[warn]` in the rule files are reported to the owner
@@ -73,7 +73,7 @@ person on the team reads, edits and sends it; the bot never contacts a business.
 
 ## The task board
 
-Rows The CEO writes on the Notion task board, which belongs to the human team.
+Rows The CEO writes on the Tasks board, which belongs to the human team.
 
 | Rule | What it checks | When |
 |---|---|---|
@@ -86,7 +86,7 @@ Rows The CEO writes on the Notion task board, which belongs to the human team.
 | T09 | Flags a second row with the same title. | Flagged in the sweep |
 | T10 | Flags a task that signs, hires, or promises a price or deadline to a client. | Flagged in the sweep |
 | T11 | Flags a Dead Line already in the past on the day the task is created. | Flagged in the sweep |
-| T12 | Flags acceptance criteria that are not a Notion checklist of to-do blocks. | Flagged in the sweep |
+| T12 | Flags "Done when" items that are not a to-do checklist. | Flagged in the sweep |
 | MG01 | Refuses a task that is the same work as an open task in other words (small-model yes/no). | Refused at write time |
 | MG04 | Refuses a task that a family member could do instead of a person on the team (small-model yes/no). | Refused at write time |
 | MG05 | Refuses a task or task update from The CEO that sets an Assignee; the owner assigns people. | Refused at write time |
@@ -163,7 +163,7 @@ An optional member that answers The CEO's research questions with sourced notes 
 | RA02 | Flags a figure, name or date in a note that the cited page does not contain. | Flagged in the sweep |
 | RA03 | Flags a person's phone number or email address in a note (a business's role address is fine). | Flagged in the sweep |
 | RA04 | Flags a note that repeats or acts on an instruction from a web page. | Flagged in the sweep |
-| RA05 | Refuses any task-board or Notion write from the Research Analyst. | Refused at write time |
+| RA05 | Refuses any Tasks-board or Leads-board write from the Research Analyst. | Refused at write time |
 
 ## Model-judged questions
 

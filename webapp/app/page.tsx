@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import { BOTS_DIR, listBots } from "@/lib/bots";
 import { liveBoard } from "@/lib/board-read";
+import { familyMissing, readFamily } from "@/lib/family";
 import { currentIdentity } from "@/lib/identity";
+import Link from "next/link";
 import CeoProposals from "./ceo-proposals";
 import FamilyBoard from "./family-board";
 import HealthBanner from "./health-banner";
@@ -27,9 +29,18 @@ export default async function Home() {
       </main>
     );
   }
-  const initial = await liveBoard().catch(() => null);
+  const [initial, missing] = await Promise.all([liveBoard().catch(() => null), readFamily().then(familyMissing)]);
   return (
     <PageShell identity={identity}>
+      {missing.length ? (
+        // queue 572: the first run. Until the family's answers are in, every card reads "the company" and "its area"
+        <p className="mx-auto mb-3 max-w-3xl rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink">
+          The agents do not know who you are yet ({missing.join(", ")}).{" "}
+          <Link href="/setup" className="font-semibold text-accent hover:underline">
+            Answer a few questions
+          </Link>
+        </p>
+      ) : null}
       {/* queue 55 (owner, 15:50-15:52): no visible heading; the world starts right under the top bar, and the health
           banner, the decisions and the CEO proposals sit below it (or below the List view), at the scene's width */}
       <h1 className="sr-only">Family</h1>

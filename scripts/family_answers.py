@@ -53,7 +53,6 @@ def render(e: dict[str, str]) -> str:
         f"market_short = {q(place.split(',')[0].strip())}",
         f"segment = {q(g('SEGMENT', 'small businesses'))}",
         f"trades = {q(g('TRADES') or g('BUYERS'))}",
-        'areas = ""',
         "",
         "[[team]]",
         f"name = {q(g('TEAMMATE') or owner)}",

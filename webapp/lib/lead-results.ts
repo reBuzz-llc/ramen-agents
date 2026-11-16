@@ -1,6 +1,7 @@
 // Server-side only: what became of the leads (owner, 2026-10-06: measure results, not activity). Reads the Leads board
 // from the Leads board (the local board, or the hosted portal when common.toml names one: lib/portal.ts): "Result" (Emailed / Replied / Meeting / Client / Not interested / Bounced) and "Result date", which the team sets. Grouped by where the lead came from (the daily candidate lists'
 // sources, by the lead's website) and by industry. Until the board has a Result column this reports ready = false.
+import { teamPeople } from "./family";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR, readConfig } from "./bots";
@@ -31,12 +32,7 @@ export type NotedLeads = { waiting: number; oldest: string; titles: string[] };
 const g = globalThis as { __leadResults?: { at: number; data: LeadResults } };
 
 async function teamNames(): Promise<string[]> {
-  try {
-    const doc = JSON.parse(await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "team.json"), "utf8")) as { members?: { name?: string }[] };
-    return (doc.members ?? []).map((m) => String(m.name ?? "").split(" ")[0]).filter((n) => n && !n.startsWith("FILL-ME"));
-  } catch {
-    return [];
-  }
+  return (await teamPeople()).map((n) => n.split(" ")[0]);
 }
 
 async function notedLeads(): Promise<NotedLeads | null> {

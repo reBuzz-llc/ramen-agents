@@ -4,8 +4,9 @@ What changed in October 2026, for someone running one or two agents. Every new s
 until you turn it on, because a fresh setup has nothing to protect yet. Each section gives the setting, why you would
 turn it on, and the problem that made us build it.
 
-Settings live in a bot's `config.toml` (or in `common-data/configs/web-bots.toml` for every web bot at once). Restart
-the bot after a change: `sh scripts/restart-bot.sh <slug>`.
+Put a setting in the bot's own overlay, `<slug>/config.local.toml`, or in `common-data/configs/local.toml` for every
+bot at once. Both are git-ignored and win over the tracked configs, so updating never meets your change. Restart the
+bot after a change: `sh scripts/restart-bot.sh <slug>`.
 
 ## Rest when there is nothing to do
 
@@ -43,11 +44,11 @@ The problem: after a daily limit, bots kept retrying the same blocked search or 
 ## Limit how often a package goes up again
 
 ```toml
-[notion]
+[packages]
 republish_days = 7       # default 0 (off)
 ```
 
-A package whose name has gone up on the Packages page in the last `republish_days` days is refused. Names are
+A package whose name has gone up on the Packages board in the last `republish_days` days is refused. Names are
 compared loosely: "24/7" is dropped, along with a price or setup suffix after a spaced dash and punctuation. So
 "Website Care" and "Website Care – $99/month" count as one package.
 
@@ -59,7 +60,7 @@ To let one through on purpose, add it to `common-data/shared-state/republish-req
 
 A request lets that package up once. It is removed when the package goes up, whatever spelling the request used.
 
-Turn it on when your packages page fills with the same offer.
+Turn it on when your Packages board fills with the same offer.
 
 The problem: one package went up many times in a week, each time under a slightly different name.
 
@@ -68,17 +69,17 @@ The problem: one package went up many times in a week, each time under a slightl
 There is no setting: this check is always on.
 
 When the Package Designer hands over a package, or The CEO publishes one, the name is compared with the packages
-already on the page. If it shares most of its distinguishing words (60% or more, and at least two) with one of them,
+already on the board. If it shares most of its distinguishing words (60% or more, and at least two) with one of them,
 it is refused: "that is '<existing name>' in other words; improve it under that exact name, or make a different
 offer". Republishing a package under its exact existing name still works, as an improvement.
 
-The problem: the page ended up with one offer under four names, and a reader could not tell which one was current.
+The problem: the board ended up with one offer under four names, and a reader could not tell which one was current.
 
 ## One task a day, added to rather than repeated
 
 ```toml
-[notion]
-max_tasks_per_day = 1    # default 8
+[tasks]
+max_per_day = 1          # default 8
 ```
 
 Once the day's cap is reached, `task` disappears from the bot's menu, and an attempt is refused for the rest of the

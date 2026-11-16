@@ -1,20 +1,15 @@
 # The Leads board
 
-One Notion database holds every lead: one row per business. The bots fill it, and the people on your team work it. Create
-it with:
-
-```
-python3 scripts/create_leads_board.py --parent <your Notion page id or URL>
-```
-
-Share that page with your Notion integration first. The script prints the board's data source id; paste it into
-`lead-gen/config.toml` (`[leads] database_id`, then `enabled = true`) and `validator/config.toml`
-(`[validator] leads_data_source_id`). Run it again and it refuses, because the board already exists.
+One board holds every lead: one row per business. The bots fill it, and the people on your team work it. It lives on
+this Mac, in `common-data/local-board.sqlite3`, and the dashboard shows it at http://127.0.0.1:3000/boards/leads:
+sort and filter by any column, edit a cell in place, add a row, import a CSV (columns matched by name; an import never
+overwrites a filled cell) and export the board as CSV. Nothing needs creating: the board is there after
+`sh scripts/install.sh`. To run it on a hosted team portal instead, see [advanced.md](advanced.md).
 
 ## Who writes what
 
 Bots only ever fill an empty cell or their own column. The Validator checks every write before it lands and reports
-anything off afterwards. The people on the team own Status, Result, Result date and Reviewed by; no bot writes those. "Sent by" records which person sent the email; the Validator copies it from Notion's last editor when Status becomes Email Sent.
+anything off afterwards. The people on the team own Status, Result, Result date, Reviewed by and Sent by; no bot writes those.
 
 | Column | What it holds | Written by |
 |---|---|---|
@@ -37,7 +32,7 @@ anything off afterwards. The people on the team own Status, Result, Result date 
 | Result | the outcome: Not contacted, Emailed, Replied, Meeting, Client, Not interested, Bounced | your team |
 | Result date | when the Result was set | your team |
 | Reviewed by | who on the team reviewed the row | your team |
-| Sent by | the person who set Status to Email Sent, taken from Notion's last editor; never a bot, never over a filled cell | the Validator |
+| Sent by | the person who sent the email; never a bot | your team |
 | Source pages | the pages the facts came from, one URL per line | Lead Gen, Lead Enricher (appended) |
 | Company size | locations, staff or both, as the business publishes it | Lead Gen, Lead Enricher |
 | Founder LinkedIn | the contact's LinkedIn profile, or the business's company page | Lead Enricher |
@@ -45,8 +40,8 @@ anything off afterwards. The people on the team own Status, Result, Result date 
 | Tools on site | the tools the business's homepage runs on (site builder, ordering, booking, ad pixels) | the Validator |
 | Site health | https, set up for phones, copyright year, PDF menu, load time, date checked | the Validator |
 | Lead score | 0-100: fit, ability to pay, reach and readiness; your team works the highest first | the Validator |
-| ID | a row number (LEAD-n) | Notion |
-| Created time | when the row was made | Notion |
+| ID | the row's id | the board |
+| Created time | when the row was made | the board |
 
 ## The rules behind it
 

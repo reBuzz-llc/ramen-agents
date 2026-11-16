@@ -6,8 +6,9 @@ extends = "common.toml"
 [agent]
 # Budget-aware pacing may stretch a cycle up to this long (see model.fleet_token_budget).
 max_cycle_delay_seconds = 300
-# Goes into the user agent so site owners can reach the owner; some APIs refuse bots that give no contact.
-contact = "FILL-ME: https://your-site.example or an email address"
+# Goes into the user agent so site owners can reach the owner; some APIs refuse bots that give no contact. Empty: none.
+# Set yours in common-data/configs/local.toml ([agent] contact = "https://your-site.example"), which git ignores.
+contact = ""
 
 [model]
 # fake = deterministic heuristic (no LLM), ollama = local model over HTTP, remote = provider_chain in order.

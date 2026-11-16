@@ -85,15 +85,15 @@ const TEMPLATE_BOTS = ["lead-gen", "research-analyst", "package-designer", "lead
 async function recreateAgents(ctx: Ctx): Promise<string> {
   const dir = ctx.agents ?? path.join(process.env.HOME ?? "", "Library", "LaunchAgents");
   const have = new Set(await readdir(/*turbopackIgnore: true*/ dir).catch(() => [] as string[]));
-  const src = TEMPLATE_BOTS.find((b) => b !== ctx.slug && have.has(`com.rebuzz.bot.${b}.plist`) && have.has(`com.rebuzz.data.${b}.plist`));
+  const src = TEMPLATE_BOTS.find((b) => b !== ctx.slug && have.has(`com.ramen-agents.bot.${b}.plist`) && have.has(`com.ramen-agents.data.${b}.plist`));
   if (!src) throw new Error("no other bot's launch agents to copy from");
   const made: string[] = [];
   for (const kind of ["bot", "data"]) {
-    const target = path.join(dir, `com.rebuzz.${kind}.${ctx.slug}.plist`);
+    const target = path.join(dir, `com.ramen-agents.${kind}.${ctx.slug}.plist`);
     if (have.has(path.basename(target))) continue;
-    const text = (await readFile(path.join(dir, `com.rebuzz.${kind}.${src}.plist`), "utf8"))
-      .split(`com.rebuzz.bot.${src}`).join(`com.rebuzz.bot.${ctx.slug}`)
-      .split(`com.rebuzz.data.${src}`).join(`com.rebuzz.data.${ctx.slug}`)
+    const text = (await readFile(path.join(dir, `com.ramen-agents.${kind}.${src}.plist`), "utf8"))
+      .split(`com.ramen-agents.bot.${src}`).join(`com.ramen-agents.bot.${ctx.slug}`)
+      .split(`com.ramen-agents.data.${src}`).join(`com.ramen-agents.data.${ctx.slug}`)
       .split(`/bots/${src}/`).join(`/bots/${ctx.slug}/`);
     if (text.includes(`/bots/${src}/`) || !text.includes(`/bots/${ctx.slug}/`)) throw new Error(`the copy of ${src}'s ${kind} plist still names ${src}`);
     await writeFile(target, text);
@@ -120,7 +120,7 @@ async function start(ctx: Ctx): Promise<Result> {
     return { ok: false, text: `did not start: ${why}. STOP put back.${more ? ` ${more}` : ""}` };
   };
   if (!e.ok) return fail("enable-bot.sh failed", e.text);
-  if (/no plists found/.test(e.text)) return fail(`it has no launch agents (no com.rebuzz.bot.${ctx.slug} plist)`);
+  if (/no plists found/.test(e.text)) return fail(`it has no launch agents (no com.ramen-agents.bot.${ctx.slug} plist)`);
   // restart-bot.sh waits up to 120 s for a loop to exit, then 15 s more: give it the time
   const r = await script(ctx.scripts, "restart-bot.sh", ctx.slug, 160_000);
   if (!r.ok) return fail("restart-bot.sh failed", r.text);

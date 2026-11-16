@@ -1,7 +1,8 @@
 # Fleet starter
 
 A blank copy of a working bot fleet: the configuration, cards, rules, dashboard and scripts for a small family of
-autonomous web bots on one Mac, with every project-specific detail removed and marked `FILL-ME`.
+autonomous web bots on one Mac, with every project-specific detail removed. Your own details are a few answers to
+`sh scripts/setup.sh`, kept out of git.
 
 This is the `fleet` branch of the starter. The `engine` branch is the `bot` program, cloned to `~/Projects/bot`;
 this one is what the engine runs, cloned to `~/bots`. Both start with no history and no data:
@@ -11,24 +12,27 @@ no leads, notes, packages, finds, memories or logs. Everything a bot learns from
 
 | Bot | Folder | What it does |
 |---|---|---|
-| The CEO | `the-ceo/` | Decides what the family works on; writes tasks for the human team and publishes packages to Notion |
-| Lead Gen | `lead-gen/` | Finds businesses with a published business email and lists them on a Notion Leads board |
+| The CEO | `the-ceo/` | Decides what the family works on; writes tasks for the human team and publishes packages to the Packages board |
+| Lead Gen | `lead-gen/` | Finds businesses with a published business email and lists them on the Leads board |
 | Package Designer | `package-designer/` | Researches what comparable companies charge and hands The CEO service packages |
 | Scout | `scout/` | Finds free, card-free tools and watches the terms of the providers the family uses |
-| Validator | `validator/` | Checks what the others write against the owner's rules, before and after it reaches Notion |
+| Validator | `validator/` | Checks what the others write against the owner's rules, before and after it reaches a board |
 
-Each bot folder holds a `config.toml` (settings) and a `persona.md` (its instruction card). Shared settings, the
-target market, the owner's steers and the handbook are under `common-data/`. The dashboard is `webapp/`.
+Research Analyst and Scout are included and off by default ([docs/your-family.md](docs/your-family.md)). Each bot folder
+holds a `config.toml` (settings) and a `persona.md` (its instruction card). Shared settings and the handbook are under
+`common-data/`. The dashboard is `webapp/`, and it serves the local board: Leads, Tasks and Packages in one file on
+this Mac, with pages to sort, filter and edit them.
 
 ## What is blank
 
-- **Who you are:** company, people, products and proof on each card (`*/persona.md`).
-- **Who you work for:** the market in `common-data/knowledge/target.toml` and the direction in `steers.md`.
-- **Where the output goes:** Notion board and page ids in the configs; the team in `common-data/team.json`.
-- **Keys:** none are included, and none are ever committed (`common-data/keys/` is ignored and a commit hook refuses
-  anything shaped like a key).
+- **Who you are and who you work for:** your company, what you sell, who buys it, where, and your team. Every card
+  reads them from `common-data/local/family.toml`, which `sh scripts/setup.sh` writes and git ignores.
+- **Your settings:** a value of your own goes in `common-data/configs/local.toml` or `<member>/config.local.toml`
+  (git-ignored; it wins over the tracked file), so updating never meets an edit of yours.
+- **Keys:** none are included, and none are ever committed (`common-data/keys/` is private and ignored, and a commit
+  hook refuses anything shaped like a key). `sh scripts/add-key.sh <provider>` adds one.
 
-`sh scripts/check-setup.sh` lists every marker still to fill and every key still missing.
+`sh scripts/check-setup.sh` lists what is still missing.
 
 ## What is not blank
 
@@ -47,14 +51,33 @@ The rules of the house are kept, because they are what makes the fleet safe to l
 
 - **No public site.** The original fleet publishes a blog of the bots' notes; none of it is here: no site, no build or
   publish script, no schedule, no content. Nothing in this starter writes to anywhere public. The only places a bot
-  writes are its own folder, the shared folder and your Notion boards.
+  writes are its own folder, the shared folder and the boards on this Mac.
 - **No optional members:** the Tor reader, the desktop agent and the publishing bot are not included.
 - **No history:** no plans, archives, reports, finds or leads from the original project.
 
 ## Start here
 
-Follow [SETUP.md](SETUP.md), top to bottom. It takes an afternoon the first time, most of it creating free provider
-keys and two Notion boards.
+On a Mac (macOS only for now):
+
+```sh
+git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots && cd ~/bots
+sh scripts/install.sh     # everything it needs, checked and installed; safe to run again
+sh scripts/setup.sh       # a few questions and one free model key, then the family starts
+```
+
+[SETUP.md](SETUP.md) says what each step does. Working with an AI coding agent? Point it at [AGENTS.md](AGENTS.md).
+Optional: [reach it from your phone](docs/remote-access.md), [a hosted team portal](docs/advanced.md).
+
+## Updating
+
+```sh
+sh scripts/update.sh
+```
+
+It takes the newest version from the starter for both folders, moves any edit you made to a tracked file into the
+git-ignored overlays first (it says what it moved), then reinstalls and restarts. Coming from a setup that used Notion:
+the Notion settings are moved or dropped by name; your leads are not copied, so export them from Notion as CSV and use
+Import CSV on the Leads page.
 
 ## Day to day
 
@@ -63,6 +86,7 @@ keys and two Notion boards.
 - Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. It refuses a bot you stopped (a STOP file, or Stop as your last action on the dashboard), and says so when launchd does not have the bot instead of claiming it restarted. Never `launchctl kickstart -k` on a bot.
 - Stopped a bot for good (it has a STOP file)? `sh scripts/disable-bot.sh <slug>` unloads its launchd jobs and marks them disabled, so launchd stops relaunching it every 30 s and a reboot does not load it again. `sh scripts/enable-bot.sh <slug>` undoes that and leaves the STOP file; `restart-bot.sh` is still what runs the bot.
 - A day's review: `~/Projects/bot/.venv/bin/python scripts/review.py --date YYYY-MM-DD`.
-- Push both repositories: `sh scripts/push-all.sh`.
+- Your boards: http://127.0.0.1:3000/boards (Export CSV on each page).
+- Push both repositories to your own remotes: `sh scripts/push-all.sh`.
 
 Runs on macOS only: the bots are kept alive by launch agents.

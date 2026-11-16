@@ -1,10 +1,13 @@
 // Server-side only: the family's target market, common-data/knowledge/target.toml (owner, 2026-09-30: "I might change
 // target location in future. It should be said in task and goals, not in code"). The engine fills {market},
 // {market_short}, {segment}, {trades} and {areas} in every bot's card from it, and the candidates feed reads `market`.
-// The Work plan page shows and edits the five lines; the file's comments are kept, only the value lines change.
-import { readFile, rename, writeFile } from "node:fs/promises";
+// Your own values live in common-data/local/family.toml [target] (queue 572: git-ignored, so `git pull` never meets an
+// edit); they sit on top of the tracked file, as they do for the engine. The Work plan page shows the five lines and
+// saves them there; the tracked file is never written.
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "./bots";
+import { readFamily, saveFamily } from "./family";
 
 const FILE = path.join(BOTS_DIR, "common-data", "knowledge", "target.toml");
 const TARGET_KEYS = ["market", "market_short", "segment", "trades", "areas"] as const;
@@ -13,7 +16,6 @@ type Target = Record<TargetKey, string>;
 const TARGET_MAX = 200;
 
 const unquote = (v: string) => v.trim().replace(/^"(.*)"$/, "$1").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-const quote = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 const clean = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, TARGET_MAX) : "");
 
 export async function readTarget(): Promise<Target> {
@@ -26,32 +28,30 @@ export async function readTarget(): Promise<Target> {
   } catch {
     /* no target file yet */
   }
+  const own = (await readFamily())?.target ?? {};
+  const mine = (k: TargetKey) => (typeof own[k] === "string" ? (own[k] as string).trim() : "");
+  for (const k of TARGET_KEYS) if (mine(k)) out[k] = mine(k);
+  // as the engine does: your market without a short name of its own gets one from the market, not the tracked file's
+  if (mine("market") && !mine("market_short")) out.market_short = mine("market").split(",")[0].trim();
   return out;
 }
 
-/** Save the five values in place (comments and order kept; a missing key is appended). `market` may not be empty. */
+/** Save the five values to family.toml [target] (the rest of the file kept). `market` may not be empty. */
 export async function writeTarget(raw: unknown): Promise<Target> {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const next = Object.fromEntries(TARGET_KEYS.map((k) => [k, clean(r[k])])) as Target;
   if (!next.market) throw new Error("the market cannot be empty");
-  let text = "";
-  try {
-    text = await readFile(/*turbopackIgnore: true*/ FILE, "utf8");
-  } catch {
-    text = "# The market the family is working right now (edited on the Work plan page).\n";
+  const fam = (await readFamily()) ?? { company: {}, target: {}, team: [], other: {} };
+  // an empty line is left out, not written as "": the tracked default (or, for market_short, the market) applies
+  const target = { ...fam.target };
+  for (const k of TARGET_KEYS) {
+    if (next[k]) target[k] = next[k];
+    else delete target[k];
   }
-  const seen = new Set<string>();
-  const lines = text.split("\n").map((line) => {
-    const m = /^(\s*)([a-z_]+)(\s*=\s*)".*"(\s*#.*)?$/.exec(line);
-    if (!m || !(TARGET_KEYS as readonly string[]).includes(m[2])) return line;
-    seen.add(m[2]);
-    return `${m[1]}${m[2]}${m[3]}${quote(next[m[2] as TargetKey])}${m[4] ?? ""}`;
-  });
-  for (const k of TARGET_KEYS) if (!seen.has(k)) lines.push(`${k} = ${quote(next[k])}`);
-  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(/*turbopackIgnore: true*/ tmp, lines.join("\n").replace(/\n*$/, "\n"), { mode: 0o644 });
-  await rename(tmp, FILE);
-  return next;
+  // "where your customers are" is the market: the first-run answers follow the panel
+  const company = typeof fam.company.place === "string" ? { ...fam.company, place: next.market } : fam.company;
+  await saveFamily({ ...fam, company, target });
+  return readTarget();
 }
 
 const FEEDS_FILE = path.join(BOTS_DIR, "common-data", "knowledge", "candidate-feeds.toml");

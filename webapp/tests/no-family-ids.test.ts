@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SELF = "webapp/tests/no-family-ids.test.ts";
 // the family's own names, built from parts so this file is no list of them
-const OWN = [["rebuzzs", "mac"].join("-"), ["productive", "peek"].join("-"), ["rebot", "omega"].join("-"), ["peek", "q5"].join("-"), ["bot", "q378"].join("-")];
+const OWN = [["rebuzzs", "mac"].join("-"), ["productive", "peek"].join("-"), ["rebot", "omega"].join("-"), ["peek", "q5"].join("-"), ["bot", "q378"].join("-"), ["com", "rebuzz", ""].join("."), ["mac", "Bot1"].join("")];
 const PATTERNS: [string, RegExp][] = [
   ["a Notion link", /\b(?:www\.)?notion\.(?:so|site)\/|app\.notion\.com\//i],
   ["a Supabase project ref", /\b(?!<)[a-z]{20}\.supabase\.(?:co|com)\b/],

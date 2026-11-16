@@ -22,10 +22,10 @@ export function tickOf(at: unknown, now: number): Tick {
 /** The line the pages show: "Last tick 15:49 (3 min ago)", or why it is red. */
 export function tickLine(t: Tick): string {
   if (t.paused) return `${t.paused}.`;
-  if (!t.at || t.minutes === null) return "No tick report from the Validator: these numbers may be old. Check the Validator (launchd com.rebuzz.validator).";
+  if (!t.at || t.minutes === null) return "No tick report from the Validator: these numbers may be old. Check the Validator (launchd com.ramen-agents.validator).";
   const ago = t.minutes < 1 ? "just now" : t.minutes < 120 ? `${t.minutes} min ago` : `${Math.round(t.minutes / 60)} h ago`;
   const when = t.at.slice(11, 16);
   return t.stale
-    ? `Last tick ${when} (${ago}): the Validator has not reported for over ${TICK_STALE_MIN} minutes, so these numbers may be old. Check the Validator (launchd com.rebuzz.validator).`
+    ? `Last tick ${when} (${ago}): the Validator has not reported for over ${TICK_STALE_MIN} minutes, so these numbers may be old. Check the Validator (launchd com.ramen-agents.validator).`
     : `Last tick ${when} (${ago})`;
 }
