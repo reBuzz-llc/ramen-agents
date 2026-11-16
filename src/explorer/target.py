@@ -48,6 +48,7 @@ class Target:
         # the user's own answers: <fleet>/common-data/local/family.toml beside common-data/knowledge/target.toml
         self.local = Path(local) if local else (self.path.parent.parent / "local" / "family.toml" if self.path else None)
         self._mtime: tuple | None = None
+        self.steer = ""          # family.toml's top-level steer: the owner's current direction in their words
         self.values: dict[str, str] = dict(GENERIC)
         self.refresh()
 
@@ -65,6 +66,7 @@ class Target:
             return False
         self._mtime = mtime
         values = dict(GENERIC)
+        steer = ""
         data: dict = {}
         for path, table in ((self.path, None), (self.local, "target")):
             try:
@@ -78,6 +80,7 @@ class Target:
                         data.pop(k, None)
             data.update(part)
             if table:
+                steer = str(read.get("steer") or "").strip()
                 for k, token in COMPANY_KEYS.items():
                     v = str(((read.get("company") or {}) if isinstance(read.get("company"), dict) else {}).get(k, "")).strip()
                     if v:
@@ -90,8 +93,8 @@ class Target:
             values["market_short"] = str(data["market"]).strip()
         if not str(data.get("market_slug", "")).strip() and data.get("market"):
             values["market_slug"] = slug(str(data["market"]))
-        changed = values != self.values
-        self.values = values
+        changed = values != self.values or steer != self.steer
+        self.values, self.steer = values, steer
         return changed
 
     def fill(self, text: str) -> str:

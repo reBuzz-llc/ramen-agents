@@ -76,3 +76,23 @@ def test_own_domains_come_from_family_toml_too(tmp_path):
     root = fleet(tmp_path, family='[company]\nown_domains = ["acme.example", "Acme.example"]\n')
     (root / "config.toml").write_text('[handoff]\nown_domains = ["old.example"]\n')
     assert load_config(root / "config.toml").handoff.own_domains == ["old.example", "acme.example"]
+
+
+def test_the_steer_is_in_the_prompt_and_the_contact_falls_back_to_the_own_site(cfg, tmp_path):
+    from explorer.config import load_config
+    root = tmp_path / "fleet" / "the-ceo"
+    cfg.root = root
+    cfg.ensure_dirs()
+    fleet(tmp_path / "fleet", family='steer = "Bakeries first this month."\n[company]\nown_domains = ["acme.example"]\n')
+    c = make_controller(cfg)
+    assert "## The owner's current direction\nBakeries first this month." in c.system
+    (root / "config.toml").write_text('[agent]\nname = "The CEO"\n')
+    loaded = load_config(root / "config.toml")
+    assert loaded.agent.contact == "https://acme.example" and "+https://acme.example" in loaded.user_agent
+    (root / "config.toml").write_text('[agent]\nname = "The CEO"\ncontact = "mail@x.example"\n')
+    assert load_config(root / "config.toml").agent.contact == "mail@x.example"       # a set contact stays
+
+
+def test_an_absent_market_short_is_derived_from_the_users_market(tmp_path):
+    t = Target.for_root(fleet(tmp_path, 'market = "Old Town"\n', '[target]\nmarket = "Riverside Heights"\n'))
+    assert t.values["market_short"] == "Riverside Heights" and t.values["market_slug"] == "riverside-heights"

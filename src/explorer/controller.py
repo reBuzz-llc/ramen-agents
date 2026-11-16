@@ -386,7 +386,7 @@ class Controller:
             developer_enabled=self.developer is not None,
             shell_enabled=self.developer is not None and cfg.developer.allow_shell,
             upgrade_enabled=self.developer is not None and cfg.developer.upgrade_enabled,
-            persona=self._family_block() + self.target.fill(self._persona),
+            persona=self._family_block() + self.target.fill(self._persona) + self._steer_block(),
             tasks_enabled=self.task_board is not None,
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
             scout_enabled=self.scout_enabled,
@@ -523,6 +523,12 @@ class Controller:
         event(self.logger, "resting", reason=reason, minutes=self.cfg.agent.idle_minutes)
         self._rest(reason)
         return True
+
+    def _steer_block(self) -> str:
+        """The owner's current direction from the first-run answers (common-data/local/family.toml `steer`, queue 572): the
+        newest steer, in every member's prompt. "" when unset; common-data/knowledge/steers.md stays the history."""
+        steer = (getattr(self.target, "steer", "") or "").strip()
+        return f"\n\n## The owner's current direction\n{steer[:600]}\n" if steer else ""
 
     def _board_flag(self):
         """The Mac's board-down flag of this bot's board clients, or None (no board client, or one not on the flag)."""

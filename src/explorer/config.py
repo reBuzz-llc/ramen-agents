@@ -1078,7 +1078,8 @@ def load_config(path: str | os.PathLike[str] | None = None, root: Path | None = 
 
 def _family_domains(cfg: Config, cfg_path: Path) -> None:
     """The user's own site domains from common-data/local/family.toml [company] own_domains (queue 572, the first run),
-    added to [handoff] own_domains: a package never cites the seller's own site."""
+    added to [handoff] own_domains (a package never cites the seller's own site); with no [agent] contact, the first one
+    is the contact the user agent carries."""
     local = cfg_path.expanduser().resolve().parent.parent / "common-data" / "local" / "family.toml"
     try:
         company = tomllib.loads(local.read_text(encoding="utf-8")).get("company") or {}
@@ -1086,6 +1087,9 @@ def _family_domains(cfg: Config, cfg_path: Path) -> None:
         return
     extra = [str(d).strip().lower() for d in (company.get("own_domains") or []) if str(d).strip()] if isinstance(company, dict) else []
     cfg.handoff.own_domains = list(dict.fromkeys([*cfg.handoff.own_domains, *extra]))
+    if not cfg.agent.contact.strip() and extra:      # the user agent names the company's own site when no contact is set
+        d = extra[0].removeprefix("https://").removeprefix("http://").strip("/")
+        cfg.agent.contact = f"https://{d}"
 
 
 def _apply_env(cfg: Config) -> None:
