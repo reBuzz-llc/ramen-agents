@@ -249,3 +249,55 @@ def test_there_is_no_notion_module_and_no_notion_key_check():
     for p in src.rglob("*.py"):
         text = p.read_text(encoding="utf-8").lower()
         assert "api.notion.com" not in text and "notion.key" not in text and "notion_api_version" not in text, p
+
+
+# ---- a new user's first minute: the family started before the dashboard ------------------------------------------
+
+def test_a_fresh_member_started_before_the_dashboard_rests_then_wakes_by_itself(cfg, tmp_path, monkeypatch, caplog):
+    """No crash loop, no write recorded that never landed, and no 30-minute idle nap on an 'empty' list it could not
+    read: the member rests on "board down" with the plain reason and carries on once the dashboard answers."""
+    import logging
+    import threading
+
+    monkeypatch.setattr(board_down, "PROBE_SECONDS", 0.3)
+    flag = tmp_path / "board-down.json"
+    state = {"up": False, "calls": 0}
+
+    def dashboard(req: httpx.Request) -> httpx.Response:
+        state["calls"] += 1
+        if not state["up"]:
+            raise httpx.ConnectError("Connection refused", request=req)
+        if req.url.path == "/v1/boards/leads/rows":
+            return httpx.Response(200, json={"leads": [{"id": "a" * 32, "business": "Corner Bakery", "website": "https://corner.example",
+                                                        "package": "", "rev": 1}], "next": 1, "more": False})
+        return httpx.Response(200, json={"tasks": [], "next": 0, "more": False})
+
+    http = httpx.Client(base_url="http://127.0.0.1:3000", transport=httpx.MockTransport(dashboard))
+    # The CEO's shape: tasks, packages and a decide list read off the Leads board.
+    cfg.agent.idle_when_empty = True
+    cfg.tasks.enabled = cfg.packages.enabled = True
+    cfg.leads.enabled = True
+    cfg.leads.update_any_row, cfg.leads.update_only_fields = True, ["how_we_help"]
+    cfg.leads.decide_glob = "leads-need-package*.md"
+    leads = PortalLeadStore("http://127.0.0.1:3000", "k", "The CEO", http=http, down_flag=flag)
+    board = PortalBoard("http://127.0.0.1:3000", "k", "The CEO", http=http, down_flag=flag)
+    c = make_controller(cfg, board=board, leads_board=leads)
+    with pytest.raises(BoardError):
+        leads.refresh(force=True)                 # the first read at start: the dashboard is not running
+    assert board_down.read(flag)
+    caplog.set_level(logging.INFO)
+    out: dict = {}
+    t = threading.Thread(target=lambda: out.setdefault("rc", c.run(max_cycles=1)), daemon=True)
+    t.start()
+    time.sleep(1.2)
+    assert t.is_alive() and "rc" not in out                      # resting, not crashed and not finished
+    rests = [r for r in caplog.records if "board_down_rest" in r.getMessage()]
+    assert rests and not any("resting" in r.getMessage() and "work list is empty" in r.getMessage() for r in caplog.records)
+    assert c.memory.db.scalar("SELECT COUNT(*) FROM actions", default=0) == 0      # nothing done, nothing counted
+    probes_while_down = state["calls"]
+    assert probes_while_down <= 8                                # about one probe per PROBE_SECONDS, never a tight loop
+    state["up"] = True                                           # the user starts the dashboard
+    t.join(timeout=20)
+    assert not t.is_alive() and out.get("rc") is not None        # it woke by itself and worked a cycle
+    assert not board_down.read(flag)
+    assert any("board_back" in r.getMessage() for r in caplog.records)

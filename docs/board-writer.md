@@ -36,7 +36,7 @@ or key in any of them stops the bot at load and names the file.
 The dashboard not running (connection refused), a timeout, a 402 or a 5xx raises one flag for the Mac,
 `common-data/shared-state/board-down.json`. While it is up the board is tried once a minute and every other call is
 refused at once with a plain reason ("is the dashboard running?"). A refused write is not done and not counted: the bot
-is told and can do it again. A member whose work is the board (the Writer, the Enricher) rests after two minutes down
+is told and can do it again. A member whose work is the board (the Writer, the Enricher) rests from the first failure
 and wakes when the board answers.
 
 ## Guardrails

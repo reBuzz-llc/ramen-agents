@@ -5,7 +5,7 @@ One flag for the Mac, common-data/shared-state/board-down.json: the first unreac
 it is up every board client on the Mac makes one probe per PROBE_SECONDS and refuses the rest at once, without a request;
 the first real answer takes it down. A write refused this way is not done and not counted: the member is told in plain
 words and can do it again once the board is back, so nothing is recorded as written that never landed. Members whose
-work is the board rest once it has been down PAUSE_SECONDS, waking when it is back."""
+work is the board rest from the first failure until the next probe, waking when it is back."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,8 @@ from typing import Any
 from .board import BoardError
 
 PROBE_SECONDS = 60.0           # one probe a minute: a local dashboard is usually just not started yet
-PAUSE_SECONDS = 120.0          # members whose work is the board rest once it has been down this long
+PAUSE_SECONDS = 0.0            # members whose work is the board rest at the first failure: a local dashboard that
+                               # does not answer is not started yet, not a blip (a fresh family started before it)
 
 
 class BoardDown(BoardError):

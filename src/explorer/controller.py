@@ -481,6 +481,8 @@ class Controller:
         cfg, m = self.cfg, self.memory
         if not cfg.agent.idle_when_empty:
             return ""
+        if self._board_down_text():
+            return ""        # an unreadable list is not an empty one: the board-down rest wakes when the board is back
         try:
             if self.inbox.unread(1) or m.unseen_owner_messages(1):
                 return ""
@@ -543,8 +545,8 @@ class Controller:
         return bool(L.enabled and (L.draft_queue_column.strip() or L.fill_only or L.decide_glob.strip()))
 
     def _rest_if_board_down(self) -> bool:
-        """Rest while the board has been down PAUSE_SECONDS, until the next probe, waking when it is back (queue 572: the
-        dashboard not running). A due probe is made here first, so a resting member notices the board is back."""
+        """Rest while the board is down (from the first failure: PAUSE_SECONDS), until the next probe, waking when it is
+        back (queue 572: the dashboard not running). A due probe is made here first, so a resting member notices the board is back."""
         from . import board_down
 
         flag = self._board_flag()
