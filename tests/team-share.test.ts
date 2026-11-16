@@ -37,7 +37,7 @@ describe("Copy for WhatsApp", () => {
     expect(b.join()).not.toContain("Ann");
   });
   it("the whole message: business, link, changes; none yet said so; no addresses or numbers", () => {
-    const url = "https://peek.example/leads?lead=2e7e6382-5a2b-4e27-90aa-36c289c67c5b";
+    const url = "https://peek.example/leads?lead=00000000-0000-4000-8000-000000000403";
     expect(shareText({ business: "Luna Salon", url, history: [], now })).toBe(`Luna Salon\n${url}\n\nRecent changes:\n• no changes by the team yet`);
     const t = shareText({ business: "Luna Salon", url, history: [ch("business_email", "ana@luna.example", "ana@luna.example", at(10, 9))], now });
     expect(t).not.toMatch(/@luna|ana@/);

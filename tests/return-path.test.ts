@@ -6,7 +6,7 @@ const src = (f: string) => readFileSync(f, "utf8");
 
 describe("the way back after sign-in", () => {
   it("keeps a path on this site: the deep links, with their query and hash", () => {
-    for (const p of ["/tasks/c3cefafe-b2ef-41b3-aaff-80d852503982", "/leads/12eef90f-1070-42a9-95a0-d4ab8d378b8e", "/leads/import", "/files", "/queue?task=x&status=Done#tasks"]) expect(safeNext(p)).toBe(p);
+    for (const p of ["/tasks/00000000-0000-4000-8000-000000000401", "/leads/00000000-0000-4000-8000-000000000402", "/leads/import", "/files", "/queue?task=x&status=Done#tasks"]) expect(safeNext(p)).toBe(p);
   });
 
   it("never another host, a scheme, the sign-in steps or the API", () => {
