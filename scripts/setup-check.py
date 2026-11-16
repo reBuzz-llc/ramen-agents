@@ -80,13 +80,13 @@ def portal_url() -> str:
 
 def family_missing() -> list[str]:
     """What the first-run answers still lack (queue 572): common-data/local/family.toml needs [company] name, sells and
-    buyers and [target] market. Written by sh scripts/setup.sh or the dashboard's first-run page."""
+    buyers and [target] market. Written by sh scripts/setup.sh (step 2) or the dashboard's first-run page."""
     import tomllib
     f = ROOT / "common-data" / "local" / "family.toml"
     try:
         data = tomllib.loads(f.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return ["common-data/local/family.toml (run sh scripts/setup.sh, or open the dashboard's first-run page)"]
+        return ["common-data/local/family.toml (step 2: sh scripts/setup.sh, or the dashboard's first-run page)"]
     company = data.get("company") if isinstance(data.get("company"), dict) else {}
     target = data.get("target") if isinstance(data.get("target"), dict) else {}
     return [f"[company] {k}" for k in ("name", "sells", "buyers") if not str(company.get(k) or "").strip()] + \
@@ -107,17 +107,17 @@ def checks() -> tuple[list[str], list[str], int]:
             missing.append(line)
 
     # 1. the engine
-    need(ENGINE.is_dir(), f"the engine at {ENGINE}: git clone -b engine -o starter https://github.com/reBuzz-llc/ramen-agents {ENGINE} (setup-queue step 1)")
+    need(ENGINE.is_dir(), f"the engine at {ENGINE}: git clone -b engine -o starter https://github.com/reBuzz-llc/ramen-agents {ENGINE} -- or sh scripts/install.sh, which clones it (step 1)")
     need((ENGINE / ".venv" / "bin" / "bot").exists(), f"the engine's Python environment: cd {ENGINE} && python3 -m venv .venv && .venv/bin/pip install -e \".[dev]\" (Python 3.11+)")
     caches = [HOME / "Library" / "Caches" / "ms-playwright", HOME / ".cache" / "ms-playwright"]
     browser = any(c.is_dir() and any(x.name.startswith(("chromium-", "chromium_headless_shell-")) for x in c.iterdir()) for c in caches)
     need(browser, f"the agents' browser: {ENGINE}/.venv/bin/playwright install chromium")
     # 2. this repository
-    need((HOME / ".config" / "explorer").is_symlink(), "the folders and the state link: sh scripts/setup.sh (setup-queue step 2)")
+    need((HOME / ".config" / "explorer").is_symlink(), "the folders and the state link: sh scripts/install.sh (step 1)")
     # 3. model keys
     have = [n for n, _, _ in MODEL_KEYS if key_ok(n)]
     if not have:
-        missing.append("at least one model key, one line in common-data/keys/<name>.key (chmod 600): " + "; ".join(f"{n}.key from {link}" for n, _, link in MODEL_KEYS[:3]) + " (more in setup-queue step 3)")
+        missing.append("at least one model key, sh scripts/add-key.sh <provider> (step 3): " + "; ".join(f"{n}.key from {link}" for n, _, link in MODEL_KEYS[:3]) + " (more are optional)")
     else:
         done += 1
         for n, who, link in MODEL_KEYS:
@@ -130,7 +130,7 @@ def checks() -> tuple[list[str], list[str], int]:
     # 4. the board: the dashboard's local board (or the hosted portal named in local.toml), one key per reader
     portal = portal_url()
     for n, mint, why in PORTAL_KEYS:
-        need(key_ok(n), f"common-data/keys/{n}.key ({why}): sh scripts/setup.sh writes it" + ("" if portal.startswith("http://127.0.0.1") else
+        need(key_ok(n), f"common-data/keys/{n}.key ({why}): sh scripts/install.sh writes it (step 1)" + ("" if portal.startswith("http://127.0.0.1") else
              f"; for the hosted portal, mint it in its checkout: node --env-file=.env.local scripts/api-key.mjs {mint}") + ", one line, chmod 600")
         if key_ok(n) and (KEYS / f"{n}.key").stat().st_mode & 0o077:
             missing.append(f"common-data/keys/{n}.key can be read by others: chmod 600 common-data/keys/{n}.key")
@@ -139,17 +139,17 @@ def checks() -> tuple[list[str], list[str], int]:
             optional.append(f"common-data/keys/{n}.key: {who}, {link}")
     # 5. the company, in your words
     left = family_missing()
-    need(not left, "your family (step 5): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
+    need(not left, "your family (step 2): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
     # 6. search and the local model
     need(local_answers("http://127.0.0.1:8888/config"), "the local search (SearXNG) does not answer on 127.0.0.1:8888 (SETUP.md step 4; it starts with the launch agents)")
     if not local_answers("http://127.0.0.1:11434/api/tags"):
         optional.append("the local model (Ollama) on 127.0.0.1:11434, the last resort when no provider answers (SETUP.md step 3)")
     # 7. the dashboard
-    need((ROOT / "webapp" / ".next" / "BUILD_ID").is_file(), "the dashboard is not built: Node.js 20+, then cd webapp && npm ci && npm run build (setup-queue step 7)")
+    need((ROOT / "webapp" / ".next" / "BUILD_ID").is_file(), "the dashboard is not built: sh scripts/install.sh builds it (step 1)")
     # 8. always on
     agents = HOME / "Library" / "LaunchAgents"
     installed = sorted(p.name for p in agents.glob("com.ramen-agents.*.plist")) if agents.is_dir() else []
-    need(bool(installed), "the launch agents: sh scripts/install-launchd.sh (setup-queue step 8)")
+    need(bool(installed), "the launch agents: sh scripts/setup.sh starts the members you choose (step 4)")
     need(local_answers("http://127.0.0.1:3000/"), "the dashboard does not answer on http://127.0.0.1:3000 (it starts with the launch agents)")
     return missing, optional, done
 

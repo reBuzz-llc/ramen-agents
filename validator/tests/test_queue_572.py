@@ -149,3 +149,13 @@ def test_setup_check_wants_the_first_run_answers_not_fill_me_markers(tmp_path, m
     f.write_text('[company]\nname = "Acme"\nsells = "sites"\nbuyers = "cafes"\n[target]\nmarket = "Riverside"\n')
     assert mod.family_missing() == []
     assert not hasattr(mod, "fill_me")
+
+
+def test_the_gate_reads_the_first_run_steer_before_steers_md(tmp_path, monkeypatch):
+    import checks
+    import gate
+    monkeypatch.setattr(checks, "LOCAL", tmp_path / "family.toml")
+    (tmp_path / "family.toml").write_text('steer = "Bakeries first this month."\n')
+    assert gate.newest_steer() == "Bakeries first this month."
+    (tmp_path / "family.toml").write_text('[company]\nname = "Acme"\n')
+    assert gate.newest_steer() != "Bakeries first this month."           # unset: steers.md's newest section, as before
