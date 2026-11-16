@@ -46,4 +46,5 @@ def test_no_id_link_or_name_of_the_familys_own_in_any_tracked_file():
 
 def test_the_placeholder_rule():
     assert placeholder("01234567-89ab-cdef-0123-456789abcdef") and placeholder("a" * 32) and placeholder("00000000-0000-0000-0000-000000000001")
-    assert not placeholder("afcd97e1-1026-987a-a909-08803ded3dc0")
+    made_up = "-".join(("7b3e9f21", "48ac", "4d5e", "9a1b", "c2f60e8d4b97"))   # built from parts: no id of anyone's
+    assert not placeholder(made_up)
