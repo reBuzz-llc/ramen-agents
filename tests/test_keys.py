@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from explorer.common.keys import key_file, keys_dir, load_key
-from explorer.config import BrowserConfig, ModelConfig, NotionConfig, PublishConfig
+from explorer.config import BrowserConfig, ModelConfig, PackagesConfig, TasksConfig, PublishConfig
 from explorer.model import provider_config
 from explorer.search import load_marginalia_api_key
 
@@ -36,7 +36,6 @@ def test_defaults_point_into_the_keys_folder(tmp_path: Path, monkeypatch: pytest
     assert ModelConfig().gemini_api_key_file == str(tmp_path / "gemini.key")
     assert BrowserConfig().marginalia_api_key_file == str(tmp_path / "marginalia.key")
     assert PublishConfig().git_token_file == str(tmp_path / "github.key")
-    assert NotionConfig().api_key_file == str(tmp_path / "notion.key")
     cfg = ModelConfig(providers={"cerebras": {"base_url": "https://x/v1", "model": "m"}})
     assert provider_config("cerebras", cfg).api_key_file == str(tmp_path / "cerebras.key")
 

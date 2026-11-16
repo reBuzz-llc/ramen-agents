@@ -1,17 +1,14 @@
-"""The owner's team: the people a bot may assign Notion tasks to.
+"""The owner's team: the people a task may be for.
 
-Edited in the dashboard (Persona page > Team, webapp/lib/team.ts) and shared by every bot with the
-Notion skill, so it lives in common-data/team.json next to the keys, not in one bot's folder. Each
-member was picked from the Notion workspace's users, so `notion_id` is a real user id the API
-accepts in a people property; the role and details are the owner's words about who does what,
-shown to the model so it can pick the right person. One member may be the default: a task the
-model leaves unassigned goes to them, so every task has an owner.
+Edited in the dashboard (the Team page) and shared by every bot with the task skill, so it lives in common-data/team.json
+next to the keys, not in one bot's folder. The role and details are the owner's words about who does what, shown to the
+model so it can name the right person in a task's details; the board's assignee is the team's own cell (queue 572).
 
-    {"version": 1, "members": [{"notionId": "...", "name": "Alex", "email": "alex@...",
+    {"version": 1, "members": [{"id": "...", "name": "Alex", "email": "alex@...",
                                 "role": "Regional representative", "details": "...", "default": true}]}
 
-Read-only here; the bot never writes it. A missing or broken file is an empty team, which keeps
-the old behaviour (assignee names resolved against the workspace, unknown ones left blank).
+`id` is the dashboard's own id for the person (optional). Read-only here; the bot never writes it. A missing or broken
+file is an empty team.
 """
 from __future__ import annotations
 
@@ -30,7 +27,7 @@ def default_team_file() -> str:
 
 @dataclass(frozen=True)
 class Member:
-    notion_id: str
+    id: str
     name: str
     email: str = ""
     role: str = ""
@@ -57,13 +54,12 @@ def load_team(path: str | Path) -> list[Member]:
     for row in rows if isinstance(rows, list) else []:
         if not isinstance(row, dict):
             continue
-        nid = str(row.get("notionId") or "").strip()
         name = str(row.get("name") or "").strip()
-        if not nid or not name:
+        if not name:
             continue
         out.append(
             Member(
-                notion_id=nid,
+                id=str(row.get("id") or "").strip()[:120],
                 name=name[:120],
                 email=str(row.get("email") or "").strip()[:200],
                 role=str(row.get("role") or "").strip()[:200],

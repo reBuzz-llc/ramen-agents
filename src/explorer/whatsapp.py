@@ -1,6 +1,6 @@
 """A business's WhatsApp link from a phone number a page states (owner, 2026-10-07: "even if a whats app number is
 found (might have to test country codes on missing ones) then we should be able to convert them into wa.me link and
-update the notion"). Nothing here asks WhatsApp anything -- that needs an account (the fence) -- so a link built from
+update the board"). Nothing here asks WhatsApp anything -- that needs an account (the fence) -- so a link built from
 a number says where the business can be reached IF it uses WhatsApp; the team finds out when they message."""
 from __future__ import annotations
 

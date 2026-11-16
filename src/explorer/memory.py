@@ -498,7 +498,7 @@ class Memory:
             )
         )
 
-    # ---- tasks (created in Notion) ------------------------------------------
+    # ---- tasks (created on the board) ------------------------------------------
 
     def add_task(
         self,
@@ -547,7 +547,7 @@ class Memory:
         return names
 
     def add_lead(self, episode_id: int | None, name: str, website: str, domain: str, email: str, how_we_help: str, url: str, page_id: str) -> int:
-        """Remember a Leads-board row this bot created, with its Notion page id, so it can fix it later (update_lead)."""
+        """Remember a Leads-board row this bot created, with its board id, so it can fix it later (update_lead)."""
         return self.db.insert(
             "INSERT INTO leads(created_at, episode_id, name, website, domain, email, how_we_help, url, page_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (now_iso(), episode_id, name.strip()[:200], website.strip(), domain, email.strip(), how_we_help.strip(), url, page_id),

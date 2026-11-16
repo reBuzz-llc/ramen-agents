@@ -55,10 +55,10 @@ from .actions import (
 from .actions import CONSOLIDATION_TYPES, DESKTOP_TYPES, DEVELOPER_TYPES, NAVIGATION_TYPES, UPGRADE_TYPES
 from .browser import PageView
 from .chatroom import ROOM_RECIPIENT, is_room_recipient
-from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DesktopConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, NotionConfig, PolicyConfig, PublishConfig, ScoutConfig
+from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DesktopConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, PackagesConfig, PolicyConfig, PublishConfig, ScoutConfig, TasksConfig
 from .desktop import DesktopView, hotkey_never_allowed, normalize_hotkey
 from .memory import question_words, questions_are_similar
-from .notion import valid_date, valid_priority
+from .board import valid_date, valid_priority
 from .places import MAP_LINK
 from .team import Member, find_member
 
@@ -329,8 +329,8 @@ class PolicyContext:
     upgrade_active: bool = False  # an upgrade worktree exists right now
     upgrade_tests_passed: bool = False  # the most recent upgrade_test in this worktree passed
     upgrade_touches_protected: list[str] = field(default_factory=list)  # protected files changed in the worktree
-    tasks_in_episode: int = 0  # Notion tasks created this episode
-    tasks_today: int = 0  # Notion tasks created today
+    tasks_in_episode: int = 0  # board tasks created this episode
+    tasks_today: int = 0  # board tasks created today
     posts_today: int = 0  # publish actions allowed today, every destination
     recent_task_titles: set[str] = field(default_factory=set)  # lower-cased, last 30 days: never create one twice
     team: list[Member] = field(default_factory=list)  # the owner's team (team.py); empty = no list, any name goes
@@ -357,7 +357,7 @@ class PolicyContext:
     room_posts_today: int = 0  # this bot's genuine chatroom posts since midnight
     proposals_today: int = 0  # propose_teammate actions accepted today
     proposed_roles: set[str] = field(default_factory=set)  # roles already in proposed-bots.md, lower-cased
-    published_package_names: set[str] = field(default_factory=set)  # packages already on the Notion page
+    published_package_names: set[str] = field(default_factory=set)  # packages already handed to the board
     # Published packages whose toggle lacked source-company facts and whose package now has them: may go up again.
     republishable_package_names: set[str] = field(default_factory=set)
     package_names_last_day: set[str] = field(default_factory=set)
@@ -366,7 +366,7 @@ class PolicyContext:
     paces_today: int = 0  # pace_member actions accepted today
     lead_updates_today: int = 0  # update_lead actions accepted today
     packages_refused_today: set[str] = field(default_factory=set)  # package names whose republish was refused today
-    # package_key -> ISO time it last went up, within notion.republish_days; and the keys a republish request names
+    # package_key -> ISO time it last went up, within packages.republish_days; and the keys a republish request names
     recent_package_publishes: dict[str, str] = field(default_factory=dict)
     republish_request_keys: dict[str, str] = field(default_factory=dict)   # package_key -> requested_at ("" = not dated)
     republish_reasons: dict[str, str] = field(default_factory=dict)  # stale toggles, name -> why (controller._stale_toggles)  # lower-cased titles of the tasks this bot created today  # packages this bot handed over in the last 24 hours
@@ -604,7 +604,8 @@ class Policy:
         chat_partner: ChatPartnerConfig | None = None,
         developer: DeveloperConfig | None = None,
         developer_root: Path | None = None,
-        notion: NotionConfig | None = None,
+        tasks: TasksConfig | None = None,
+        packages: PackagesConfig | None = None,
         allowlist: Allowlist | None = None,
         handoff: HandoffConfig | None = None,
         scout: ScoutConfig | None = None,
@@ -624,7 +625,8 @@ class Policy:
         self.desktop = desktop or DesktopConfig()  # disabled unless configured
         self.chat_partner = chat_partner or ChatPartnerConfig()  # disabled unless configured
         self.developer = developer or DeveloperConfig()  # disabled unless configured
-        self.notion = notion or NotionConfig()  # disabled unless configured (and the client is ready)
+        self.tasks = tasks or TasksConfig()  # disabled unless configured (and the board is ready)
+        self.packages = packages or PackagesConfig()  # disabled unless configured (and the board is ready)
         self.handoff = handoff or HandoffConfig()  # disabled unless configured
         self.scout = scout or ScoutConfig()  # disabled unless configured
         self.messaging = messaging or MessagingConfig()  # disabled unless configured
@@ -847,7 +849,7 @@ class Policy:
     def _check_update_task(self, action: UpdateTask, ctx: PolicyContext) -> Verdict:
         """Fix a task this bot created: only its own tasks (exact title), only real changes, the same field rules
         as creating one, and rarely -- it exists to answer a Validator/owner defect, not to fidget."""
-        if not self.notion.enabled:
+        if not self.tasks.enabled:
             return Verdict.no("updating tasks is not enabled; that action does not exist")
         title = action.title.strip()
         if not title or resolve_task_title(title, ctx.recent_task_titles) is None:
@@ -859,7 +861,7 @@ class Policy:
         changes = [v for v in (action.assignee, action.priority, action.due, action.details_append) if v is not None and str(v).strip()]
         if not changes:
             return Verdict.no("an update needs at least one change: assignee, priority, due, or details_append")
-        # Owner, 2026-09-28: any assignee, or none; an unknown name is left unassigned by the Notion client.
+        # Owner, 2026-09-28: any assignee, or none; the board leaves assignees to the team (queue 572).
         if action.due is not None and action.due.strip() and not valid_date(action.due):
             return Verdict.no("due must be a date like 2026-09-30")
         if action.priority is not None and action.priority.strip() and not valid_priority(action.priority):
@@ -1094,10 +1096,10 @@ class Policy:
         return Verdict.ok()
 
     def _check_publish_package(self, action: PublishPackage, ctx: PolicyContext) -> Verdict:
-        """Publish a received package as a toggle on the Notion page: needs the page configured, a
+        """Hand a received package to the board as a draft: needs [packages] enabled, a
         marketing title and an email pitch, and each package goes up once."""
-        if not self.notion.enabled or not self.notion.package_page_id.strip():
-            return Verdict.no("publishing packages to the Notion page is not enabled; that action does not exist")
+        if not self.packages.enabled:
+            return Verdict.no("handing packages to the board is not enabled; that action does not exist")
         name = action.name.strip()
         if not name or not action.title.strip() or not action.email.strip():
             return Verdict.no("that needs the exact package name, a marketing title, and the email pitch")
@@ -1121,7 +1123,7 @@ class Policy:
         if same:
             return Verdict.no(f"that is '{same}' in other words; improve it under that exact name, or make a different offer", permanent=True)
         key = package_key(name)
-        last = ctx.recent_package_publishes.get(key) if self.notion.republish_days > 0 else None
+        last = ctx.recent_package_publishes.get(key) if self.packages.republish_days > 0 else None
         asked = ctx.republish_request_keys.get(key)
         # a request lets a key up once: one written before the key's last publish was already served (2026-10-29: three
         # requests under different spellings of one package let it up again and again within hours)
@@ -1132,14 +1134,14 @@ class Policy:
                 ago = 0
             return Verdict.no(f"'{name[:60]}' was published {ago} day{'' if ago == 1 else 's'} ago; a package is republished at most once "
                               f"a week unless a republish request names it. Do something else.", permanent=True)
-        if (self.notion.package_republish_own and name.lower() in on_page
+        if (self.packages.republish_own and name.lower() in on_page
                 and str(on_page[name.lower()].get("day", "")) == time.strftime("%Y-%m-%d")
                 and not str(ctx.republish_reasons.get(name.lower(), "")).startswith(("written in pitch format", "the Package Designer re-sent"))):
             # replaced at 01:34 and again at 07:34 on 2026-10-03 on the Validator's request each time: a toggle churns
             # when the fix does not satisfy the flag. One replacement a day, whoever asks.
             return Verdict.no(f"'{name[:60]}' was already replaced today; a toggle is replaced at most once a day. "
                               "Make the next version right (price in the title and the email) and publish it tomorrow.", permanent=True)
-        if (self.notion.package_republish_own and name.lower() in on_page and name.lower() not in ctx.republishable_package_names):
+        if (self.packages.republish_own and name.lower() in on_page and name.lower() not in ctx.republishable_package_names):
             # The CEO's own change to its package: same name, new title or pitch, replaces the toggle -- once a day.
             import hashlib
 
@@ -1166,15 +1168,15 @@ class Policy:
         if ctx.publish_packages_in_episode >= 1:
             return Verdict.no("you already published a package this episode; do the next one next time")
         lowered = action.email.lower()
-        missing = [p for p in self.notion.package_email_required_phrases if p.strip() and p.strip().lower() not in lowered]
+        missing = [p for p in self.packages.email_required_phrases if p.strip() and p.strip().lower() not in lowered]
         if missing:
             return Verdict.no(
                 f"the email must carry {', '.join(repr(m) for m in missing)}"
-                + (f" -- {self.notion.package_email_format_note}" if self.notion.package_email_format_note.strip() else "")
+                + (f" -- {self.packages.email_format_note}" if self.packages.email_format_note.strip() else "")
                 + ". Write the email again with them in."
             )
         record = ctx.package_record(name) if ctx.package_record is not None else None
-        rule = (self.notion.package_email_price_rule or "record").strip().lower()
+        rule = (self.packages.email_price_rule or "record").strip().lower()
         if record and rule in ("record", "range"):
             # "record": every money figure in the email must come from the record (The CEO wrote "starting at $2,500 for
             # setup ... from $500/month" into a package whose price is "quoted per deployment", 2026-09-25).
@@ -1183,7 +1185,7 @@ class Policy:
             facts_amounts = set(re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kKmM]?", facts))
             norm = lambda a: a.replace(" ", "").lower().rstrip(",.")  # noqa: E731 - "$30,000," at a clause end is $30,000
             facts_norm = {norm(a) for a in facts_amounts}
-            facts_norm |= {norm(a) for a in self.notion.package_email_allowed_figures}  # the owner's portfolio line
+            facts_norm |= {norm(a) for a in self.packages.email_allowed_figures}  # the owner's portfolio line
             values = [money_value(a) for a in facts_amounts]
             lo, hi = (min(values), max(values)) if values else (None, None)
             price = str(record.get("price", "")).strip()[:160]
@@ -1924,7 +1926,7 @@ class Policy:
             return Verdict.ok()
 
         if isinstance(action, Task):
-            if not self.notion.enabled:
+            if not self.tasks.enabled:
                 return Verdict.no("creating tasks is not enabled; that action does not exist")
             if ctx.refused_tasks_in_episode >= 3:
                 return Verdict.no(f"{ctx.refused_tasks_in_episode} tasks were refused this episode (the same task in other words): no more "
@@ -1936,15 +1938,15 @@ class Policy:
                 return Verdict.no("keep the task title under 200 characters")
             if len(action.details) > 4000:
                 return Verdict.no("keep the task details under 4000 characters")
-            if 0 < self.notion.min_details_chars > len(action.details.strip()):
+            if 0 < self.tasks.min_details_chars > len(action.details.strip()):
                 return Verdict.no(
                     "that task's details are too thin. Write a full brief a person could act on without asking "
                     "you: the context (why now), the concrete steps, the specifics from your notes (names, "
-                    f"numbers, examples, sources), and what 'done' looks like -- at least {self.notion.min_details_chars} "
+                    f"numbers, examples, sources), and what 'done' looks like -- at least {self.tasks.min_details_chars} "
                     "characters. Fewer, richer tasks: put the depth here"
                 )
-            # Owner, 2026-09-28: "let ceoA assign task to any one or no one" -- a name Notion cannot resolve is left
-            # unassigned with a warning (notion._set_assignee); a family member's name hands the task to that bot.
+            # Owner, 2026-09-28: "let ceoA assign task to any one or no one" -- the board leaves assignees to the team
+            # (queue 572), with a warning; a family member's name hands the task to that bot.
             if action.assignee and self._is_peer(action.assignee):
                 folder = self.messaging.folder_for(action.assignee.strip())
                 if folder and (Path(folder).expanduser() / "workspace" / "STOP").exists():
@@ -1995,15 +1997,15 @@ class Policy:
                     f"that is the task you already created as '{twin[:200]}', in other words; add to it with update_task (that exact title) or move on",
                     permanent=True,
                 )
-            if ctx.tasks_in_episode >= self.notion.max_tasks_per_episode:
+            if ctx.tasks_in_episode >= self.tasks.max_per_episode:
                 return Verdict.no(
                     "you already created a task this episode; one well-thought task beats several. "
                     "Note anything else as 'Possible task: ...' and decide next time"
                 )
-            if ctx.tasks_today >= self.notion.max_tasks_per_day:
+            if ctx.tasks_today >= self.tasks.max_per_day:
                 # The CEO: hundreds of refused task attempts in a week; with a cap of 1 the day's one task is added to instead
                 # (creatorCC queue 5, 2026-10-28)
-                if self.notion.max_tasks_per_day == 1:
+                if self.tasks.max_per_day == 1:
                     return Verdict.no("today's task exists; add to it with update_task", permanent=True)
                 return Verdict.no(f"you have created {ctx.tasks_today} tasks today, the daily limit; add to one of them with update_task",
                                   permanent=True)
@@ -2025,7 +2027,7 @@ class Policy:
             return self._check_provider(action, ctx)
 
         if isinstance(action, MergeTask):
-            if not self.notion.enabled or not (self.notion.merge_status or "").strip():
+            if True:   # queue 572: a task's status is the team's cell on the board, so a bot never closes one by merging
                 return Verdict.no("merging tasks is not enabled; that action does not exist", permanent=True)
             src = resolve_task_title(action.title, ctx.recent_task_titles)
             dst = resolve_task_title(action.into, ctx.recent_task_titles)

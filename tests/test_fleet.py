@@ -50,13 +50,13 @@ def test_new_bot_makes_a_loadable_config_with_persona_and_denylist(tmp_path: Pat
     assert cfg.quiet.enabled
     assert cfg.path(cfg.policy.denylist_file).exists()
     assert (Path(cfg.browser.fake_web_dir) / "index.html").exists()
-    assert cfg.notion.enabled is False and cfg.notion.database_id == ""
+    assert cfg.tasks.enabled is True and cfg.leads.portal_url == "http://127.0.0.1:3000"   # queue 572: the local board by default
     assert "running a small company" in cfg.agent.seed_interests
     assert cfg.workspace == folder / "workspace"
 
     explorer = fleet.new_bot("Jobless-Bot", tmp_path / "bots", persona="explorer", port=8787)
     cfg2 = load_config(explorer / "config.toml")
-    assert "[notion]" not in (explorer / "config.toml").read_text()
+    assert "[notion]" not in (explorer / "config.toml").read_text() and "[tasks]" not in (explorer / "config.toml").read_text()
     assert cfg2.agent.cycle_delay_seconds == 20
 
     with pytest.raises(FileExistsError):
@@ -121,7 +121,7 @@ def test_new_bot_in_the_shared_layout_extends_instead_of_repeating(tmp_path: Pat
     cfg = load_config(folder / "config.toml")
     assert cfg.agent.contact == "https://example.com" and cfg.model.provider == "remote"
     assert cfg.path(cfg.policy.denylist_file) == parent / "common-data" / "denylist.txt"
-    assert cfg.notion.api_key_file.endswith("/notion.key")
+    assert cfg.leads.portal_key_file.endswith("/portal-engine.key")
     assert cfg.dashboard.port == 8790 and cfg.agent.name == "The CEO"
 
 

@@ -69,7 +69,7 @@ from .logging_config import event
 from .memory import Memory, now_iso
 from .plan import OwnerWorkPlan, WorkPlan, load_plan, save_plan
 from .model import Model
-from .notion import NotionClient, page_id_from_url
+from .board import page_id_from_url
 from .policy import Policy, PolicyContext, Verdict, is_meta_topic, package_key, url_domain
 from .presence import QuietDetector
 from .prompts import CONSOLIDATION_PROMPT, DAILY_JOURNAL_PROMPT, Observation, journal_system_prompt, system_prompt
@@ -178,10 +178,10 @@ class Controller:
         chat_partner: ChatPartner | None = None,
         developer: Developer | None = None,
         quiet: QuietDetector | None = None,
-        notion: NotionClient | Any | None = None,
+        board: Any | None = None,
         searcher: Searcher | None = None,
         transcripts: Any | None = None,
-        leads_notion: NotionClient | Any | None = None,
+        leads_board: Any | None = None,
     ):
         self.cfg = cfg
         self.memory = memory
@@ -251,8 +251,8 @@ class Controller:
         self.searcher = searcher
         # transcript.YouTubeTranscripts when [browser] video_transcripts is on: a video URL opens as its captions.
         self.transcripts = transcripts
-        # A second Notion client pointed at the Leads board ([leads]); None when this bot does not list leads.
-        self.leads_notion = leads_notion
+        # The Leads board client ([leads], portal_store.PortalLeadStore); None when this bot does not list leads.
+        self.leads_board = leads_board
         # Text of the pages opened most recently (url -> text), so the policy can check that a lead's email really
         # is published on the business's own site. Bounded; a page is text, never an instruction.
         self.recent_pages: "OrderedDict[str, str]" = OrderedDict()
@@ -291,7 +291,10 @@ class Controller:
         self.exit_code: int | None = None  # set by upgrade_submit: run() returns it so the supervisor restarts us
         self.quiet = quiet if cfg.quiet.enabled else None
         self.quiet_since: float | None = None  # when the current quiet spell began, if any
-        self.notion = notion if cfg.notion.enabled else None
+        # The team's board for tasks and package drafts (portal_store.PortalBoard; queue 572). Each skill is on
+        # only when its section is: [tasks] for the task board, [packages] for the draft handover.
+        self.task_board = board if cfg.tasks.enabled else None
+        self.package_board = board if cfg.packages.enabled else None
         self.scout_enabled = cfg.scout.enabled
         from .target import Target
 
@@ -325,9 +328,9 @@ class Controller:
     def _reload_team(self) -> bool:
         """Read the owner's team list (team.py) when the file changed. Returns True when it did, so the
         system prompt can be rebuilt; the dashboard edits the file while the bot runs."""
-        if self.notion is None:
+        if self.task_board is None:
             return False
-        path = Path(self.cfg.notion.team_file).expanduser()
+        path = Path(self.cfg.tasks.team_file).expanduser()
         try:
             mtime: float | None = path.stat().st_mtime
         except OSError:
@@ -338,8 +341,8 @@ class Controller:
             return False
         self._team_mtime = mtime
         self.team = load_team(path) if mtime is not None else []
-        if hasattr(self.notion, "set_team"):
-            self.notion.set_team(self.team)
+        if hasattr(self.task_board, "set_team"):
+            self.task_board.set_team(self.team)
         event(self.logger, "team", members=len(self.team), file=str(path))
         return True
 
@@ -354,9 +357,9 @@ class Controller:
                 out.add("say")
             if cfg.policy.max_notes_per_day > 0 and m.count_actions_today("note") >= cfg.policy.max_notes_per_day:
                 out.add("note")
-            if self.notion is not None and int(getattr(cfg.notion, "max_tasks_per_day", 0) or 0) > 0 and m.count_tasks_today() >= cfg.notion.max_tasks_per_day:
+            if self.task_board is not None and int(cfg.tasks.max_per_day or 0) > 0 and m.count_tasks_today() >= cfg.tasks.max_per_day:
                 out.add("task")
-            if self.leads_notion is not None and cfg.leads.max_per_day > 0 and m.count_actions_today("lead") >= cfg.leads.max_per_day:
+            if self.leads_board is not None and cfg.leads.max_per_day > 0 and m.count_actions_today("lead") >= cfg.leads.max_per_day:
                 out.add("lead")
             if cfg.scout.enabled and cfg.scout.max_per_day > 0 and m.count_actions_today("provider") >= cfg.scout.max_per_day:
                 out.add("provider")
@@ -381,10 +384,10 @@ class Controller:
             shell_enabled=self.developer is not None and cfg.developer.allow_shell,
             upgrade_enabled=self.developer is not None and cfg.developer.upgrade_enabled,
             persona=self._family_block() + self.target.fill(self._persona),
-            tasks_enabled=self.notion is not None,
+            tasks_enabled=self.task_board is not None,
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
             scout_enabled=self.scout_enabled,
-            merge_tasks=bool((cfg.notion.merge_status or "").strip()),
+            merge_tasks=False,
             pace_members=cfg.messaging.enabled and cfg.messaging.can_pace_members,
             scout_kind=cfg.scout.kind,
             message_peers=cfg.messaging.peer_names if cfg.messaging.enabled else [],
@@ -396,10 +399,10 @@ class Controller:
             desktop_remote=cfg.desktop.wake_on_chat,
             propose_teammates=cfg.agent.propose_teammates,
             disabled_actions=sorted(set(cfg.policy.disabled_actions) | hidden),
-            package_page=self.notion is not None and bool(cfg.notion.package_page_id.strip()),
-            leads_enabled=self.leads_notion is not None,
+            package_page=self.package_board is not None,
+            leads_enabled=self.leads_board is not None,
             draft_writer=bool(cfg.leads.draft_queue_column.strip()),
-            team=team_block(self.team, self.cfg.notion.assign_people),
+            team=team_block(self.team, False),
             work_plan=self.owner_plan.block(),
             plans_enabled=cfg.agent.plans,
         )
@@ -447,7 +450,7 @@ class Controller:
                     continue
                 self._watchdog()
                 self._auto_fill_from_places()
-                if self._rest_if_idle():
+                if self._rest_if_board_down() or self._rest_if_idle():
                     continue
                 self._cycle()
                 done += 1
@@ -489,12 +492,12 @@ class Controller:
                     list_done = f"today's {L.max_updates_per_day} row updates are done"
                 elif not self._decide_lines():
                     list_done = "the work list is empty"
-            if self.notion is None or cfg.notion.max_tasks_per_day <= 0:
+            if self.task_board is None or cfg.tasks.max_per_day <= 0:
                 return list_done                         # a list bot (Writer, Enricher): its list is its work
             if listed and not list_done:
                 return ""
             # a bot with a task skill (The CEO): its day's task and messages are its work too
-            caps = [("tasks", m.count_tasks_today(), cfg.notion.max_tasks_per_day)]
+            caps = [("tasks", m.count_tasks_today(), cfg.tasks.max_per_day)]
             if cfg.messaging.enabled and cfg.messaging.max_per_day > 0:
                 caps.append(("messages", m.count_actions_today("message"), cfg.messaging.max_per_day))
             if all(n >= cap for _, n, cap in caps):
@@ -516,13 +519,60 @@ class Controller:
         self._rest(reason)
         return True
 
-    def _rest(self, reason: str) -> None:
+    def _board_flag(self):
+        """The Mac's board-down flag of this bot's board clients, or None (no board client, or one not on the flag)."""
+        for store in (self.leads_board, self.task_board, self.package_board):
+            flag = getattr(store, "down_flag", None)
+            if flag is not None:
+                return flag
+        return None
+
+    def _board_down_text(self) -> str:
+        """Why the board cannot be written now ("" when it can): the flag is up and the next probe is not due."""
+        from . import board_down
+
+        flag = self._board_flag()
+        if flag is not None and board_down.held(flag):
+            return board_down.message(board_down.read(flag))
+        return ""
+
+    def _board_rests(self) -> bool:
+        """The members whose work is the board rest on it: a draft queue or a fill-only list (the Writer, the Enricher)
+        and a bot whose only output skills are board writes. Lead Gen's or the CEO's research goes on otherwise."""
+        L = self.cfg.leads
+        return bool(L.enabled and (L.draft_queue_column.strip() or L.fill_only or L.decide_glob.strip()))
+
+    def _rest_if_board_down(self) -> bool:
+        """Rest while the board has been down PAUSE_SECONDS, until the next probe, waking when it is back (queue 572: the
+        dashboard not running). A due probe is made here first, so a resting member notices the board is back."""
+        from . import board_down
+
+        flag = self._board_flag()
+        if flag is None or not self._board_rests() or board_down.down_for(flag) < board_down.PAUSE_SECONDS:
+            return False
+        if not board_down.held(flag):
+            try:
+                if self.leads_board is not None:
+                    self.leads_board.refresh(force=True)      # the probe: gate() claims it for the Mac
+            except Exception:  # noqa: BLE001 - still down
+                pass
+            if not board_down.read(flag):
+                event(self.logger, "board_back", why="probe answered")
+                return False
+        info = board_down.read(flag)
+        end = float(info.get("probe_at") or time.time()) + board_down.PROBE_SECONDS
+        reason = "board down: " + board_down.message(info)
+        event(self.logger, "board_down_rest", until=dt.datetime.fromtimestamp(end).isoformat(timespec="seconds"), why=str(info.get("why") or ""))
+        self._rest(reason, end=end, wake=lambda: not board_down.read(flag))
+        return True
+
+    def _rest(self, reason: str, end: float | None = None, wake: Callable[[], bool] | None = None) -> None:
         self.heartbeat.tick(self.cycle_no, f"resting: {reason}")
-        end = time.time() + max(1.0, self.cfg.agent.idle_minutes * 60)
+        end = end if end is not None else time.time() + max(1.0, self.cfg.agent.idle_minutes * 60)
         while time.time() < end and not self.should_stop() and not pause_requested(self.cfg):
             try:
-                if self.inbox.unread(1) or self.memory.unseen_owner_messages(1):
-                    break                                    # a message wakes it
+                if self.inbox.unread(1) or self.memory.unseen_owner_messages(1) or (wake is not None and wake()):
+                    break                                    # a message (or the board back) wakes it
             except Exception:  # noqa: BLE001
                 break
             self._sleep(min(30.0, end - time.time()))
@@ -801,7 +851,7 @@ class Controller:
             # (8 of 15 leads refused that way, 2026-09-30).
             action, strip_note = self._ground_optional_lead_facts(action)
         if verdict.allowed:  # the owner's format rules at write time (validator/gate.py), fail-open
-            gate_args = dict(bot=self.cfg.agent.name, min_details=int(getattr(self.cfg.notion, "min_details_chars", 300) or 300),
+            gate_args = dict(bot=self.cfg.agent.name, min_details=int(self.cfg.tasks.min_details_chars or 300),
                              open_tasks=self._open_task_titles_for_gate(action),
                              judge=self._write_gate_judge() if self.cfg.policy.write_gate_model else None)
             verdict = self.policy.gate_write(action, page_text=self._cited_page_text(action), **gate_args)
@@ -851,7 +901,7 @@ class Controller:
             self._clear_desktop_blockers(ep)
         exec_result = self._execute(action, ep, target)
         self.memory.bump_episode_actions(ep["id"])
-        # A write that the policy allowed but the executor could not complete (Notion 404, a peer folder gone) is
+        # A write that the policy allowed but the executor could not complete (the board's 404, a peer folder gone) is
         # recorded as failed: the dedupe sets (recent leads, packages, tasks) only count verdict = 'allowed', so a row
         # that never existed no longer blocks its domain or name for 90 days (2026-09-24).
         verdict = "allowed" if (exec_result.ok or action.type not in EXTERNAL_WRITE_TYPES) else f"failed: {exec_result.summary[:120]}"
@@ -1038,8 +1088,8 @@ class Controller:
         Research is cheap and tasks are not, which is right, but nothing else ever asks for the
         output; the CEO ran nine episodes without a task. The nudge is feedback text, so the
         model sees it once, on the first observation of the episode."""
-        limit = self.cfg.notion.nudge_after_episodes
-        if self.notion is None or limit <= 0:
+        limit = self.cfg.tasks.nudge_after_episodes
+        if self.task_board is None or limit <= 0:
             return
         idle = self.memory.episodes_since_last_task()
         if idle < limit:
@@ -1136,8 +1186,8 @@ class Controller:
         recording too much, not too little)."""
         memory = self.memory
         skills: list[tuple[str, str, str, int, int]] = []  # (action_type, noun, how, done today, daily cap)
-        if self.notion is not None:
-            skills.append(("task", "task", "create a task on the team's Notion board", memory.count_tasks_today(), self.cfg.notion.max_tasks_per_day))
+        if self.task_board is not None:
+            skills.append(("task", "task", "create a task on the team's board", memory.count_tasks_today(), self.cfg.tasks.max_per_day))
         if self.cfg.handoff.enabled:
             skills.append(("package", "package", f"hand a package to {self.cfg.handoff.to_name}", memory.count_actions_today("package"), self.cfg.handoff.max_per_day))
         if self.cfg.publish.enabled:
@@ -1148,7 +1198,7 @@ class Controller:
         if capped:
             what = " and ".join(f"{done} {noun}{'s' if done != 1 else ''}" for noun, done in capped)
             nouns = " or ".join(noun for noun, _ in capped)
-            still = " Publishing a package to the Notion page is still fine." if self.cfg.notion.package_page_id else ""
+            still = " Handing a package to the board is still fine." if self.package_board is not None else ""
             return (
                 f"TODAY'S {nouns.upper()} QUOTA IS USED: {what} already, the daily limit. Do not try another {nouns} "
                 f"today; it will be refused. Read and take notes that tomorrow's can build on, or rest.{still}"
@@ -1388,7 +1438,7 @@ class Controller:
             open_questions=[(r["id"], r["question"]) for r in self.memory.open_questions(12 if is_triage else 5)],
             open_questions_count=self.memory.count_open_questions(),
             recent_notes=[r["title"] for r in self.memory.recent_notes(15)],
-            tasks_today=sorted(self.memory.task_titles_today())[:12] if self.notion is not None else [],
+            tasks_today=sorted(self.memory.task_titles_today())[:12] if self.task_board is not None else [],
             refused_today=[f"{k.split(':', 1)[0]} {k.split(':', 1)[1][:70]}" for k in list(self._day_blocks())[-10:]],
             recent_actions=recent,
             page=self.page,
@@ -1859,10 +1909,6 @@ class Controller:
                 return ExecResult(True, f"rested {action.seconds}s", False)
             if isinstance(action, Say):
                 return self._execute_say(action)
-            if action.type in self.NOTION_WRITE_TYPES and self._notion_full():
-                return ExecResult(False, "Notion is out of free blocks; nothing can be written there until the owner frees space", False,
-                                  feedback="Notion writes are paused (the workspace has used all of its free blocks). Research, note and "
-                                  "message meanwhile; the owner has been told.")
             if isinstance(action, Task):
                 return self._execute_task(action, ep)
             if isinstance(action, UpdateTask):
@@ -1896,47 +1942,13 @@ class Controller:
             return ExecResult(False, f"unknown action {action.type}", False)
         except Exception as exc:  # noqa: BLE001 - one bad action must not kill the loop
             self.logger.exception("action %s failed", action.type)
-            self._note_notion_full(exc)
             return ExecResult(False, f"{type(exc).__name__}: {str(exc)[:200]}", False)
 
-    # ---- Notion out of free blocks (2026-09-28 22:23: 403 restricted_resource on every write) ---------------------
-    NOTION_WRITE_TYPES = frozenset({"task", "update_task", "lead", "update_lead", "publish_package"})
-    NOTION_FULL_HOURS = 6.0
-
-    def _note_notion_full(self, exc: BaseException) -> None:
-        text = str(exc)
-        if "free blocks" not in text and "restricted_resource" not in text:
-            return
-        import datetime as _dt
-
-        until = (_dt.datetime.now() + _dt.timedelta(hours=self.NOTION_FULL_HOURS)).isoformat(timespec="seconds")
-        self.memory.db.set_state("notion_full_until", until)
-        self.memory.db.set_state("notion_full_flag", "1")  # cleared, with a notion_restored event, by the next accepted write
-        event(self.logger, "notion_full", until=until, error=text[:200])
-        told = self.memory.db.get_state("notion_full_told", "") or ""
-        if told[:10] != until[:10]:  # once a day, in the owner's chat
-            self.memory.db.set_state("notion_full_told", until)
-            self.memory.add_chat("bot", "Notion has used all of the workspace's free blocks, so nothing can be written to Notion "
-                                 "(no rows, tasks or package toggles) until content is deleted and the trash emptied. "
-                                 "I will keep researching and retry in a few hours.", seen=True)
-            self._report("Notion refuses every write: the workspace has used all of its free blocks")
-
-    def _note_notion_restored(self, kind: str) -> None:
-        """The first Notion write accepted after a full-workspace pause: one all-clear event for the dashboard."""
-        if (self.memory.db.get_state("notion_full_flag", "") or "") != "1":
-            return
-        self.memory.db.set_state("notion_full_flag", "")
-        self.memory.db.set_state("notion_full_until", "")
-        event(self.logger, "notion_restored", f"writes accepted again: a {kind} landed after the workspace was out of blocks")
-
-    def _notion_full(self) -> str:
-        """The 'until' time while Notion is known to be out of blocks, else ""."""
-        until = self.memory.db.get_state("notion_full_until", "") or ""
-        return until if until and until > now_iso() else ""
+    BOARD_WRITE_TYPES = frozenset({"task", "update_task", "lead", "update_lead", "publish_package"})
 
     def _execute_task(self, action: Task, ep: sqlite3.Row) -> ExecResult:
-        """One page in the owner's Notion task database. The policy already applied the caps."""
-        if self.notion is None:
+        """One task on the team's board. The policy already applied the caps."""
+        if self.task_board is None:
             return ExecResult(False, "creating tasks is not enabled", False)
         title = action.title.strip()
         bot = self._peer_named(action.assignee)
@@ -1944,24 +1956,24 @@ class Controller:
             return self._task_to_bot(bot, title, action.details.strip(), action.due)
         # Owner, 2026-09-28: "let ceoA assign task to any one or no one" -- a Team-list name is made canonical, any
         # other name is tried against the workspace (unresolved = left unassigned, with a warning), none stays none.
-        assignee = action.assignee if self.cfg.notion.assign_people else None  # owner, 2026-10-14: the owner assigns
+        assignee = None  # owner, 2026-10-14: the owner assigns
         member = find_member(self.team, assignee) if (self.team and assignee and assignee.strip()) else None
         if member is not None:
             assignee = member.name
-        url = self.notion.create_task(title, action.details.strip(), assignee, action.priority, action.due)
-        problem = self._confirm_write(self.notion, "task", page_id=page_id_from_url(url) or "")
+        url = self.task_board.create_task(title, action.details.strip(), assignee, action.priority, action.due)
+        problem = self._confirm_write(self.task_board, "task", page_id=page_id_from_url(url) or "")
         if problem:
             return ExecResult(False, f"task '{title[:60]}' not confirmed: {problem}", False,
                               feedback="The task did not land on the board; it does not count. Try once more, or report it.")
-        warnings = list(getattr(self.notion, "last_warnings", []) or [])
+        warnings = list(getattr(self.task_board, "last_warnings", []) or [])
         self.memory.add_task(ep["id"], title, action.details, assignee, action.priority, action.due, url)
         who = f" for {assignee.strip()}" if assignee and assignee.strip() else ""
         self.memory.write_journal(f"Created a task{who}: {title} ({url})", heading="Task")
-        self._report(f"created task \"{title[:70]}\"{who} on the Notion board")
+        self._report(f"created task \"{title[:70]}\"{who} on the board")
         event(self.logger, "task", title=title[:120], assignee=assignee, priority=action.priority, url=url, warnings=warnings)
         note = (" Note: " + "; ".join(warnings) + ".") if warnings else ""
         return ExecResult(
-            True, f"created task '{title[:60]}' in Notion: {url}" + (f" ({'; '.join(warnings)})" if warnings else ""), True,
+            True, f"created task '{title[:60]}' on the board: {url}" + (f" ({'; '.join(warnings)})" if warnings else ""), True,
             feedback=f"Task created{who}: {url}. It exists now; do not create it again.{note}",
         )
 
@@ -1976,7 +1988,7 @@ class Controller:
 
     def _task_to_bot(self, bot: str, title: str, details: str, due: str | None) -> ExecResult:
         """Deliver a task to a family member's inbox as a request on record (their PRIORITY line when this bot is a
-        priority sender for them). Nothing goes to the Notion board: tasks there are for people."""
+        priority sender for them). Nothing goes to the board: tasks there are for people."""
         folder = self.cfg.messaging.folder_for(bot)
         if not folder:
             return ExecResult(False, f"no colleague named {bot}", False)
@@ -1991,7 +2003,7 @@ class Controller:
         self._report(f"gave {bot} a task: \"{title[:70]}\"")
         event(self.logger, "task_to_bot", to=bot, title=title[:120], file=str(msg_file))
         return ExecResult(True, f"handed task '{title[:60]}' to {bot}", True,
-                          feedback=f"{bot} has the task as a request and will answer with a message. It is not on the Notion board "
+                          feedback=f"{bot} has the task as a request and will answer with a message. It is not on the board "
                           "(the board is for people). Do not create it again; steer with a message if it needs more.")
 
     def _execute_provider(self, action: Provider) -> ExecResult:
@@ -2021,28 +2033,11 @@ class Controller:
         )
 
     def _agent_board(self):
-        """The owner's Notion board for AI-agent finds ([scout] notion_database_id), built once; None when off/no key."""
+        """Off (queue 572): there is no agent board; the finds stay in the report file."""
         if getattr(self, "_agent_board_client", None) is not None or getattr(self, "_agent_board_tried", False):
             return getattr(self, "_agent_board_client", None)
         self._agent_board_tried = True
-        ds = (self.cfg.scout.notion_database_id or "").strip()
-        if not ds:
-            return None
-        try:
-            from dataclasses import replace
-
-            from .model import load_api_key
-            from .notion import NotionClient
-
-            key = load_api_key(self.cfg.notion.api_key_env, self.cfg.notion.api_key_file)
-            if not key:
-                event(self.logger, "agent_board_off", why="no Notion key")
-                return None
-            self._agent_board_client = NotionClient(replace(self.cfg.notion, enabled=True, database_id=ds), key, self.logger)
-        except Exception as exc:  # noqa: BLE001
-            event(self.logger, "agent_board_off", why=str(exc)[:200])
-            return None
-        return self._agent_board_client
+        return None       # queue 572: the Onion Reader's finds stay in its file; there is no agent board
 
     @staticmethod
     def _clearnet(url: str) -> str:
@@ -2054,7 +2049,7 @@ class Controller:
 
     def _agent_board_row(self, action: Provider, card: str) -> str:
         """Write the agent find as a row on the owner's board. Returns the row URL, "" when the board is off, or a short
-        reason when the row was not written (an .onion address, or Notion refused) -- the file entry stands either way."""
+        reason when the row was not written (an .onion address) -- the file entry stands either way."""
         client = self._agent_board()
         if client is None:
             return ""
@@ -2350,20 +2345,14 @@ class Controller:
 
     def _domain_on_board(self, domain: str) -> bool:
         """A row on the Leads board whose Website contains this domain (one board query per domain an hour)."""
-        if self.leads_notion is None or not domain:
+        if self.leads_board is None or not domain:
             return False
         cache = self.__dict__.setdefault("_board_domains", {})
         hit = cache.get(domain)
         if hit is not None and time.time() - hit[0] < 3600:
             return hit[1]
-        if hasattr(self.leads_notion, "has_domain"):        # the portal: its shared copy answers, no query
-            found = self.leads_notion.has_domain(domain)
-            cache[domain] = (time.time(), found)
-            return found
         try:
-            data = self.leads_notion._request("POST", f"{self.leads_notion._container_path}/query",
-                                              json={"filter": {"property": "Website", "url": {"contains": domain}}, "page_size": 1})
-            found = bool(data.get("results"))
+            found = bool(self.leads_board.has_domain(domain))     # the board's shared copy answers, no query
         except Exception:  # noqa: BLE001
             found = False
         cache[domain] = (time.time(), found)
@@ -2467,13 +2456,13 @@ class Controller:
         """Drafted first emails waiting for the human team's review ([leads] outreach_draft_column): rows with a draft
         (not a "skip:") and an empty status, that no task of this bot names yet. Read from the board every ten minutes."""
         L = self.cfg.leads
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return [], 0
         now = time.time()
         cached = getattr(self, "_review_cache", None)
         if cached is None or now - cached[0] > 600:
             try:
-                rows = self.leads_notion.rows_drafted(L.outreach_draft_column.strip(), L.outreach_status_column.strip(), 100,
+                rows = self.leads_board.rows_drafted(L.outreach_draft_column.strip(), L.outreach_status_column.strip(), 100,
                                                       tuple(L.outreach_not_reviewed), L.score_column)
             except Exception:  # noqa: BLE001
                 rows = cached[1] if cached else []
@@ -2661,9 +2650,9 @@ class Controller:
                 item("notes", m.count_actions_today("note"), cfg.policy.max_notes_per_day, "today")
             elif cfg.policy.max_notes_per_episode > 0:
                 item("notes", m.count_actions(eid, "note"), cfg.policy.max_notes_per_episode, "this episode")
-            if self.notion is not None:
-                item("tasks", m.count_tasks_today(), int(getattr(cfg.notion, "max_tasks_per_day", 0) or 0), "today")
-            if self.leads_notion is not None:
+            if self.task_board is not None:
+                item("tasks", m.count_tasks_today(), int(cfg.tasks.max_per_day or 0), "today")
+            if self.leads_board is not None:
                 item("leads", m.count_actions_today("lead"), cfg.leads.max_per_day, "today")
                 item("lead updates", m.count_actions(eid, "update_lead"), cfg.leads.max_updates_per_episode, "this episode")
             if cfg.messaging.enabled:
@@ -2678,8 +2667,9 @@ class Controller:
                 out.append(f"NOT NOW search: paused {int(paused)}s")
             if cfg.policy.disabled_actions:
                 out.append("never: " + ", ".join(cfg.policy.disabled_actions))
-            if self._notion_full():
-                out.append("NOT NOW any Notion write (task, lead, package): the workspace is out of free blocks; the owner must free space")
+            down = self._board_down_text()
+            if down:
+                out.append(f"NOT NOW any board write (task, lead, package): {down}")
         except Exception:  # noqa: BLE001 - a counts problem never blocks the prompt
             pass
         return out[:10]
@@ -2727,10 +2717,10 @@ class Controller:
         return ExecResult(True, f"plan written: {self.plan.task[:60]} ({len(self.plan.steps)} steps)", True,
                           feedback=f"Plan saved. Start with step 1: {self.plan.steps[0]['text']}")
 
-    # ---- read-back after a Notion write (owner, 2026-09-26) ------------------------------------------------------
+    # ---- read-back after a board write (owner, 2026-09-26) ------------------------------------------------------
     def _confirm_write(self, client, kind: str, *, page_id: str = "", block_id: str = "", expect: dict[str, str] | None = None) -> str | None:
         """Read the object back; a problem string when it is missing, archived, or a written field did not land; None
-        when confirmed or when Notion could not be asked (fail open, logged)."""
+        when confirmed or when the board could not be asked (fail open, logged)."""
         if not self.cfg.agent.readback_writes or client is None:
             return None
         try:
@@ -2752,12 +2742,10 @@ class Controller:
                                if str(v).strip() and str(v).strip().lower()[:60] not in fields.get(k.lower(), "")]
                     if missing:
                         problem = "written but not on the row: " + ", ".join(missing)
-        except Exception as exc:  # noqa: BLE001 - Notion unreachable: the write stands, unverified
+        except Exception as exc:  # noqa: BLE001 - the board unreachable: the write stands, unverified
             event(self.logger, "readback_unverified", write=kind, error=str(exc)[:200])
             return None
         event(self.logger, "readback", write=kind, ok=problem is None, problem=problem or "")
-        if problem is None:
-            self._note_notion_restored(kind)
         return problem
 
     def _execute_revise_goal(self, action: ReviseGoal) -> ExecResult:
@@ -2816,13 +2804,13 @@ class Controller:
         )
 
     def _execute_publish_package(self, action: PublishPackage) -> ExecResult:
-        """Write a package to the Notion package page as a toggle, in the owner's headed layout, with its facts
+        """Hand a package to the board as a draft (only a person publishes), in the owner's headed layout, with its facts
         (audience, price, deliverables, rationale, sources, source company) from the package itself. A package already
         on the page is replaced when the policy allowed it again (new company facts, an older pitch format, or a
         republish request). The record is kept so the page can be re-rendered later without the Package Designer."""
-        page_id = self.cfg.notion.package_page_id.strip()
-        if self.notion is None or not page_id:
-            return ExecResult(False, "publishing packages to the Notion page is not enabled", False)
+        page_id = ""
+        if self.package_board is None:
+            return ExecResult(False, "handing packages to the board is not enabled", False)
         name = action.name.strip()
         pkg = find_package(self.cfg.workspace, name) or self._stored_package(name)
         if pkg is None:
@@ -2835,14 +2823,14 @@ class Controller:
         if str(sc.get("name", "")).strip() and not str(sc.get("valuation", "")).strip():
             company.append(("Valuation", "not published on its site"))
         sources = [s for s in (pkg.get("sources") or []) if str(s).strip()]
-        email = with_signoff(action.email, self.cfg.notion.package_signoff)
+        email = with_signoff(action.email, self.cfg.packages.signoff)
         import json
         blocks = self._published_blocks()
         previous = blocks.get(name.lower()) if isinstance(blocks.get(name.lower()), dict) else None
         replaced = False
         if previous and previous.get("block_id"):  # a fuller or re-rendered version replaces the old toggle
             try:
-                self.notion.delete_block(str(previous["block_id"]))
+                self.package_board.delete_block(str(previous["block_id"]))
                 replaced = True
             except Exception as exc:  # noqa: BLE001 - the old toggle staying is not worth failing the publish
                 self.logger.warning("could not remove the old toggle for %s: %s", name, exc)
@@ -2854,31 +2842,31 @@ class Controller:
             created = self.CURATED_TOGGLES_CREATED if previous.get("seeded") else str(previous.get("published_at") or today)[:10]
         created = created or today
         shown_price = str(pkg.get("price", ""))
-        if (self.cfg.notion.package_email_price_rule or "").strip().lower() == "visible":
+        if (self.cfg.packages.email_price_rule or "").strip().lower() == "visible":
             record_figs = {a.replace(" ", "").rstrip(",.") for a in re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kKmM]?", shown_price + " " + " ".join(str(d) for d in (pkg.get("deliverables") or [])))}
-            allowed = {a.replace(" ", "") for a in self.cfg.notion.package_email_allowed_figures}
+            allowed = {a.replace(" ", "") for a in self.cfg.packages.email_allowed_figures}
             ceo_figs = [a.strip().rstrip(",.") for a in re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?\s?[kKmM]?", email + " " + action.title)
                         if a.replace(" ", "").rstrip(",.") not in record_figs | allowed]
             if ceo_figs:
                 shown_price = f"The CEO's price: {', '.join(dict.fromkeys(ceo_figs))} (Package Designer's research: {shown_price or 'no figure'})"
                 event(self.logger, "package_price_by_ceo", name=name[:80], ceo=ceo_figs[:3], record=str(pkg.get("price", ""))[:60])
-        url = self.notion.append_package_toggle(
-            page_id, action.title.strip(), email, sources, company, action.conclusion.strip(),
+        url = self.package_board.append_package_toggle(
+            page_id, action.title.strip(), email, sources, company, action.conclusion.strip(), name=name,
             audience=str(pkg.get("audience", "")), price=shown_price, timeline=str(pkg.get("timeline", "")),
             deliverables=[str(d) for d in (pkg.get("deliverables") or [])], rationale=str(pkg.get("rationale", "")),
             created=created, updated=today if previous else "",
         )
-        problem = self._confirm_write(self.notion, "publish_package", block_id=str(getattr(self.notion, "last_toggle_id", "") or ""))
+        problem = self._confirm_write(self.package_board, "publish_package", block_id=str(getattr(self.package_board, "last_toggle_id", "") or ""))
         if problem:
             return ExecResult(False, f"package '{name[:60]}' not confirmed on the page: {problem}", False,
                               feedback="The toggle is not on the packages page; it does not count. Try once more, or report it.")
         published = set(self._published_package_names())
         published.add(name.lower())
         self.memory.db.set_state("published_packages", json.dumps(sorted(published)))
-        blocks[name.lower()] = {"block_id": str(getattr(self.notion, "last_toggle_id", "") or ""),
+        blocks[name.lower()] = {"block_id": str(getattr(self.package_board, "last_toggle_id", "") or ""),
                                 "has_company": bool(str(sc.get("name", "")).strip()), "title": action.title.strip()[:200],
                                 "email_sha": hashlib.sha256(action.email.strip().encode()).hexdigest(),
-                                "format_version": self.cfg.notion.package_format_version, "package": pkg,
+                                "format_version": self.cfg.packages.format_version, "package": pkg,
                                 "published_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "created_at": created,
                                 "updated_at": today if previous else None}
         self.memory.db.set_state("published_package_blocks", json.dumps(blocks))
@@ -2951,65 +2939,13 @@ class Controller:
         return ExecResult(True, detail, False)
 
     def _execute_merge_task(self, action: MergeTask) -> ExecResult:
-        """Close a task of this bot's that another of its tasks covers (owner, 2026-10-06: "let ceoA merge"). Refused while
-        the closed task has been started by someone, or names a business or email the covering task does not."""
-        from .policy import resolve_task_title
-
-        if self.notion is None:
-            return ExecResult(False, "merging tasks is not enabled", False)
-        titles = self.memory.recent_task_titles()
-        rows = [self.memory.find_task(resolve_task_title(t, titles) or t) for t in (action.title, action.into)]
-        if any(r is None for r in rows):
-            return ExecResult(False, "one of those is not a task of yours", False)
-        src_id, dst_id = (page_id_from_url(str(r["url"] or "")) for r in rows)
-        if not src_id or not dst_id:
-            return ExecResult(False, "a task has no Notion page id on record", False)
-        try:
-            page = self.notion.read_page(src_id)
-            status = str(((page or {}).get("fields") or {}).get(self.cfg.notion.status_property, "")).strip()
-            if page is None or (status and status != self.cfg.notion.status_value):
-                return ExecResult(False, f"'{rows[0]['title'][:60]}' is '{status or 'gone'}', not '{self.cfg.notion.status_value}': "
-                                  "someone has it in hand, leave it", False)
-            src_text, dst_text = self.notion.page_text(src_id).lower(), self.notion.page_text(dst_id).lower()
-        except Exception as exc:  # noqa: BLE001
-            return ExecResult(False, f"could not read the tasks: {str(exc)[:160]}", False)
-        src_text += "\n" + str(rows[0]["title"]).lower()
-        dst_text += "\n" + str(rows[1]["title"]).lower()
-        missing = sorted({e for e in re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", src_text) if e.rstrip(".") not in dst_text})
-        names, _ = self._outreach_leads_all()
-        missing += sorted(n for n in names if n.lower() in src_text and n.lower() not in dst_text)
-        if missing:
-            return ExecResult(False, f"not merged: '{rows[1]['title'][:60]}' does not have {', '.join(missing[:6])}"
-                              + (f" and {len(missing) - 6} more" if len(missing) > 6 else ""), False,
-                              feedback="Add what is missing to the covering task with update_task details_append, then merge.")
-        self.notion.set_status(src_id, self.cfg.notion.merge_status.strip())
-        self.notion.update_task(src_id, details_append=f"Merged into \"{rows[1]['title']}\" on {time.strftime('%Y-%m-%d')}: its work continues there.")
-        self.memory.write_journal(f"Merged task '{rows[0]['title']}' into '{rows[1]['title']}'.", heading="Task")
-        event(self.logger, "merge_task", closed=str(rows[0]["title"])[:120], into=str(rows[1]["title"])[:120])
-        return ExecResult(True, f"merged '{rows[0]['title'][:60]}' into '{rows[1]['title'][:60]}'", True)
-
-    def _outreach_leads_all(self) -> tuple[list[str], int]:
-        """Every business name the lead-finding colleague has listed (for the merge check); [] when unknown."""
-        who = (self.cfg.leads.outreach_from or "").strip()
-        folder = self.cfg.messaging.folder_for(who) if who else None
-        if not folder:
-            return [], 0
-        try:
-            import sqlite3 as _sq
-
-            con = _sq.connect(f"file:{Path(folder).expanduser() / 'workspace' / 'explorer.sqlite3'}?mode=ro", uri=True, timeout=5)
-            try:
-                names = [str(r[0]).strip() for r in con.execute("SELECT name FROM leads") if r[0] and len(str(r[0]).strip()) >= 4]
-            finally:
-                con.close()
-            return names, len(names)
-        except Exception:  # noqa: BLE001
-            return [], 0
+        """Off (queue 572): a task's status is the team's cell on the board, so a bot never closes a task by merging."""
+        return ExecResult(False, "merging tasks is not enabled; that action does not exist", False)
 
     def _execute_update_task(self, action: UpdateTask, ep: sqlite3.Row) -> ExecResult:
-        """Fix one of this bot's own Notion tasks (assignee / priority / deadline / appended details). Policy applied
+        """Fix one of this bot's own tasks on the board (assignee / priority / deadline / appended details). Policy applied
         the rules; the page id comes from the URL the task was created with."""
-        if self.notion is None:
+        if self.task_board is None:
             return ExecResult(False, "updating tasks is not enabled", False)
         row = self.memory.find_task(action.title)
         if row is None:
@@ -3022,17 +2958,17 @@ class Controller:
                               feedback="update_task needs the exact title of a task you created; check your recent tasks.")
         page_id = page_id_from_url(str(row["url"] or ""))
         if not page_id:
-            return ExecResult(False, "that task has no Notion page id on record", False)
-        assignee = action.assignee if self.cfg.notion.assign_people else None
+            return ExecResult(False, "that task has no board id on record", False)
+        assignee = None
         if assignee and assignee.strip() and self.team:
             member = find_member(self.team, assignee)
             assignee = member.name if member is not None else assignee
-        self.notion.update_task(page_id, assignee=assignee, priority=action.priority, due=action.due,
+        self.task_board.update_task(page_id, assignee=assignee, priority=action.priority, due=action.due,
                                 details_append=action.details_append)
-        problem = self._confirm_write(self.notion, "update_task", page_id=page_id)
+        problem = self._confirm_write(self.task_board, "update_task", page_id=page_id)
         if problem:
             return ExecResult(False, f"update of task '{str(row['title'])[:60]}' not confirmed: {problem}", False)
-        warnings = list(getattr(self.notion, "last_warnings", []) or [])
+        warnings = list(getattr(self.task_board, "last_warnings", []) or [])
         self.memory.update_task_row(int(row["id"]), assignee, action.priority, action.due)
         changed = [k for k, v in (("assignee", assignee), ("priority", action.priority), ("due", action.due),
                                   ("details", action.details_append)) if v is not None and str(v).strip()]
@@ -3046,7 +2982,7 @@ class Controller:
 
     def _execute_lead(self, action: Lead, ep: sqlite3.Row | None = None) -> ExecResult:
         """One row on the owner's Leads board, and a heads-up to the CEO. The policy grounded every field."""
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return ExecResult(False, "listing leads is not enabled", False)
         import datetime as _dt
         fields = {
@@ -3072,8 +3008,8 @@ class Controller:
             from .email_verify import describe
 
             fields["Email check"] = describe(check)
-        url = self.leads_notion.create_row(action.name.strip(), fields)
-        problem = self._confirm_write(self.leads_notion, "lead", page_id=page_id_from_url(url) or "",
+        url = self.leads_board.create_row(action.name.strip(), fields)
+        problem = self._confirm_write(self.leads_board, "lead", page_id=page_id_from_url(url) or "",
                                       expect={"Website": fields["Website"], "Business email": fields["Business email"]})
         if problem:
             return ExecResult(False, f"lead '{action.name.strip()[:60]}' not confirmed: {problem}", False,
@@ -3084,7 +3020,7 @@ class Controller:
         self.memory.add_lead(int(ep["id"]) if ep is not None else None, action.name, action.website, key,
                              action.email, action.how_we_help, url, page_id_from_url(url) or "")
         self.pages_since_note = 0  # a lead is the output the reading was for
-        warnings = list(getattr(self.leads_notion, "last_warnings", []) or [])
+        warnings = list(getattr(self.leads_board, "last_warnings", []) or [])
         L = self.cfg.leads
         if L.notify_folder.strip():
             reach = "Business email on their site" if action.website.strip() and action.email.strip() else (
@@ -3168,7 +3104,7 @@ class Controller:
         """Published packages that should go up again, with why: an older pitch format, a republish request, or a
         toggle that had no source company while the package now has one."""
         out: dict[str, str] = {}
-        current = self.cfg.notion.package_format_version
+        current = self.cfg.packages.format_version
         for name, info in self._published_blocks().items():
             if not isinstance(info, dict):
                 continue
@@ -3199,19 +3135,19 @@ class Controller:
 
     def _republish_banner(self) -> str | None:
         stale = self._stale_toggles()
-        if not stale or self.notion is None or not self.cfg.notion.package_page_id.strip():
+        if not stale or self.package_board is None:
             return None
         name, reason = next(iter(sorted(stale.items())))
         info = self._published_blocks().get(name, {})
         shown = (info.get("package") or {}).get("name") if isinstance(info, dict) else None
         if not info:  # not on the page at all: a received package still waiting
             return (
-                f"PAGE UPKEEP: {len(stale)} package{'s' if len(stale) != 1 else ''} need{'' if len(stale) != 1 else 's'} the Notion "
+                f"PAGE UPKEEP: {len(stale)} package{'s' if len(stale) != 1 else ''} need{'' if len(stale) != 1 else 's'} the board's "
                 f"packages page. Publish \"{name}\" this episode with publish_package ({reason}): write the marketing title and the "
                 "ready-to-send email in the current format; its facts come from the package record. One per episode."
             )
         return (
-            f"PAGE UPKEEP: {len(stale)} package toggle{'s' if len(stale) != 1 else ''} on the Notion packages page "
+            f"PAGE UPKEEP: {len(stale)} package toggle{'s' if len(stale) != 1 else ''} on the board's Packages list "
             f"{'are' if len(stale) != 1 else 'is'} out of date. Republish \"{shown or name}\" this episode with publish_package "
             f"({reason}): write the pitch afresh in the current format; its facts come from the package record. "
             "The old toggle is replaced. One per episode."
@@ -3220,18 +3156,18 @@ class Controller:
     def _lead_site_on_board(self, name: str) -> str | None:
         """For the policy (leads.update_any_row): the site domain of a board row this bot did not list ("" if the row has
         no website), None if no row has that name. One board query per name per process."""
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return None
         cache = self.__dict__.setdefault("_board_rows", {})
         key = name.strip().lower()
         if key not in cache:
             try:
-                cache[key] = self.leads_notion.find_row(name)
+                cache[key] = self.leads_board.find_row(name)
                 if cache[key] is None:  # a mangled name: the one close work-list business (2026-10-14)
                     close = self._close_work_list_name(name)
                     if close:
-                        cache[key] = self.leads_notion.find_row(close)
-            except Exception as exc:  # noqa: BLE001 - Notion errors are answers, not crashes
+                        cache[key] = self.leads_board.find_row(close)
+            except Exception as exc:  # noqa: BLE001 - board errors are answers, not crashes
                 event(self.logger, "leads_board_lookup_failed", name=name[:80], error=str(exc)[:200])
                 return None
         row = cache[key]
@@ -3261,13 +3197,13 @@ class Controller:
         """The Outreach Writer's work list (owner, 2026-10-07): the oldest board rows still at Stage New with no draft,
         read from the board at most every five minutes; a row it wrote this episode drops out at once."""
         L = self.cfg.leads
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return []
         now = time.time()
         cached = getattr(self, "_draft_queue_cache", None)
         if cached is None or now - cached[0] > 300:
             try:
-                rows = self.leads_notion.rows_waiting(L.draft_queue_column.strip(), "Stage", L.draft_queue_stage, L.draft_queue_shown * 2, L.score_column)
+                rows = self.leads_board.rows_waiting(L.draft_queue_column.strip(), "Stage", L.draft_queue_stage, L.draft_queue_shown * 2, L.score_column)
             except Exception:  # noqa: BLE001
                 rows = cached[1] if cached else []
             cached = self._draft_queue_cache = (now, rows)
@@ -3299,7 +3235,7 @@ class Controller:
             wa_cached = getattr(self, "_wa_queue_cache", None)
             if wa_cached is None or now - wa_cached[0] > 300:
                 try:
-                    wa_rows = [r for r in self.leads_notion.rows_waiting("Draft Whatsapp msg", "Status", "", 60)
+                    wa_rows = [r for r in self.leads_board.rows_waiting("Draft Whatsapp msg", "Status", "", 60)
                                if str(r["fields"].get("Whatsapp") or "").strip() and str(r["fields"].get(L.draft_queue_column) or "").strip()
                                and not str(r["fields"].get(L.draft_queue_column) or "").strip().lower().startswith("skip")
                                and str(r["fields"].get("Status") or "") != L.whatsapp_false_status]
@@ -3405,10 +3341,10 @@ class Controller:
         return hits[0] if len(hits) == 1 else None
 
     def _row_fields(self, page_id: str) -> dict:
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return {}
         try:
-            return dict((self.leads_notion.read_page(page_id) or {}).get("fields") or {})
+            return dict((self.leads_board.read_page(page_id) or {}).get("fields") or {})
         except Exception:  # noqa: BLE001
             return {}
 
@@ -3430,10 +3366,10 @@ class Controller:
     def _whatsapp_marked_false(self, page_id: str) -> bool:
         """The row's Status says a person found its WhatsApp link false ([leads] whatsapp_false_status)."""
         status = (self.cfg.leads.whatsapp_false_status or "").strip()
-        if not status or self.leads_notion is None:
+        if not status or self.leads_board is None:
             return False
         try:
-            fields = (self.leads_notion.read_page(page_id) or {}).get("fields") or {}
+            fields = (self.leads_board.read_page(page_id) or {}).get("fields") or {}
         except Exception:  # noqa: BLE001
             return False
         return str(fields.get("Status", "")).strip() == status
@@ -3443,7 +3379,7 @@ class Controller:
         "google map location" and Location from the Overture snapshot's one confident match (places.find_place), read
         each write back, log it as this bot's. At most five rows a cycle; a row is tried once a day."""
         L = self.cfg.leads
-        if not (L.enabled and L.auto_fill_from_places and self.leads_notion is not None and L.decide_glob.strip()):
+        if not (L.enabled and L.auto_fill_from_places and self.leads_board is not None and L.decide_glob.strip()):
             return 0
         from .places import find_place
 
@@ -3456,7 +3392,7 @@ class Controller:
                 continue
             tried[name] = today
             try:
-                row = self.leads_notion.find_row(name)
+                row = self.leads_board.find_row(name)
             except Exception:  # noqa: BLE001
                 continue
             if not row:
@@ -3476,8 +3412,8 @@ class Controller:
             if not fields:
                 continue
             try:
-                self.leads_notion.update_row(str(row["page_id"]), fields)
-                back = (self.leads_notion.read_page(str(row["page_id"])) or {}).get("fields") or {}
+                self.leads_board.update_row(str(row["page_id"]), fields)
+                back = (self.leads_board.read_page(str(row["page_id"])) or {}).get("fields") or {}
             except Exception as exc:  # noqa: BLE001
                 event(self.logger, "places_fill_failed", business=name[:80], error=str(exc)[:160])
                 continue
@@ -3523,7 +3459,7 @@ class Controller:
     def _execute_update_lead(self, action: UpdateLead) -> ExecResult:
         """Fix a Leads-board row: one of this bot's own (the page id was recorded when it listed the lead) or, with
         leads.update_any_row, any row on the board (looked up by name; it becomes one of the bot's rows afterwards)."""
-        if self.leads_notion is None:
+        if self.leads_board is None:
             return ExecResult(False, "updating leads is not enabled", False)
         if " | " in action.name:  # the work-list line pasted whole ("Studio One | https://...", 19 refusals a day)
             action.name = action.name.split(" | ")[0].strip()
@@ -3532,7 +3468,7 @@ class Controller:
             close = self._close_work_list_name(action.name)
             if close and close != action.name:
                 action.name = close
-            found = (self.__dict__.get("_board_rows") or {}).get(action.name.strip().lower()) or self.leads_notion.find_row(action.name)
+            found = (self.__dict__.get("_board_rows") or {}).get(action.name.strip().lower()) or self.leads_board.find_row(action.name)
             if found:
                 fields = found.get("fields") or {}
                 site = str(fields.get("Website") or "")
@@ -3545,7 +3481,7 @@ class Controller:
                               feedback="update_lead needs the exact business name of a row on the Leads board.")
         page_id = str(row["page_id"] or "") or page_id_from_url(str(row["url"] or "")) or ""
         if not page_id:
-            return ExecResult(False, "that lead has no Notion page id on record", False)
+            return ExecResult(False, "that lead has no board id on record", False)
         mapping = (("website", "Website"), ("email", "Business email"), ("location", "Location"), ("industry", "Industry"),
                    ("size", "Company size"), ("pain_point", "Pain point"), ("how_we_help", "How can I help"), ("evidence", "Evidence"),
                    ("founded_by", "Contact person"), ("contact_role", "Contact role"), ("draft_email", "Draft email"), ("draft_whatsapp", "Draft Whatsapp msg"),
@@ -3593,7 +3529,7 @@ class Controller:
                 if cited != fields.get("Source pages", ""):
                     # the row's existing sources stay; the page the number came from is added (the Validator's LD20 reads them)
                     try:
-                        old = str((self.leads_notion.read_page(page_id) or {}).get("fields", {}).get("Source pages", ""))
+                        old = str((self.leads_board.read_page(page_id) or {}).get("fields", {}).get("Source pages", ""))
                     except Exception:  # noqa: BLE001
                         old = ""
                     fields["Source pages"] = "\n".join(u for u in dict.fromkeys((old + "\n" + cited).splitlines()) if u.strip())
@@ -3607,17 +3543,17 @@ class Controller:
                 from .email_verify import describe
 
                 fields["Email check"] = describe(check)
-        self.leads_notion.update_row(page_id, fields)
-        problem = self._confirm_write(self.leads_notion, "update_lead", page_id=page_id, expect={k: v for k, v in fields.items() if k != "Email check"})
+        self.leads_board.update_row(page_id, fields)
+        problem = self._confirm_write(self.leads_board, "update_lead", page_id=page_id, expect={k: v for k, v in fields.items() if k != "Email check"})
         if problem:
             return ExecResult(False, f"update of lead '{str(row['name'])[:60]}' not confirmed: {problem}", False,
                               feedback="The change is not on the row; it does not count as done. Check the value and try once more, or report it.")
-        warnings = list(getattr(self.leads_notion, "last_warnings", []) or [])
+        warnings = list(getattr(self.leads_board, "last_warnings", []) or [])
         for col in ("Draft email", "Draft Whatsapp msg"):
             if col in fields:
-                # owner, 2026-10-07: "I need them on notion - may be under the description": the draft on the lead's page too
+                # owner, 2026-10-07: the draft under the row's description too (the board keeps it in its cell)
                 try:
-                    self.leads_notion.replace_section(page_id, col, fields[col])
+                    self.leads_board.replace_section(page_id, col, fields[col])
                 except Exception as exc:  # noqa: BLE001 - the cell holds the draft either way
                     warnings.append(f"the draft is in the cell but not on the page ({str(exc)[:120]})")
         site = str(action.website).strip() if action.website and action.website.strip() else None
@@ -3640,8 +3576,8 @@ class Controller:
         )
 
     def _recent_package_publishes(self) -> dict[str, str]:
-        """package_key -> when it last went up, within notion.republish_days (the weekly republish rule)."""
-        days = self.cfg.notion.republish_days
+        """package_key -> when it last went up, within packages.republish_days (the weekly republish rule)."""
+        days = self.cfg.packages.republish_days
         if days <= 0:
             return {}
         since = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - days * 86400))

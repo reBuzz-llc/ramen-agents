@@ -5,7 +5,7 @@ import json
 import time
 
 from explorer.handoff import send_message
-from explorer.notion import FakeNotion
+from explorer.board import FakeBoard
 
 from conftest import make_controller
 
@@ -17,8 +17,8 @@ def _enricher(cfg, rows: list[str]):
     routed = cfg.root.parent / "common-data" / "botBox" / "routed" / cfg.root.name
     routed.mkdir(parents=True, exist_ok=True)
     (routed / "empty-cells.md").write_text("# rows\n\n" + "".join(f"- {r} | missing: Location\n" for r in rows))
-    notion = FakeNotion()
-    return make_controller(cfg, notion=notion, leads_notion=notion)
+    board = FakeBoard()
+    return make_controller(cfg, board=board, leads_board=board)
 
 
 def test_a_bot_with_an_empty_work_list_rests_without_a_model_call(cfg):
@@ -49,9 +49,9 @@ def test_the_update_cap_reached_is_rest_too_and_off_by_default(cfg):
 
 def test_the_ceo_rests_when_its_task_and_message_caps_are_both_reached(cfg):
     cfg.agent.idle_when_empty = True
-    cfg.notion.enabled, cfg.notion.database_id, cfg.notion.max_tasks_per_day = True, "x", 1
+    cfg.tasks.enabled, cfg.tasks.max_per_day = True, 1
     cfg.messaging.enabled, cfg.messaging.max_per_day = True, 1
-    c = make_controller(cfg, notion=FakeNotion())
+    c = make_controller(cfg, board=FakeBoard())
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     c.memory.db.execute("INSERT INTO tasks (created_at, title, details) VALUES (?, ?, ?)", (now, "today's batch", "d"))
     assert c._idle_reason() == ""                                      # a message is still left
@@ -62,9 +62,9 @@ def test_the_ceo_rests_when_its_task_and_message_caps_are_both_reached(cfg):
 
 def test_a_ceo_with_a_list_rests_only_when_the_list_and_its_caps_are_done(cfg):
     c = _enricher(cfg, ["Grillhaus"])
-    cfg.notion.enabled, cfg.notion.database_id, cfg.notion.max_tasks_per_day = True, "x", 1
+    cfg.tasks.enabled, cfg.tasks.max_per_day = True, 1
     cfg.messaging.enabled, cfg.messaging.max_per_day = True, 1
-    c.notion = FakeNotion()
+    c.task_board = c.package_board = FakeBoard()
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     c.memory.db.execute("INSERT INTO tasks (created_at, title, details) VALUES (?, ?, ?)", (now, "today's batch", "d"))
     c.memory.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict) VALUES (?,?,?,?,?,?,?)",

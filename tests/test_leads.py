@@ -6,7 +6,7 @@ from explorer.actions import Decision, Lead, Open
 from explorer.browser import PageView
 from explorer.config import LeadsConfig, PolicyConfig, PublishConfig
 from explorer.model import ModelResult
-from explorer.notion import FakeNotion
+from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext, email_domain, same_site
 
 from conftest import make_controller
@@ -41,7 +41,7 @@ def test_email_helpers():
 def test_policy_wants_a_published_business_email_and_grounded_facts():
     off = Policy(PolicyConfig(), PublishConfig(), Denylist())
     assert "not enabled" in off.check(lead(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, database_id="ds", max_per_day=3))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
     assert policy.check(lead(), ctx()).allowed
     # No email, no lead -- and it must be theirs, on their site, on a page that was opened.
     assert "a way to reach the business" in policy.check(lead(email=""), ctx()).reason
@@ -103,9 +103,9 @@ def test_the_controller_lists_the_lead_and_tells_the_ceo(cfg, tmp_path):
     cfg.agent.mode = "web"
     cfg.policy.per_domain_delay_seconds = 0  # two pages of one site back to back
     ceo = tmp_path / "the-ceo"
-    cfg.leads = LeadsConfig(enabled=True, database_id="ds", notify_folder=str(ceo), notify_name="The CEO")
-    fake = FakeNotion()
-    ctl = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_notion=fake)
+    cfg.leads = LeadsConfig(enabled=True, notify_folder=str(ceo), notify_name="The CEO")
+    fake = FakeBoard()
+    ctl = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_board=fake)
     assert "- lead:" in ctl.system
     ctl.run(max_cycles=3)
     rows = ctl.memory.db.query("SELECT action_type, verdict FROM actions ORDER BY id")
@@ -121,7 +121,7 @@ def test_the_controller_lists_the_lead_and_tells_the_ceo(cfg, tmp_path):
     msg = json.loads(inbox[0].read_text())
     assert msg["kind"] == "message" and msg["text"].startswith('new lead "Acme Bakery" (https://acmebakery.example)') and "row-1" in msg["text"]
     # Listing it again is refused: one business once.
-    ctl2 = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_notion=fake)
+    ctl2 = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_board=fake)
     ctl2.run(max_cycles=3)
     assert "already on the Leads board" in ctl2.memory.db.query("SELECT verdict FROM actions ORDER BY id DESC LIMIT 1")[0]["verdict"]
     assert len(fake.rows) == 1
@@ -131,7 +131,7 @@ def test_lead_columns_constant_matches_what_the_controller_writes(cfg, tmp_path)
     """LEAD_COLUMNS is what `bot check` verifies against the board, so it must stay equal to the columns
     _execute_lead fills -- otherwise the check passes on a board that silently drops a field. A lead with every
     optional field set, since an empty one is left out of the row."""
-    from explorer.notion import LEAD_COLUMNS
+    from explorer.board import LEAD_COLUMNS
 
     class ListsAFullLead(ReadsThenLists):
         def decide(self, system, obs):
@@ -142,9 +142,9 @@ def test_lead_columns_constant_matches_what_the_controller_writes(cfg, tmp_path)
 
     cfg.agent.mode = "web"
     cfg.policy.per_domain_delay_seconds = 0
-    cfg.leads = LeadsConfig(enabled=True, database_id="ds", notify_folder=str(tmp_path / "ceo"), notify_name="The CEO")
-    fake = FakeNotion()
-    ctl = make_controller(cfg, model=ListsAFullLead(), browser=SiteBrowser(), leads_notion=fake)
+    cfg.leads = LeadsConfig(enabled=True, notify_folder=str(tmp_path / "ceo"), notify_name="The CEO")
+    fake = FakeBoard()
+    ctl = make_controller(cfg, model=ListsAFullLead(), browser=SiteBrowser(), leads_board=fake)
     ctl._ground_optional_lead_facts = lambda action: (action, "")  # this test is about the columns, not about grounding
     ctl.run(max_cycles=3)
     written = set(fake.rows[0]) - {"title"}
@@ -194,7 +194,7 @@ def test_optional_lead_facts_are_kept_only_when_the_sites_pages_state_them(cfg):
 
 def test_an_email_on_another_domain_is_accepted_when_the_businesss_own_page_prints_it():
     # owner, 2026-09-30: shopcityspf.com on shopcity.us, sweetcorner.org on the .com site -- "yes"
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, database_id="ds", max_per_day=3))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
     printed = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: sandra@acmebakery-nyc.example"})
     assert policy.check(lead(email="sandra@acmebakery-nyc.example"), printed).allowed
     assert "does not appear on any page" in policy.check(lead(email="sandra@acmebakery-nyc.example"), ctx()).reason  # not printed: refused
@@ -204,19 +204,19 @@ def test_an_email_on_another_domain_is_accepted_when_the_businesss_own_page_prin
 
 
 def test_an_undeliverable_email_stops_the_lead_and_a_good_one_is_noted_on_the_row(cfg):
-    from explorer.notion import FakeNotion
+    from explorer.board import FakeBoard
     from conftest import make_controller
 
     cfg.leads.enabled = True
     cfg.leads.email_verify_key_file = "/nonexistent/key"
-    notion = FakeNotion()
-    c = make_controller(cfg, leads_notion=notion)
+    board = FakeBoard()
+    c = make_controller(cfg, leads_board=board)
     c.memory.start_episode(None); ep = c.memory.current_episode()
     c._verify_lead_email = lambda email: {"result": "invalid", "reason": "rejected_email", "at": "2026-10-02T10:00:00"}
     r = c._execute_lead(lead(), ep)
-    assert not r.ok and "does not take mail" in r.summary and notion.rows == []
+    assert not r.ok and "does not take mail" in r.summary and board.rows == []
     c._verify_lead_email = lambda email: {"result": "valid", "reason": "accepted_email", "accept_all": False, "at": "2026-10-02T10:00:00"}
-    assert c._execute_lead(lead(), ep).ok and notion.rows[0]["Email check"] == "deliverable, checked 2026-10-02"
+    assert c._execute_lead(lead(), ep).ok and board.rows[0]["Email check"] == "deliverable, checked 2026-10-02"
 
 
 def test_a_whatsapp_number_a_page_prints_becomes_a_wa_me_link():
@@ -266,7 +266,7 @@ def test_a_business_with_no_website_is_a_lead_through_its_public_listing():
     from explorer.actions import Lead
     from explorer.policy import lead_key
 
-    policy_for = lambda: Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, database_id="ds"))  # noqa: E731
+    policy_for = lambda: Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True))  # noqa: E731
     listing = "https://www.yellowpages.com/brooklyn-ny/mip/corner-bakery-123"
     base = dict(type="lead", name="Corner Bakery", website="", email="cornerbakery@gmail.com", pain_point="No website at all; only this listing",
                 how_we_help="SMB Website Care Retainer", evidence=listing, location="Brooklyn, NY, USA")

@@ -34,8 +34,8 @@ def cfg(tmp_path: Path) -> Config:
 
 
 def make_controller(
-    cfg: Config, model=None, browser=None, desktop=None, chat_partner=None, developer=None, quiet=None, notion=None,
-    searcher=None, transcripts=None, leads_notion=None,
+    cfg: Config, model=None, browser=None, desktop=None, chat_partner=None, developer=None, quiet=None, board=None,
+    searcher=None, transcripts=None, leads_board=None,
 ) -> Controller:
     db = Database(cfg.db_path)
     memory = Memory(db, cfg.workspace)
@@ -47,7 +47,8 @@ def make_controller(
         chat_partner=cfg.chat_partner,
         developer=cfg.developer,
         developer_root=cfg.path(cfg.developer.root),
-        notion=cfg.notion,
+        tasks=cfg.tasks,
+        packages=cfg.packages,
         handoff=cfg.handoff,
         scout=cfg.scout,
         messaging=cfg.messaging,
@@ -71,10 +72,10 @@ def make_controller(
         chat_partner=chat_partner,
         developer=developer,
         quiet=quiet,
-        notion=notion,
+        board=board,
         searcher=searcher,
         transcripts=transcripts,
-        leads_notion=leads_notion,
+        leads_board=leads_board,
     )
 
 

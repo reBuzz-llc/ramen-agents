@@ -342,7 +342,7 @@ class DashboardApp:
 
 
     # ---- the record a chat reply is held to (owner, 2026-09-25: the CEO's chat invented an engineer "Sam", a
-    # Slack channel and a Notion token it never made; it had nothing on record to check itself against) ----------
+    # Slack channel and a board key it never made; it had nothing on record to check itself against) ----------
 
     def _actions_on_record(self, limit: int = CHAT_ACTIONS) -> str:
         """The last actions from the actions table: only "allowed" ones happened; a refused or failed one did not."""
@@ -379,7 +379,7 @@ class DashboardApp:
     def _people(self) -> str:
         from .team import load_team
 
-        team = load_team(self.cfg.notion.team_file)
+        team = load_team(self.cfg.tasks.team_file)
         lines = [f"- {m.name}" + (f": {m.role}" if m.role else "") + " (team)" for m in team]
         lines += [f"- {n} (a bot in the fleet)" for n in self.cfg.messaging.peer_names]
         return "\n".join(lines) or "- (no team or fleet on record)"

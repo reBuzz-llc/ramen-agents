@@ -138,7 +138,7 @@ class RunCommand(BaseModel):
 
 
 class Task(BaseModel):
-    """Create a task for the team in Notion. Exists only when [notion] is enabled and configured."""
+    """Create a task on the team's board. Exists only when [tasks] is enabled."""
 
     type: Literal["task"]
     title: str
@@ -149,7 +149,7 @@ class Task(BaseModel):
 
 
 class UpdateTask(BaseModel):
-    """Fix a task this bot created on the Notion board -- set or change its assignee, priority, deadline, or add
+    """Fix a task this bot created on the board -- set or change its assignee, priority, deadline, or add
     to its details -- when the owner or the fleet's Validator reports it incomplete. Never creates a task."""
 
     type: Literal["update_task"]
@@ -162,7 +162,7 @@ class UpdateTask(BaseModel):
 
 class MergeTask(BaseModel):
     """Close one of your own board tasks that another of your tasks already covers: it is marked with the board's
-    duplicate status and a line saying where its work went. Exists only when [notion] merge_status is set."""
+    duplicate status and a line saying where its work went. Off since queue 572: a task's status is the team's cell."""
 
     type: Literal["merge_task"]
     title: str  # the task to close (one you created, not started yet)
@@ -230,7 +230,7 @@ class UpdateLead(BaseModel):
 class SourceCompany(BaseModel):
     """Basic facts about the source/competitor company a package's pricing rests on -- ONLY as actually
     read on its own pages, never guessed (leave a field blank when the page does not state it, which for
-    valuation is most of the time). Feeds the package's Notion toggle later."""
+    valuation is most of the time). Feeds the package's draft on the board later."""
 
     name: str = ""  # the company, e.g. "SpeedMVPs"
     founded: str = ""  # year it started, e.g. "2019", only if stated
@@ -252,14 +252,14 @@ class Package(BaseModel):
     timeline: str = ""  # e.g. "8 weeks"
     rationale: str  # why this package and price: what the market sells and charges, in your own words
     sources: list[str] = Field(default_factory=list)  # http(s) URLs you actually read
-    # The company behind the sources, from what you read (optional, grounded); feeds the Notion toggle.
+    # The company behind the sources, from what you read (optional, grounded); feeds the package's draft.
     source_company: SourceCompany = Field(default_factory=SourceCompany)
 
 
 class PublishPackage(BaseModel):
-    """Publish a package the bot has received as a toggle on the Notion package page: you write the
+    """Hand a package the bot has received to the board as a draft (only a person publishes): you write the
     marketing wrapper, the package's own facts (price, sources, source company) are filled in for you.
-    Exists only when notion.package_page_id is set."""
+    Exists only when [packages] is enabled."""
 
     type: Literal["publish_package"]
     name: str  # the exact name of a package you were handed

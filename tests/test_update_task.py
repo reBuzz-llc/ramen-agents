@@ -1,12 +1,12 @@
-"""The CEO fixes its own Notion tasks (update_task) and a fuller package replaces its toggle (Plan 9 item 4)."""
+"""The CEO fixes its own tasks on the board (update_task) and a fuller package replaces its toggle (Plan 9 item 4)."""
 from __future__ import annotations
 
 import json
 
-from explorer.actions import Decision, Task, UpdateTask
-from explorer.config import NotionConfig, PolicyConfig, PublishConfig
+from explorer.actions import Decision, MergeTask, Task, UpdateTask
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
 from explorer.model import ModelResult
-from explorer.notion import FakeNotion, page_id_from_url
+from explorer.board import FakeBoard, page_id_from_url
 from explorer.policy import Denylist, Policy, PolicyContext
 from explorer.team import Member
 
@@ -26,23 +26,23 @@ def ctx(**over) -> PolicyContext:
     return PolicyContext(**base)
 
 
-def test_page_ids_come_out_of_notion_urls():
-    assert page_id_from_url("https://app.notion.com/p/Write-the-sell-sheet-afcd97e11026987aa90908803ded3dc0?v=1a2b3c4d5e6f7081") == "afcd97e1-1026-987a-a909-08803ded3dc0"
-    assert page_id_from_url("https://www.notion.so/afcd97e11026987aa90908803ded3dc0") == "afcd97e1-1026-987a-a909-08803ded3dc0"
-    assert page_id_from_url("https://notion.fake/task-1") is None
+def test_ids_come_out_of_board_urls():
+    assert page_id_from_url("http://127.0.0.1:3000/tasks/afcd97e11026987aa90908803ded3dc0") == "afcd97e1-1026-987a-a909-08803ded3dc0"
+    assert page_id_from_url("https://portal.example/leads/afcd97e11026987aa90908803ded3dc0?tab=1") == "afcd97e1-1026-987a-a909-08803ded3dc0"
+    assert page_id_from_url("https://board.fake/task-1") is None
 
 
 def test_policy_only_fixes_the_bots_own_tasks_with_real_changes():
     off = Policy(PolicyConfig(), PublishConfig(), Denylist())
     assert "not enabled" in off.check(upd(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, database_id="x"))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     assert policy.check(upd(), ctx()).allowed
     assert "task you created" in policy.check(upd(title="Someone else's task"), ctx()).reason
     assert "at least one change" in policy.check(upd(due=None), ctx()).reason
     assert "P0 to P6" in policy.check(upd(priority="urgent"), ctx()).reason
     assert "date like" in policy.check(upd(due="next week"), ctx()).reason
-    team = [Member(notion_id="u1", name="Jo", email="s@x", role="Marketing", details="", default=True)]
-    assert policy.check(upd(assignee="Bob"), ctx(team=team)).allowed  # owner, 2026-09-28: any assignee; Notion leaves an unknown one unassigned
+    team = [Member(id="u1", name="Jo", email="s@x", role="Marketing", details="", default=True)]
+    assert policy.check(upd(assignee="Bob"), ctx(team=team)).allowed  # owner, 2026-09-28: any assignee; the board leaves assignees to the team
     assert policy.check(upd(assignee="Jo"), ctx(team=team)).allowed
     assert "two tasks this episode" in policy.check(upd(), ctx(task_updates_in_episode=2)).reason
     assert policy.check(upd(due=None, details_append="### Done when\n- [ ] The list has 50 names."), ctx()).allowed
@@ -66,19 +66,18 @@ class FixesItsTask:
         return "summary"
 
 
-def test_the_controller_updates_the_notion_page_and_its_own_record(cfg):
-    cfg.notion = NotionConfig(enabled=True, database_id="db", api_key_file="/nonexistent",
-                              team_file=str(cfg.root / "no-team.json"))  # never the live team list
-    fake = FakeNotion()
-    ctl = make_controller(cfg, model=FixesItsTask(), notion=fake)
+def test_the_controller_updates_the_task_and_its_own_record(cfg):
+    cfg.tasks, cfg.packages = TasksConfig(enabled=True, team_file=str(cfg.root / "no-team.json")), PackagesConfig()  # never the live team list
+    fake = FakeBoard()
+    ctl = make_controller(cfg, model=FixesItsTask(), board=fake)
     ctl.run(max_cycles=2)
     rows = ctl.memory.db.query("SELECT action_type, verdict, result FROM actions ORDER BY id")
     assert [(r["action_type"], r["verdict"]) for r in rows] == [("task", "allowed"), ("update_task", "allowed")]
-    assert "updated task 'Build the Springfield target list' (assignee, due, details)" in rows[1]["result"]
-    assert fake.updates == [{"page_id": "00000000-0000-0000-0000-000000000001", "assignee": "Jo", "priority": None,
+    assert "updated task 'Build the Springfield target list' (due, details)" in rows[1]["result"]
+    assert fake.updates == [{"page_id": "00000000-0000-0000-0000-000000000001", "assignee": None, "priority": None,
                              "due": "2026-10-06", "details_append": "### Done when\n- [ ] 50 named founders with a reason each."}]
     task = ctl.memory.find_task("build the springfield target list")
-    assert task["assignee"] == "Jo" and task["due"] == "2026-10-06"
+    assert task["due"] == "2026-10-06"   # queue 572: the assignee is the team's cell; the bot never sets it
 
 
 # ---- a fuller package replaces its toggle -------------------------------------------------------------------
@@ -86,7 +85,7 @@ def test_the_controller_updates_the_notion_page_and_its_own_record(cfg):
 def test_republish_is_allowed_only_for_a_toggle_that_lacked_the_company():
     from test_publish_package import pub, ctx as pctx
 
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, database_id="x", package_page_id="pg"))
+    on = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     dup = on.check(pub(), pctx(published_package_names={"mvp launch starter"}))
     assert not dup.allowed and dup.permanent and "source-company facts" in dup.reason
     again = on.check(pub(), pctx(published_package_names={"mvp launch starter"}, republishable_package_names={"mvp launch starter"}))
@@ -99,8 +98,8 @@ def test_the_ceo_replaces_the_old_toggle_when_the_package_comes_back_with_a_comp
     from explorer.handoff import send_package
     from test_handoff import package
 
-    cfg.notion = NotionConfig(enabled=True, database_id="db", package_page_id="pg", api_key_file="/nonexistent")
-    fake = FakeNotion()
+    cfg.tasks, cfg.packages = TasksConfig(enabled=True), PackagesConfig(enabled=True)
+    fake = FakeBoard()
     ceo = cfg.root
     # First hand-over: no source company. The CEO publishes it.
     send_package(HandoffConfig(enabled=True, to_name="The CEO", to_folder=str(ceo)), "Package Designer",
@@ -115,7 +114,7 @@ def test_the_ceo_replaces_the_old_toggle_when_the_package_comes_back_with_a_comp
             return "summary"
 
     def run_one(model):  # each publish in its own episode (one publish_package per episode is the rule)
-        ctl = make_controller(cfg, model=model, notion=fake)
+        ctl = make_controller(cfg, model=model, board=fake)
         ctl.run(max_cycles=1)
         ep = ctl.memory.current_episode()
         if ep is not None:
@@ -181,15 +180,11 @@ class MergesTwice:
         return "summary"
 
 
-def test_the_ceo_merges_a_task_only_when_nothing_would_be_lost(cfg):
-    cfg.notion = NotionConfig(enabled=True, database_id="db", api_key_file="/nonexistent", merge_status="Dublicate",
-                              team_file=str(cfg.root / "no-team.json"), max_tasks_per_episode=5, max_tasks_per_day=10)
-    cfg.policy.max_actions_per_episode = 10
-    fake = FakeNotion()
-    ctl = make_controller(cfg, model=MergesTwice(), notion=fake)
-    assert "merge_task" in ctl.system
-    ctl.run(max_cycles=5)
-    rows = ctl.memory.db.query("SELECT action_type, verdict, result FROM actions ORDER BY id")
-    merges = [r for r in rows if r["action_type"] == "merge_task"]
-    assert "not merged" in merges[0]["result"] and "info@cedardental.example" in merges[0]["result"]
-    assert merges[1]["result"].startswith("merged") and fake.tasks[0]["Status"] == "Dublicate" and fake.tasks[1]["Status"] == "Not started"
+def test_merging_tasks_is_not_offered(cfg):
+    """Queue 572: a task's status is the team's cell on the board, so a bot never closes a task by merging."""
+    cfg.tasks.enabled = True
+    c = make_controller(cfg, board=FakeBoard())
+    assert "merge_task" not in c.system
+    ep = c.memory.episode(c.memory.start_episode())
+    r = c._execute(MergeTask(type="merge_task", title="A", into="B"), ep, None)
+    assert not r.ok and "not enabled" in r.summary

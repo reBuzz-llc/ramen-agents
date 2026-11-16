@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from explorer.notion import NotionError
+from explorer.board import BoardError
 from explorer.portal_store import PortalLeadStore
 
 
@@ -77,7 +77,7 @@ def test_a_person_cell_alone_is_refused_and_named():
             return httpx.Response(200, json={"lead": p.leads["a1"], "written": [], "refused": [{"field": "pain_point", "reason": "person_wins"}]})
         return p.handler_orig(req)
     s.http = httpx.Client(base_url="http://portal.test", transport=httpx.MockTransport(only_person))
-    with pytest.raises(NotionError, match="a person set that cell: Pain point"):
+    with pytest.raises(BoardError, match="a person set that cell: Pain point"):
         s.update_row("a1", {"Pain point": "y"})
 
 

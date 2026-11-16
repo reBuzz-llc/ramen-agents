@@ -48,19 +48,19 @@ PERSONAS: dict[str, dict[str, Any]] = {
         "bio": "An automated exploration agent run by a human. It reads the web out of curiosity and keeps a journal.",
         "seed_interests": ["how everyday things work", "history of the internet", "small independent websites", "unusual animals and plants"],
         "cycle_delay_seconds": 20,
-        "notion": False,
+        "tasks": False,
     },
     "ceo": {
         "bio": "The CEO of a small company, run as an automated agent by its owner. It keeps up with the company's world and turns what it learns into clear tasks for the team.",
         "seed_interests": ["running a small company", "marketing for small businesses", "hiring and managing a small team", "what customers complain about"],
         "cycle_delay_seconds": 45,
-        "notion": True,
+        "tasks": True,
     },
     "researcher": {
         "bio": "A text-only research agent run by a human. It reads legitimate onion sites through Tor to understand the onion web, and keeps a journal.",
         "seed_interests": ["why news outlets run onion services", "censorship circumvention", "how onion services work", "privacy tools and their history"],
         "cycle_delay_seconds": 45,
-        "notion": False,
+        "tasks": False,
         "tor": True,  # browser.backend = "tor", local model only, allowlist from `bot onion-directory`
         "messaging": True,  # [messaging]: a plain-only research channel to a peer bot (handoff.py inbox)
     },
@@ -68,14 +68,14 @@ PERSONAS: dict[str, dict[str, Any]] = {
         "bio": "The package designer of a small company, run as an automated agent by its owner. It researches which services sell and what they cost right now, and hands concrete service packages to the company's CEO bot.",
         "seed_interests": ["best-selling software development service packages", "what agencies charge for mvp development", "productized services for startups", "retainer and subscription pricing for dev and marketing services"],
         "cycle_delay_seconds": 45,
-        "notion": False,
+        "tasks": False,
         "handoff": True,  # [handoff]: packages go to another bot's folder and inbox (handoff.py)
     },
     "scout": {
         "bio": "The scout of a bot fleet, run as an automated agent by its owner. It looks for AI providers with a genuinely free tier and records the good ones for the owner to add.",
         "seed_interests": ["free tier llm inference providers", "openai-compatible api endpoints with no credit card", "which ai providers give free monthly tokens", "how much free usage ai providers give"],
         "cycle_delay_seconds": 60,
-        "notion": False,
+        "tasks": False,
         "scout": True,  # [scout]: records free-provider finds to a file the owner reviews (scout.py)
         "messaging": True,  # [messaging]: a research channel to a peer bot (handoff.py inbox)
     },
@@ -132,7 +132,6 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
     """A minimal config.toml for a new bot: only what differs from the defaults and the shared configs. With `fake`,
     a bot for the quickstart: the built-in heuristic model and the bundled fake web, so it runs with no key and no
     network (2026-10-14)."""
-    from .common.keys import key_file
 
     spec = PERSONAS[persona]
     tor = bool(spec.get("tor"))
@@ -151,15 +150,11 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
         if spec.get("scout")
         else ""
     )
-    notion_block = (
-        "\n[notion]\n"
-        "# The CEO's output skill. Create an internal integration at notion.so/my-integrations, share your\n"
-        "# task database with it, paste the database id below, put the token in the key file, then set\n"
-        "# enabled = true. `bot check` verifies all of it.\n"
-        "enabled = false\n"
-        'database_id = ""\n'
-        f'api_key_file = "{key_file("notion")}"\n'
-        if spec["notion"]
+    tasks_block = (
+        "\n[tasks]\n"
+        "# The CEO's output skill: tasks on the team's board (the dashboard's local board, [leads] portal_url).\n"
+        "enabled = true\n"
+        if spec["tasks"]
         else ""
     )
     tor_note = (
@@ -223,7 +218,7 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
         + section("policy", denylist + tor_policy)
         + section("dashboard", f"port = {port}\n")
         + section("quiet", line("quiet.enabled", True, "true"))  # type: ignore[arg-type]
-        + notion_block
+        + tasks_block
         + scout_block
         + (
             "\n[handoff]\n"

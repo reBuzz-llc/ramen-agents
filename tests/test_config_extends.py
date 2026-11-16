@@ -73,6 +73,6 @@ def test_agent_tags_load_and_default_empty(tmp_path: Path) -> None:
     # default: no tags
     cfg = load_config(write(tmp_path / "plain" / "config.toml", '[agent]\nname = "Plain"\n'))
     assert cfg.agent.tags == []
-    # a notion_writer bot declares the marker
-    tagged = load_config(write(tmp_path / "ceo" / "config.toml", '[agent]\nname = "The CEO"\ntags = ["notion_writer"]\n'))
-    assert tagged.agent.tags == ["notion_writer"]
+    # a board_writer bot declares the marker
+    tagged = load_config(write(tmp_path / "ceo" / "config.toml", '[agent]\nname = "The CEO"\ntags = ["board_writer"]\n'))
+    assert tagged.agent.tags == ["board_writer"]

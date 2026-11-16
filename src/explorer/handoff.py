@@ -87,7 +87,7 @@ def send_package(cfg: HandoffConfig, sender: str, pkg: Package, now: dt.datetime
         "price": pkg.price.strip(),
         "file": rel,
         "text": text + f" Full package: your file {rel} (search your own files for its name).",
-        # The full structured package, so the recipient can publish it (e.g. a Notion toggle) faithfully.
+        # The full structured package, so the recipient can publish it (a draft on the board) faithfully.
         "package": pkg.model_dump(),
     }
     msg_file = recipient / "workspace" / "inbox" / f"{stamp}-{_slug(pkg.name)}.json"

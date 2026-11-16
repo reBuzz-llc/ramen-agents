@@ -55,8 +55,8 @@ class AgentConfig:
     # recorded to common-data/proposed-bots.md for the owner to create. Reviewed, never auto-created.
     propose_teammates: bool = False
     # Free-form capability tags, surfaced in `bot list` and the daily review so the owner can see at a
-    # glance which bots hold which core capabilities. "notion_writer" marks a bot that writes to the
-    # owner's Notion workspace (tasks and/or the packages page); future bots opt in by adding their own
+    # glance which bots hold which core capabilities. "board_writer" marks a bot that writes to the
+    # team's board (tasks, leads and/or packages); future bots opt in by adding their own
     # tags here. These are descriptive markers for the owner and the knowledge graph, not a permission
     # grant -- what a bot may actually do is still decided by the policy layer.
     tags: list[str] = field(default_factory=list)
@@ -77,7 +77,7 @@ class AgentConfig:
     # A plan with no step ticked for this many hours ends "stuck" by itself (Package Designer sat 45 hours and 2,192 actions on
     # one plan with nothing done, 2026-10-14). 0 = never.
     plan_stuck_hours: float = 6.0
-    # After a lead, update_lead, task, update_task or publish_package write, read the object back from Notion; only a
+    # After a lead, update_lead, task, update_task or publish_package write, read the object back from the board; only a
     # confirmed write counts (an unconfirmed one is recorded "failed:" and does not close an ask or tick a plan).
     readback_writes: bool = True
 
@@ -392,89 +392,64 @@ class ChatPartnerConfig:
 
 
 @dataclass
-class NotionConfig:
-    """Creating tasks in a Notion database (the CEO persona's output skill). Off by default.
+class TasksConfig:
+    """Creating tasks on the team's task board (the CEO persona's output skill). Off by default.
 
-    Writing to the web is opt-in per destination, per the project rules; this is one destination.
-    The integration token lives in the env var or the key file, never here. Property names are
-    matched against the database's real schema: missing ones are skipped, the title is found by
-    type, people properties are never set (they need user ids).
+    The board is the dashboard's local board, or the hosted portal at the same address ([leads] portal_url and
+    portal_key_file, the one board setting; queue 572: Notion is gone from the starter). A bot's task starts
+    "Not started" and unassigned; status, assignees and the checklist are the team's cells.
     """
 
     enabled: bool = False
-    database_id: str = ""
-    api_key_env: str = "NOTION_API_KEY"
-    api_key_file: str = field(default_factory=lambda: key_file("notion"))
-    api_version: str = "2022-06-28"
-    # Defaults follow the owner's notionGuide.md canonical board: Task / Status / Priority (P0-P6) /
-    # Assign (people) / Dead Line.
-    title_property: str = "Task"  # found by type if this name is absent
-    status_property: str = "Status"
-    status_value: str = "Not started"
-    # The status a bot's `merge_task` gives a task another of its tasks covers (owner, 2026-10-06: "let ceoA merge").
-    # "" = no merging. Only the bot's own tasks, only while the closed one is still `status_value`.
-    merge_status: str = ""
-    assignee_property: str = "Assign"
-    # Owner, 2026-10-14: "tell ceoA not to assign person in the task board - I will handle that part". False = a person
-    # named as assignee is dropped (the task is created unassigned); a family member's name still routes the task to it.
-    assign_people: bool = True
-    priority_property: str = "Priority"
-    due_property: str = "Dead Line"
-    # The guide wants every task linked to a project (§12). The agent has no project picker, so every
-    # task it creates links to this one project page id when the relation property exists.
-    project_property: str = "Projects"
-    default_project_id: str = ""
-    max_tasks_per_episode: int = 1
-    max_tasks_per_day: int = 8
-    # The owner's team (team.py): people picked from the Notion workspace in the dashboard, with a role
-    # and details. When it has members, every task goes to one of them (an unassigned task goes to the
-    # default member) and any other assignee is refused. Shared by all Notion bots, so in common-data.
+    # The project a bot's task is filed under on the board (a project's name); "" = none.
+    default_project: str = ""
+    max_per_episode: int = 1
+    max_per_day: int = 8
+    # The owner's team (team.py): people on the dashboard's Team page, with a role and details. When it has members,
+    # a task names one of them in its details (the board's assignee is the team's to set).
     team_file: str = field(default_factory=lambda: str(keys_dir().parent / "team.json"))
     # Refuse a task whose details are thinner than this many characters, so tasks are full, executable
-    # briefs rather than one-liners. 0 = no minimum. Pairs with a low max_tasks_per_day for "fewer, richer".
+    # briefs rather than one-liners. 0 = no minimum. Pairs with a low max_per_day for "fewer, richer".
     min_details_chars: int = 0
-    # A Notion PAGE id the bot appends package toggles to (the `publish_package` action). "" = off. Each
-    # package the bot has received becomes one collapsible toggle: marketing title, email-template pitch,
-    # sources + source-company facts, conclusion. The page must be shared with the integration.
-    package_page_id: str = ""
-    # The exact closing every publish_package email ends with, e.g. "Regards,\n-- Acme LLC". The controller
-    # replaces whatever sign-off the model wrote with this, so the page never shows a stray variant. "" = as written.
-    package_signoff: str = ""
-    # The pitch format's version. Bump it (persona wording, sign-off, layout changed) and the CEO republishes every
-    # toggle it published under an older version, one per episode, from the package record it kept -- the page is the
-    # CEO's to keep current, not a script's. Toggles the Validator or the owner list in
-    # common-data/shared-state/republish-requests.json are republished the same way.
-    # 1 = the format before date lines; 2 (2026-09-24) adds "Created <date> · Updated <date>" at the top of every
-    # toggle (owner's ask). A bot's config pins the version it publishes in (the CEO: 2).
-    package_format_version: int = 1
-    # The CEO may replace a toggle that is on the page by publishing the same package name again, when the title or the
-    # email changed, once a day per package (owner, 2026-10-01: "one offer, one toggle"; 2026-10-03: the card said so
-    # while the policy refused it, 100 times in two days). False = a package goes up again only when it is stale.
-    package_republish_own: bool = False
-    # A package whose normalised name (package_key) went up in the last this-many days is refused unless
-    # shared-state/republish-requests.json names it. The CEO published one package many times in a week under several names
-    # (creatorCC queue 4, 2026-10-28). 0 = off.
-    republish_days: int = 0
-    # Money figures the owner's mandated email wording carries (the portfolio line: "$500,000 ... up from $300,000"),
-    # allowed in a package email although no package record has them. Every other $ figure must come from the record.
-    package_email_allowed_figures: list[str] = field(default_factory=list)
-    # Who prices a package (owner, 2026-09-28: "let ceoA do whatever he wants with prices"; built as three modes):
-    #   "record"  -- every money figure in the email must be in the Package Designer's record (the 2026-09-25 rule);
-    #   "range"   -- any figure between the record's lowest and highest amount is fine, others refused;
-    #   "off"     -- The CEO prices as it likes, nothing checked;
-    #   "visible" -- as "off", and the toggle's price line shows both: "The CEO's price: $X (Package Designer's
-    #                research: $A - $B)", so the owner sees every deviation on the page.
-    package_email_price_rule: str = "record"
-    # Phrases every package email must carry (the owner's format: the co-founders by name, the portfolio figures). A
-    # publish whose email lacks one is refused naming it; the model dropped the portfolio line twice on 2026-09-25.
-    package_email_required_phrases: list[str] = field(default_factory=list)
-    # Why those phrases are required, told to the bot when one is missing (the owner's format in their words). "" = none.
-    package_email_format_note: str = ""
-    timeout_seconds: float = 30.0
     # After this many finished episodes with no task created, the next episode opens with a nudge:
     # turn the notes into one concrete task, or write a "Possible task: ..." note saying why not yet.
     # The CEO ran 9 episodes of pure research before this existed. 0 = never nudge.
     nudge_after_episodes: int = 3
+
+
+@dataclass
+class PackagesConfig:
+    """Handing a package to the board as a draft (the `publish_package` action): the dashboard's Packages list keeps
+    it, and only a person publishes. Off by default. Same board as [tasks]."""
+
+    enabled: bool = False
+    # The exact closing every publish_package email ends with, e.g. "Regards,\n-- Acme LLC". The controller
+    # replaces whatever sign-off the model wrote with this, so the list never shows a stray variant. "" = as written.
+    signoff: str = ""
+    # The pitch format's version. Bump it (persona wording, sign-off, layout changed) and the CEO hands every package
+    # it handed over under an older version over again, one per episode, from the package record it kept. Packages
+    # the Validator or the owner list in common-data/shared-state/republish-requests.json go again the same way.
+    format_version: int = 1
+    # The CEO may hand the same package name over again when the title or the email changed, once a day per package.
+    # False = a package goes again only when it is stale.
+    republish_own: bool = False
+    # A package whose normalised name (package_key) went up in the last this-many days is refused unless
+    # shared-state/republish-requests.json names it. 0 = off.
+    republish_days: int = 0
+    # Money figures the owner's mandated email wording carries, allowed in a package email although no package record
+    # has them. Every other $ figure must come from the record.
+    email_allowed_figures: list[str] = field(default_factory=list)
+    # Who prices a package:
+    #   "record"  -- every money figure in the email must be in the Package Designer's record;
+    #   "range"   -- any figure between the record's lowest and highest amount is fine, others refused;
+    #   "off"     -- The CEO prices as it likes, nothing checked;
+    #   "visible" -- as "off", and the price line shows both: "The CEO's price: $X (Package Designer's
+    #                research: $A - $B)", so the owner sees every deviation.
+    email_price_rule: str = "record"
+    # Phrases every package email must carry (the owner's format). A publish whose email lacks one is refused naming it.
+    email_required_phrases: list[str] = field(default_factory=list)
+    # Why those phrases are required, told to the bot when one is missing (the owner's format in their words). "" = none.
+    email_format_note: str = ""
 
 
 @dataclass
@@ -483,11 +458,6 @@ class ScoutConfig:
     default. The bots never sign up; adding a key for any find is always the owner's step."""
 
     enabled: bool = False
-    # Owner, 2026-09-26: the Onion Reader's AI-agent finds also become rows on the owner's "onion" Notion board (this is
-    # the board's DATA SOURCE id; the token and api_version come from [notion]). Only entries whose website and source
-    # are clearnet addresses are written -- nothing read over Tor leaves the Mac (the fence); .onion finds stay in the
-    # file. "" = file only.
-    notion_database_id: str = ""
     report_file: str = field(default_factory=lambda: str(_common_data() / "providers-found.md"))
     max_per_episode: int = 1
     max_per_day: int = 4
@@ -525,14 +495,13 @@ class HandoffConfig:
 
 @dataclass
 class LeadsConfig:
-    """The Lead Gen bot's output: one row per potential customer on the owner's Notion "Leads" board. Off by
-    default. Shares the Notion token with [notion]; `database_id` is the Leads board's data source id."""
+    """The Lead Gen bot's output: one row per potential customer on the team's Leads board. Off by default.
+
+    portal_url is the one board address for leads, tasks and packages: the starter dashboard's local board by default,
+    or the hosted portal (queue 572). The agents read and write it with portal_key_file's key."""
 
     enabled: bool = False
-    database_id: str = ""
-    # The team portal instead of Notion (portal_store.py): set portal_url (common.toml [leads]) and the agents read and
-    # write the Leads board there with portal_key_file's key; unset, the board stays on Notion.
-    portal_url: str = ""
+    portal_url: str = "http://127.0.0.1:3000"
     portal_key_file: str = "~/bots/common-data/keys/portal-engine.key"
     max_per_episode: int = 1  # 0 = no cap
     max_per_day: int = 3  # 0 = no cap
@@ -900,7 +869,8 @@ SECTIONS: dict[str, type] = {
     "publish": PublishConfig,
     "dashboard": DashboardConfig,
     "chat_partner": ChatPartnerConfig,
-    "notion": NotionConfig,
+    "tasks": TasksConfig,
+    "packages": PackagesConfig,
     "handoff": HandoffConfig,
     "leads": LeadsConfig,
     "send": SendConfig,
@@ -925,7 +895,8 @@ class Config:
     publish: PublishConfig = field(default_factory=PublishConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     chat_partner: ChatPartnerConfig = field(default_factory=ChatPartnerConfig)
-    notion: NotionConfig = field(default_factory=NotionConfig)
+    tasks: TasksConfig = field(default_factory=TasksConfig)
+    packages: PackagesConfig = field(default_factory=PackagesConfig)
     handoff: HandoffConfig = field(default_factory=HandoffConfig)
     leads: LeadsConfig = field(default_factory=LeadsConfig)
     send: SendConfig = field(default_factory=SendConfig)
@@ -1046,12 +1017,53 @@ def _read_with_extends(cfg_path: Path, seen: tuple[Path, ...] = ()) -> dict[str,
     return _merge_tables(merged, data)
 
 
+def overlay_paths(cfg_path: Path) -> list[Path]:
+    """The untracked local overlays read on top of a member's tracked config (queue 572: a user never edits a tracked
+    file, so an update is a plain pull): <fleet>/common-data/configs/local.toml (shared by every member), then the
+    member's own <member>/config.local.toml. Any local file beats any tracked one; the member's own beats the shared."""
+    real = cfg_path.expanduser().resolve()
+    return [real.parent.parent / "common-data" / "configs" / "local.toml", real.with_name(real.stem + ".local.toml")]
+
+
+def check_keys(data: dict[str, Any], where: str) -> None:
+    """Every section and key known, or the bot stops at load naming the file: a leftover [notion] (queue 572) or a
+    typo in an overlay is never silently ignored."""
+    unknown = sorted(k for k, v in data.items() if k not in SECTIONS)
+    if unknown:
+        hint = " (Notion is gone: scripts/update.sh moves its settings to [tasks] and [packages])" if "notion" in unknown else ""
+        raise ValueError(f"unknown section(s) {unknown} in {where}{hint}")
+    for name, value in data.items():
+        if not isinstance(value, dict):
+            raise ValueError(f"[{name}] in {where} must be a table")
+        bad = sorted(set(value) - {f.name for f in dataclasses.fields(SECTIONS[name])})
+        if bad:
+            raise ValueError(f"unknown keys in [{name}] in {where}: {bad}")
+
+
+def _read_overlays(cfg_path: Path) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for p in overlay_paths(cfg_path):
+        if p.is_file():
+            with p.open("rb") as fh:
+                data = tomllib.load(fh)
+            if "extends" in data:
+                raise ValueError(f"extends is not read in a local overlay ({p})")
+            check_keys(data, str(p))
+            merged = _merge_tables(merged, data)
+    return merged
+
+
 def load_config(path: str | os.PathLike[str] | None = None, root: Path | None = None) -> Config:
-    """Load config.toml. Relative paths inside it resolve against the config file's folder."""
+    """Load config.toml (its `extends` chain underneath), then the local overlays on top. Relative paths inside it
+    resolve against the config file's folder."""
     if path is None:
         path = os.environ.get("EXPLORER_CONFIG") or (Path.cwd() / "config.toml")
     cfg_path = Path(path)
-    data: dict[str, Any] = _expand_home(_read_with_extends(cfg_path)) if cfg_path.exists() else {}
+    data: dict[str, Any] = {}
+    if cfg_path.exists():
+        data = _read_with_extends(cfg_path)
+        check_keys(data, f"{cfg_path} (with the files it extends)")
+        data = _expand_home(_merge_tables(data, _read_overlays(cfg_path)))
     if root is None:
         root = cfg_path.parent.resolve() if cfg_path.exists() else Path.cwd()
     sections = {name: _build(cls, dict(data.get(name, {})), name) for name, cls in SECTIONS.items()}
@@ -1135,8 +1147,8 @@ def validate(cfg: Config) -> None:
     if cfg.model.calls_per_day < 0:
         raise ValueError("model.calls_per_day must be 0 (no cap) or positive")
     if cfg.leads.enabled:
-        if not cfg.leads.database_id.strip():
-            raise ValueError("leads.enabled needs leads.database_id (the Leads board's data source id)")
+        if not cfg.leads.portal_url.strip():
+            raise ValueError("leads.enabled needs leads.portal_url (the board's address; the dashboard's is http://127.0.0.1:3000)")
         if cfg.leads.notify_folder.strip() and not Path(cfg.leads.notify_folder).expanduser().is_absolute():
             raise ValueError("leads.notify_folder must be an absolute path")
     if cfg.handoff.enabled:
@@ -1190,10 +1202,10 @@ def validate(cfg: Config) -> None:
         raise ValueError("chat_partner.max_turns_before_note must be at least 1")
     if cfg.chat_partner.max_turns_per_episode < 1:
         raise ValueError("chat_partner.max_turns_per_episode must be at least 1")
-    if cfg.notion.max_tasks_per_episode < 1 or cfg.notion.max_tasks_per_day < 1:
-        raise ValueError("notion.max_tasks_per_episode and max_tasks_per_day must be at least 1")
-    if cfg.notion.min_details_chars < 0:
-        raise ValueError("notion.min_details_chars must be 0 (no minimum) or positive")
+    if cfg.tasks.max_per_episode < 1 or cfg.tasks.max_per_day < 1:
+        raise ValueError("tasks.max_per_episode and max_per_day must be at least 1")
+    if cfg.tasks.min_details_chars < 0:
+        raise ValueError("tasks.min_details_chars must be 0 (no minimum) or positive")
     if cfg.quiet.idle_seconds < 0 or cfg.quiet.check_interval_seconds < 0:
         raise ValueError("quiet.idle_seconds and quiet.check_interval_seconds must not be negative")
     if not cfg.developer.root.strip():

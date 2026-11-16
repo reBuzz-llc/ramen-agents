@@ -186,8 +186,8 @@ def test_a_chat_reply_is_held_to_the_record_not_to_its_own_past_replies(cfg, tmp
     from explorer.fleet_requests import RequestLog
 
     team = tmp_path / "team.json"
-    team.write_text(json.dumps({"version": 1, "members": [{"notionId": "u1", "name": "Jo", "role": "Marketing Lead"}]}))
-    cfg.notion.team_file = str(team)
+    team.write_text(json.dumps({"version": 1, "members": [{"id": "u1", "name": "Jo", "role": "Marketing Lead"}]}))
+    cfg.tasks.team_file = str(team)
     cfg.agent.name = "The CEO"
     cfg.messaging.peers = [{"name": "Lead Gen", "folder": str(tmp_path / "lead-gen")}]
     cfg.messaging.requests_file = str(tmp_path / "requests.jsonl")
@@ -214,7 +214,7 @@ def test_a_chat_reply_is_held_to_the_record_not_to_its_own_past_replies(cfg, tmp
 
 
 def test_a_chat_reply_with_nothing_on_record_says_so(cfg, tmp_path):
-    cfg.notion.team_file = str(tmp_path / "missing.json")
+    cfg.tasks.team_file = str(tmp_path / "missing.json")
     cfg.messaging.requests_file = str(tmp_path / "none.jsonl")
     _, prompt = DashboardApp(cfg, FakeModel())._build_prompt("hello")
     assert "- (nothing yet)" in prompt and "- (no requests on record)" in prompt and "- (no team or fleet on record)" in prompt

@@ -1,14 +1,14 @@
-"""The CEO publishes a received package as a Notion toggle (publish_package): it writes the marketing
+"""The CEO hands a received package to the board as a draft (publish_package): it writes the marketing
 wrapper; the package's price/sources/source-company are filled in from what the Package Designer sent."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from explorer.actions import Decision, PublishPackage, SourceCompany
-from explorer.config import HandoffConfig, NotionConfig, PolicyConfig, PublishConfig
+from explorer.config import HandoffConfig, PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
 from explorer.handoff import find_package, send_package
 from explorer.model import ModelResult
-from explorer.notion import FakeNotion
+from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext
 
 from conftest import make_controller
@@ -29,10 +29,10 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_needs_the_page_and_publishes_each_once():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, database_id="x"))
+    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     assert "not enabled" in off.check(pub(), ctx()).reason  # no package_page_id
     on = Policy(PolicyConfig(), PublishConfig(), Denylist(),
-                notion=NotionConfig(enabled=True, database_id="x", package_page_id="pg"))
+                tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert on.check(pub(), ctx()).allowed
     assert not on.check(pub(title=""), ctx()).allowed
     dup = on.check(pub(), ctx(published_package_names={"mvp launch starter"}))
@@ -59,11 +59,10 @@ class Publisher:
 
 def test_execute_writes_a_toggle_with_the_packages_own_facts(cfg, tmp_path: Path):
     cfg.agent.mode = "fake"
-    cfg.notion.enabled = True
-    cfg.notion.database_id = "x"
-    cfg.notion.package_page_id = "pg123"
-    fake = FakeNotion()
-    c = make_controller(cfg, notion=fake)
+    cfg.tasks.enabled = True
+    cfg.packages.enabled = True
+    fake = FakeBoard()
+    c = make_controller(cfg, board=fake)
     # A package lands in the CEO's own inbox, with source-company facts.
     send_package(HandoffConfig(enabled=True, to_name="The CEO", to_folder=str(cfg.root)), "Package Designer",
                  package(sources=["https://speedmvps.example/pricing"],
@@ -71,7 +70,7 @@ def test_execute_writes_a_toggle_with_the_packages_own_facts(cfg, tmp_path: Path
     res = c._execute_publish_package(pub())
     assert res.ok and fake.toggles, res.summary
     t = fake.toggles[-1]
-    assert t["page_id"] == "pg123" and t["title"] == "Ship your SPF MVP in 8 weeks"
+    assert t["name"] == "MVP Launch Starter" and t["title"] == "Ship your SPF MVP in 8 weeks"   # queue 572: a draft by name, no page
     assert "https://speedmvps.example/pricing" in t["sources"]
     assert ("Company", "SpeedMVPs") in t["company"] and ("Founded", "2019") in t["company"]
     assert t["price"] == "$6,500 fixed" and t["deliverables"][1] == "Web MVP with auth and payments"  # its own section now
@@ -80,10 +79,9 @@ def test_execute_writes_a_toggle_with_the_packages_own_facts(cfg, tmp_path: Path
 
 def test_publish_package_help_appears_only_when_the_page_is_configured(cfg):
     cfg.agent.mode = "fake"
-    cfg.notion.enabled = True
-    cfg.notion.database_id = "x"
-    cfg.notion.package_page_id = "pg"
-    c = make_controller(cfg, notion=FakeNotion())
+    cfg.tasks.enabled = True
+    cfg.packages.enabled = True
+    c = make_controller(cfg, board=FakeBoard())
     assert "publish_package" in c.system
 
 
@@ -102,7 +100,7 @@ def test_the_configured_signoff_replaces_whatever_the_model_wrote():
 
 def test_the_email_may_not_name_a_price_the_record_does_not_have():
     on = Policy(PolicyConfig(), PublishConfig(), Denylist(),
-                notion=NotionConfig(enabled=True, database_id="x", package_page_id="p"))
+                tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     record = {"name": "Acme POS", "price": "Priced per deployment; a fixed quote follows a demo", "rationale": "our own product",
               "audience": "chains", "timeline": "", "deliverables": ["POS at every location"]}
     c = ctx(package_record=lambda name: record)
@@ -110,12 +108,11 @@ def test_the_email_may_not_name_a_price_the_record_does_not_have():
     assert not invented.allowed and "$2,500" in invented.reason and "Priced per deployment" in invented.reason
     assert on.check(pub(email="Hi,\nAcme POS is priced per deployment; a fixed quote follows a demo.\nRegards,\n-- Acme LLC"), c).allowed
     portfolio = Policy(PolicyConfig(), PublishConfig(), Denylist(),
-                       notion=NotionConfig(enabled=True, database_id="x", package_page_id="p", package_email_allowed_figures=["$500,000", "$300,000"]))
+                       tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"]))
     assert portfolio.check(pub(email="Hi,\nOur top client does $500,000 a month, up from $300,000.\nRegards,\n-- Acme LLC"), c).allowed
     assert not portfolio.check(pub(email="Hi,\nSetup is $2,500.\nRegards,\n-- Acme LLC"), c).allowed
     strict = Policy(PolicyConfig(), PublishConfig(), Denylist(),
-                    notion=NotionConfig(enabled=True, database_id="x", package_page_id="p", package_email_allowed_figures=["$500,000", "$300,000"],
-                                        package_email_required_phrases=["Alex", "Sam", "$500,000", "$300,000"]))
+                    tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"], email_required_phrases=["Alex", "Sam", "$500,000", "$300,000"]))
     short = strict.check(pub(email="Hi,\nPriced per deployment.\nRegards,\n-- Acme LLC"), c)
     assert not short.allowed and "'Alex'" in short.reason and "$500,000" in short.reason
     full = "Hi,\nPriced per deployment.\nAlex leads development; Sam heads growth.\nAcross our 20+ clients the top performer does $500,000 a month, up from $300,000.\nRegards,\n-- Acme LLC"
@@ -127,12 +124,12 @@ def test_the_email_may_not_name_a_price_the_record_does_not_have():
 def test_a_trailing_comma_does_not_make_a_new_money_figure():
     # 26 refusals in 44 h: the CEO wrote "$15,000 - $30,000," at a clause end and the check saw "$30,000," (2026-09-27)
     from explorer.policy import Policy, Denylist, PolicyContext
-    from explorer.config import PolicyConfig, PublishConfig, NotionConfig
+    from explorer.config import PolicyConfig, PublishConfig, PackagesConfig, TasksConfig
     from explorer.actions import PublishPackage
     from conftest import DENYLIST
 
-    notion = NotionConfig(enabled=True, package_page_id="p", package_email_allowed_figures=["$500,000", "$300,000"])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=notion)
+    tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"])
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx.package_record = lambda name: {"name": name, "price": "$15,000 - $30,000", "deliverables": ["a", "b"]}
     action = PublishPackage(type="publish_package", name="MVP", title="MVP -- $15,000 - $30,000",
@@ -144,13 +141,13 @@ def test_a_trailing_comma_does_not_make_a_new_money_figure():
 def test_price_rule_modes_record_range_off():
     # owner, 2026-09-28: "let ceoA do whatever he wants with prices" -- built as modes record / range / off / visible
     from explorer.policy import Policy, Denylist, PolicyContext
-    from explorer.config import PolicyConfig, PublishConfig, NotionConfig
+    from explorer.config import PolicyConfig, PublishConfig, PackagesConfig, TasksConfig
     from explorer.actions import PublishPackage
     from conftest import DENYLIST
 
     def check(rule, price_line):
-        notion = NotionConfig(enabled=True, package_page_id="p", package_email_price_rule=rule)
-        policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=notion)
+        tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, email_price_rule=rule)
+        policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
         ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
         ctx.package_record = lambda name: {"name": name, "price": "$15,000 - $30,000", "deliverables": ["a", "b"]}
         action = PublishPackage(type="publish_package", name="MVP", title="MVP", conclusion="fits",
@@ -169,29 +166,29 @@ def test_price_rule_modes_record_range_off():
 def test_visible_mode_shows_both_prices_on_the_toggle(cfg, tmp_path):
     import json
     from explorer.actions import PublishPackage
-    from explorer.notion import FakeNotion
+    from explorer.board import FakeBoard
     from conftest import make_controller
 
-    cfg.notion.enabled, cfg.notion.package_page_id = True, "page-1"
-    cfg.notion.package_email_price_rule = "visible"
-    notion = FakeNotion()
-    c = make_controller(cfg, notion=notion)
+    cfg.tasks.enabled = cfg.packages.enabled = True
+    cfg.packages.email_price_rule = "visible"
+    board = FakeBoard()
+    c = make_controller(cfg, board=board)
     done = cfg.workspace / "inbox" / "done"; done.mkdir(parents=True, exist_ok=True)
     (done / "mvp.json").write_text(json.dumps({"kind": "package", "sent_at": "2026-09-28T10:00:00", "package": {
         "name": "MVP", "price": "$15,000 - $30,000", "deliverables": ["a", "b"], "audience": "x", "timeline": "6 weeks", "sources": ["https://s.example/"]}}))
     r = c._execute_publish_package(PublishPackage(type="publish_package", name="MVP", title="MVP", conclusion="fits",
                                                   email="Hi [Name], the MVP package for $9,999.\n1. a\n2. b\nRegards,"))
     assert r.ok, r.summary
-    assert notion.toggles[-1]["price"].startswith("The CEO's price: $9,999 (Package Designer's research: $15,000 - $30,000)")
+    assert board.toggles[-1]["price"].startswith("The CEO's price: $9,999 (Package Designer's research: $15,000 - $30,000)")
 
 
 def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
     """2026-10-10: The CEO retried one republish 118 times in a day, a fresh attempt every episode."""
     from explorer.actions import PublishPackage
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext, PublishConfig, PolicyConfig
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="p", package_republish_own=True))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_own=True))
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         packages_refused_today={"smb ai customer support agent setup"})
     v = policy.check(PublishPackage(type="publish_package", name="SMB AI Customer Support Agent Setup", title="T", email="e", conclusion=""), ctx)
@@ -209,7 +206,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     names = ["24/7 AI Customer Support Agents for Small Shops – Setup & Management",
              "AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops"]
     assert len({package_key(n) for n in names}) == 1
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
     now = time.time()
     day = lambda d: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - d * 86400))  # noqa: E731
     recent = {package_key(names[0]): day(1)}
@@ -217,7 +214,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     assert not v.allowed and "published 1 day ago" in v.reason and v.permanent
     assert policy.check(pub(), ctx(recent_package_publishes=recent, now=now)).allowed                      # a different package
     assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={package_key(names[2]): ""}, now=now)).allowed
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg"))
+    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert off.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now)).allowed            # republish_days = 0
 
     # the window comes from the actions table: a publish 8 days ago has dropped out
@@ -239,7 +236,7 @@ def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cf
 
     names = ["24/7 AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops – Setup & Management",
              "AI Customer Support Agents for Small Shops"]
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg", republish_days=7))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
     now = time.time()
     at = lambda h: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - h * 3600))  # noqa: E731
     key = package_key(names[0])

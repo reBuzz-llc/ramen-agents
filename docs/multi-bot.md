@@ -8,7 +8,7 @@ each with its own persona and its own share of the machine, all running the way 
 `~/bots/<slug>/` (config, persona.md, workspace); `bot --config ... install` renders
 `launchd/bot.plist.template` to `com.ramen-agents.bot.<slug>`; `bot list` reads the installed agents.
 Personas live in `personas/` and are injected into the system prompt via `agent.persona_file`.
-Jobless-Bot was migrated in place with its memory; The CEO (`personas/ceo.md`, Notion tasks as its
+Jobless-Bot was migrated in place with its memory; The CEO (`personas/ceo.md`, tasks on the board as its
 output skill, off until configured) was created second. All four changes listed at the bottom are
 done; item 4 became `search.py`: a machine-wide pause file (default `~/.config/explorer/search_pause.json`)
 plus a chain of keyless engines (marginalia, wikipedia, hn, and `corpus` for the owner's `raw/`

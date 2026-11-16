@@ -1,14 +1,18 @@
-"""The Leads board on the team portal ([leads] portal_url) instead of Notion.
+"""The team's board: the starter dashboard's local board ([leads] portal_url, http://127.0.0.1:3000 by default) or the
+hosted portal at the same paths, so a move between them is a URL change (queue 572: the starter has no Notion).
 
-The portal's board API (the `portal` branch): GET /v1/boards/leads/rows?since=<rev>&fields=all for the rows changed since a
-revision (with an ETag: a reader that sends it back as If-None-Match gets 304 and no body when nothing changed), POST
-/v1/boards/leads/rows to add a row, PATCH /v1/rows/{id} to change cells (a cell a person set is refused, and the answer
-says which), GET /v1/rows/{id} for one row. Each writer has its own key (common-data/keys/portal-engine.key for the agents).
+Leads: GET /v1/boards/leads/rows?since=<rev>&limit=500&fields=all for the rows changed since a revision (with an ETag: a
+reader that sends it back as If-None-Match gets 304 and no body), POST /v1/boards/leads/rows to add a row, PATCH
+/v1/rows/{id} to change cells (a cell a person set is refused, and the answer says which), GET /v1/rows/{id} for one row.
+Tasks: POST /v1/boards/tasks/rows, PATCH and GET /v1/tasks/{id}. Packages: POST /v1/assets/packages/drafts (a bot hands a
+draft over; only a person publishes), GET /v1/assets/packages/drafts to read it back. Each writer has its own key
+(common-data/keys/portal-engine.key for the agents), sent as "Authorization: Bearer <key>".
 
-Every bot on the Mac shares one copy of the board in common-data/shared-state/portal-leads-cache.json, under a lock: one
-full pull a day for the whole Mac, then only the rows changed since the copy's revision, at most every REFRESH_SECONDS.
-Rows reach the controller in the Notion shape it already reads: {"page_id", "url", "title", "fields": {column: text}}.
-Unset portal_url = the board stays on Notion.
+Every bot on the Mac shares one copy of the Leads board in common-data/shared-state/portal-leads-cache.json, under a lock:
+one full pull a day for the whole Mac, then only the rows changed since the copy's revision, at most every
+REFRESH_SECONDS. Rows reach the controller as {"page_id", "url", "title", "fields": {column: text}}.
+
+Unreachable, 402 or 5xx is "board down" (board_down.py): one probe a minute for the Mac, the rest refused at once.
 """
 from __future__ import annotations
 
@@ -24,9 +28,10 @@ from typing import Any
 
 import httpx
 
-from .notion import HUMAN_ONLY_COLUMNS, NotionError
+from . import board_down
+from .board import HUMAN_ONLY_COLUMNS, BoardError, valid_date, valid_priority
 
-# Notion column -> portal field.
+# Board column (as the controller names it) -> portal field.
 PORTAL_FIELDS: dict[str, str] = {
     "Business": "business", "Website": "website", "Business email": "business_email", "Email check": "email_check",
     "Location": "location", "Industry": "industry", "Company size": "size", "Contact person": "contact_person",
@@ -62,17 +67,59 @@ def shared_cache_path() -> Path:
     return keys_dir().parent / "shared-state" / "portal-leads-cache.json"
 
 
-class PortalLeadStore:
-    REFRESH_SECONDS = 300.0
+class _Portal:
+    """One board client: the key, the board-down flag and the call every store makes."""
 
     def __init__(self, base_url: str, token: str, actor: str, logger: logging.Logger | None = None, *,
-                 http: httpx.Client | None = None, cache: Path | None = None, today: str | None = None) -> None:
+                 http: httpx.Client | None = None, down_flag: Path | None = None) -> None:
         self.base = base_url.rstrip("/")
         self.actor = actor
         self.logger = logger or logging.getLogger("explorer.portal_store")
         self.http = http or httpx.Client(base_url=self.base, timeout=30)
         self.headers = {"Authorization": f"Bearer {token}"}
+        self.down_flag = down_flag      # the Mac's board-down flag (None: not shared, as in tests)
         self.last_warnings: list[str] = []
+        self.bytes = 0
+
+    def _call(self, method: str, path: str, **kw: Any) -> tuple[int, dict[str, Any], httpx.Headers]:
+        if self.down_flag is not None:
+            board_down.gate(self.down_flag)
+        try:
+            r = self.http.request(method, path, headers={**self.headers, **kw.pop("headers", {})}, **kw)
+        except httpx.HTTPError as exc:
+            if self.down_flag is not None:
+                board_down.failed(type(exc).__name__, self.down_flag, url=self.base)
+            raise BoardError(f"the board at {self.base} could not be reached ({type(exc).__name__}): is the dashboard running?") from exc
+        self.bytes += len(r.content or b"")
+        if self.down_flag is not None:
+            if board_down.is_outage(r.status_code):
+                board_down.failed(f"HTTP {r.status_code}", self.down_flag, url=self.base)
+            elif board_down.answered(self.down_flag):
+                self.logger.warning("board_back: %s answered HTTP %s; the board-down flag is down", self.base, r.status_code)
+        try:
+            data = r.json() if "json" in r.headers.get("content-type", "") else {}
+        except ValueError:
+            data = {}
+        data = data if isinstance(data, dict) else {}
+        if r.status_code in (401, 403):
+            raise BoardError(f"the board refused the agents' key ({r.status_code})")
+        if board_down.is_outage(r.status_code) or (r.status_code >= 400 and not data):
+            raise BoardError(f"the board answered HTTP {r.status_code}")
+        return r.status_code, data, r.headers
+
+    @staticmethod
+    def _refusal(data: dict[str, Any]) -> BoardError:
+        err = data.get("error") or {}
+        return BoardError(f"{err.get('code', 'refused')}: {err.get('message', '')}"[:300])
+
+
+class PortalLeadStore(_Portal):
+    REFRESH_SECONDS = 300.0
+
+    def __init__(self, base_url: str, token: str, actor: str, logger: logging.Logger | None = None, *,
+                 http: httpx.Client | None = None, cache: Path | None = None, today: str | None = None,
+                 down_flag: Path | None = None) -> None:
+        super().__init__(base_url, token, actor, logger, http=http, down_flag=down_flag)
         self._rows: dict[str, dict[str, Any]] = {}
         self._rev = 0
         self._etag = ""
@@ -80,26 +127,8 @@ class PortalLeadStore:
         self.cache = cache          # None: no shared copy (tests, a store outside a fleet)
         self.today = today
         self.pulls = 0
-        self.bytes = 0
 
     # ---- the API ---------------------------------------------------------------------------------------------------
-    def _call(self, method: str, path: str, **kw: Any) -> tuple[int, dict[str, Any], httpx.Headers]:
-        try:
-            r = self.http.request(method, path, headers={**self.headers, **kw.pop("headers", {})}, **kw)
-        except httpx.HTTPError as exc:
-            raise NotionError(f"the portal could not be reached: {type(exc).__name__}") from exc
-        self.bytes += len(r.content or b"")
-        try:
-            data = r.json() if "json" in r.headers.get("content-type", "") else {}
-        except ValueError:
-            data = {}
-        data = data if isinstance(data, dict) else {}
-        if r.status_code in (401, 403):
-            raise NotionError(f"the portal refused the agents' key ({r.status_code})")
-        if r.status_code >= 500 or (r.status_code >= 400 and not data):
-            raise NotionError(f"the portal answered HTTP {r.status_code}")
-        return r.status_code, data, r.headers
-
     def _pull_since(self) -> int:
         """The rows changed since the copy's revision; a 304 (the ETag matched) is nothing changed and costs no body."""
         n = 0
@@ -178,13 +207,13 @@ class PortalLeadStore:
         return out
 
     def _resolve(self, page_id: str) -> str | None:
-        """A portal row id from a portal id or the Notion page id a bot recorded before the move."""
+        """A board row id from the id a bot recorded (with or without dashes)."""
         want = _hex(page_id)
         if not want:
             return None
         self.refresh()
         for rid, lead in self._rows.items():
-            if _hex(rid) == want or _hex(str(lead.get("notion_page_id") or "")) == want:
+            if _hex(rid) == want:
                 return rid
         return None
 
@@ -216,7 +245,7 @@ class PortalLeadStore:
         status, data, _ = self._call("POST", "/v1/boards/leads/rows", json={"actor": self.actor, "fields": sent})
         if status >= 400:
             err = data.get("error") or {}
-            raise NotionError(f"{err.get('code', 'refused')}: {err.get('message', '')}"[:300])
+            raise BoardError(f"{err.get('code', 'refused')}: {err.get('message', '')}"[:300])
         lead = data.get("lead") or {}
         self._keep(lead)
         self._note_refused(data)
@@ -249,20 +278,20 @@ class PortalLeadStore:
         self.last_warnings = []
         rid = self._resolve(page_id)
         if rid is None:
-            raise NotionError(f"no lead {page_id} on the board")
+            raise BoardError(f"no lead {page_id} on the board")
         sent = self._to_portal(fields)
         if not sent:
-            raise NotionError("nothing to update: no known column with a value")
+            raise BoardError("nothing to update: no known column with a value")
         status, data, _ = self._call("PATCH", f"/v1/rows/{rid}", json={"actor": self.actor, "fields": sent})
         if status >= 400:
             err = data.get("error") or {}
-            raise NotionError(f"{err.get('code', 'refused')}: {err.get('message', '')}"[:300])
+            raise BoardError(f"{err.get('code', 'refused')}: {err.get('message', '')}"[:300])
         lead = data.get("lead") or {}
         self._keep(lead)
         written = [w for w in data.get("written") or []]
         people = self._note_refused(data)
         if people and not [w for w in written if w != "source_pages"]:
-            raise NotionError(f"{PERSON_SET}: {', '.join(people)}; leave it as it is")
+            raise BoardError(f"{PERSON_SET}: {', '.join(people)}; leave it as it is")
         self._read_back(sent, lead, written)
 
     def _best_first(self, leads: list[dict[str, Any]], limit: int, score_column: str) -> list[dict[str, Any]]:
@@ -303,4 +332,142 @@ class PortalLeadStore:
 
     def replace_section(self, page_id: str, heading: str, text: str) -> None:
         """The portal keeps the draft in its cell; there is no page body to copy it into."""
+        return None
+
+
+def _dashed(page_id: str) -> str:
+    h = _hex(page_id)
+    return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}" if len(h) == 32 else (page_id or "").strip()
+
+
+class PortalBoard(_Portal):
+    """The CEO's task board and the package drafts, on the same board as the leads (queue 572, in place of Notion).
+
+    A bot's task starts "Not started" and unassigned: status, assignees, the checklist and archiving are the team's
+    cells, so an assignee the model names is not written (the task's details may still name who it is for). A package is
+    handed over as a draft; the same agent's draft of the same name is updated in place, and only a person publishes."""
+
+    TASK_COLUMNS = {"title": "Task", "status": "Status", "priority": "Priority", "due": "Dead Line", "details": "Details",
+                    "projects": "Projects", "blocker": "Blocker"}
+
+    def __init__(self, base_url: str, token: str, actor: str, logger: logging.Logger | None = None, *,
+                 http: httpx.Client | None = None, down_flag: Path | None = None, default_project: str = "") -> None:
+        super().__init__(base_url, token, actor, logger, http=http, down_flag=down_flag)
+        self.default_project = default_project.strip()
+        self.last_toggle_id = ""
+        self.team: list[Any] = []
+
+    def set_team(self, team: list[Any]) -> None:
+        self.team = list(team or [])
+
+    def available(self) -> tuple[bool, str]:
+        try:
+            self._call("GET", "/v1/boards/tasks/rows", params={"since": 0, "limit": 1})
+        except BoardError as exc:
+            return False, str(exc)
+        return True, f"the board at {self.base} answers"
+
+    # ---- tasks -----------------------------------------------------------------------------------------------------
+    def _task_url(self, task: dict[str, Any]) -> str:
+        return f"{self.base}/tasks/{_hex(str(task.get('id', '')))}"
+
+    def create_task(self, title: str, details: str, assignee: str | None = None, priority: str = "P3", due: str | None = None) -> str:
+        self.last_warnings = []
+        if not valid_priority(priority):
+            raise BoardError("priority must be P0 to P6")
+        if not valid_date(due):
+            raise BoardError("due must be a date like 2026-09-30")
+        fields: dict[str, Any] = {"title": title.strip()[:200], "priority": priority.strip().upper(), "details": details.strip()}
+        if due and due.strip():
+            fields["due"] = due.strip()
+        if self.default_project:
+            fields["projects"] = [self.default_project]
+        if assignee and assignee.strip():
+            self.last_warnings.append(f"assignee '{assignee.strip()[:60]}' not set: the team assigns tasks on the board")
+        status, data, _ = self._call("POST", "/v1/boards/tasks/rows", json={"actor": self.actor, "fields": fields})
+        if status >= 400:
+            raise self._refusal(data)
+        task = data.get("task") or {}
+        self._note_task_refused(data)
+        return self._task_url(task)
+
+    def update_task(self, page_id: str, assignee=None, priority=None, due=None, details_append=None) -> None:
+        self.last_warnings = []
+        if priority is not None and not valid_priority(priority):
+            raise BoardError("priority must be P0 to P6")
+        if due is not None and not valid_date(due):
+            raise BoardError("due must be a date like 2026-09-30")
+        fields: dict[str, Any] = {}
+        if priority:
+            fields["priority"] = priority.strip().upper()
+        if due:
+            fields["due"] = due.strip()
+        if assignee:
+            self.last_warnings.append(f"assignee '{str(assignee)[:60]}' not set: the team assigns tasks on the board")
+        body: dict[str, Any] = {"actor": self.actor, "fields": fields}
+        if details_append and str(details_append).strip():
+            body["details_append"] = str(details_append).strip()
+        if not fields and "details_append" not in body:
+            raise BoardError("nothing to update: give a priority, a due date or details to add")
+        status, data, _ = self._call("PATCH", f"/v1/tasks/{_dashed(page_id)}", json=body)
+        if status == 404:
+            raise BoardError(f"no task {page_id} on the board")
+        if status >= 400:
+            raise self._refusal(data)
+        self._note_task_refused(data)
+
+    def _note_task_refused(self, data: dict[str, Any]) -> None:
+        for r in data.get("refused") or []:
+            self.last_warnings.append(f"{self.TASK_COLUMNS.get(str(r.get('field')), str(r.get('field')))}: {r.get('reason', 'refused')}; left as it is")
+
+    def _task(self, page_id: str) -> dict[str, Any] | None:
+        status, data, _ = self._call("GET", f"/v1/tasks/{_dashed(page_id)}")
+        return None if status == 404 else (data.get("task") or None)
+
+    def read_page(self, page_id: str) -> dict[str, Any] | None:
+        task = self._task(page_id)
+        if task is None:
+            return None
+        return {"archived": bool(task.get("archived")),
+                "fields": {col: _text(task.get(key)) for key, col in self.TASK_COLUMNS.items()}}
+
+    def page_text(self, page_id: str, limit_blocks: int = 400) -> str:
+        task = self._task(page_id) or {}
+        return _text(task.get("details"))
+
+    def set_status(self, page_id: str, status: str) -> None:
+        raise BoardError("a task's status is the team's cell on the board; say it in the details instead")
+
+    # ---- packages --------------------------------------------------------------------------------------------------
+    def append_package_toggle(self, page_id: str, title: str, email: str, sources, company, conclusion: str, *,
+                              name: str = "", audience: str = "", price: str = "", timeline: str = "",
+                              deliverables=(), rationale: str = "", created: str = "", updated: str = "", **_: Any) -> str:
+        """Hand the package over as a draft on the board's Packages list (page_id is unused: kept for the caller)."""
+        self.last_warnings = []
+        facts = [f"{label}: {value}" for label, value in (company or []) if str(value).strip()]
+        why = "\n\n".join(x for x in ((rationale or conclusion).strip(), (f"Timeline: {timeline.strip()}" if timeline.strip() else ""),
+                                       ("Source company: " + "; ".join(facts)) if facts else "") if x)
+        body = {"name": (name or title).strip()[:200], "price": price.strip(), "buyer": audience.strip(),
+                "deliverables": [str(d).strip() for d in (deliverables or []) if str(d).strip()],
+                "offer": "\n\n".join(x for x in (title.strip(), email.strip()) if x), "why": why,
+                "sources": [str(u).strip() for u in (sources or []) if str(u).strip()], "by": self.actor}
+        status, data, _ = self._call("POST", "/v1/assets/packages/drafts", json=body)
+        if status >= 400:
+            raise self._refusal(data)
+        pkg = data.get("package") or data.get("draft") or {}
+        self.last_toggle_id = str(pkg.get("id") or "")
+        return f"{self.base}/packages"
+
+    def delete_block(self, block_id: str) -> None:
+        """A draft of the same name is updated in place, so there is nothing to remove first."""
+        return None
+
+    def read_block(self, block_id: str) -> dict[str, Any] | None:
+        """The draft as the board holds it, or None when it is not there."""
+        if not block_id:
+            return None
+        _, data, _ = self._call("GET", "/v1/assets/packages/drafts")
+        for pkg in (data.get("drafts") or data.get("packages") or []):
+            if isinstance(pkg, dict) and str(pkg.get("id")) == block_id:
+                return {"archived": False, "type": "draft", "name": _text(pkg.get("name"))}
         return None

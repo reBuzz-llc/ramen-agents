@@ -274,16 +274,16 @@ def test_a_task_assigned_to_a_family_member_becomes_its_request(cfg, tmp_path):
     # owner, 2026-09-28: "family should listen to ceoA" (26 CEO tasks for 'Lead Gen' were refused that day)
     import json
     from explorer.actions import Task
-    from explorer.notion import FakeNotion
+    from explorer.board import FakeBoard
     from explorer.team import Member
     from conftest import make_controller
 
     peer = tmp_path / "lead-gen"; (peer / "workspace" / "inbox").mkdir(parents=True)
     cfg.messaging.enabled = True
     cfg.messaging.peers = [{"name": "Lead Gen", "folder": str(peer)}]
-    cfg.notion.enabled = True
-    c = make_controller(cfg, notion=FakeNotion())
-    c.team = [Member(name="Jo", notion_id="u1")]
+    cfg.tasks.enabled = True
+    c = make_controller(cfg, board=FakeBoard())
+    c.team = [Member(name="Jo", id="u1")]
     ep = c.memory.current_episode() or c.memory.db.query("SELECT * FROM episodes ORDER BY id DESC LIMIT 1")
     c.memory.start_episode(None); ep = c.memory.current_episode()
     task = Task(type="task", title="List ten Northside bakeries with an email on their site", details="x" * 320, assignee="Lead Gen", due="2099-10-01")
@@ -293,7 +293,7 @@ def test_a_task_assigned_to_a_family_member_becomes_its_request(cfg, tmp_path):
     assert r.ok and "handed task" in r.summary
     files = list((peer / "workspace" / "inbox").glob("*.json"))
     assert len(files) == 1 and "task for you: List ten Northside bakeries" in json.loads(files[0].read_text())["text"]
-    assert c.notion.tasks == []  # nothing on the Notion board
+    assert c.task_board.tasks == []  # nothing on the Notion board
 
 
 def test_a_claimed_update_needs_a_write_like_done_does():

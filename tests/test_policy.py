@@ -275,13 +275,13 @@ def test_three_refused_searches_end_searching_for_the_episode():
 
 def test_a_task_handed_to_a_colleague_is_not_handed_twice_while_open():
     from explorer.actions import Task
-    from explorer.config import MessagingConfig, NotionConfig
+    from explorer.config import MessagingConfig, PackagesConfig, TasksConfig
     from explorer.policy import Policy, Denylist
     from explorer.config import PolicyConfig, PublishConfig
     from conftest import DENYLIST
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Package Designer", "folder": "/tmp/pd"}])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=NotionConfig(enabled=True), messaging=m)
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig(), messaging=m)
     c = ctx(); c.open_asks_to = {"package designer": [("task for you: Update Fixed-Price MVP Development package toggle title with exact price\nx", "2026-09-29T02:05:00")]}
     again = Task(type="task", title="Update the Fixed-Price MVP Development toggle title to include the exact price", details="y" * 320, assignee="Package Designer")
     v = policy.check(again, c)
@@ -292,7 +292,7 @@ def test_a_task_handed_to_a_colleague_is_not_handed_twice_while_open():
 
 def test_three_refused_notes_or_tasks_end_that_type_for_the_episode():
     from explorer.actions import Task
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import PRIORITY_WORK_TYPES
 
     assert "package" in PRIORITY_WORK_TYPES
@@ -303,7 +303,7 @@ def test_three_refused_notes_or_tasks_end_that_type_for_the_episode():
     from explorer.config import PolicyConfig, PublishConfig
     from explorer.policy import Policy, Denylist
     from conftest import DENYLIST
-    p2 = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=NotionConfig(enabled=True))
+    p2 = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     c2 = ctx(); c2.refused_tasks_in_episode = 3
     assert "no more tasks" in p2.check(Task(type="task", title="x" * 20, details="y" * 320), c2).reason
 

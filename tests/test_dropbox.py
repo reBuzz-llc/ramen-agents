@@ -216,17 +216,17 @@ def test_a_routed_file_starts_the_owners_hook_for_that_bot(tmp_path: Path):
 
 
 def test_a_received_package_that_never_went_up_is_page_upkeep(cfg, tmp_path: Path):
-    from explorer.config import NotionConfig
-    from explorer.notion import FakeNotion
+    from explorer.config import PackagesConfig, TasksConfig
+    from explorer.board import FakeBoard
     from conftest import make_controller
 
-    cfg.notion = NotionConfig(enabled=True, database_id="db", package_page_id="page1", api_key_file=str(tmp_path / "k"))
+    cfg.tasks, cfg.packages = TasksConfig(enabled=True), PackagesConfig(enabled=True)
     (tmp_path / "k").write_text("secret_x", encoding="utf-8")
     pk = cfg.root / "raw" / "packages"
     pk.mkdir(parents=True, exist_ok=True)
     (pk / "2026-09-24-152526-acme-pos-for-franchise-chains.md").write_text(
         "# Package: Acme POS for Franchise Chains\n\nProposed by Owner on 2026-09-24T15:25.\n\n- **Price:** quoted per deployment\n- **For:** chains\n", encoding="utf-8")
-    ctl = make_controller(cfg, notion=FakeNotion())
+    ctl = make_controller(cfg, board=FakeBoard())
     banner = ctl._republish_banner()
     assert banner and banner.startswith("PAGE UPKEEP: 1 package needs") and 'Publish "Acme POS for Franchise Chains"' in banner and "received on 2026-09-24" in banner
 

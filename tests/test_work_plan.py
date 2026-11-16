@@ -4,7 +4,7 @@ import json
 
 from explorer.actions import Lead, Plan, Task, UpdateLead
 from explorer.config import PolicyConfig, PublishConfig
-from explorer.notion import FakeNotion
+from explorer.board import FakeBoard
 from explorer.plan import OwnerWorkPlan, WorkPlan
 from explorer.policy import Denylist, Policy, PolicyContext
 
@@ -83,22 +83,22 @@ def test_allowed_now_lists_caps_and_counts(cfg):
 
 
 def test_readback_failure_makes_the_write_fail(cfg):
-    notion = FakeNotion()
+    board = FakeBoard()
     cfg.leads.enabled = True
-    c = make_controller(cfg, notion=notion, leads_notion=notion)
+    c = make_controller(cfg, board=board, leads_board=board)
     ep = c.memory.current_episode() or c.memory.db.query("SELECT * FROM episodes ORDER BY id DESC LIMIT 1")
     eid = c.memory.start_episode(None)
     ep = c.memory.current_episode()
     lead = Lead(type="lead", name="Joe's Pizza", website="https://joespizza.example", email="hello@joespizza.example",
                 pain_point="no online ordering", how_we_help="Acme POS", evidence="https://joespizza.example/menu")
     assert c._execute_lead(lead, ep).ok  # the fake board has the row: confirmed
-    notion.gone.add(f"{len(notion.rows) + 1:032x}")  # the next row will be missing on read-back
+    board.gone.add(f"{len(board.rows) + 1:032x}")  # the next row will be missing on read-back
     r = c._execute_lead(Lead(type="lead", name="Ghost Bakery", website="https://ghost.example", email="hi@ghost.example",
                              pain_point="x", how_we_help="Website Care", evidence="https://ghost.example/"), ep)
     assert not r.ok and "not confirmed" in r.summary
     assert c.memory.find_lead("Ghost Bakery") is None  # an unconfirmed row is not remembered
     # an update whose value did not land on the row is not done
-    notion.update_row = lambda page_id, fields: None  # Notion silently drops the change
+    board.update_row = lambda page_id, fields: None  # Notion silently drops the change
     r = c._execute_update_lead(UpdateLead(type="update_lead", name="Joe's Pizza", location="Northside, NY"))
     assert not r.ok and "not on the row: Location" in r.summary
 
@@ -146,37 +146,6 @@ def test_a_plan_on_a_capped_site_ends_stuck_and_cannot_be_rebuilt(cfg):
     v = policy.check(again, ctx)
     assert not v.allowed and "gave nothing" in v.reason
     assert policy.check(Plan(type="plan", task="Fill the Juniper Cafe cells", done_when="filled", steps=["open the site", "update_lead Juniper Cafe"]), ctx).allowed
-
-
-def test_notion_out_of_blocks_pauses_writes_and_tells_the_owner_once(cfg):
-    from explorer.notion import NotionError
-
-    c = make_controller(cfg)
-    c.memory.start_episode(None); ep = c.memory.current_episode()
-    c._note_notion_full(NotionError("Notion refused (403) -- the integration token or the page's access: restricted_resource This workspace has used all of its free blocks."))
-    assert c._notion_full()
-    assert any("NOT NOW any Notion write" in l for l in c._allowed_now(ep))
-    chats = [r["text"] for r in c.memory.recent_chat(5) if r["role"] == "bot"]
-    assert len([t for t in chats if "free blocks" in t]) == 1
-    c._note_notion_full(NotionError("restricted_resource This workspace has used all of its free blocks."))
-    assert len([r for r in c.memory.recent_chat(5) if r["role"] == "bot" and "free blocks" in r["text"]]) == 1  # told once
-    c._note_notion_full(ValueError("something else"))  # unrelated errors change nothing
-
-
-def test_first_accepted_write_after_a_full_workspace_clears_the_pause(cfg):
-    from explorer.notion import FakeNotion, NotionError, page_id_from_url
-
-    fake = FakeNotion()
-    c = make_controller(cfg, notion=fake)
-    events = []
-    c.logger = type("L", (), {"info": lambda self, msg, *a, **k: events.append(msg), "warning": lambda *a, **k: None,
-                              "debug": lambda *a, **k: None, "exception": lambda *a, **k: None})()
-    c._note_notion_full(NotionError("restricted_resource This workspace has used all of its free blocks."))
-    assert c.memory.db.get_state("notion_full_flag", "") == "1" and c._notion_full()
-    url = fake.create_task("t", "d" * 320, None, "P3", None)
-    assert c._confirm_write(fake, "task", page_id=page_id_from_url(url) or "") is None
-    assert c.memory.db.get_state("notion_full_flag", "") == "" and not c._notion_full()
-    assert any("writes accepted again" in str(e) for e in events)
 
 
 def test_a_common_word_inside_a_domain_does_not_name_it():

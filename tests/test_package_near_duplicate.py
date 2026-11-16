@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from explorer.actions import PublishPackage
-from explorer.config import NotionConfig, PolicyConfig, PublishConfig
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
 from explorer.policy import Denylist, Policy, PolicyContext, near_duplicate_package, package_overlap
 
 SUPPORT = ["AI Customer Support Agents for Small Shops", "SMB AI Customer Support Agent Setup",
@@ -31,7 +31,7 @@ def test_a_new_name_for_an_offer_on_the_page_is_refused_and_its_own_name_is_not(
     assert near_duplicate_package("AI Customer Support Agent Package for Small Businesses", page) == SUPPORT[1]
     assert near_duplicate_package(SUPPORT[1], page) == ""                      # improving it under its exact name
     assert near_duplicate_package("Website Care Retainer", page) == ""
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), notion=NotionConfig(enabled=True, package_page_id="pg"))
+    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         page_packages=page)
     v = policy.check(PublishPackage(type="publish_package", name=SUPPORT[0], title="24/7 AI Customer Support", email="e", conclusion=""), ctx)

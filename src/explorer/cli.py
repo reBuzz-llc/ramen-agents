@@ -6,7 +6,6 @@ bot new NAME [--fake] | demo | install | uninstall | list        (several bots, 
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import datetime as dt
 import json
 import logging
@@ -14,11 +13,12 @@ import os
 import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .browser import FakeBrowser, PlaywrightBrowser
 from .chat_partner import OllamaChatPartner
-from .config import Config, NotionConfig, load_config, validate
+from .config import Config, PackagesConfig, TasksConfig, load_config, validate
 from .control import PidLock, pause_requested, stop_requested
 from .controller import Controller
 from .db import Database
@@ -35,27 +35,34 @@ from .model import (
     load_gemini_key,
     provider_config,
 )
-from .notion import LEAD_COLUMNS, NotionClient
 from .policy import Allowlist, Denylist, Policy, RobotsCache
 from .presence import QuietDetector
 from .publish import Publisher
 
 
-def build_notion(cfg: Config, logger: logging.Logger) -> NotionClient | None:
-    """The Notion client when [notion] is enabled and has both a database id and a token."""
-    if not cfg.notion.enabled:
-        return None
-    if not cfg.notion.database_id.strip():
-        logger.warning("notion is enabled but database_id is empty; tasks are off")
-        return None
-    key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
-    if not key:
-        logger.warning(
-            "notion is enabled but no token was found (env %s, file %s); tasks are off",
-            cfg.notion.api_key_env, cfg.notion.api_key_file,
-        )
-        return None
-    return NotionClient(cfg.notion, key, logger)
+def build_boards(cfg: Config, logger: logging.Logger) -> tuple[Any, Any]:
+    """(the Leads board client, the tasks-and-packages board client), each None when its skills are off or no agents'
+    key was found. One board for both: [leads] portal_url (the dashboard's local board by default) and portal_key_file
+    (queue 572: the starter has no Notion)."""
+    wants_leads = cfg.leads.enabled
+    wants_board = cfg.tasks.enabled or cfg.packages.enabled
+    url = cfg.leads.portal_url.strip()
+    if not (wants_leads or wants_board):
+        return None, None
+    if not url:
+        logger.warning("leads.portal_url is empty; leads, tasks and packages are off")
+        return None, None
+    token = load_api_key("PORTAL_ENGINE_KEY", cfg.leads.portal_key_file)
+    if not token:
+        logger.warning("no agents' key for the board (%s); leads, tasks and packages are off", cfg.leads.portal_key_file)
+        return None, None
+    from . import board_down
+    from .portal_store import PortalBoard, PortalLeadStore, shared_cache_path
+
+    flag = board_down.flag_path()
+    leads = PortalLeadStore(url, token, cfg.agent.name, logger, cache=shared_cache_path(), down_flag=flag) if wants_leads else None
+    board = PortalBoard(url, token, cfg.agent.name, logger, down_flag=flag, default_project=cfg.tasks.default_project) if wants_board else None
+    return leads, board
 
 
 def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
@@ -139,7 +146,7 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
     # A configured allowlist that is missing on disk allows nothing, never everything.
     allowlist = Allowlist.load(cfg.path(cfg.policy.allowlist_file)) if cfg.policy.allowlist_file.strip() else None
     developer_root = cfg.path(cfg.developer.root)
-    notion = build_notion(cfg, logger)
+    leads_board, board = build_boards(cfg, logger)
     policy = Policy(
         cfg.policy,
         cfg.publish,
@@ -149,8 +156,9 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         chat_partner=cfg.chat_partner,
         developer=cfg.developer,
         developer_root=developer_root,
-        # The policy only lets `task` exist when the client is actually ready, not merely enabled.
-        notion=cfg.notion if notion is not None else NotionConfig(),
+        # The policy only lets `task` and `publish_package` exist when the board client is ready, not merely enabled.
+        tasks=cfg.tasks if board is not None else TasksConfig(),
+        packages=cfg.packages if board is not None else PackagesConfig(),
         allowlist=allowlist,
         handoff=cfg.handoff,
         scout=cfg.scout,
@@ -189,28 +197,12 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         from .transcript import YouTubeTranscripts
 
         transcripts = YouTubeTranscripts(cfg.browser.video_transcript_languages, logger=logger)
-    leads_notion = None
-    if cfg.leads.enabled and cfg.leads.portal_url.strip():
-        from .portal_store import PortalLeadStore, shared_cache_path
-
-        token = load_api_key("PORTAL_ENGINE_KEY", cfg.leads.portal_key_file)
-        if token:
-            leads_notion = PortalLeadStore(cfg.leads.portal_url.strip(), token, cfg.agent.name, logger, cache=shared_cache_path())
-        else:
-            logger.warning("leads.portal_url is set but no agents' key was found (%s); leads are off", cfg.leads.portal_key_file)
-    elif cfg.leads.enabled:
-        key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
-        if key:
-            leads_cfg = dataclasses.replace(cfg.notion, enabled=True, database_id=cfg.leads.database_id.strip())
-            leads_notion = NotionClient(leads_cfg, key, logger)
-        else:
-            logger.warning("leads is enabled but no Notion token was found; leads are off")
     return Controller(
         cfg, memory, model, browser, policy, heartbeat, publisher, logger,
-        desktop=desktop, chat_partner=chat_partner, developer=developer, quiet=quiet, notion=notion,
+        desktop=desktop, chat_partner=chat_partner, developer=developer, quiet=quiet, board=board,
         transcripts=transcripts,
         searcher=searcher,
-        leads_notion=leads_notion,
+        leads_board=leads_board,
     )
 
 
@@ -477,29 +469,19 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         found = sorted(base.glob("chromium-*"))
         report(bool(found), f"chromium: {found[-1] if found else 'not installed (run: playwright install chromium)'}")
     report(not stop_requested(cfg), "STOP flag absent" if not stop_requested(cfg) else "STOP flag present (run 'bot resume')")
-    if cfg.notion.enabled or args.all:
-        if not cfg.notion.database_id.strip():
-            report(not cfg.notion.enabled, "notion: database_id is empty" + (" (tasks are off until it is set)" if cfg.notion.enabled else ""))
+    if cfg.leads.enabled or cfg.tasks.enabled or cfg.packages.enabled or args.all:
+        # The board, built exactly as the runner builds it: the address, the agents' key and one read (queue 572).
+        url = cfg.leads.portal_url.strip()
+        token = load_api_key("PORTAL_ENGINE_KEY", cfg.leads.portal_key_file)
+        if not url:
+            report(False, "board: [leads] portal_url is empty")
+        elif not token:
+            report(False, f"board: no agents' key (env PORTAL_ENGINE_KEY or file {cfg.leads.portal_key_file})")
         else:
-            key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
-            if not key:
-                report(False, f"notion token: not found (env {cfg.notion.api_key_env} or file {cfg.notion.api_key_file})")
-            else:
-                good, text = NotionClient(cfg.notion, key).available()
-                report(good, text)
-    if cfg.leads.enabled or args.all:
-        # Built exactly as the runner builds it (leads inherits the whole [notion] section), so a version or id
-        # mismatch fails here instead of silently losing every row it writes.
-        if not cfg.leads.database_id.strip():
-            report(not cfg.leads.enabled, "leads: database_id is empty" + (" (leads are off until it is set)" if cfg.leads.enabled else ""))
-        else:
-            key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
-            if not key:
-                report(False, f"leads: no Notion token (env {cfg.notion.api_key_env} or file {cfg.notion.api_key_file})")
-            else:
-                leads_cfg = dataclasses.replace(cfg.notion, enabled=True, database_id=cfg.leads.database_id.strip())
-                good, text = NotionClient(leads_cfg, key).columns_available(LEAD_COLUMNS)
-                report(good, "leads " + text)
+            from .portal_store import PortalBoard
+
+            good, text = PortalBoard(url, token, cfg.agent.name).available()
+            report(good, "board: " + text)
     if cfg.agent.persona_file:
         persona_path = cfg.path(cfg.agent.persona_file)
         report(persona_path.exists(), f"persona file: {persona_path}")
@@ -591,44 +573,6 @@ def cmd_tasks(cfg: Config, args: argparse.Namespace) -> int:
         due = f" due {r['due']}" if r["due"] else ""
         print(f"{r['created_at']}  [{r['priority']}] {r['title']}{who}{due}\n    {r['url']}")
     return 0
-
-
-def cmd_notion_board(cfg: Config, args: argparse.Namespace) -> int:
-    """Create a task board to the owner's canonical spec under a page the integration can see."""
-    import re
-
-    key = load_api_key(cfg.notion.api_key_env, cfg.notion.api_key_file)
-    if not key:
-        print(f"no Notion token (env {cfg.notion.api_key_env} or file {cfg.notion.api_key_file})", file=sys.stderr)
-        return 2
-    parent = re.sub(r"[^0-9a-fA-F]", "", args.parent.split("?")[0].rsplit("-", 1)[-1])[-32:]
-    if len(parent) != 32:
-        print("cannot read a page id from --parent; pass the page's URL or its 32-character id", file=sys.stderr)
-        return 2
-    client = NotionClient(cfg.notion, key)
-    try:
-        database_id, url, followups = client.create_board(parent, args.name, args.prefix, args.registry)
-    except Exception as exc:  # noqa: BLE001 - one clear line for the owner
-        print(f"board creation failed: {exc}", file=sys.stderr)
-        return 1
-    print(f"created board '{args.name}'")
-    print(f"  id:  {database_id}")
-    print(f"  url: {url}")
-    print("do by hand in Notion:")
-    for step in followups:
-        print(f"  - {step}")
-    if args.set_config:
-        path = config_path_for(args)
-        text = path.read_text(encoding="utf-8")
-        if 'database_id = ""' in text:
-            text = text.replace('database_id = ""', f'database_id = "{database_id}"', 1)
-            text = text.replace("enabled = false\ndatabase_id", "enabled = true\ndatabase_id", 1)
-            path.write_text(text, encoding="utf-8")
-            print(f"  wrote database_id and enabled = true into {path}; run `bot check`, then restart the bot")
-        else:
-            print(f"  (config {path} already has a database_id; not changed)")
-    return 0
-
 
 # ---- the Tor backend's directory ----------------------------------------------
 
@@ -927,16 +871,9 @@ def build_parser() -> argparse.ArgumentParser:
     dash.add_argument("--host", help="override dashboard.host (default 127.0.0.1)")
     dash.add_argument("--open", action="store_true", help="open the page in your browser")
     dash.set_defaults(func=cmd_dashboard)
-    tasks = sub.add_parser("tasks", help="list the tasks this bot created in Notion")
+    tasks = sub.add_parser("tasks", help="list the tasks this bot created on the board")
     tasks.add_argument("-n", type=int, default=20)
     tasks.set_defaults(func=cmd_tasks)
-    board = sub.add_parser("notion-board", help="create a Notion task board to the canonical spec (use --config)")
-    board.add_argument("--parent", required=True, help="URL or id of a Notion page shared with the integration")
-    board.add_argument("--name", default="CEO Task", help="board title")
-    board.add_argument("--prefix", default="CEO", help="ID prefix, e.g. CEO -> CEO-1")
-    board.add_argument("--registry", help="project registry database id for the Projects relation")
-    board.add_argument("--set-config", action="store_true", help="write database_id and enabled = true into this bot's config")
-    board.set_defaults(func=cmd_notion_board)
 
     onion = sub.add_parser(
         "onion-directory",

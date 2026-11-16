@@ -144,8 +144,8 @@ class FallbackModel:
     local draft and writes the action itself. If no remote provider answers, the draft stands.
     """
 
-    # Actions whose text is the bot's output: what the owner, the Notion board or a reader sees.
-    # Owner-facing rows (Notion tasks, leads, package toggles) and their fixes are written by the remote chain too.
+    # Actions whose text is the bot's output: what the owner, the board or a reader sees.
+    # Owner-facing rows (tasks, leads, package drafts on the board) and their fixes are written by the remote chain too.
     WRITING_TYPES = frozenset({"note", "task", "publish", "say", "package", "provider", "publish_package", "lead", "update_task", "update_lead"})
 
     def __init__(

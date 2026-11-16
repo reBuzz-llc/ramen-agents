@@ -461,11 +461,11 @@ def test_a_plain_question_in_chat_is_not_a_run_loop_ask():
 
 def test_a_reworded_task_and_a_one_site_package_are_refused(cfg):
     from explorer.actions import Package, SourceCompany, Task
-    from explorer.config import HandoffConfig, NotionConfig
+    from explorer.config import HandoffConfig, PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
     policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)),
-                    notion=NotionConfig(enabled=True, database_id="db"), handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/c", min_source_sites=2))
+                    tasks=TasksConfig(enabled=True), packages=PackagesConfig(), handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/c", min_source_sites=2))
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx = PolicyContext(**base, recent_task_titles={"compile spf biotech startup target list for q4 2026 outreach"}, visited_urls={"https://a.example/pricing", "https://b.example/pricing", "https://a.example/about"})
     v = policy.check(Task(type="task", title="Compile SPF biotech target list for Q4 2026 outreach", details="### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z", priority="P3", due="2099-10-03"), ctx)
@@ -539,10 +539,10 @@ def test_the_prompt_names_who_is_not_running_and_a_task_for_a_stopped_member_is_
     )
     assert line in obs.render()
 
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
 
     policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging,
-                    notion=NotionConfig(enabled=True, database_id="db"))
+                    tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nThe toggle is stale.\n### What to do\n1. Rewrite it.\n### Done when\n- [ ] it reads right\n" + "x" * 300
     task = Task(type="task", title="Rewrite the Website Care package pitch", details=details, assignee="Package Designer", due="2099-10-10")
@@ -575,11 +575,11 @@ def test_the_ceo_may_replace_its_own_toggle_once_a_day_and_a_retired_name_is_cal
     import time
 
     from explorer.actions import PublishPackage
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    notion = NotionConfig(enabled=True, database_id="db", package_page_id="page", package_republish_own=True)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=notion)
+    tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, republish_own=True)
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
     email = "Hi [Name],\nWebsite care at $299 a month.\n1. Updates\n2. Backups\nRegards,\n-- Acme LLC"
     sha = hashlib.sha256(email.encode()).hexdigest()
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
@@ -596,7 +596,7 @@ def test_the_ceo_may_replace_its_own_toggle_once_a_day_and_a_retired_name_is_cal
     retired = policy.check(pub(name="Fixed-Price MVP - $30,000"), ctx).reason
     assert "was retired" in retired and "Website Care Basic" in retired
     # switched off (the default), the old rule stands
-    old = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig(enabled=True, database_id="db", package_page_id="page"))
+    old = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert "already on the packages page" in old.check(pub(title="Other"), PolicyContext(**base)).reason
 
 
@@ -633,7 +633,7 @@ def test_leads_no_task_names_yet_are_listed_for_one_outreach_task(cfg, tmp_path:
 def test_audit_fixes_of_2026_10_03(cfg):
     """One test per contradiction the card audits found between what a card says and what the engine refused."""
     from explorer.actions import Note, Open, Search, UpdateTask
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext, resolve_task_title, searches_are_twins, url_key
 
     # the same page, whatever the slash, scheme, "www" or fragment
@@ -650,7 +650,7 @@ def test_audit_fixes_of_2026_10_03(cfg):
 
     cfg.policy.open_only_seen_urls = True
     cfg.policy.refuse_repeated_searches = True
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig(enabled=True, database_id="db"))
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx = PolicyContext(**base, visited_urls={"https://poplarbooks.com/"}, recent_task_titles=titles, episode_search_queries=["handbook lead rule"])
     assert "actually seen" not in (policy.check(Open(type="open", url="https://poplarbooks.com"), ctx).reason or "")
@@ -669,10 +669,10 @@ def test_audit_fixes_of_2026_10_03(cfg):
 
 def test_one_outreach_batch_a_day_and_no_past_deadline(cfg):
     from explorer.actions import Task
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig(enabled=True, database_id="db"))
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z\n" + "x" * 300
     task = lambda **kw: Task(**{**dict(type="task", title="Outreach: Noodle Bar One and 9 more", details=details, due="2099-12-01"), **kw})  # noqa: E731
@@ -683,11 +683,11 @@ def test_one_outreach_batch_a_day_and_no_past_deadline(cfg):
 
 def test_a_package_named_by_its_headline_is_that_package(cfg):
     from explorer.actions import PublishPackage
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    notion = NotionConfig(enabled=True, database_id="db", package_page_id="page", package_republish_own=True)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=notion)
+    tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, republish_own=True)
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
     page = {"website care basic": {"name": "Website Care Basic", "title": "Care for Your Shop's Website – $99/month", "email_sha": "x", "day": "2026-09-30"}}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         published_package_names={"website care basic"}, packages_on_page=page)
@@ -699,10 +699,10 @@ def test_a_package_named_by_its_headline_is_that_package(cfg):
 
 def test_any_outreach_title_counts_as_todays_batch(cfg):
     from explorer.actions import Task
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig(enabled=True, database_id="db"))
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z\n" + "x" * 300
     again = Task(type="task", title="Perform outreach to local leads in legal and dental", details=details)
@@ -712,11 +712,11 @@ def test_any_outreach_title_counts_as_todays_batch(cfg):
 
 def test_a_repeated_search_is_answered_from_the_results_already_had_twice(cfg):
     from explorer.actions import Search
-    from explorer.config import NotionConfig
+    from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
     cfg.policy.refuse_repeated_searches = True
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), notion=NotionConfig())
+    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                 episode_search_queries=["maple diner springfield contact email"])
     again = Search(type="search", query="Maple Diner Springfield contact email")

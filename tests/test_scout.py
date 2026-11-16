@@ -129,29 +129,18 @@ def test_openrouter_is_a_known_free_provider_again():
     assert prov.api_key_file.endswith("/openrouter.key")
 
 
-def test_agent_finds_become_board_rows_only_for_clearnet_sites(cfg, tmp_path, monkeypatch):
-    # owner, 2026-09-26: "allow oniA to write on <the onion board>"; the fence: nothing read over Tor leaves the Mac
+def test_agent_finds_stay_in_the_file_with_no_agent_board(cfg, tmp_path):
+    """Queue 572: there is no agent board any more; a find is recorded in the report file only."""
     from explorer.actions import Provider
-    from explorer.notion import FakeNotion
+    from conftest import make_controller
 
     cfg.scout.enabled, cfg.scout.kind = True, "agent"
     cfg.scout.report_file = str(tmp_path / "agents.md")
-    cfg.scout.notion_database_id = "264b6fb8-ada2-cfe6-4126-8bd85f6d9173"
-    from conftest import make_controller
-
     c = make_controller(cfg)
-    fake = FakeNotion()
-    c._agent_board_client, c._agent_board_tried = fake, True
+    assert c._agent_board() is None
     r = c._execute_provider(Provider(type="provider", name="AGENTS.inc", base_url="https://www.agents.inc", free_terms="free tier, no card",
                                      why="ready-made agents for news radar and company research", sources=["https://www.agents.inc/about"]))
-    assert r.ok and "and the board" in r.summary
-    assert fake.rows[-1]["title"] == "AGENTS.inc" and fake.rows[-1]["Website"] == "https://www.agents.inc"
-    assert fake.rows[-1]["Card"] == "no card" and fake.rows[-1]["Source"] == "https://www.agents.inc/about" and fake.rows[-1]["Found by"] == cfg.agent.name
-    r = c._execute_provider(Provider(type="provider", name="OnionShare", base_url="http://lldan5gahapx5k7iafb3s4ikijc4ni7gx5iywdflkba5y2ezyg6sjgyd.onion/",
-                                     free_terms="open source", why="file sharing over Tor", sources=["http://lldan5gahapx5k7iafb3s4ikijc4ni7gx5iywdflkba5y2ezyg6sjgyd.onion/"]))
-    assert r.ok and len(fake.rows) == 1 and "not a clearnet site" in (r.feedback or "")
-
-
+    assert r.ok and "AGENTS.inc" in (tmp_path / "agents.md").read_text() and "and the board" not in r.summary
 def test_agent_entries_need_a_clearnet_website():
     from explorer.actions import Provider
     from explorer.config import PolicyConfig, PublishConfig, ScoutConfig

@@ -185,27 +185,28 @@ port = 8787
 # The agent saves a picture of its current page to workspace/screenshots/current.png for the dashboard.
 screenshots = true
 
-[notion]
-# Creating tasks in a Notion database: the CEO persona's output skill, off by default. Create an
-# internal integration at notion.so/my-integrations, share the task database with it, paste the
-# database id (from the database URL) below, and put the token in the key file:
-#   umask 077 && printf '%s' 'ntn_...' > ~/bots/common-data/keys/notion.key
-# Property names follow the owner's canonical board (Task / Status / Priority P0-P6 / Assign as a
-# people property / Dead Line) and are matched against the real database: missing ones are skipped,
-# the title is found by type, and a people property is filled by resolving the person's name against
-# the workspace (an unknown name leaves the task unassigned and says so). `bot check` shows what will
-# be filled. `bot notion-board --parent <page>` creates a board to that spec.
+[leads]
+# The team's board: leads, tasks and package drafts. The starter dashboard serves it locally (start it with the
+# dashboard; `bot check` says whether it answers); the hosted portal uses the same paths, so moving is a URL change.
+# The agents' key is made by setup into portal_key_file. Your own values go in config.local.toml, never here.
 enabled = false
-database_id = ""
-api_key_env = "NOTION_API_KEY"
-api_key_file = "~/bots/common-data/keys/notion.key"
-status_property = "Status"
-status_value = "Not started"
-max_tasks_per_episode = 1
-max_tasks_per_day = 8
+portal_url = "http://127.0.0.1:3000"
+portal_key_file = "~/bots/common-data/keys/portal-engine.key"
+
+[tasks]
+# Creating tasks on the board: the CEO persona's output skill, off by default. A task starts "Not started" and
+# unassigned; status, assignees and the checklist are the team's to set on the board.
+enabled = false
+max_per_episode = 1
+max_per_day = 8
 # After this many finished episodes with no task, the next episode opens with a nudge to turn the
 # notes into one concrete task or write a "Possible task: ..." note. 0 = never.
 nudge_after_episodes = 3
+
+[packages]
+# Handing a package the Package Designer made to the board's Packages list as a draft (publish_package). Only a
+# person publishes it. Off by default.
+enabled = false
 
 [scout]
 # The scout persona's output skill: free AI providers it finds are recorded to a file the owner reviews

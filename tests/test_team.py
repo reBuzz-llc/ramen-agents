@@ -4,9 +4,9 @@ assign Notion tasks to. With a list, every task ends up with one of those people
 import json
 
 from explorer.actions import Decision, Task
-from explorer.config import NotionConfig, PolicyConfig, PublishConfig
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
 from explorer.model import ModelResult
-from explorer.notion import FakeNotion
+from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext
 from explorer.team import Member, default_member, find_member, load_team, team_block
 
@@ -21,7 +21,7 @@ TEAM = [
 
 def write_team(path, members=TEAM):
     path.write_text(json.dumps({"version": 1, "members": [
-        {"notionId": m.notion_id, "name": m.name, "email": m.email, "role": m.role, "details": m.details, "default": m.default}
+        {"id": m.id, "name": m.name, "email": m.email, "role": m.role, "details": m.details, "default": m.default}
         for m in members
     ]}))
 
@@ -41,8 +41,8 @@ def test_a_broken_or_missing_file_is_an_empty_team(tmp_path):
     assert load_team(tmp_path / "nope.json") == []
     (tmp_path / "bad.json").write_text("{not json")
     assert load_team(tmp_path / "bad.json") == []
-    (tmp_path / "half.json").write_text(json.dumps({"members": [{"name": "No id"}, {"notionId": "u1", "name": "Ok"}]}))
-    assert [m.name for m in load_team(tmp_path / "half.json")] == ["Ok"]
+    (tmp_path / "half.json").write_text(json.dumps({"members": [{"name": ""}, {"name": "No id"}, {"id": "u1", "name": "Ok"}]}))
+    assert [m.name for m in load_team(tmp_path / "half.json")] == ["No id", "Ok"]   # queue 572: the id is optional, a name is not
 
 
 def test_the_prompt_block_names_everyone_and_the_default():
@@ -53,7 +53,7 @@ def test_the_prompt_block_names_everyone_and_the_default():
 
 
 def policy():
-    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), notion=NotionConfig(enabled=True, database_id="db"))
+    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
 
 
 def ctx(**kw):
@@ -84,58 +84,46 @@ class TaskModel:
         return "summary"
 
 
-def test_tasks_keep_no_assignee_and_names_are_made_canonical(cfg, tmp_path):
-    cfg.notion.enabled = True
-    cfg.notion.database_id = "db"
-    cfg.notion.team_file = str(tmp_path / "team.json")
+def test_tasks_keep_no_assignee_and_the_team_reaches_the_prompt(cfg, tmp_path):
+    cfg.tasks.enabled = True
+    cfg.tasks.team_file = str(tmp_path / "team.json")
     write_team(tmp_path / "team.json")
-    notion = FakeNotion()
-    controller = make_controller(cfg, model=TaskModel(None), notion=notion)
+    board = FakeBoard()
+    controller = make_controller(cfg, model=TaskModel(None), board=board)
     assert "## Team" in controller.system and "Marketing Lead" in controller.system
     controller.run(max_cycles=1)
-    assert notion.tasks[-1]["assignee"] in (None, "")  # owner, 2026-09-28: no assignee stays no assignee (no forced default)
+    assert board.tasks[-1]["assignee"] in (None, "")  # owner, 2026-09-28: no assignee stays no assignee (no forced default)
     controller.memory.end_episode(controller.memory.current_episode()["id"], "done")  # one task per episode
-    controller = make_controller(cfg, model=TaskModel("alex", "Book the discovery meeting"), notion=FakeNotion())
+    controller = make_controller(cfg, model=TaskModel("alex", "Book the discovery meeting"), board=FakeBoard())
     controller.run(max_cycles=1)
-    assert controller.notion.tasks[-1]["assignee"] == "Alex Stone"  # a first name -> the full name
+    assert controller.task_board.tasks[-1]["assignee"] is None  # queue 572: the team assigns on the board
 
 
 def test_the_team_file_is_reread_when_it_changes(cfg, tmp_path):
-    cfg.notion.enabled = True
-    cfg.notion.database_id = "db"
-    cfg.notion.team_file = str(tmp_path / "team.json")
-    controller = make_controller(cfg, model=TaskModel(None), notion=FakeNotion())
+    cfg.tasks.enabled = True
+    cfg.tasks.team_file = str(tmp_path / "team.json")
+    controller = make_controller(cfg, model=TaskModel(None), board=FakeBoard())
     assert "## Team" not in controller.system  # no file yet
     write_team(tmp_path / "team.json")
     import os
     os.utime(tmp_path / "team.json", (1, 1))  # a clearly different mtime
     controller.run(max_cycles=1)  # a new episode starts: the list is picked up without a restart
     assert "Sam Rai" in controller.system
-    assert controller.notion.tasks[-1]["assignee"] in (None, "")  # owner, 2026-09-28: no forced default; the team list still reaches the prompt
-
-
-def test_notion_client_resolves_team_members_before_the_workspace():
-    from explorer.notion import NotionClient
-
-    client = NotionClient(NotionConfig(enabled=True, database_id="db"), api_key="k")
-    client._users = {"alex stone": "ws-alex", "someone else": "ws-x"}
-    client.set_team(TEAM)
-    assert client.resolve_user("alex") == "u-alex"  # the owner's pick wins over the workspace guess
-    assert client.resolve_user("someone else") == "ws-x"
+    assert controller.task_board.tasks[-1]["assignee"] in (None, "")  # owner, 2026-09-28: no forced default; the team list still reaches the prompt
 
 
 def test_with_assigning_off_the_block_names_the_team_and_tasks_stay_unassigned(cfg):
     """Owner, 2026-10-14: "tell ceoA not to assign person in the task board - I will handle that part for now"."""
     from explorer.actions import Task
-    from explorer.notion import FakeNotion
+    from explorer.board import FakeBoard
     from conftest import make_controller
 
     block = team_block(TEAM, assign=False)
     assert "Leave assignee null" in block and "Alex Stone" in block and "default" not in block
-    cfg.notion.enabled, cfg.notion.assign_people = True, False
-    notion = FakeNotion()
-    c = make_controller(cfg, notion=notion)
+    cfg.tasks.enabled = True
+    board = FakeBoard()
+    c = make_controller(cfg, board=board)
     c.team = list(TEAM)
     c.memory.start_episode(None); ep = c.memory.current_episode()
     r = c._execute_task(Task(type="task", title="Review today's drafts", details="### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z", assignee="Alex Stone", priority="P2"), ep)
-    assert r.ok and not notion.tasks[-1].get("assignee")
+    assert r.ok and not board.tasks[-1].get("assignee")
