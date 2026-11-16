@@ -45,3 +45,4 @@ next-env.d.ts
 
 # the public world's page, built by scripts/world-public-build.mjs (creatorCC queue 376)
 /dist/
+/.next-*/
