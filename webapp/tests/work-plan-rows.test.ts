@@ -41,11 +41,12 @@ test("past job line: bot, task, when, how it ended, active minutes", () => {
 // queue 56: a card with no plan in hand shows its last ended plan under a header, never an empty box.
 test("no plan: a fixture bot without plan.json shows its last ended plan from plan-history.jsonl", async () => {
   const { readFile, stat } = await import("node:fs/promises");
-  const ws = new URL("./fixtures/no-plan-bot/workspace/", import.meta.url);
+  // the bot's workspace/plan-history.jsonl, kept as plan-history.fixture (a workspace path and *.jsonl stay out of git)
+  const ws = new URL("./fixtures/no-plan-bot/", import.meta.url);
   await assert.rejects(stat(new URL("plan.json", ws)));
-  const last = lastEnded(await readFile(new URL("plan-history.jsonl", ws), "utf8"));
+  const last = lastEnded(await readFile(new URL("plan-history.fixture", ws), "utf8"));
   assert.deepEqual(last, {
-    task: "Enrich Art for Film",
+    task: "Enrich Cobalt Bakery",
     status: "stuck",
     ended: "2026-10-31T15:50:42",
     note: "update_lead blocked until tomorrow",

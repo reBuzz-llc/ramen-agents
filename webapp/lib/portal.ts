@@ -1,6 +1,6 @@
-// Server-side only: the team portal (the `portal` branch) as the Leads board's home. One setting for the whole family,
-// common.toml's `[leads] portal_url`: set, the agents, the Validator and this dashboard read and write leads there;
-// unset (the default), the Leads board stays on Notion. The dashboard reads with its own read-only key,
+// Server-side only: the Leads board, wherever common.toml's `[leads] portal_url` puts it (lib/portal-config.ts): this
+// dashboard's own local board by default (lib/local-board.ts, read straight from its file), or the hosted portal (the
+// `portal` branch), read over its API. For the portal the dashboard reads with its own read-only key,
 // common-data/keys/portal-dashboard.key, read at each request and never from the environment; it is minted in the
 // portal's checkout with `node --env-file=.env.local scripts/api-key.mjs dashboard board:read`. The board is kept in
 // common-data/shared-state/portal-leads-cache-dashboard.json so each read pulls only what changed (lib/lead-rows.ts).
@@ -12,7 +12,15 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "./bots";
 import { readPortalCached, type PortalCache } from "./lead-rows";
+import { allRows } from "./local-board";
+import { leadsSource } from "./portal-config";
 export { leadsSource, portalLocal, portalUrl, type PortalLocal } from "./portal-config";
+
+/** Every live lead in the portal's shape, from the local board or the hosted portal. */
+export async function boardLeads(bots = BOTS_DIR): Promise<Record<string, unknown>[]> {
+  const src = await leadsSource(bots);
+  return src.store === "local" ? allRows("leads") : portalLeads(src.url, bots);
+}
 
 export const DASHBOARD_CACHE_FILE = "portal-leads-cache-dashboard.json";
 /** The engine's and the Validator's shared copy: the dashboard never reads or writes it. */

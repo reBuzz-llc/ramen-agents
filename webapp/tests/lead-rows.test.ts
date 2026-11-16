@@ -1,39 +1,19 @@
-// The dashboard's Leads reads from either store: Notion pages and the portal leads become the
-// same rows and the same Reports counts; The portal is read page by page with the key. Fixture: tests/fixtures/portal-leads.json.
+// The dashboard's Leads: the board's leads become rows and the Reports counts; the hosted portal is read page by page
+// with the key. Fixture: tests/fixtures/portal-leads.json.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 // @ts-ignore TS5097
-import { fromNotion, fromPortal, readAllPortal, summarise } from "../lib/lead-rows.ts";
+import { fromPortal, readAllPortal, summarise } from "../lib/lead-rows.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/portal-leads.json", import.meta.url), "utf8")) as { pages: { leads: Record<string, unknown>[]; next: number; more: boolean }[] };
 const portalRows = fixture.pages.flatMap((p) => p.leads);
 
-// The same three leads as Notion pages: Status a multi-select mixing the two tracks, as the board has it.
-const sel = (name: string | null) => ({ type: "select", select: name ? { name } : null });
-const multi = (...names: string[]) => ({ type: "multi_select", multi_select: names.map((name) => ({ name })) });
-const txt = (s: string | null) => ({ type: "rich_text", rich_text: s ? [{ plain_text: s }] : [] });
-const url = (s: string | null) => ({ type: "url", url: s });
-const notionPages = [
-  { Business: { type: "title", title: [{ plain_text: "Acme Bakery" }] }, Website: url("https://acmebakery.example"), Industry: txt("Bakery"), Status: multi("Email Sent", "WhatsApp Verified"), Result: sel("Replied"), "Result date": { type: "date", date: { start: "2026-11-01" } }, "Draft email": txt("Hi Maria"), "Draft Whatsapp msg": txt(null), Whatsapp: url("https://wa.me/1718"), "google map location": url(null) },
-  { Business: { type: "title", title: [{ plain_text: "Bravo Barbers" }] }, Website: url("https://bravo.example"), Industry: txt("Barbershop"), Status: multi(), Result: sel(null), "Result date": { type: "date", date: null }, "Draft email": txt("skip: chain"), "Draft Whatsapp msg": txt(null), Whatsapp: url(null), "google map location": url("https://maps.example/b") },
-  { Business: { type: "title", title: [{ plain_text: "Cedar Dental" }] }, Website: url(null), Industry: txt("Dental clinic"), Status: multi("Ready to Send Email"), Result: sel(null), "Result date": { type: "date", date: null }, "Draft email": txt("Hi Cedar"), "Draft Whatsapp msg": txt("Hello"), Whatsapp: url(null), "google map location": url(null) },
-];
-
-test("Notion pages and portal leads become the same rows", () => {
+test("the board's leads become rows the Reports count", () => {
   const a = portalRows.map(fromPortal);
-  const b = notionPages.map((p) => fromNotion(p as never, ""));
-  const strip = (r: { edited: string }) => ({ ...r, edited: "" });
-  assert.deepEqual(a.map(strip), b.map(strip));
   assert.deepEqual(a[0].status, ["Email Sent", "WhatsApp Verified"]);
-});
-
-test("the Reports counts are the same from both stores", () => {
   const now = new Date("2026-11-02T12:00:00Z").getTime();
-  const src = () => "Web search or added by hand";
-  const fromP = summarise(portalRows.map(fromPortal), src, "Draft email", now);
-  const fromN = summarise(notionPages.map((p) => fromNotion(p as never, "")), src, "Draft email", now);
-  assert.deepEqual(fromP, fromN);
+  const fromP = summarise(a, () => "Web search or added by hand", "Draft email", now);
   assert.deepEqual(fromP.pipeline, { leads: 3, drafted: 2, sent: 1, replied: 1, meeting: 0, client: 0 });
   assert.deepEqual(fromP.drafts, { column: "Draft email", stage: "", drafted: 2, skipped: 1, waiting: 0, unsent: 1 });
   assert.equal(fromP.sent, 1);

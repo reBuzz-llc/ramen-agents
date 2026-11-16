@@ -1,4 +1,4 @@
-// The Leads board's home: Notion until common.toml's [leads] portal_url names the team portal;
+// The boards' home: this dashboard's local board until common.toml's [leads] portal_url names the hosted portal;
 // and local mode's tunnel address.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -16,11 +16,20 @@ function fleet(common: string, shared: Record<string, unknown> = {}) {
   return dir;
 }
 
-test("no portal_url: the board stays on Notion", async () => {
+test("no portal_url, or this dashboard's own address: the local board", async () => {
   const dir = fleet('[agent]\nmode = "web"\n[leads]\n# portal_url = "https://x"\n');
   assert.equal(await portalUrl(dir), "");
-  assert.deepEqual(await leadsSource(dir), { store: "notion", url: "" });
+  assert.deepEqual(await leadsSource(dir), { store: "local", url: "" });
   assert.equal(await portalLocal(dir), null);
+  const self = fleet('[leads]\nportal_url = "http://127.0.0.1:3000"\n');
+  assert.deepEqual(await leadsSource(self), { store: "local", url: "" });
+  assert.equal(await portalLocal(self), null); // not the hosted portal's local mode
+});
+
+test("a local overlay's portal_url wins over common.toml", async () => {
+  const dir = fleet('[leads]\nportal_url = "http://127.0.0.1:3000"\n');
+  writeFileSync(path.join(dir, "common-data", "configs", "local.toml"), '[leads]\nportal_url = "https://portal.example"\n');
+  assert.deepEqual(await leadsSource(dir), { store: "portal", url: "https://portal.example" });
 });
 
 test("portal_url under [leads] (only there) moves the board to the portal", async () => {

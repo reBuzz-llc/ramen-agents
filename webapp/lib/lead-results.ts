@@ -1,15 +1,13 @@
 // Server-side only: what became of the leads (owner, 2026-10-06: measure results, not activity). Reads the Leads board
-// from Notion or, when common.toml names a portal ([leads] portal_url), from the portal (lib/portal.ts): "Result" (Emailed / Replied / Meeting / Client / Not interested / Bounced) and "Result date", which the team sets. Grouped by where the lead came from (the daily candidate lists'
+// from the Leads board (the local board, or the hosted portal when common.toml names one: lib/portal.ts): "Result" (Emailed / Replied / Meeting / Client / Not interested / Bounced) and "Result date", which the team sets. Grouped by where the lead came from (the daily candidate lists'
 // sources, by the lead's website) and by industry. Until the board has a Result column this reports ready = false.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR, readConfig } from "./bots";
 import { nameKey, offeredSources } from "./candidates";
-import { fromNotion, fromPortal, summarise, type DraftCounts, type LeadRow, type Pipeline, type ResultGroup } from "./lead-rows";
-import { notionBoards } from "./notion-boards";
-import { leadsSource, portalLeads } from "./portal";
+import { fromPortal, summarise, type DraftCounts, type LeadRow, type Pipeline, type ResultGroup } from "./lead-rows";
+import { boardLeads } from "./portal";
 
-const KEY_FILE = path.join(BOTS_DIR, "common-data", "keys", "notion.key");
 const STAGES = ["Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not interested", "Bounced"] as const;
 export type { DraftCounts, Pipeline, ResultGroup };
 export type LeadResults = { ready: boolean; reason: string; total: number; stages: readonly string[]; pipeline: Pipeline; bySource: ResultGroup[]; byIndustry: ResultGroup[]; drafts: DraftCounts | null;
@@ -64,7 +62,7 @@ async function falseNumbers(): Promise<number> {
 export async function leadResults(): Promise<LeadResults> {
   if (g.__leadResults && Date.now() - g.__leadResults.at < 10 * 60 * 1000) return g.__leadResults.data;
   const empty = (reason: string): LeadResults => ({ ready: false, reason, total: 0, stages: STAGES, pipeline: { leads: 0, drafted: 0, sent: 0, replied: 0, meeting: 0, client: 0 }, bySource: [], byIndustry: [], drafts: null, whatsapp: null, whatsappDrafts: null, mapLinks: null, whatsappVerified: 0, whatsappFalse: 0, noted: null, sending: { sent: 0, repliesWeek: 0, team: [] } });
-  // The queue's column is the Outreach Writer's own setting ([leads] draft_queue_column), on Notion; the portal's is draft_email.
+  // The queue's column is the Outreach Writer's own setting ([leads] draft_queue_column); the board's is draft_email.
   let column = "Draft email";
   try {
     const cfg = await readConfig(path.join(BOTS_DIR, "outreach-writer", "config.toml"));
@@ -72,42 +70,11 @@ export async function leadResults(): Promise<LeadResults> {
   } catch {
     /* no Outreach Writer in this family: the default only decides whether the board has the column */
   }
-  const src = await leadsSource();
   let rows: LeadRow[] = [];
-  if (src.store === "portal") {
-    try {
-      rows = (await portalLeads(src.url)).map(fromPortal);
-    } catch (err) {
-      return empty(err instanceof Error ? err.message : String(err));
-    }
-  } else {
-    let key = "";
-    try {
-      key = (await readFile(/*turbopackIgnore: true*/ KEY_FILE, "utf8")).trim();
-    } catch {
-      return empty("No Notion key on this Mac.");
-    }
-    const { leads: LEADS_SOURCE } = await notionBoards();
-    if (!LEADS_SOURCE) return empty("The Leads board id is not set in the-ceo/config.toml ([leads] database_id).");
-    const headers = { Authorization: `Bearer ${key}`, "Notion-Version": "2025-09-03", "Content-Type": "application/json" };
-    let cursor: string | undefined;
-    try {
-      for (let i = 0; i < 20; i++) {
-        const res = await fetch(`https://api.notion.com/v1/data_sources/${LEADS_SOURCE}/query`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
-          signal: AbortSignal.timeout(20000),
-        });
-        if (!res.ok) return empty(`Notion answered HTTP ${res.status}.`);
-        const body = (await res.json()) as { results?: { last_edited_time?: string; properties?: Record<string, Record<string, unknown>> }[]; has_more?: boolean; next_cursor?: string };
-        for (const r of body.results ?? []) rows.push(fromNotion(r.properties ?? {}, r.last_edited_time ?? "", column));
-        if (!body.has_more || !body.next_cursor) break;
-        cursor = body.next_cursor;
-      }
-    } catch (err) {
-      return empty(`Could not reach Notion: ${err instanceof Error ? err.message : String(err)}`);
-    }
+  try {
+    rows = (await boardLeads()).map(fromPortal);
+  } catch (err) {
+    return empty(err instanceof Error ? err.message : String(err));
   }
   if (!rows.length) return empty("The Leads board is empty.");
   if (!rows.some((r) => r.has.result)) return empty("The Leads board has no Result column yet: the team fills it in.");

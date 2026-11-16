@@ -1,6 +1,5 @@
-// The Leads board as plain rows, whichever store holds it: Notion's page properties or the team portal's API leads
-// become one shape, so the Reports pipeline and The CEO's measure count the same way from both. Pure,
-// no imports: the tests load it as it is.
+// The Leads board as plain rows: the board's leads (the local board's or the hosted portal's, one shape) become what the
+// Reports pipeline and The CEO's measure count. Pure, no imports: the tests load it as it is.
 
 export type LeadRow = {
   business: string;
@@ -8,57 +7,19 @@ export type LeadRow = {
   industry: string;
   result: string;
   resultDate: string;
-  /** Notion's Status values (a multi-select mixing two tracks); from the portal, its email and WhatsApp status together. */
+  /** Its email and WhatsApp status together (and the board's own Status list, when set). */
   status: string[];
   draftEmail: string;
   draftWhatsapp: string;
   whatsapp: string;
   mapLink: string;
-  /** When the row last changed (Notion's last_edited_time, the portal's updated_at). */
+  /** When the row last changed (the board's updated_at). */
   edited: string;
-  /** Which of the optional columns the source has: Notion boards gained them over time; the portal has them all. */
+  /** Which of the optional columns the source has (the board has them all; kept for the counts' wording). */
   has: { result: boolean; whatsapp: boolean; draftWhatsapp: boolean; mapLink: boolean; draftColumn: boolean };
 };
 
-type Prop = Record<string, unknown> | undefined;
-
-/** One Notion property as text: select / status names, a multi-select's names joined by ", ", url, email, date, text. */
-export function notionText(p: Prop): string {
-  if (!p) return "";
-  const t = p.type as string;
-  const v = p[t] as unknown;
-  if (t === "select" || t === "status") return String((v as { name?: string } | null)?.name ?? "");
-  if (t === "multi_select") return ((v as { name?: string }[] | null) ?? []).map((x) => String(x?.name ?? "")).filter(Boolean).join(", ");
-  if (t === "url" || t === "email") return String(v ?? "");
-  if (t === "date") return String((v as { start?: string } | null)?.start ?? "");
-  if (Array.isArray(v)) return v.map((x) => String((x as { plain_text?: string }).plain_text ?? "")).join("");
-  return "";
-}
-
-/** A Notion page (its properties and last edit) as a row. `draftColumn` is the Outreach Writer's queue column name. */
-export function fromNotion(props: Record<string, Prop>, edited = "", draftColumn = "Draft email"): LeadRow {
-  const t = (name: string) => notionText(props[name]);
-  const status = t("Status")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return {
-    business: t("Business"),
-    website: t("Website"),
-    industry: t("Industry"),
-    result: t("Result"),
-    resultDate: t("Result date"),
-    status,
-    draftEmail: t(draftColumn),
-    draftWhatsapp: t("Draft Whatsapp msg"),
-    whatsapp: t("Whatsapp"),
-    mapLink: t("google map location"),
-    edited,
-    has: { result: "Result" in props, whatsapp: "Whatsapp" in props, draftWhatsapp: "Draft Whatsapp msg" in props, mapLink: "google map location" in props, draftColumn: draftColumn in props },
-  };
-}
-
-/** A lead from the portal's API (GET /v1/boards/leads/rows) as a row. */
+/** A lead from the board's API (GET /v1/boards/leads/rows, or the local board's row) as a row. */
 export function fromPortal(l: Record<string, unknown>): LeadRow {
   const s = (k: string) => (l[k] === null || l[k] === undefined ? "" : String(l[k]));
   return {
