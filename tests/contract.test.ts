@@ -1,5 +1,5 @@
 // The board API's contract fixtures (docs/design/board-api.md, "Contract tests"): request/response pairs that both this
-// server and macBot1's PeekClient replay. This test keeps the set whole: every operation and every error code the design
+// server and the engine's board client replays. This test keeps the set whole: every operation and every error code the design
 // names has a case, every case is well formed, and no fixture carries a real email domain or a key that looks real.
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";

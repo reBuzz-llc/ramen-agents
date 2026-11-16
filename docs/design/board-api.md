@@ -125,8 +125,8 @@ a response; the detail goes to the server log only.
 ## Contract tests
 
 - A JSON fixture set of request/response pairs, covering every operation and every error code above, is checked into
-  `productive-peek/tests/contract/`.
-- The same files are copied into macBot1's tests. The server is tested against them, and so is the engine's
+  the portal's contract tests (`tests/contract/`).
+- The same files are copied into the engine's tests. The server is tested against them, and so is the engine's
   `PeekClient` (a fake server replaying them), so neither has to run the other.
 - A change to the API is a change to the fixtures first.
 

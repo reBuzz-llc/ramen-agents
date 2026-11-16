@@ -98,7 +98,7 @@ export default function AlreadySentView({ me }: { me: string }) {
           spellCheck={false}
           placeholder={
             mark === "per_line"
-              ? "Bakery,8aee3936-02ce-4080-9fa7-8c4ff030743f,Ready to Send Email\nStudio,4d5f127b-8ad5-4b13-aa40-7589e58072aa,WhatsApp Verified"
+              ? "Bakery,00000000-0000-0000-0000-000000000001,Ready to Send Email\nStudio,00000000-0000-0000-0000-000000000002,WhatsApp Verified"
               : "owner@bakery.example, 2026-10-21\nhello@studio.example  Oct 23, 2026\n+1 718 555 0100"
           }
           className="mt-1.5 block w-full rounded-lg border border-line bg-panel p-3 font-mono text-sm"
