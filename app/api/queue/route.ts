@@ -16,7 +16,7 @@ import { displayName } from "@/lib/display-name";
 
 // GET: the company's queue (drafts to review, emails to send, open team tasks), best Lead score first, and this week's
 // sent count against the key result. The leads come from Peek's own board, the same rows and
-// claims as Leads → Send next; nothing is read from Notion.
+// claims as Leads → Send next.
 export async function GET() {
   const started = Date.now();
   const g = await guard("queue.work");

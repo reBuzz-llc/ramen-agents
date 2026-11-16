@@ -8,13 +8,13 @@ import { getViewPrefs, setViewPrefs } from "@/lib/view-prefs-db";
 describe("a person's drawer view", () => {
   it("reads anything stored as a tidy view: known fields only, show empty by default", () => {
     expect(viewOf(null)).toEqual(DEFAULT_VIEW);
-    expect(viewOf({ show_empty: "no", field_order: ["notes", "nope", 3, "notes", "phone"], hidden_fields: ["notion_uid", "business"], defaults_seen: DEFAULT_HIDDEN })).toEqual({ show_empty: true, field_order: ["notes", "phone"], hidden_fields: ["notion_uid"], defaults_seen: DEFAULT_HIDDEN });
-    // the Notion page id hidden until the person chooses; an explicit empty list shows everything
-    expect(viewOf({}).hidden_fields).toContain("notion_uid");
-    expect(viewOf({ show_empty: false }).hidden_fields).toContain("notion_uid");
+    expect(viewOf({ show_empty: "no", field_order: ["notes", "nope", 3, "notes", "phone"], hidden_fields: ["listing_evidence", "business"], defaults_seen: DEFAULT_HIDDEN })).toEqual({ show_empty: true, field_order: ["notes", "phone"], hidden_fields: ["listing_evidence"], defaults_seen: DEFAULT_HIDDEN });
+    // the proof fields hidden until the person chooses; an explicit empty list shows everything
+    expect(viewOf({}).hidden_fields).toContain("listing_evidence");
+    expect(viewOf({ show_empty: false }).hidden_fields).toContain("listing_evidence");
     // a view saved before a field joined the defaults gets it hidden once; one the person unhid stays shown
-    expect(viewOf({ hidden_fields: [], defaults_seen: ["notion_uid"] }).hidden_fields).not.toContain("notion_uid");
-    expect(viewOf({ hidden_fields: [], defaults_seen: ["notion_uid"] }).hidden_fields).toContain("evidence");
+    expect(viewOf({ hidden_fields: [], defaults_seen: ["listing_evidence"] }).hidden_fields).not.toContain("listing_evidence");
+    expect(viewOf({ hidden_fields: [], defaults_seen: ["listing_evidence"] }).hidden_fields).toContain("evidence");
     expect(viewOf({ hidden_fields: [], defaults_seen: DEFAULT_HIDDEN }).hidden_fields).toEqual([]);
     // the default order is kept as no order, so fields added later fall into their default place
     expect(viewOf({ field_order: DRAWER_ORDER.slice(0, 3) }).field_order).toEqual([]);
@@ -34,8 +34,8 @@ describe("a person's drawer view", () => {
     const { tenant, owner } = await createTenant(db, "Acme", "acme", { email: "o@acme.example", name: "Olu" });
     expect(await getViewPrefs(db, tenant.id, owner.id)).toEqual(DEFAULT_VIEW);
     await setViewPrefs(db, tenant.id, owner.id, { show_empty: false });
-    await setViewPrefs(db, tenant.id, owner.id, { field_order: ["draft_email", "contact_person"], hidden_fields: ["notion_uid"] });
-    expect(await getViewPrefs(db, tenant.id, owner.id)).toMatchObject({ show_empty: false, field_order: ["draft_email", "contact_person"], hidden_fields: ["notion_uid"] });
+    await setViewPrefs(db, tenant.id, owner.id, { field_order: ["draft_email", "contact_person"], hidden_fields: ["listing_evidence"] });
+    expect(await getViewPrefs(db, tenant.id, owner.id)).toMatchObject({ show_empty: false, field_order: ["draft_email", "contact_person"], hidden_fields: ["listing_evidence"] });
     await setViewPrefs(db, tenant.id, owner.id, { hidden_fields: [] });
     expect((await getViewPrefs(db, tenant.id, owner.id)).hidden_fields).toEqual([]); // unhidden stays unhidden
     await setViewPrefs(db, tenant.id, owner.id, DEFAULT_VIEW);

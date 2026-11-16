@@ -54,7 +54,7 @@ export async function POST(req: Request, ctx: Ctx) {
         await writeTask(k.d, k.key.tenantId, {}, b.fields as Record<string, unknown>, botActor(k.key, b.actor), { create: true, detailsAppend: typeof b.details_append === "string" ? b.details_append : undefined }),
       );
     return answer(
-      await writeLead(k.d, k.key.tenantId, { notionPageId: typeof b.notion_page_id === "string" ? b.notion_page_id : undefined }, b.fields as Record<string, unknown>, botActor(k.key, b.actor), {
+      await writeLead(k.d, k.key.tenantId, {}, b.fields as Record<string, unknown>, botActor(k.key, b.actor), {
         create: true,
         sourceUrl: typeof b.source_url === "string" ? b.source_url : null,
       }),

@@ -25,7 +25,6 @@ commands in this folder.
 ```sh
 cp .env.example .env.local     # if `neon env pull` has not made it already; then keep only one copy of each line
 openssl rand -base64 32        # paste into NEON_AUTH_COOKIE_SECRET
-openssl rand -base64 32        # a second one, into TEAMS_ENCRYPTION_KEY (keep it: it unlocks the stored Notion token)
 ```
 
 Set `NEXT_PUBLIC_APP_URL` to the address you will deploy to. You can fill it in after step 6.
@@ -67,8 +66,7 @@ Any Next.js host works. On Vercel:
    next to your database.
 2. Add the variables. `npm run env:vercel` copies them from `.env.local` to the clipboard (macOS) as `NAME=value`
    lines; it prints only their names. Paste them into Vercel → Settings → Environment Variables.
-   Never set these in production: `TEAMS_DEV_LOGIN`, `NOTION_TOKEN_FILE`, `NOTION_LEADS_DATA_SOURCE`,
-   `NOTION_TASKS_DATA_SOURCE`, `PGLITE_DIR`.
+   Never set these in production: `TEAMS_DEV_LOGIN`, `PGLITE_DIR`.
 3. Add your deployed address to Neon Auth's trusted domains (Neon console → Auth → Domains), so sign-in comes back to
    it.
 4. If you use Files, let browsers upload to the bucket from your address:
@@ -104,18 +102,20 @@ its SHA-256 is kept, so the key is shown once, when you make it.
 
 ## 8. Pointing the fleet at the portal
 
-One setting moves the Leads board from Notion to the portal, in the fleet's `common-data/configs/common.toml`:
+By default the fleet keeps its boards on the dashboard's local board, on its own Mac. One setting moves them to the
+portal, in the fleet's `common-data/configs/local.toml` (git-ignored, so updating the fleet never touches it):
 
 ```toml
 [leads]
 portal_url = "https://your-portal.example.com"
 ```
 
-From then on the agents, the Validator and the dashboard read and write leads here with the keys from step 7. The
+From then on the agents, the Validator and the dashboard read and write the boards here with the keys from step 7. The
 dashboard keeps the board in `common-data/shared-state/portal-leads-cache.json` and asks only for what changed since its
 last read, so a free database's transfer allowance lasts. Check it from the fleet folder with
-`python3 scripts/setup-check.py --probe`: each portal key is tested with one read-only request. Without `portal_url`,
-the board stays on Notion; connect that Notion board in **Settings → Board** so the portal reads it meanwhile.
+`python3 scripts/setup-check.py --probe`: each portal key is tested with one read-only request. To bring rows already
+on the local board, export each board as CSV from its page on the dashboard and import it here (Leads → Import).
+Without `portal_url`, the boards stay on the local board.
 
 If the portal's database ever runs out of its free quota, the fleet's `docs/portal-database.md` has the nightly standby
 copy and local mode.

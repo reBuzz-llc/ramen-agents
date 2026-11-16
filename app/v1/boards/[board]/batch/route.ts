@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { body, botActor, fail, failed, keyed } from "@/lib/board-api";
 import { batchWrite, type BatchWrite } from "@/lib/leads";
 
-// POST {actor, writes: [{id | notion_page_id, fields, create?, fill_only?, source_url?}]}: up to 100 writes, each on its
+// POST {actor, writes: [{id?, fields, create?, fill_only?, source_url?}]}: up to 100 writes, each on its
 // own; answers {results} in the same order, each like a single write's answer.
 export async function POST(req: Request, ctx: { params: Promise<{ board: string }> }) {
   if ((await ctx.params).board !== "leads") return fail(404, "not_found", "the boards here are: leads");

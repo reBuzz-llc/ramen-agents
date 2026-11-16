@@ -32,6 +32,6 @@ describe("the drawer's Activity strip", () => {
     for (const k of ACTIVITY_FIELDS) expect(DRAWER_ORDER).not.toContain(k);
     expect(viewOf({ field_order: ["result", "notes"] }).field_order).toEqual(["notes"]);
     expect(viewOf({}).hidden_fields).toEqual(DEFAULT_HIDDEN);
-    for (const k of ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence", "notion_uid"]) expect(DEFAULT_HIDDEN).toContain(k);
+    for (const k of ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence"]) expect(DEFAULT_HIDDEN).toContain(k);
   });
 });

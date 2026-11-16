@@ -2,7 +2,7 @@
 // 1. the list the Validator pushed (PUT /v1/lists/send-next with its key; kept in lead_lists as sent);
 // 2. on this Mac, the Validator's file itself (SEND_NEXT_FILE, e.g. the fleet's common-data/shared-state/send-next.json);
 // 3. else the board's own rule: a draft that is not "skip:", not sent, no result yet, best score first.
-// The list names leads by Notion page id (the board's old handle) or by Peek id; a name the board does not hold is
+// The list names leads by their board id; an id the board does not hold is
 // counted, not shown. "Held" leads (the Validator's reasons) are listed under it.
 import { readFile } from "node:fs/promises";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
@@ -30,8 +30,8 @@ export type SendNextRow = {
 };
 export type SendNext = { source: "validator" | "file" | "board"; generatedAt: string | null; rows: SendNextRow[]; held: { business: string; reason: string }[]; missing: number };
 
-type Item = { id?: unknown; notion_page_id?: unknown; note?: unknown; reason?: unknown; name?: unknown };
-const idOf = (x: Item) => String(x.id ?? x.notion_page_id ?? "").replace(/-/g, "").toLowerCase();
+type Item = { id?: unknown; note?: unknown; reason?: unknown; name?: unknown };
+const idOf = (x: Item) => String(x.id ?? "").replace(/-/g, "").toLowerCase();
 const isUuid = (s: string) => /^[0-9a-f]{32}$/.test(s);
 const UUID_DASHED = (s: string) => `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 const LIMIT = 30;
@@ -58,7 +58,6 @@ async function pushed(db: Db, tenantId: string): Promise<{ source: SendNext["sou
 
 const columns = {
   id: leads.id,
-  notionPageId: leads.notionPageId,
   business: leads.business,
   contact: leads.contactPerson,
   role: leads.contactRole,
@@ -111,12 +110,11 @@ async function sendNextRows(db: Db, tenantId: string): Promise<SendNext> {
     const held = (Array.isArray(list.data.held) ? list.data.held : []) as Item[];
     const ids = next.map(idOf).filter(isUuid);
     const rows = ids.length
-      ? await base().where(and(eq(leads.tenantId, tenantId), or(inArray(leads.notionPageId, ids), inArray(leads.id, ids.map(UUID_DASHED)))))
+      ? await base().where(and(eq(leads.tenantId, tenantId), inArray(leads.id, ids.map(UUID_DASHED))))
       : [];
     const byKey = new Map<string, (typeof rows)[number]>();
     for (const r of rows) {
       byKey.set(r.id.replace(/-/g, ""), r);
-      if (r.notionPageId) byKey.set(r.notionPageId, r);
     }
     // In the Validator's order; a lead marked sent since the list was made drops off.
     const shown = next

@@ -6,12 +6,9 @@ import { createTenant } from "@/lib/tenants";
 
 const CEO: Actor = { kind: "bot", name: "The CEO", via: "engine" };
 const BACKFILL: Actor = { kind: "bot", name: "backfill", via: "backfill" };
-const PAGE = "00000000000040008000000000000302";
 
-// What the fleet's tasks backfill sends for one Notion task (to_task()).
-const NOTION_TASK = {
-  notion_page_id: PAGE,
-  notion_url: "https://www.notion.so/Send-first-emails-00000000000040008000000000000302",
+// One task as an import sends it.
+const IMPORTED_TASK = {
   title: "Send first emails to SMB leads in NYC",
   status: "In progress",
   priority: "P0",
@@ -20,7 +17,6 @@ const NOTION_TASK = {
   projects: ["00000000000040008000000000000301"],
   blocker: null,
   files: null,
-  notion_uid: "T-185",
   created_at: "2026-10-27T09:12:00.000Z",
   details: "### Why\nThe first emails.\n### Done when\n- [x] 10 sent\n- [ ] 20 sent",
   checklist: [
@@ -37,16 +33,17 @@ async function board() {
   return { db, tenantId: tenant.id, OLU };
 }
 
-describe("the backfill (PUT /api/tasks/by-notion)", () => {
-  it("copies Notion as it is, status, assignees, ticks and created_at included, and a second copy changes nothing", async () => {
+describe("an import (the import key)", () => {
+  it("copies the values as they are, status, assignees, ticks and created_at included, and the same task again changes nothing", async () => {
     const { db, tenantId } = await board();
-    const { notion_page_id, ...task } = NOTION_TASK;
-    const a = await writeTask(db, tenantId, { notionPageId: notion_page_id }, task, BACKFILL, { create: true, import: true });
+    const task = IMPORTED_TASK;
+    const a = await writeTask(db, tenantId, {}, task, BACKFILL, { create: true, import: true });
     expect(a.ok && [a.created, a.refused]).toEqual([true, []]);
-    const got = await getTask(db, tenantId, { notionPageId: PAGE });
-    // the fields the backfill reads back and compares
-    for (const [k, v] of Object.entries(NOTION_TASK)) expect([k, got![k] ?? null]).toEqual([k, v]);
-    const b = await writeTask(db, tenantId, { notionPageId: PAGE }, task, BACKFILL, { create: true, import: true });
+    if (!a.ok) return;
+    const got = await getTask(db, tenantId, { id: a.task.id });
+    // the fields an import reads back and compares
+    for (const [k, v] of Object.entries(IMPORTED_TASK)) expect([k, got![k] ?? null]).toEqual([k, v]);
+    const b = await writeTask(db, tenantId, { id: a.task.id }, task, BACKFILL, { import: true });
     expect(b.ok && [b.created, b.written, b.task.rev]).toEqual([false, [], a.ok && a.task.rev]);
     expect((await listTasks(db, tenantId)).tasks).toHaveLength(1);
   });

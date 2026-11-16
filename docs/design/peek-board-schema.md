@@ -2,9 +2,9 @@
 
 *Written 2026-10-14.*
 
-The Leads board and the task board as the agent family and the Validator use them today (Notion, 2026-10-14). ramen-agents
-replaces Notion as the store; Notion becomes a mirror. Every column, who writes it, and how it is read is listed here, so the
-board API can serve the engine (`explorer/notion.py`) and the Validator (`validator/`) without either changing behaviour.
+The Leads board and the task board as the agent family and the Validator use them. Every column, who writes it, and
+how it is read is listed here, so the board API can serve the engine and the Validator (`validator/`) without either
+changing behaviour.
 
 **Writers:** person = the human team. LG = Lead Gen, EN = Lead Enricher, OW = Outreach Writer, CEO = The CEO,
 VAL = the Validator, engine = filled by the engine itself at write time, sys = the store.
@@ -55,7 +55,7 @@ canonical copy.
 | Column | Type | Written by | Rule |
 |---|---|---|---|
 | Task | title | CEO | once; duplicates refused (the same task in other words) |
-| Status | status: Not started, In progress, In Review, QA, Blocker, Done, Not Fisible, Dublicate | person (CEO only on its own tasks, only when merging a duplicate into another: [notion] merge_status) | people close tasks; "Done" this week counts on the team's scoreboard |
+| Status | status: Not started, In progress, In Review, QA, Blocker, Done, Not Fisible, Dublicate | person (CEO only on its own tasks, only when merging a duplicate into another: [tasks] merge_status) | people close tasks; "Done" this week counts on the team's scoreboard |
 | Priority | select: P0-P6, Medium | CEO | |
 | Dead Line | date | CEO | |
 | Assign | people | person | human since 2026-10-14 (The CEO is refused if it sets one) |
@@ -87,19 +87,6 @@ canonical copy.
 - **Users**: `GET user(id)` returning a name and a kind (person or bot).
 - **Writes**: create row (title plus typed fields), update only the given non-empty fields, clear one field (VAL's False
   clean-up), `replace_section`, append blocks to a task body. Writes must be visible to the next read at once.
-
-## Import from Notion
-
-- Rows: one Peek row per Notion page; keep the Notion page id and `ID` (LEAD-n) as external ids, and keep
-  `created_time` and `last_edited_*`.
-- Selects and multi-selects: per-tenant option lists, the names kept exactly. "How can I help" becomes the tenant's
-  package list.
-- People columns (Sent by, Reviewed by, Assign): Notion user → Peek user by email (when the integration can read user
-  emails), else by name. An unmatched person becomes an "unclaimed" user until they accept an invite. A bot integration
-  user becomes the tenant's "agents" actor, never a person.
-- Page bodies: the Draft sections are dropped (the cells are canonical); task bodies become the task's description (Markdown).
-- Relations: Projects → Peek project ids (import the projects first).
-- After import, the mirror writes Peek → Notion. During the switch the bots write to Peek only, so nothing is written twice.
 
 Only board data crosses this API. Teams data (hours, pay, timesheets, screenshots) never reaches the bots or the
 Validator.

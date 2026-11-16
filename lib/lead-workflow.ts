@@ -1,9 +1,9 @@
 // A lead's status workflow on the board: the one-click steps a person takes, with the fields each writes. Email: New → Ready to Send →
 // Email Sent → Replied / Meeting / Won / Lost (or Bounced). WhatsApp: Waiting for verification → Verified or False
-// number → message sent. The values are the board's own (Notion's options, kept exactly). Sent by and sent at are filled
+// number → message sent. The values are the board's own, kept exactly. Sent by and sent at are filled
 // by lib/leads.ts from the signed-in person when the email status becomes Email Sent. Pure, for the tests.
 
-/** Notion's one Status column held two tracks; here each has its field. */
+/** The two tracks of a lead's status, each its own field. */
 export const EMAIL_STATUSES = ["Ready to Send Email", "Email Sent"];
 export const WHATSAPP_STATUSES = ["WhatsApp msg sent", "False Whatsapp Number", "WhatsApp Verified", "Waiting response for WhatsApp verification"];
 export const RESULTS = ["Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not interested", "Bounced"];
@@ -93,7 +93,6 @@ export const DRAWER_ORDER = [
   "lead_score",
   "found_by",
   "notes",
-  "notion_uid",
   "created_at",
 ];
 /** The workflow's own records: what Peek writes when a person presses a step,
@@ -102,4 +101,4 @@ export const DRAWER_ORDER = [
  *  and the API. */
 export const ACTIVITY_FIELDS = ["email_check", "sent_by", "sent_at", "follow_up_at", "follow_up_by", "result", "result_date"];
 /** Shown but never edited by hand: derived, the Validator's measures, or the record of who did what. */
-export const READ_ONLY = new Set(["email_check", "tools_on_site", "site_health", "lead_score", "sent_by", "sent_at", "follow_up_by", "found_by", "notion_uid", "created_at"]);
+export const READ_ONLY = new Set(["email_check", "tools_on_site", "site_health", "lead_score", "sent_by", "sent_at", "follow_up_by", "found_by", "created_at"]);

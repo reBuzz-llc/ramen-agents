@@ -1,4 +1,4 @@
-// The board API's plumbing for the machine routes under /v1 and /api/leads/by-notion: the key check, the error shape
+// The board API's plumbing for the machine routes under /v1: the key check, the error shape
 // ({error: {code, message}}, written for a bot's log), and the actor a key writes as.
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";

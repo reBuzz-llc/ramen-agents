@@ -25,10 +25,10 @@ describe("parsePaste", () => {
     ]);
   });
   it("a line with a lead id is matched by the id, with the status it names", () => {
-    const e = parsePaste('"Xianglong Li, DDS",405d905f-ccff-8119-b1ef-e8ee256ddb97,8aee3936-02ce-4080-9fa7-8c4ff030743f,Ready to Send Email');
+    const e = parsePaste('"Cobalt Dental, DDS",00000000-0000-4000-8000-000000000201,00000000-0000-4000-8000-000000000202,Ready to Send Email');
     expect(e.map((x) => [x.key, x.type, x.mark])).toEqual([
-      ["405d905fccff8119b1efe8ee256ddb97", "id", "ready_email"],
-      ["8aee393602ce40809fa78c4ff030743f", "id", "ready_email"],
+      ["00000000000040008000000000000201", "id", "ready_email"],
+      ["00000000000040008000000000000202", "id", "ready_email"],
     ]);
   });
   it("dates and status names in the common shapes, or none", () => {
@@ -51,7 +51,7 @@ describe("matchEntries", () => {
     lead("gmail-shop", { businessEmail: "shop@gmail.com", domain: null }),
     lead("sent", { businessEmail: "done@sent.example", emailStatus: "Email Sent" }),
     lead("wa", { whatsapp: "https://wa.me/17185550100", phone: "+17185550199", whatsappStatus: "WhatsApp msg sent" }),
-    lead("8aee3936-02ce-4080-9fa7-8c4ff030743f", { business: "By id", notionPageId: "405d905f-ccff-8119-b1ef-e8ee256ddb97" }),
+    lead("00000000-0000-4000-8000-000000000202", { business: "By id" }),
   ];
   it("exact email, then the domain; never a free-mail domain; several leads: listed, not marked", () => {
     const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\nx@chain.example\nother@gmail.com\nshop@gmail.com\ndone@sent.example\nnobody@nowhere.example"), board, "email_sent");
@@ -64,10 +64,10 @@ describe("matchEntries", () => {
     expect(p.ambiguous).toEqual([{ key: "x@chain.example", leads: 2 }]);
     expect(p.notFound).toEqual(["other@gmail.com", "nobody@nowhere.example"]);
   });
-  it("a number with or without its country code; a lead id, the portal's or Notion's", () => {
+  it("a number with or without its country code; a lead id", () => {
     expect(matchEntries(parsePaste("7185550100"), board, "whatsapp_sent").matched.map((m) => [m.leadId, m.already])).toEqual([["wa", true]]);
     expect(matchEntries(parsePaste("+44 20 7946 0000"), board, "whatsapp_sent").notFound).toEqual(["442079460000"]);
-    expect(matchEntries(parsePaste("405d905f-ccff-8119-b1ef-e8ee256ddb97"), board, "ready_email").matched.map((m) => [m.business, m.by, m.mark])).toEqual([["By id", "id", "ready_email"]]);
+    expect(matchEntries(parsePaste("00000000-0000-4000-8000-000000000202"), board, "ready_email").matched.map((m) => [m.business, m.by, m.mark])).toEqual([["By id", "id", "ready_email"]]);
   });
   it("never moves a lead back a step: Verified after a WhatsApp sent, Ready after Email Sent", () => {
     expect(matchEntries(parsePaste("7185550100"), board, "whatsapp_verified").matched[0].already).toBe(true);

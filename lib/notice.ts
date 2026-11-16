@@ -13,7 +13,7 @@ import { acknowledgments } from "./db/schema";
 // v6: the project you pick at clock-in is recorded with the times.
 // v7: the notes you write while clocked in ("Now doing…") are recorded, and everyone in the company can see them.
 // v8: a project's "Now doing…" notes can go to that project's client as a work log (text only).
-export const NOTICE_VERSION = "v8-2026-10-14";
+export const NOTICE_VERSION = "v9-2026-11-16";
 
 export const NOTICE = {
   intro:
@@ -35,10 +35,10 @@ export const NOTICE = {
   never: [
     "No keystroke contents, no typed text, no webcam, no microphone, and no list of the websites you visit.",
     "Nothing outside the time you are clocked in.",
-    "It never changes anything in your company's Notion except a lead's Status, when you click.",
+    "It never changes anything outside ramen-agents: a lead's Status changes only when you click.",
   ],
-  who: "You see your own day, week, statement and tracked time. Your company's owner and managers see the team's, including screenshots. Everyone on the team sees the leaderboard: each person's points and counts of leads sent, replies, meetings, clients and tasks done (never hours, pay or screenshots), and who has accepted which lead. Your company's AI agents work on the same Notion board you do, so they see who sent each lead and what came of it, and a weekly count per person (leads sent, replies, meetings, clients, tasks done). Nobody outside your company sees any of it, with one exception: the notes you write while working on a client's project can be sent to that client as a work log (the note, your name and the time; never pay, hours of other projects or screenshots).",
-  keep: "Your company's owner can export or delete your records. Notion tokens are stored encrypted. Before anything recorded changes, this notice changes and you are asked to acknowledge it again.",
+  who: "You see your own day, week, statement and tracked time. Your company's owner and managers see the team's, including screenshots. Everyone on the team sees the leaderboard: each person's points and counts of leads sent, replies, meetings, clients and tasks done (never hours, pay or screenshots), and who has accepted which lead. Your company's AI agents work on the same board you do, so they see who sent each lead and what came of it, and a weekly count per person (leads sent, replies, meetings, clients, tasks done). Nobody outside your company sees any of it, with one exception: the notes you write while working on a client's project can be sent to that client as a work log (the note, your name and the time; never pay, hours of other projects or screenshots).",
+  keep: "Your company's owner can export or delete your records. Before anything recorded changes, this notice changes and you are asked to acknowledge it again.",
 };
 
 export async function acknowledged(d: Db, userId: string, version = NOTICE_VERSION) {

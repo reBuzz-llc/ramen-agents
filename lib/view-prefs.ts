@@ -9,8 +9,8 @@ import { DRAWER_ORDER } from "./lead-workflow";
  *  later is hidden for them once, and a field they unhid stays shown. */
 export type ViewPrefs = { show_empty: boolean; field_order: string[]; hidden_fields: string[]; defaults_seen: string[] };
 /** Hidden for everyone until they choose otherwise: the agents' proof
- *  and signal fields, and the Notion page id. Kept in the data and the API; a person unhides any of them in My view. */
-export const DEFAULT_HIDDEN = ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence", "notion_uid"];
+ *  and signal fields. Kept in the data and the API; a person unhides any of them in My view. */
+export const DEFAULT_HIDDEN = ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence"];
 export const DEFAULT_VIEW: ViewPrefs = { show_empty: true, field_order: [], hidden_fields: DEFAULT_HIDDEN, defaults_seen: DEFAULT_HIDDEN };
 
 const known = new Set(DRAWER_ORDER);
@@ -83,7 +83,6 @@ export const FIELD_LABELS: Record<string, string> = {
   found_by: "Found by",
   phone: "Phone",
   notes: "Notes",
-  notion_uid: "Notion ID",
   created_at: "Created",
 };
 export const fieldLabel = (k: string) => FIELD_LABELS[k] ?? k;

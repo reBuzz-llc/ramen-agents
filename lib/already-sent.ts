@@ -26,7 +26,6 @@ const STEP: Record<string, number> = { "Ready to Send Email": 1, "Email Sent": 2
 export type Entry = { key: string; type: "id" | "email" | "number"; date: string | null; line: number; mark: Mark | null };
 export type LeadLite = {
   id: string;
-  notionPageId?: string | null;
   business: string;
   businessEmail: string | null;
   domain: string | null;
@@ -124,7 +123,7 @@ export function parsePaste(text: string): Entry[] {
 
 const leadDigits = (l: LeadLite) => [l.whatsapp, l.phone].map((v) => digits(v ?? "")).filter((d) => d.length >= 9);
 
-/** The entries against the board: a lead id (the portal's or Notion's), an exact business email, then the email's domain
+/** The entries against the board: a lead id, an exact business email, then the email's domain
  *  (never a free-mail one), or a number (with or without its country code). A key that fits more than one lead is listed,
  *  not marked; with "as each line says", a line that names no status is listed too. */
 export function matchEntries(entries: Entry[], board: LeadLite[], choice: MarkChoice): Preview {
@@ -134,7 +133,6 @@ export function matchEntries(entries: Entry[], board: LeadLite[], choice: MarkCh
   const push = (m: Map<string, LeadLite[]>, k: string, l: LeadLite) => m.set(k, [...(m.get(k) ?? []), l]);
   for (const l of board) {
     byId.set(hex(l.id), l);
-    if (l.notionPageId) byId.set(hex(l.notionPageId), l);
     if (l.businessEmail) for (const e of l.businessEmail.toLowerCase().match(EMAIL) ?? []) push(byEmail, e, l);
     if (l.domain) push(byDomain, l.domain.toLowerCase().replace(/^www\./, ""), l);
   }
@@ -186,7 +184,6 @@ export async function boardLite(db: Db, tenantId: string): Promise<LeadLite[]> {
   return db
     .select({
       id: leads.id,
-      notionPageId: leads.notionPageId,
       business: leads.business,
       businessEmail: leads.businessEmail,
       domain: leads.domain,

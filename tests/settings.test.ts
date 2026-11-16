@@ -13,9 +13,9 @@ import { createTenant } from "@/lib/tenants";
 const src = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8");
 
 describe("the Settings section", () => {
-  it("one page per kind, in nav order; Board and API keys only for the owner", () => {
-    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "my-view", "appearance"]);
-    expect(settingsFor("owner").map((p) => p.slug)).toEqual(["company", "people", "board", "rates", "keys", "my-view", "appearance"]);
+  it("one page per kind, in nav order; API keys only for the owner", () => {
+    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "rates", "keys", "my-view", "appearance"]);
+    expect(settingsFor("owner").map((p) => p.slug)).toEqual(["company", "people", "rates", "keys", "my-view", "appearance"]);
     expect(settingsFor("manager").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
     expect(settingsFor("member").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
   });
@@ -30,7 +30,6 @@ describe("the Settings section", () => {
     expect(settingsTitle("keys")).toBe("API keys · Settings · ramen-agents");
   });
   it("the owner-only pages refuse other roles", () => {
-    expect(src("app/settings/board/page.tsx")).toMatch(/if \(!can\(who\.role, "settings\.notion"\)\) notFound\(\)/);
     expect(src("app/settings/keys/page.tsx")).toMatch(/if \(!can\(who\.role, "keys\.manage"\)\) notFound\(\)/);
   });
   it("/settings redirects to the first page with a real redirect, keeping a message", () => {
@@ -42,7 +41,7 @@ describe("the Settings section", () => {
     expect(existsSync("app/settings/page.tsx")).toBe(false);
   });
   it("a form comes back to the page its action lives on", () => {
-    expect(["notion", "notionDisconnect", "rates", "points", "role", "memberRate", "updates", "keyResults"].map(sectionOf)).toEqual(["board", "board", "rates", "rates", "people", "people", "company", "company"]);
+    expect(["rates", "points", "role", "memberRate", "updates", "keyResults"].map(sectionOf)).toEqual(["rates", "rates", "people", "people", "company", "company"]);
     expect(src("app/api/settings/route.ts")).toContain("`/settings/${sectionOf(action)}`");
   });
   it("the nav marks the page you are on, and the left nav shows from 1024 px", () => {

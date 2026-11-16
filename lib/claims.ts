@@ -1,6 +1,6 @@
 // Taking a lead before sending it: one person per lead, so two people never send the same email. Everyone sees who
 // took what; only the person who took a lead marks it, and an owner or manager can release a lead someone forgot.
-// Kept in ramen-agents's own database; nothing here is written to Notion.
+// Kept in ramen-agents's own database.
 import { and, eq } from "drizzle-orm";
 import type { Db } from "./db";
 import { claims, users } from "./db/schema";
@@ -35,7 +35,7 @@ export async function holderOf(db: Db, tenantId: string, pageId: string): Promis
   return c ? { userId: c.userId, name: displayName(c.name, c.email), at: c.at } : null;
 }
 
-/** Every taken lead in the company, by Notion page id. */
+/** Every taken lead in the company, by lead id. */
 export async function claimsOf(db: Db, tenantId: string): Promise<Map<string, Claim>> {
   const rows = await db
     .select({ pageId: claims.pageId, userId: claims.userId, name: users.name, email: users.email, at: claims.at })

@@ -8,11 +8,10 @@ describe("roles", () => {
     expect(can("member", "week.team")).toBe(false);
     expect(can("member", "settings.rates")).toBe(false);
   });
-  it("lets a manager see the team and set key results, but not rates, Notion or people", () => {
+  it("lets a manager see the team and set key results, but not rates or people", () => {
     expect(can("manager", "week.team")).toBe(true);
     expect(can("manager", "settings.keyResults")).toBe(true);
     expect(can("manager", "settings.rates")).toBe(false);
-    expect(can("manager", "settings.notion")).toBe(false);
     expect(can("manager", "users.manage")).toBe(false);
   });
   it("lets only the owner change roles, never to a second owner, never their own", () => {

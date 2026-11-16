@@ -123,9 +123,8 @@ describe("batch writes", () => {
   });
 });
 
-describe("the backfill's import", () => {
-  const PAGE = "00000000000040008000000000000303";
-  const NOTION = {
+describe("an import (the import key)", () => {
+  const ROW = {
     business: "Fox Florist",
     website: "https://foxflorist.example",
     status: ["Email Sent", "WhatsApp Verified"],
@@ -135,22 +134,20 @@ describe("the backfill's import", () => {
     result_date: "2026-10-20",
     sent_by: ["Sam"],
     package: "SMB Website Care Retainer",
-    notion_url: "https://www.notion.so/Fox-Florist-00000000000040008000000000000303",
-    notion_uid: "LD-412",
     created_at: "2026-09-24T10:11:00.000Z",
   };
 
-  it("copies Notion as it is (the team's fields too), splits Status, keeps the Notion time, and is idempotent", async () => {
+  it("copies the values as they are (the team's fields too), splits Status, keeps their time; the same row again changes nothing", async () => {
     const { db, tenantId } = await board();
-    const first = await writeLead(db, tenantId, { notionPageId: PAGE }, NOTION, BACKFILL, { create: true, import: true });
+    const first = await writeLead(db, tenantId, {}, ROW, BACKFILL, { create: true, import: true });
     expect(first.ok && first.created).toBe(true);
     if (!first.ok) return;
-    expect(first.lead).toMatchObject({ email_status: "Email Sent", whatsapp_status: "WhatsApp Verified", status: ["Email Sent", "WhatsApp Verified"], result_date: "2026-10-20", sent_by: ["Sam"], created_at: "2026-09-24T10:11:00.000Z", notion_page_id: PAGE, domain: "foxflorist.example" });
-    const again = await writeLead(db, tenantId, { notionPageId: PAGE }, NOTION, BACKFILL, { create: true, import: true });
+    expect(first.lead).toMatchObject({ email_status: "Email Sent", whatsapp_status: "WhatsApp Verified", status: ["Email Sent", "WhatsApp Verified"], result_date: "2026-10-20", sent_by: ["Sam"], created_at: "2026-09-24T10:11:00.000Z", domain: "foxflorist.example" });
+    const again = await writeLead(db, tenantId, { id: first.lead.id }, ROW, BACKFILL, { import: true });
     expect(again.ok && !again.created && again.written).toEqual([]);
     expect(again.ok && again.lead.rev).toBe(first.lead.rev);
-    // an import may also land on a domain already on the board (Notion holds chain rows)
-    const chain = await writeLead(db, tenantId, { notionPageId: "a".repeat(32) }, { business: "Acme Bakery (2nd)", website: "https://acmebakery.example" }, BACKFILL, { create: true, import: true });
+    // an import may also land on a domain already on the board (a list with chain rows)
+    const chain = await writeLead(db, tenantId, {}, { business: "Acme Bakery (2nd)", website: "https://acmebakery.example" }, BACKFILL, { create: true, import: true });
     expect(chain.ok).toBe(true);
     // Status values outside both tracks are refused
     expect(splitStatus(["Maybe"])).toEqual({ error: "status has values outside both tracks: Maybe" });

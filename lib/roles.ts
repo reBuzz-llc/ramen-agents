@@ -10,7 +10,6 @@ export type Action =
   | "settings.keyResults" // set the week's key results
   | "settings.rates" // set the company's default pay rates and leaderboard points
   | "rates.members" // set a person's own pay rate (lib/rates.ts canSetRate says whose)
-  | "settings.notion" // connect or change the Notion board
   | "users.manage" // change roles
   | "users.add" // add a person by Google address, remove one (a manager: members only, lib/team.ts)
   | "leads.import" // import leads from a CSV or spreadsheet (lib/lead-import.ts)
@@ -19,7 +18,7 @@ export type Action =
   | "keys.manage"; // mint and revoke the board API's machine keys (Settings > API keys)
 
 const ALLOWED: Record<Role, ReadonlySet<Action>> = {
-  owner: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "settings.rates", "rates.members", "settings.notion", "users.manage", "users.add", "leads.import", "projects.manage", "keys.manage", "assets.edit"]),
+  owner: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "settings.rates", "rates.members", "users.manage", "users.add", "leads.import", "projects.manage", "keys.manage", "assets.edit"]),
   manager: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "rates.members", "users.add", "leads.import", "projects.manage", "assets.edit"]),
   member: new Set<Action>(["queue.work", "clock.own", "week.own"]),
 };

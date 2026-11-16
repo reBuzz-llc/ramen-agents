@@ -54,8 +54,8 @@ It works only on your machine and is ignored in production builds.
 - **Nothing on the person's computer.** No screenshots and no keystrokes; only the times, the project and the notes.
   See `/privacy` and `docs/notice-template.md`.
 - **One company per tenant.** Every table carries `tenant_id`, and every query filters by it.
-- **Secrets stay out of the repo.** They live only in the environment. Notion tokens are encrypted at rest
-  (`TEAMS_ENCRYPTION_KEY`). API keys are stored as SHA-256 only and shown once when made.
+- **Secrets stay out of the repo.** They live only in the environment. API keys are stored as SHA-256 only and shown
+  once when made.
 
 ## Layout
 

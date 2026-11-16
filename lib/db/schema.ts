@@ -46,8 +46,6 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull().default(""),
     role: role("role").notNull().default("member"),
-    /** Their Notion user id, so "Sent by" on the board maps to a person here. */
-    notionUserId: text("notion_user_id"),
     active: boolean("active").notNull().default(true),
     /** Their first sign-in (Google, matched by this address). Null: added in Settings → People, not signed in yet. */
     firstSignedInAt: timestamp("first_signed_in_at", { withTimezone: true }),
@@ -57,33 +55,6 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("users_tenant_email").on(t.tenantId, t.email)],
-);
-
-/** A tenant's Notion integration. The token is AES-256-GCM ciphertext (lib/crypto.ts); the key is only in the env. */
-export const notionConnections = pgTable("notion_connections", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
-  tokenEncrypted: text("token_encrypted").notNull(),
-  leadsDataSource: text("leads_data_source").notNull(),
-  tasksDataSource: text("tasks_data_source"),
-  // Board titles, read once on Connect, so Settings names the boards without a call to Notion.
-  leadsTitle: text("leads_title"),
-  tasksTitle: text("tasks_title"),
-  // The integration's own name in Notion (GET /v1/users/me on Connect): "connected as ...".
-  integrationName: text("integration_name"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-/** The board, cached for five minutes (Notion allows 3 requests a second per integration). */
-export const boardRows = pgTable(
-  "board_rows",
-  {
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    pageId: text("page_id").notNull(),
-    data: jsonb("data").$type<Record<string, unknown>>().notNull(),
-    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.tenantId, t.pageId] })],
 );
 
 /** Clock-in / clock-out. An open shift has no endedAt. */
@@ -152,7 +123,7 @@ export const gapNotes = pgTable("gap_notes", {
 });
 
 /** What a person moved: reviewed or sent a lead, a reply, a meeting, a task done. */
-/** Who has taken a lead: one person per lead, so two people never send the same email. Kept here, never in Notion. */
+/** Who has taken a lead: one person per lead, so two people never send the same email. */
 export const claims = pgTable(
   "claims",
   {
@@ -176,7 +147,7 @@ export const outcomes = pgTable(
     pageId: text("page_id").notNull(),
     kind: outcomeKind("kind").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
-    /** "teams" when recorded by a click here, "board" when read from Notion. */
+    /** "teams" when recorded by a click here, "board" when read from the board. */
     source: text("source").notNull().default("teams"),
   },
   (t) => [index("outcomes_tenant_at").on(t.tenantId, t.at), index("outcomes_person_at").on(t.tenantId, t.userId, t.at)],
@@ -250,8 +221,7 @@ export const memberRates = pgTable(
 );
 
 /**
- * The Leads board, moved from Notion. One row per business, one column per board field, under its Neon name. Notion's
- * mixed Status is two fields, email and WhatsApp. Every change goes through lib/leads.ts, which writes `lead_cells`
+ * The Leads board. One row per business, one column per board field. Status is two fields, email and WhatsApp. Every change goes through lib/leads.ts, which writes `lead_cells`
  * first: who changed what, from what, and whether it was refused. `rev` rises on every change (one sequence for all
  * companies), so a reader asks for "what changed after rev N" and misses nothing written in the same second.
  */
@@ -261,9 +231,6 @@ export const leads = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    notionPageId: text("notion_page_id"),
-    notionUrl: text("notion_url"),
-    notionUid: text("notion_uid"),
     business: text("business").notNull(),
     website: text("website"),
     domain: text("domain"),
@@ -325,7 +292,6 @@ export const leads = pgTable(
     rev: bigint("rev", { mode: "number" }).notNull().default(sql`nextval('leads_rev_seq')`),
   },
   (t) => [
-    uniqueIndex("leads_notion_page").on(t.tenantId, t.notionPageId),
     index("leads_status").on(t.tenantId, t.emailStatus, t.whatsappStatus),
     index("leads_domain").on(t.tenantId, t.domain),
     index("leads_updated").on(t.tenantId, t.updatedAt),
@@ -360,7 +326,7 @@ export const leadCells = pgTable(
 
 /** A machine's key to the board API (the engine, the Validator, the backfill), stored as SHA-256 only. The key fixes the
  *  company; its scopes say what it may do: board:read, board:write, board:import (the backfill: an upsert that keeps
- *  Notion's values as they are). Minted with scripts/api-key.mjs into the fleet's common-data/keys/portal-<name>.key. */
+ *  the values as they are). Minted with scripts/api-key.mjs into the fleet's common-data/keys/portal-<name>.key. */
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
@@ -438,10 +404,9 @@ export const leadFlags = pgTable(
 );
 
 /**
- * The team's tasks, moved from Notion's "Tasks
- * Tracker" like the Leads board: written only through lib/tasks.ts, every change in `task_cells`, `rev` from its own
- * sequence. `assignees` keeps the names as given (Notion's people, or a the portal user's name); `projects` the Notion
- * relation ids the backfill copies; `checklist` the "Done when" items a person ticks. `standing` marks The CEO's
+ * The team's tasks, like the Leads board: written only through lib/tasks.ts, every change in `task_cells`, `rev` from its own
+ * sequence. `assignees` keeps the names as given (the portal users' names); `projects` the
+ * project names; `checklist` the "Done when" items a person ticks. `standing` marks The CEO's
  * persistent send task: pinned at the top of the queue, never done.
  */
 export const tasksRev = pgSequence("tasks_rev_seq");
@@ -450,9 +415,6 @@ export const tasks = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-    notionPageId: text("notion_page_id"),
-    notionUrl: text("notion_url"),
-    notionUid: text("notion_uid"),
     title: text("title").notNull(),
     status: text("status").notNull().default("Not started"),
     priority: text("priority"),
@@ -472,7 +434,7 @@ export const tasks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     rev: bigint("rev", { mode: "number" }).notNull().default(sql`nextval('tasks_rev_seq')`),
   },
-  (t) => [uniqueIndex("tasks_notion_page").on(t.tenantId, t.notionPageId), index("tasks_rev").on(t.tenantId, t.rev), index("tasks_status").on(t.tenantId, t.status)],
+  (t) => [index("tasks_rev").on(t.tenantId, t.rev), index("tasks_status").on(t.tenantId, t.status)],
 );
 
 /** Every cell change, and every refused attempt, on a task (as lead_cells for leads). */
@@ -585,9 +547,8 @@ export const leadImports = pgTable(
   (t) => [index("lead_imports_tenant").on(t.tenantId, t.at)],
 );
 
-// The Asset page: what the company sells, edited by the owner and managers, so the owner's Notion
-// "What we have" page can retire. A rate is one line as Notion's Rates block had it ("Offer: price"); a package is the
-// offer the CEO publishes. `position` is the owner's order on the page (1 first).
+// The Asset page: what the company sells, edited by the owner and managers. A rate is one line ("Offer: price"); a
+// package is the offer the CEO publishes. `position` is the owner's order on the page (1 first).
 export const assetRates = pgTable(
   "asset_rates",
   {
@@ -614,7 +575,7 @@ export const assetPackages = pgTable(
     buyer: text("buyer").notNull().default(""),
     deliverables: text("deliverables").array().notNull().default(sql`'{}'::text[]`),
     status: text("status").notNull().default("draft"),
-    // The ready-to-send email the Outreach Writer builds a package's first email on (as the Notion toggle had it).
+    // The ready-to-send email the Outreach Writer builds a package's first email on.
     email: text("email").notNull().default(""),
     // A bot's handover: who handed it over and when, with its reasons and the pages it read. Only
     // POST /v1/assets/packages/drafts sets these; the page and the owner's PUT keep them as they are.

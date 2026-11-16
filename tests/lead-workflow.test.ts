@@ -15,8 +15,8 @@ async function board() {
   const ann = await addUser(db, tenant.id, "ann@acme.example", "Ann");
   const OLU: Actor = { kind: "person", name: "Olu", userId: owner.id };
   const ANN: Actor = { kind: "person", name: "Ann", userId: ann.id };
-  const make = async (business: string, fields: Record<string, unknown> = {}, page?: string) => {
-    const r = await writeLead(db, tenant.id, { notionPageId: page }, { business, website: `https://${business.split(" ")[0].toLowerCase()}.example`, ...fields }, { kind: "bot", name: "backfill", via: "backfill" }, { create: true, import: true });
+  const make = async (business: string, fields: Record<string, unknown> = {}) => {
+    const r = await writeLead(db, tenant.id, {}, { business, website: `https://${business.split(" ")[0].toLowerCase()}.example`, ...fields }, { kind: "bot", name: "backfill", via: "backfill" }, { create: true, import: true });
     if (!r.ok) throw new Error(r.message);
     return r.lead.id;
   };
@@ -95,20 +95,18 @@ describe("the board's Mine and Corrected filters", () => {
 });
 
 describe("send next", () => {
-  it("shows the Validator's pushed list in its order, by Notion page id; drops what was sent since; counts what the board lacks", async () => {
+  it("shows the Validator's pushed list in its order, by lead id; drops what was sent since; counts what the board lacks", async () => {
     const { db, tenantId, ANN, make } = await board();
-    const p1 = "00000000000040008000000000000304";
-    const p2 = "00000000000040008000000000000305";
-    const x = await make("Mokbar Kitchen", { draft_email: "Hi Esther", business_email: "pr@mokbar.example", lead_score: 49 }, p1);
-    const y = await make("Kline Studio", { draft_email: "Hi" }, p2);
-    await saveList(db, tenantId, "send-next", { generated_at: "2026-11-02T02:31:45", next: [{ id: p2 }, { id: p1, note: "chain" }, { id: "f".repeat(32) }], held: [{ id: "x", name: "Echo Eatery", reason: "greeting is a placeholder" }] }, "validator");
+    const x = await make("Maple Kitchen", { draft_email: "Hi Esther", business_email: "pr@maple.example", lead_score: 49 });
+    const y = await make("Birch Studio", { draft_email: "Hi" });
+    await saveList(db, tenantId, "send-next", { generated_at: "2026-11-02T02:31:45", next: [{ id: y }, { id: x, note: "chain" }, { id: "f".repeat(32) }], held: [{ id: "x", name: "Echo Eatery", reason: "greeting is a placeholder" }] }, "validator");
     let s = await sendNext(db, tenantId);
     expect(s).toMatchObject({ source: "validator", generatedAt: "2026-11-02T02:31:45", missing: 1, held: [{ business: "Echo Eatery", reason: "greeting is a placeholder" }] });
     expect(s.rows.map((r) => [r.business, r.note])).toEqual([
-      ["Kline Studio", ""],
-      ["Mokbar Kitchen", "chain"],
+      ["Birch Studio", ""],
+      ["Maple Kitchen", "chain"],
     ]);
-    expect(s.rows[1]).toMatchObject({ email: "pr@mokbar.example", draft: "Hi Esther", score: 49, takenBy: null });
+    expect(s.rows[1]).toMatchObject({ email: "pr@maple.example", draft: "Hi Esther", score: 49, takenBy: null });
     await writeLead(db, tenantId, { id: y }, { email_status: "Email Sent" }, ANN);
     s = await sendNext(db, tenantId);
     expect(s.rows.map((r) => r.id)).toEqual([x]);

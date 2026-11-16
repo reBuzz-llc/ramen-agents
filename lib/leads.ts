@@ -4,7 +4,7 @@
 // - human only: email status, WhatsApp status, result, result date and the follow-up sent (follow_up_at, follow_up_by)
 //   are the team's; a bot writing one is refused;
 // - fill only (when the writer asks): a cell that has a value is left alone;
-// - an import (the backfill's key) copies Notion as it is, past those rules, and is idempotent on the Notion page id.
+// - an import (the import key) copies the values as they are, past those rules.
 // Readers follow `rev`: listLeads(since = the last rev seen) returns what changed after it, in order.
 import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
@@ -56,8 +56,6 @@ export const FIELDS: Field[] = [
   { key: "notes", prop: "notes", kind: "text" },
   { key: "address", prop: "address", kind: "text" },
   { key: "listing", prop: "listing", kind: "json" },
-  { key: "notion_url", prop: "notionUrl", kind: "text" },
-  { key: "notion_uid", prop: "notionUid", kind: "text" },
 ];
 const BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
 import { isSampleUrl } from "./sample-site";
@@ -133,7 +131,7 @@ function normalise(f: Field, v: unknown): { value: unknown } | { error: string }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** Notion's Status list ("Email Sent", "WhatsApp Verified") as the two fields; values in neither track are refused. */
+/** A combined Status list ("Email Sent", "WhatsApp Verified") as the two fields; values in neither track are refused. */
 export function splitStatus(v: unknown): { email_status: string | null; whatsapp_status: string | null } | { error: string } {
   const items = (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean);
   const unknown = items.filter((x) => !EMAIL_STATUSES.includes(x) && !WHATSAPP_STATUSES.includes(x));
@@ -145,9 +143,9 @@ export function splitStatus(v: unknown): { email_status: string | null; whatsapp
 /** The draft cells whose bot text is kept when a person rewrites it, and the row's field for it. */
 export const BOT_SNAPSHOT: Record<string, "botDraft" | "botWhatsapp"> = { draft_email: "botDraft", draft_whatsapp: "botWhatsapp" };
 
-/** A row as the API answers it: every field under its Neon name, Notion's combined `status`, and the row's meta. */
+/** A row as the API answers it: every field under its name, the combined `status`, and the row's meta. */
 export function toApi(r: typeof leads.$inferSelect): Lead {
-  const out: Lead = { id: r.id, notion_page_id: r.notionPageId, rev: Number(r.rev) };
+  const out: Lead = { id: r.id, rev: Number(r.rev) };
   for (const f of FIELDS) out[f.key] = r[f.prop] ?? null;
   const status = [...(r.emailStatus?.split(", ") ?? []), ...(r.whatsappStatus?.split(", ") ?? [])];
   Object.assign(out, {
@@ -169,7 +167,7 @@ export function toApi(r: typeof leads.$inferSelect): Lead {
 
 /** toApi for a list read: the same keys, but only the cells in `keys` (the status, identity and dates always). */
 function toApiPartial(r: typeof leads.$inferSelect, keys: Set<string>): Lead {
-  const out: Lead = { id: r.id, notion_page_id: r.notionPageId, rev: Number(r.rev) };
+  const out: Lead = { id: r.id, rev: Number(r.rev) };
   for (const f of FIELDS) if (keys.has(f.key)) out[f.key] = r[f.prop] ?? null;
   const status = [...(r.emailStatus?.split(", ") ?? []), ...(r.whatsappStatus?.split(", ") ?? [])];
   Object.assign(out, {
@@ -197,13 +195,13 @@ export async function boardRev(db: Db, tenantId: string, board: "leads" | "tasks
 
 /**
  * Write one lead: an update to the row found by `target`, or, when there is none and `create` is set, a new row.
- * `input` holds fields under their Neon names (and Notion's `status` list, split here). Returns what was written and
+ * `input` holds fields under their Neon names (and a combined `status` list, split here). Returns what was written and
  * what was refused, with the row as stored, from the same transaction.
  */
 export async function writeLead(
   db: Db,
   tenantId: string,
-  target: { id?: string; notionPageId?: string },
+  target: { id?: string },
   input: Record<string, unknown>,
   actor: Actor,
   // sentAt: when the send happened, for a send marked after the fact (Leads → Mark already sent); else now
@@ -220,7 +218,7 @@ export async function writeLead(
   }
   const want = new Map<Field, unknown>();
   for (const [k, v] of Object.entries(raw)) {
-    if (["id", "notion_page_id", "rev", "domain", "city", "state", "sent_at", "archived", "updated_at", "last_edited_by"].includes(k)) continue;
+    if (["id", "rev", "domain", "city", "state", "sent_at", "archived", "updated_at", "last_edited_by"].includes(k)) continue;
     if (k === "created_at") continue; // an import's created_at is read below
     const f = BY_KEY.get(k);
     if (!f) return { ok: false, code: "bad_request", message: `unknown field: ${k}` };
@@ -229,12 +227,12 @@ export async function writeLead(
     want.set(f, n.value);
   }
   const createdAt = opts.import && typeof input.created_at === "string" && !Number.isNaN(Date.parse(input.created_at)) ? new Date(input.created_at) : null;
-  if (!target.id && !target.notionPageId && !opts.create) return { ok: false, code: "bad_request", message: "a lead is named by its id or its notion_page_id" };
+  if (!target.id && !opts.create) return { ok: false, code: "bad_request", message: "a lead is named by its id" };
   if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return { ok: false, code: "not_found", message: `no lead ${target.id}` };
   const sourceUrl = opts.sourceUrl ? String(opts.sourceUrl).slice(0, 2000) : null;
 
   return db.transaction(async (tx) => {
-    const where = target.id ? eq(leads.id, target.id) : target.notionPageId ? eq(leads.notionPageId, target.notionPageId) : null;
+    const where = target.id ? eq(leads.id, target.id) : null;
     const [cur] = where ? await tx.select().from(leads).where(and(eq(leads.tenantId, tenantId), where)).for("update") : [];
     const now = new Date();
     const history: (typeof leadCells.$inferInsert)[] = [];
@@ -248,7 +246,7 @@ export async function writeLead(
     const refused: Refusal[] = [];
 
     if (!cur) {
-      if (!opts.create) return { ok: false as const, code: "not_found" as const, message: `no lead ${target.id ?? target.notionPageId}` };
+      if (!opts.create) return { ok: false as const, code: "not_found" as const, message: `no lead ${target.id}` };
       const business = want.get(BY_KEY.get("business")!);
       if (!business) return { ok: false as const, code: "bad_request" as const, message: "a new lead needs business" };
       const values: Record<string, unknown> = {};
@@ -278,7 +276,6 @@ export async function writeLead(
           ...(values as Partial<typeof leads.$inferInsert>),
           business: String(values.business),
           tenantId,
-          notionPageId: target.notionPageId ?? null,
           domain,
           city: place?.city || null,
           state: place?.state || null,
@@ -346,7 +343,7 @@ export async function writeLead(
       const sentAt = opts.sentAt && opts.sentAt.getTime() <= now.getTime() ? opts.sentAt : now;
       set.sentAt = sentAt;
       history.push({ tenantId, leadId: cur.id, column: "sent_at", old: null, new: sentAt.toISOString() as unknown as object, ...who });
-      // Sent by is the person who marked it sent, never a bot (the Validator guessed it from Notion until now).
+      // Sent by is the person who marked it sent, never a bot.
       if (actor.kind === "person" && !cur.sentBy?.length && !("sentBy" in set)) {
         set.sentBy = [actor.name];
         history.push({ tenantId, leadId: cur.id, column: "sent_by", old: null, new: set.sentBy as object, ...who });
@@ -363,7 +360,7 @@ export async function writeLead(
   });
 }
 
-export type BatchWrite = { id?: string; notion_page_id?: string; fields: Record<string, unknown>; create?: boolean; fill_only?: boolean; source_url?: string };
+export type BatchWrite = { id?: string; fields: Record<string, unknown>; create?: boolean; fill_only?: boolean; source_url?: string };
 
 /** Several writes, each on its own (one refusal or failure never undoes another), answered in order. */
 export async function batchWrite(db: Db, tenantId: string, writes: BatchWrite[], actor: Actor, opts: { import?: boolean } = {}) {
@@ -376,7 +373,7 @@ export async function batchWrite(db: Db, tenantId: string, writes: BatchWrite[],
       continue;
     }
     results.push(
-      await writeLead(db, tenantId, { id: w.id, notionPageId: w.notion_page_id }, w.fields, actor, {
+      await writeLead(db, tenantId, { id: w.id }, w.fields, actor, {
         create: !!w.create,
         fillOnly: !!w.fill_only,
         import: opts.import,
@@ -435,7 +432,7 @@ export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}, key
   if (q.hasRole !== undefined) where.push(q.hasRole ? isNotNull(leads.contactRole) : isNull(leads.contactRole));
   // Only the columns asked for travel (no select *): the row's identity and status always, the cells by `keys`.
   const want = keys ?? new Set([...FIELDS.map((f) => f.key), ...LIST_EXTRA]);
-  const cols: Record<string, unknown> = { id: leads.id, notionPageId: leads.notionPageId, rev: leads.rev, domain: leads.domain, city: leads.city, state: leads.state, sentAt: leads.sentAt, archived: leads.archived, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lastActorName: leads.lastActorName, lastActorKind: leads.lastActorKind, emailStatus: leads.emailStatus, whatsappStatus: leads.whatsappStatus };
+  const cols: Record<string, unknown> = { id: leads.id, rev: leads.rev, domain: leads.domain, city: leads.city, state: leads.state, sentAt: leads.sentAt, archived: leads.archived, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lastActorName: leads.lastActorName, lastActorKind: leads.lastActorKind, emailStatus: leads.emailStatus, whatsappStatus: leads.whatsappStatus };
   for (const f of FIELDS) if (want.has(f.key)) cols[f.prop] = leads[f.prop as keyof typeof leads.$inferSelect & keyof typeof leads];
   if (want.has("bot_draft")) cols.botDraft = leads.botDraft;
   if (want.has("bot_whatsapp")) cols.botWhatsapp = leads.botWhatsapp;
@@ -449,9 +446,9 @@ export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}, key
   return { leads: page.map((r) => toApiPartial(r, want)), next: page.length ? Number(page[page.length - 1].rev) : since, more: rows.length > limit };
 }
 
-export async function getLead(db: Db, tenantId: string, target: { id?: string; notionPageId?: string }) {
+export async function getLead(db: Db, tenantId: string, target: { id?: string }) {
   if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return null;
-  const where = target.id ? eq(leads.id, target.id) : target.notionPageId ? eq(leads.notionPageId, target.notionPageId) : null;
+  const where = target.id ? eq(leads.id, target.id) : null;
   if (!where) return null;
   const [r] = await db.select().from(leads).where(and(eq(leads.tenantId, tenantId), where));
   return r ? toApi(r) : null;

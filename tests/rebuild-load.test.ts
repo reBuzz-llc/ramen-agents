@@ -12,7 +12,7 @@ describe("rebuild-load", () => {
   });
 
   it("reads {value, source, at} or a plain value, and stores values as the portal does (empty is null)", () => {
-    expect(cellOf({ value: "x", source: "notion frozen board", at: "2026-11-01" })).toEqual({ value: "x", source: "notion frozen board", at: "2026-11-01" });
+    expect(cellOf({ value: "x", source: "the old board", at: "2026-11-01" })).toEqual({ value: "x", source: "the old board", at: "2026-11-01" });
     expect(cellOf("plain")).toEqual({ value: "plain", source: "", at: null });
     expect(toColumn("text", "  ")).toBeNull();
     expect(toColumn("text", "")).toBeNull(); // the team's deletion: {"value": ""}
@@ -24,7 +24,7 @@ describe("rebuild-load", () => {
   });
 
   it("splits a mirrored What we have into its sections and its Rates block into the rate card; packages-page is left out", () => {
-    const body = "# What we have (the owner's Notion page, mirrored)\n\nWhat the company actually has ...\nLast edited on Notion: 2026-10-30.\n\nhttps://drive.example/f\n\n## Services\n### Web\n1. Sites\n\n## Rates\nThe internal rate card.\nFrom the portal's Asset page, where the owner edits the rates.\n- Care: $249/month\n- MVP: $4,900\n\n## Goals\nSMB";
+    const body = "# What we have (the owner's page, mirrored)\n\nWhat the company actually has ...\nLast edited on the old board: 2026-10-30.\n\nhttps://drive.example/f\n\n## Services\n### Web\n1. Sites\n\n## Rates\nThe internal rate card.\nFrom the portal's Asset page, where the owner edits the rates.\n- Care: $249/month\n- MVP: $4,900\n\n## Goals\nSMB";
     const out = splitRates(expandMirror([{ kind: "section", title: "What we have", section_kind: "text", body, source: "mirror" }, { kind: "section", title: "packages-page", body: "## A\nx" }, { kind: "package", name: "P" }]));
     expect(out.filter((x: { kind: string }) => x.kind === "section").map((x: { title: string; section_kind: string }) => [x.title, x.section_kind])).toEqual([
       ["", "text"],

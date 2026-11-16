@@ -250,7 +250,6 @@ describe("Our queue on the portal's board", () => {
         name: "Olu",
         email: "o@acme.example",
         role: "owner",
-        notionUserId: null,
       },
     ];
     const [olu] = scoreboard(people, [], facts.leads, facts.tasks, [], from);

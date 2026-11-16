@@ -119,7 +119,6 @@ export async function scoreFacts(
     db
       .select({
         id: leads.id,
-        notionPageId: leads.notionPageId,
         emailStatus: leads.emailStatus,
         sentBy: leads.sentBy,
         sentAt: leads.sentAt,

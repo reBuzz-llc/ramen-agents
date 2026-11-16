@@ -9,12 +9,11 @@ import { outcomes, shifts, users } from "./db/schema";
 import { roundShift } from "./cadence";
 import { displayName } from "./display-name";
 
-export type Person = { id: string; name: string; email: string; role: string; notionUserId: string | null };
+export type Person = { id: string; name: string; email: string; role: string };
 export type PersonWeek = { userId: string; name: string; role: string; sent: number; whatsapp?: number; replies: number; meetings: number; clients: number; tasksDone: number; minutes: number };
-/** A lead as the scoreboard needs it. `notionPageId`: clicks made while the queue still read Notion carry that id. */
+/** A lead as the scoreboard needs it. */
 export type LeadFact = {
   id: string;
-  notionPageId: string | null;
   emailStatus: string | null;
   sentBy: string[];
   sentAt: Date | null;
@@ -49,12 +48,12 @@ export function scoreboard(
   now = new Date(),
   step = 0, // settings.updates.rounding: each shift rounded (start down, end up) for the totals; raw times stay stored
 ): PersonWeek[] {
-  // A click by lead id, or by the Notion page id it had before the queue moved over.
+  // A click by lead id.
   const click = new Map<string, { userId: string; at: Date }>();
   for (const c of clicks) if (c.userId && !click.has(c.pageId)) click.set(c.pageId, { userId: c.userId, at: c.at });
   const rows = new Map(people.map((p) => [p.id, { userId: p.id, name: displayName(p.name, p.email), role: p.role, sent: 0, whatsapp: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 }]));
   for (const l of leads) {
-    const c = click.get(l.id) ?? (l.notionPageId ? click.get(l.notionPageId) : undefined);
+    const c = click.get(l.id);
     const who = l.sentBy.map((n) => personNamed(people, n)).find(Boolean)?.id ?? c?.userId;
     // A WhatsApp message sent counts for the person who pressed it, when they pressed it (else Sent by and Sent at).
     if (l.whatsappStatus === WA_SENT) {
@@ -93,7 +92,7 @@ export async function weekRows(db: Db, tenantId: string, from: Date) {
   // Three independent reads at once: one round trip of waiting.
   const [people, clicks, shiftRows] = await Promise.all([
     db
-      .select({ id: users.id, name: users.name, email: users.email, role: users.role, notionUserId: users.notionUserId })
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role })
       .from(users)
       .where(and(eq(users.tenantId, tenantId), eq(users.active, true))) as Promise<Person[]>,
     db.select({ userId: outcomes.userId, pageId: outcomes.pageId, at: outcomes.at }).from(outcomes).where(and(eq(outcomes.tenantId, tenantId), eq(outcomes.kind, "sent"))),

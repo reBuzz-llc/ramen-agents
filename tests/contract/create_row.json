@@ -29,7 +29,6 @@
     "body": {
      "id": "row_acme_dental",
      "external": {
-      "notion_page_id": null,
       "id": null
      },
      "archived": false,
@@ -82,7 +81,6 @@
     "body": {
      "id": "row_acme_dental",
      "external": {
-      "notion_page_id": null,
       "id": null
      },
      "archived": false,
@@ -245,7 +243,6 @@
     "body": {
      "id": "row_task_77",
      "external": {
-      "notion_page_id": null,
       "id": "TASK-77"
      },
      "archived": false,

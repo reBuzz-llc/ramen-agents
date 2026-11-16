@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { body, fail, failed, keyed } from "@/lib/board-api";
 import { saveList } from "@/lib/send-next";
 
-// PUT the Validator's send-next list ({generated_at, next: [{id | notion_page_id, note?}], held: [{id, name, reason}],
+// PUT the Validator's send-next list ({generated_at, next: [{id, note?}], held: [{id, name, reason}],
 // counts}), as its file has it; the Leads page's Send next tab shows it. The key's company only.
 export async function PUT(req: Request, ctx: { params: Promise<{ name: string }> }) {
   if ((await ctx.params).name !== "send-next") return fail(404, "not_found", "the lists here are: send-next");

@@ -12,7 +12,6 @@ const lead = (
   p: Partial<LeadFact> & { sentBy?: string[] } = {},
 ): LeadFact => ({
   id,
-  notionPageId: null,
   emailStatus: null,
   sentBy: [],
   sentAt: null,
@@ -27,14 +26,12 @@ const team: Person[] = [
     name: "Sam",
     email: "sam@acme.example",
     role: "member",
-    notionUserId: "n-sam",
   },
   {
     id: "u-jo",
     name: "Jo",
     email: "jo@acme.example",
     role: "member",
-    notionUserId: null,
   },
 ];
 const from = new Date("2026-10-12T00:00:00Z");
@@ -78,18 +75,18 @@ describe("this week, from Peek's board", () => {
     expect(rows.find((r) => r.userId === "u-jo")?.sent).toBe(1);
   });
 
-  it("counts a click on 'I sent it' when the board has no Sent by yet, by lead id or its old Notion page id", () => {
+  it("counts a click on 'I sent it' when the board has no Sent by yet, by lead id", () => {
     const clicks = [
       { userId: "u-jo", pageId: "d", at: new Date("2026-10-14T09:00:00Z") },
       {
         userId: "u-jo",
-        pageId: "notion-e",
+        pageId: "e",
         at: new Date("2026-10-14T09:00:00Z"),
       },
     ];
     const leads = [
       lead("d", { emailStatus: "Email Sent" }),
-      lead("e", { emailStatus: "Email Sent", notionPageId: "notion-e" }),
+      lead("e", { emailStatus: "Email Sent" }),
     ];
     expect(
       scoreboard(team, clicks, leads, [], [], from).find(

@@ -1,6 +1,6 @@
 // Rebuild the portal's data from a dataset (when the database is lost, or moves to another host and only the agents'
 // records remain): one JSON object per line in <dir>/{leads,tasks,assets,people}-rebuild-<stamp>.jsonl
-//   leads-rebuild-<stamp>.jsonl   {id, notion_page_id, created_at, archived, fields: {<API key>: {value, source, at} | value}}
+//   leads-rebuild-<stamp>.jsonl   {id, created_at, archived, fields: {<API key>: {value, source, at} | value}}
 //   tasks-rebuild-<stamp>.jsonl   the same, with the task board's keys
 //   assets-rebuild-<stamp>.jsonl  {kind: rate|package|section, position, ...} (a section's own kind as section_kind)
 //   people-rebuild-<stamp>.jsonl  {email, name, role} (optional: else common-data/team.json and --owner-email)
@@ -162,12 +162,11 @@ async function insertMany(client, table, rows) {
 async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today, dry }) {
   const cols = await columnsOf(client, table);
   const report = { inserted: 0, changed: 0, unchanged: 0, skipped: 0, cells: {} };
-  // what is stored: by id, by Notion page, and (tasks without either) by title, oldest first
+  // what is stored: by id, and (tasks without one) by title, oldest first
   const stored = (await client.query(`select * from ${table} where tenant_id = $1 order by created_at, rev`, [tenant])).rows;
   const byId = new Map(stored.map((r) => [r.id, r]));
-  const byNotion = new Map(stored.filter((r) => r.notion_page_id).map((r) => [r.notion_page_id, r]));
   const byTitle = new Map();
-  if (table === "tasks") for (const r of stored.filter((x) => !x.notion_page_id)) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
+  if (table === "tasks") for (const r of stored) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
   const taken = new Set(); // each stored row answers one dataset row per run (two tasks may share a title)
   const inserts = [];
   const history = [];
@@ -198,12 +197,10 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
       report.skipped++;
       continue;
     }
-    if (row.notion_page_id) values.notion_page_id = String(row.notion_page_id);
     const id = row.id && /^[0-9a-f-]{36}$/i.test(row.id) ? row.id : null;
-    // the row by its id, else its Notion page, else (a task the dataset has no id for) its title: a second run finds
-    // what the first one wrote
-    let found = id ? byId.get(id) : values.notion_page_id ? byNotion.get(values.notion_page_id) : undefined;
-    if (!found && !id && !values.notion_page_id && table === "tasks") found = (byTitle.get(values.title) ?? []).find((r) => !taken.has(r.id));
+    // the row by its id, else (a task the dataset has no id for) its title: a second run finds what the first one wrote
+    let found = id ? byId.get(id) : undefined;
+    if (!found && !id && table === "tasks") found = (byTitle.get(values.title) ?? []).find((r) => !taken.has(r.id));
     if (found && taken.has(found.id)) found = undefined;
     if (found) taken.add(found.id);
     const note = { note: `rebuilt from ${[...sources].join(", ") || "the dataset"} on ${today}` };
@@ -263,7 +260,7 @@ export function expandMirror(items) {
       const body = String(x.body);
       const block = /^##\s+Rates[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(body)?.[1] ?? "";
       for (const l of block.split("\n")) if (/^\s*[-*]\s+\S/.test(l)) rates.push(l.replace(/^\s*[-*]\s+/, "").trim());
-      const header = /^(Last (edited on Notion|changed on [^:]+):|What the company actually has)/;
+      const header = /^(Last (edited|changed) on [^:]+:|What the company actually has)/;
       for (const s of sectionsFromMirror(body)) {
         // the untitled first section loses the mirror's header lines; the Rates section its note about where rates live
         const sbody = (s.title ? s.body : s.body.split("\n").filter((l) => !header.test(l)).join("\n"))

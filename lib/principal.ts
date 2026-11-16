@@ -14,7 +14,6 @@ export type Me = {
   email: string;
   name: string;
   role: Role;
-  notionUserId: string | null;
   settings: TenantSettings;
   /** The current notice acknowledged. */
   acked: boolean;
@@ -33,7 +32,6 @@ async function principal(db: Db, where: SQL, viaSession = false): Promise<Me | n
       name: users.name,
       role: users.role,
       active: users.active,
-      notionUserId: users.notionUserId,
       firstSignedInAt: users.firstSignedInAt,
       tenantName: tenants.name,
       settings: tenants.settings,

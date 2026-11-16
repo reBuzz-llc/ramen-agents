@@ -23,7 +23,6 @@
     "body": {
      "id": "row_acme_bakery",
      "external": {
-      "notion_page_id": "00000000-0000-4000-8000-000000000101",
       "id": "LEAD-101"
      },
      "archived": false,
@@ -195,7 +194,6 @@
     "body": {
      "id": "row_acme_salon",
      "external": {
-      "notion_page_id": null,
       "id": null
      },
      "archived": false,
@@ -314,7 +312,6 @@
     "body": {
      "id": "row_acme_bakery",
      "external": {
-      "notion_page_id": "00000000-0000-4000-8000-000000000101",
       "id": "LEAD-101"
      },
      "archived": false,
@@ -388,7 +385,6 @@
     "body": {
      "id": "row_acme_bakery",
      "external": {
-      "notion_page_id": "00000000-0000-4000-8000-000000000101",
       "id": "LEAD-101"
      },
      "archived": false,

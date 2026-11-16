@@ -8,9 +8,7 @@ import { tenants, users } from "@/lib/db/schema";
 import { guard } from "@/lib/guard";
 import { can, canSetRole, type Role } from "@/lib/roles";
 import { sameOrigin } from "@/lib/same-origin";
-import { boardById, forgetBoard, forgetTasks, NotionError, whoAmI } from "@/lib/notion";
-import { idFromInput, missingLeadsColumns, NONE_SHARED, NOT_ACCEPTED } from "@/lib/notion-pick";
-import { connectNotion, disconnectNotion, notionOf, settingsOf } from "@/lib/tenants";
+import { settingsOf } from "@/lib/tenants";
 import { setRate } from "@/lib/member-rates";
 import { sectionOf } from "@/lib/settings-nav";
 import { canSetRate, dayOf, money } from "@/lib/rates";
@@ -35,57 +33,6 @@ export async function POST(req: Request) {
   returns.set(req, form.get("return") === "/" ? "/" : `/settings/${sectionOf(action)}`);
   const d = await db();
 
-  if (action === "notion") {
-    const g = await guard("settings.notion");
-    if ("res" in g) return g.res;
-    // The token pasted now, else the one already stored (changing boards without pasting it again).
-    const token = String(form.get("token") ?? "").replace(/\s+/g, "") || (await notionOf(d, g.who.tenantId).catch(() => null))?.token;
-    if (!token) return back(req, "Paste your Notion token first. How to get one: /help/connect-notion");
-    // A board from the picker, or an id or Notion URL pasted under "advanced"; the pasted one wins.
-    const pick = (name: string) => String(form.get(`${name}Raw`) ?? "").trim() || String(form.get(name) ?? "").trim();
-    const leadsIn = pick("leads");
-    const tasksIn = pick("tasks");
-    if (!leadsIn) return back(req, "Choose the Leads board.");
-    const leadsId = idFromInput(leadsIn);
-    if (!leadsId) return back(req, "That Leads board id or link has no Notion id in it. Copy the board's link from Notion (··· → Copy link) and paste it whole.");
-    const tasksId = tasksIn ? idFromInput(tasksIn) : null;
-    if (tasksIn && !tasksId) return back(req, "That task board id or link has no Notion id in it. Leave it empty if you have no task board.");
-    try {
-      // The token first, so a bad paste is refused with Notion's own words before anything is stored.
-      let integration: { name: string };
-      try {
-        integration = await whoAmI(token);
-      } catch (err) {
-        if (err instanceof NotionError && err.status === 401) return back(req, `Notion says: ${err.notionSays || "API token is invalid."} ${NOT_ACCEPTED}`);
-        throw err;
-      }
-      const leads = await boardById(token, leadsId);
-      if (!leads) return back(req, `ramen-agents cannot see that Leads board. ${NONE_SHARED}`);
-      const tasks = tasksId ? await boardById(token, tasksId) : null;
-      if (tasksId && !tasks) return back(req, "ramen-agents cannot see that task board. In Notion, open it, click ··· → Connections, and add your integration.");
-      await connectNotion(d, g.who.tenantId, token, leads, tasks, integration.name);
-      forgetTasks(g.who.tenantId);
-      forgetBoard(g.who.tenantId);
-      const missing = missingLeadsColumns(leads);
-      return back(
-        req,
-        missing.length
-          ? `Connected to "${leads.title}", but it has no ${missing.map((c) => `"${c}"`).join(" or ")} column, so Our queue will be empty until it does.`
-          : `Connected as ${integration.name} to "${leads.title}"${tasks ? ` and "${tasks.title}"` : ""}. The token is stored encrypted.`,
-      );
-    } catch (err) {
-      if (err instanceof NotionError && err.status === 401) return back(req, NOT_ACCEPTED);
-      return back(req, `${publicReason(err, "settings.notion")} Nothing was changed.`);
-    }
-  }
-  if (action === "notionDisconnect") {
-    const g = await guard("settings.notion");
-    if ("res" in g) return g.res;
-    await disconnectNotion(d, g.who.tenantId);
-    forgetTasks(g.who.tenantId);
-    forgetBoard(g.who.tenantId);
-    return back(req, "Notion disconnected. The stored token and the cached rows are deleted; your board in Notion is unchanged.");
-  }
   if (action === "keyResults") {
     const g = await guard("settings.keyResults");
     if ("res" in g) return g.res;

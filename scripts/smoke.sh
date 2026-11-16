@@ -21,7 +21,6 @@ major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
 echo "Env file (.env.local)"
 [ -f .env.local ] || { bad ".env.local: cp .env.example .env.local, then follow SETUP.md step 2"; exit 1; }
 val() { grep -E "^$1=" .env.local | tail -1 | cut -d= -f2- | sed -E "s/^[\"'](.*)[\"']$/\1/"; }
-[ -n "$(val TEAMS_ENCRYPTION_KEY)" ] && ok TEAMS_ENCRYPTION_KEY || bad "TEAMS_ENCRYPTION_KEY (openssl rand -base64 32)"
 if [ -n "$(val DATABASE_URL)" ]; then
   ok DATABASE_URL
   [ -n "$(val DATABASE_URL_UNPOOLED)" ] && ok DATABASE_URL_UNPOOLED || warn "DATABASE_URL_UNPOOLED empty: migrations use DATABASE_URL (Neon's direct URL is better)"

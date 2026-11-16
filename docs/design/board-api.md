@@ -1,17 +1,16 @@
-# Board API: Peek as the family's board store
+# Board API: the portal as the family's board store
 
-*Written 2026-10-14 against
-[peek-board-schema.md](peek-board-schema.md): the API serves exactly the operations listed there, no more.*
+*Written 2026-10-14 against [peek-board-schema.md](peek-board-schema.md): the API serves exactly the operations listed
+there, no more. The fleet's local board (its dashboard) serves the same subset, so the agents work with either.*
 
-**Goal.** ramen-agents keeps the Leads and task boards in its own Postgres. The engine's board client
-(`explorer/notion.py`) and the Validator read and write them over HTTP ("Live sync with my family"). Notion becomes an
-optional mirror, filled by a one-time import. The bots behave exactly as they do today; only the store changes.
+**Goal.** ramen-agents keeps the Leads and task boards in its own Postgres. The engine's board client and the Validator
+read and write them over HTTP. The bots behave the same against the portal and against the local board.
 
 ## Resources
 
 - **Board**: two per tenant, `leads` and `tasks`, fixed kinds. Each has columns (name, type, options, write rule from
   the schema doc). Options are per tenant; "How can I help" is the tenant's package list.
-- **Row**: `id` (Peek), `external` (Notion page id, `LEAD-n`), typed `cells`, and `meta`:
+- **Row**: `id`, typed `cells`, and `meta`:
   - `created_time`, `last_edited_time`;
   - `last_edited_by {actor, kind: person | agent}`;
   - `archived`.
@@ -21,7 +20,7 @@ optional mirror, filled by a one-time import. The bots behave exactly as they do
   `GET user` answer `{id, name, kind}` only, never an email. An API key can never list users; it can only resolve ids
   it has already seen in a row.
 - **Change**: one entry per write, with a per-tenant sequence number, row, board, actor and time, plus the changed
-  cells *with their new values*. The UI and the mirror then need no refetch of 300 rows; `GET /v1/rows/{id}` stays the
+  cells *with their new values*. The UI then needs no refetch of 300 rows; `GET /v1/rows/{id}` stays the
   way to get a row's full state.
 
 ## Operations (the engine's board client → HTTP)
@@ -83,8 +82,8 @@ a response; the detail goes to the server log only.
   the bots apart.
 - Scopes: `board:read`, `board:write`, and `board:validate`. The last is Validator-only and covers clearing a cell and
   setting Sent by.
-- The family finds the portal through one setting, `[leads] portal_url` in the fleet's `common-data/configs/common.toml`
-  (unset: the Leads board stays on Notion). Each reader has its own key file, chmod 600 like the other keys:
+- The family finds the portal through one setting, `[leads] portal_url` in the fleet's `common-data/configs/local.toml`
+  (unset: the boards stay on the fleet's local board). Each reader has its own key file, chmod 600 like the other keys:
   `common-data/keys/portal-engine.key` (the agents), `portal-validator.key` (the Validator) and `portal-dashboard.key`
   (the dashboard, read only).
 - People use the app's own session. The API never accepts a session cookie, and the app pages never accept an API key.
@@ -95,32 +94,15 @@ a response; the detail goes to the server log only.
 - Per key: 5 requests a second sustained, bursts of 20. Writes: 2 a second.
 - Per tenant: 50,000 requests a day, sized to stay inside Neon's free tier. Today's family uses far less: one sweep of
   about 300 rows every 6 hours, a quick look every 10 minutes, and the writes.
-- Over a limit, the answer is `429` with `Retry-After`. The engine already backs off this way for Notion's 3 a second.
+- Over a limit, the answer is `429` with `Retry-After`. The engine backs off this way.
 - Sizes: up to 100 rows a page, 2,000 characters a cell, 200 lines a section.
 
-## Change feed (live UI and the mirror)
+## Change feed (live UI)
 
-- `GET /v1/changes?after=<seq>` long-polls for up to 25 seconds and returns the changes after `seq`. Bots and the
-  mirror use it.
+- `GET /v1/changes?after=<seq>` long-polls for up to 25 seconds and returns the changes after `seq`. Bots use it.
 - `GET /v1/changes/stream` serves the same entries as server-sent events for the app's pages, so My queue updates
   when an agent drafts a row. It resumes from `Last-Event-ID`.
 - One open feed per key. Entries are kept for 30 days.
-
-## Import from Notion (once) and the mirror
-
-- **Import:** the owner starts it in Settings; it can't be started with an API key. It follows the schema doc's mapping:
-  - Notion page id and `LEAD-n` become external ids, and the times are kept.
-  - Options are copied exactly.
-  - People are matched by email, else by name, else made "unclaimed". A bot user becomes the "agents" actor.
-  - Draft sections are dropped, since the cells are canonical. Task bodies become "details".
-  - Projects are imported first.
-
-  The import can be re-run before the switch: it updates by external id and never duplicates.
-- **Switch:** bots move from `notion` to `peek` in one config change, so nothing is written twice.
-- **Mirror** (optional, Peek → Notion only): it reads the change feed and writes Notion at under 3 a second. A Notion
-  failure never blocks a write to Peek.
-- **After the switch, Notion is read-only for people too:** the mirror overwrites any edit made there. Settings says
-  so next to the mirror switch, and the mirror's first write to a row adds a note: "mirrored from ramen-agents".
 
 ## Contract tests
 
@@ -132,32 +114,29 @@ a response; the detail goes to the server log only.
 
 ## Review answers
 
-1. The Validator's quick look keeps `edited_after`; the change feed serves the UI and the mirror.
+1. The Validator's quick look keeps `edited_after`; the change feed serves the UI.
 2. One key per agent, made in one click from the roster (see Auth).
 3. Yes, the store holds the `/in/` LinkedIn rule; it is a privacy rule.
 
-**Build order:** the Notion picker and guide are done. Week-2 items (statements, deploy) come next. This API comes
-after week 2: contract fixtures first, then schema and rows, rules, keys, the feed, the import, and the mirror last.
-The engine spec (`PeekClient` as a board backend) follows when the build starts.
+**Build order:** contract fixtures first, then schema and rows, rules, keys and the feed.
 
 ## Built, step one
 
-What runs now, read against the design above. The engine and the Validator still use Notion; nothing in Notion changes.
-- **Store:** `leads` (one column per field under their Neon names, `the fleet's common-data/leads-columns.md`; Notion's
-  mixed Status is `email_status` and `whatsapp_status`; "Reviewed by" left out), `lead_cells` (every change and every
+What runs now, read against the design above.
+- **Store:** `leads` (one column per field; the combined Status is
+  `email_status` and `whatsapp_status`; "Reviewed by" left out), `lead_cells` (every change and every
   refused attempt: old, new, actor kind and name, the key it came through, source URL), `api_keys` (SHA-256 only).
   `rev` rises on every change; readers follow it instead of a timestamp.
 - **Rules in the store (lib/leads.ts):** person wins (a bot never replaces a cell a person changed last; refused and
   recorded), human only (email status, WhatsApp status, result, result date), fill only when the writer asks, one row
-  per website domain (or name and city). The backfill's import key copies Notion as it is, past the rules.
+  per website domain (or name and city). An import key copies the values as they are, past the rules.
 - **Machine API** (Bearer key from the fleet's `common-data/keys/portal-<name>.key`, minted with `scripts/api-key.mjs`):
   - `GET /v1/boards/leads/rows?since=<rev>&limit=&email_status=&whatsapp_status=&city=&industry=&min_score=&has_draft=&has_role=`
     answers `{leads, next, more}`;
   - `POST /v1/boards/leads/rows` `{actor, fields, source_url?}` creates;
-  - `POST /v1/boards/leads/batch` `{actor, writes: [{id | notion_page_id, fields, create?, fill_only?, source_url?}]}`, up to 100;
+  - `POST /v1/boards/leads/batch` `{actor, writes: [{id?, fields, create?, fill_only?, source_url?}]}`, up to 100;
   - `GET` and `PATCH /v1/rows/{id}` (`{actor, fields, fill_only?, source_url?}`, answered with `written` and
     `refused` with reasons), `GET /v1/rows/{id}/history`, `DELETE` is 405;
-  - `GET` and `PUT /api/leads/by-notion/{page_id}` for the backfill (`{actor, lead}`, an idempotent upsert; import key).
   A key always writes as a bot, named by `actor` (an engine key writes for many agents).
 - **Flags**:
   `POST /v1/rows/{id}/flags` `{actor, rule, detail}` answers `{flag: {id, rule, detail, status, first_seen, resolved_at, actor}}`
@@ -196,4 +175,4 @@ What runs now, read against the design above. The engine and the Validator still
   drawer to edit any cell as the signed-in person, one-click status steps, open flags as red strips, the history, and
   the Send next tab.
 - **Not yet:** schema(), waiting/drafted work lists, sections, the change feed, rate limits, Settings → Agents keys,
-  the mirror, and people editing (step three).
+  and people editing (step three).

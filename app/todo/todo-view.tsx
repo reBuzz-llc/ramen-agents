@@ -313,25 +313,11 @@ function TaskCard({
             <div className="mt-1 flex flex-wrap items-start justify-between gap-3 pl-6">
               <div className="min-w-0">
                 <p className="text-xs text-muted">
-                  {t.uid ? `${t.uid} · ` : ""}
                   {t.takenBy
                     ? t.takenBy.mine
                       ? "You are on it"
                       : `${t.takenBy.name} is on it`
                     : "Nobody on it yet"}
-                  {t.url ? (
-                    <>
-                      {" · "}
-                      <a
-                        href={t.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent-ink hover:underline"
-                      >
-                        Notion page
-                      </a>
-                    </>
-                  ) : null}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

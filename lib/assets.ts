@@ -1,5 +1,4 @@
-// The Asset page's two lists: the rate card and the packages, so the owner's Notion "What we have"
-// page can retire. The page, PUT /v1/assets/* (an assets:write key) and GET /v1/assets/* (any board:read key: the
+// The Asset page's two lists: the rate card and the packages. The page, PUT /v1/assets/* (an assets:write key) and GET /v1/assets/* (any board:read key: the
 // Validator's price guard, the Writer's offer reader) all go through here. A save sends the whole list in the order it
 // should read: rows with an id are kept (and only touched when they changed), rows without one are added, rows left out
 // are deleted. One transaction, so a reader never sees half a list.
@@ -23,7 +22,7 @@ export type PackageIn = {
   status: PackageStatus;
   /** The ready-to-send email, line breaks kept: the Outreach Writer builds a package's first email on it. */
   email: string;
-  /** Why this package and price, and the pages it rests on (a handover's, or the Notion toggle's). */
+  /** Why this package and price, and the pages it rests on (a handover's). */
   why: string;
   sources: string[];
   /** A key restoring a draft's record: the handover, the review, when it was made and by whom, as

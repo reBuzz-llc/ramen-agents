@@ -275,7 +275,7 @@ export default function LeadsView({
       {tab === "send" ? (
         <SendNextView next={next} me={me} onOpen={setOpen} />
       ) : rows.length === 0 ? (
-        <p className={`mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted ${narrow}`}>No leads here yet. They arrive when the Notion board is copied over (the backfill).</p>
+        <p className={`mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted ${narrow}`}>No leads here yet. They arrive as Lead Gen finds them, or import a list on the Import page.</p>
       ) : (
         <>
           <div className={`mt-4 space-y-3 rounded-2xl border border-line bg-panel/50 p-4 ${narrow}`}>
