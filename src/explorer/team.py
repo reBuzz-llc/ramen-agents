@@ -44,11 +44,28 @@ class Member:
         return t == name or (bool(self.email) and t == self.email.lower()) or t == name.split(" ")[0]
 
 
-def load_team(path: str | Path) -> list[Member]:
+def family_team(path: str | Path) -> list[dict] | None:
+    """The [[team]] rows of the user's own common-data/local/family.toml beside the team file (queue 572: setup.sh and the
+    first-run page write it), or None when it has none."""
+    import tomllib
+    local = Path(path).expanduser().parent / "local" / "family.toml"
     try:
-        data = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+        rows = tomllib.loads(local.read_text(encoding="utf-8")).get("team")
     except (OSError, ValueError):
-        return []
+        return None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) and rows else None
+
+
+def load_team(path: str | Path) -> list[Member]:
+    """family.toml's [[team]] when it has one, else the team file."""
+    rows = family_team(path)
+    if rows is not None:
+        data = {"members": rows}
+    else:
+        try:
+            data = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
     rows = data.get("members") if isinstance(data, dict) else None
     out: list[Member] = []
     for row in rows if isinstance(rows, list) else []:

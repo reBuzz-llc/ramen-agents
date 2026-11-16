@@ -1069,9 +1069,23 @@ def load_config(path: str | os.PathLike[str] | None = None, root: Path | None = 
         root = cfg_path.parent.resolve() if cfg_path.exists() else Path.cwd()
     sections = {name: _build(cls, dict(data.get(name, {})), name) for name, cls in SECTIONS.items()}
     cfg = Config(root=Path(root), **sections)
+    if cfg_path.exists():
+        _family_domains(cfg, cfg_path)
     _apply_env(cfg)
     validate(cfg)
     return cfg
+
+
+def _family_domains(cfg: Config, cfg_path: Path) -> None:
+    """The user's own site domains from common-data/local/family.toml [company] own_domains (queue 572, the first run),
+    added to [handoff] own_domains: a package never cites the seller's own site."""
+    local = cfg_path.expanduser().resolve().parent.parent / "common-data" / "local" / "family.toml"
+    try:
+        company = tomllib.loads(local.read_text(encoding="utf-8")).get("company") or {}
+    except (OSError, ValueError):
+        return
+    extra = [str(d).strip().lower() for d in (company.get("own_domains") or []) if str(d).strip()] if isinstance(company, dict) else []
+    cfg.handoff.own_domains = list(dict.fromkeys([*cfg.handoff.own_domains, *extra]))
 
 
 def _apply_env(cfg: Config) -> None:

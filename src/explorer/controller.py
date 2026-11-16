@@ -315,7 +315,7 @@ class Controller:
             except OSError:
                 pass
         self.team: list[Member] = []
-        self._team_mtime: float | None = None
+        self._team_mtime: tuple | None = None
         self._reload_team()
         # Work plans (plan.py): the bot's own plan for its current job, and the owner's goal + rules for this bot.
         self.plan_file = cfg.workspace / "plan.json"
@@ -331,10 +331,13 @@ class Controller:
         if self.task_board is None:
             return False
         path = Path(self.cfg.tasks.team_file).expanduser()
-        try:
-            mtime: float | None = path.stat().st_mtime
-        except OSError:
-            mtime = None
+        stamps = []
+        for p in (path, path.parent / "local" / "family.toml"):    # queue 572: family.toml's [[team]] wins when present
+            try:
+                stamps.append(p.stat().st_mtime)
+            except OSError:
+                stamps.append(None)
+        mtime = None if stamps == [None, None] else tuple(stamps)
         if mtime == self._team_mtime and self._team_mtime is not None:
             return False
         if mtime is None and self._team_mtime is None and not self.team:
@@ -2825,7 +2828,7 @@ class Controller:
         if str(sc.get("name", "")).strip() and not str(sc.get("valuation", "")).strip():
             company.append(("Valuation", "not published on its site"))
         sources = [s for s in (pkg.get("sources") or []) if str(s).strip()]
-        email = with_signoff(action.email, self.cfg.packages.signoff)
+        email = with_signoff(action.email, self.target.fill(self.cfg.packages.signoff))
         import json
         blocks = self._published_blocks()
         previous = blocks.get(name.lower()) if isinstance(blocks.get(name.lower()), dict) else None
@@ -3272,7 +3275,7 @@ class Controller:
 
     def _with_signoff(self, email: str) -> str:
         """The package email with its own sign-off (from a line "Regards," on) replaced by [leads] draft_signoff."""
-        sign = [s for s in self.cfg.leads.draft_signoff if s.strip()]
+        sign = [t for t in (self.target.fill(s) for s in self.cfg.leads.draft_signoff) if t.strip()]   # {owner}, {company}
         if not sign:
             return email
         lines = email.rstrip().splitlines()
