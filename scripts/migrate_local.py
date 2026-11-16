@@ -24,7 +24,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(os.environ.get("RAMEN_ROOT") or Path(__file__).resolve().parent.parent)  # RAMEN_ROOT: run from a copy (update.sh on an old checkout)
 SHARED = {"common-data/configs/common.toml", "common-data/configs/web-bots.toml"}
 # valiCC's list (queue 572): the [notion] keys that moved, and where
 MOVED = {

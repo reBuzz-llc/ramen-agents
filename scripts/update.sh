@@ -3,6 +3,9 @@
 #
 #   sh scripts/update.sh
 #
+# On a checkout from before this script existed (no scripts/update.sh yet), run the new one straight from the starter:
+#   cd ~/bots && git fetch starter && git show starter/fleet:scripts/update.sh | sh
+#
 # 1. Lifts your own values out of the tracked files, once (scripts/migrate_local.py): config values into the git-ignored
 #    overlays (common-data/configs/local.toml, <member>/config.local.toml), your market and team into
 #    common-data/local/family.toml, any other edited file into common-data/local/before-update/; old Notion settings are
@@ -12,7 +15,8 @@
 # 4. Prints what changed.
 set -eu
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
-cd "$(dirname "$0")/.."
+# this folder: where the script lives, or ~/bots when it is read from a pipe (an old checkout's first update)
+if [ -f "$(dirname "$0")/update.sh" ] && [ -d "$(dirname "$0")/../.git" ]; then cd "$(dirname "$0")/.."; else cd "${RAMEN_FLEET:-$HOME/bots}"; fi
 ROOT=$(pwd)
 ENGINE="${RAMEN_ENGINE:-$HOME/Projects/bot}"
 NO_INSTALL="${RAMEN_UPDATE_NO_INSTALL:-0}"   # tests: skip the reinstall and the restarts
@@ -22,8 +26,17 @@ echo "ramen-agents update ($ROOT)"
 before=$(git rev-parse --short HEAD)
 ebefore=$( [ -d "$ENGINE/.git" ] && git -C "$ENGINE" rev-parse --short HEAD || echo "")
 
+git fetch -q || { echo "  STOP     could not reach the starter (git fetch): are you online?"; exit 1; }
+UP=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || { echo "  STOP     this branch follows no upstream: git branch -u starter/fleet"; exit 1; }
+
 echo "1. Your own values, out of the tracked files"
-mig=$("$PY" scripts/migrate_local.py)
+# the newest migration (an old checkout has none yet): from the version about to be pulled, run against this folder
+MIG="$ROOT/scripts/migrate_local.py"
+if ! git diff --quiet HEAD "$UP" -- scripts/migrate_local.py 2>/dev/null || [ ! -f "$MIG" ]; then
+  MIG="${TMPDIR:-/tmp}/ramen-migrate-local.py"
+  git show "$UP:scripts/migrate_local.py" > "$MIG"
+fi
+mig=$(RAMEN_ROOT="$ROOT" "$PY" "$MIG")
 printf '%s\n' "$mig"
 
 echo "2. The newest version"
@@ -34,7 +47,7 @@ if [ -d "$ENGINE/.git" ]; then
   echo "  ok       the engine: $ebefore -> $(git -C "$ENGINE" rev-parse --short HEAD)"
 fi
 # the new version's migration may know more (a renamed setting): once more, quietly
-"$PY" scripts/migrate_local.py >/dev/null
+RAMEN_ROOT="$ROOT" "$PY" scripts/migrate_local.py >/dev/null
 
 if [ "$NO_INSTALL" != 1 ]; then
   echo "3. Reinstall and restart"
