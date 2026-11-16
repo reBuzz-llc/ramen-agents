@@ -133,7 +133,7 @@ def review_bot(slug: str, start: str, end: str) -> dict:
             tags = []
     tag_str = f" · tags: {', '.join(tags)}" if tags else ""
     print(f"\n=== {slug}{'' if running else ' (STOP file present: stopped)'}{tag_str}")
-    print(f"  episodes {episodes} · notes {len(notes)} · Notion tasks {len(tasks)} · packages sent {len(packages)}"
+    print(f"  episodes {episodes} · notes {len(notes)} · board tasks {len(tasks)} · packages sent {len(packages)}"
           + (f" · task nudges {nudges}" if nudges else "") + (f" · messages read from other bots {inbox_seen}" if inbox_seen else ""))
     if not rows:
         print("  (no log lines in this window)")
@@ -161,7 +161,7 @@ def review_bot(slug: str, start: str, end: str) -> dict:
         for when, name, price, nsrc in packages:
             print(f"    {when} {name} · {price} · {nsrc} source(s)")
     if tasks:
-        print("  Notion tasks:")
+        print("  tasks on the board:")
         for t in tasks:
             print(f"    [{t['priority']}] {t['title']}")
     out.update(packages=packages, tasks=[t["title"] for t in tasks])
@@ -209,7 +209,7 @@ def handoff_check(results: dict[str, dict], start: str, end: str) -> None:
     tasks = [t.lower() for t in ceo.get("tasks", [])]
     for _, name, price, _ in sent:
         match = next((t for t in tasks if name.lower() in t), None)
-        print(f"  {name} ({price}): " + (f"Notion task created: {match}" if match else "no Notion task with that name yet"))
+        print(f"  {name} ({price}): " + (f"task created: {match}" if match else "no task with that name yet"))
     if not sent:
         print("  no packages sent in this window")
 

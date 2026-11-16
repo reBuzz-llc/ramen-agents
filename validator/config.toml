@@ -1,27 +1,25 @@
-# Validator: checks what the family writes (Notion tasks, packages, leads, hand-overs) against the owner's rules in
+# Validator: checks what the family writes (tasks, packages, leads on the board; hand-overs) against the owner's rules in
 # validator/instructions/*.md. Not a browsing bot: a scheduled job (launchd) plus a write gate the engine calls.
 # NOTE (TOML): keep every plain setting ABOVE [validator.model] and its [[...]] entries.
 
 [agent]
 not_a_bot_run_agent = true
 name = "Validator"
-bio = "The fleet's format checker, run as an automated job by its owner. It reviews the Notion tasks and packages and the other bots' outputs against the owner's rules, and asks the responsible bot to fix what is missing or wrong."
-tags = ["validator", "notion_reader"]
+bio = "The fleet's format checker, run as an automated job by its owner. It reviews the tasks and packages on the team's board and the other bots' outputs against the owner's rules, and asks the responsible bot to fix what is missing or wrong."
+tags = ["validator", "board_reader"]
 
 [dashboard]
 port = 8793
 
 [validator]
-task_data_source_id = ""        # FILL-ME: the task board's data source id (the same as the-ceo [notion] database_id)
-package_page_id = ""            # FILL-ME: the Packages page id
-leads_data_source_id = ""       # FILL-ME: the Leads board's data source id; "" = skip leads
+# The board is common.toml's [leads] portal_url (the dashboard's local board by default). Your own values go in
+# validator/config.local.toml, never here.
 task_owner_bot = "the-ceo"
 lead_owner_bot = "lead-gen"
 provider_bot = "the-ceo"        # hears a deleted "How can I help" (its package decision); every other deleted cell goes on the Lead Enricher's list
 upkeep_to_lead_bot = false      # empty cells go in the report, not to Lead Gen as a work list
 provider_gaps_every_days = 3
 silent_bots = []
-notion_api_version = "2025-09-03"
 full_sweep_every_hours = 24
 run_every_hours = 6
 notify = true

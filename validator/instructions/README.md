@@ -3,7 +3,7 @@
 These are the owner's format instructions for each bot's outputs, gathered in one place so the
 Validator can check past and future work against them. **The owner edits these files**; the
 Validator re-reads them on every run, and any change makes its next run a full sweep of all past
-data, so a new instruction is applied to everything already on Notion, not just new items.
+data, so a new instruction is applied to everything already on the board, not just new items.
 
 ## How a rule line works
 
@@ -30,21 +30,21 @@ data, so a new instruction is applied to everything already on Notion, not just 
 
 | Prefix | Checks | Bot |
 |---|---|---|
-| T01–T11 | rows on the Notion task board | The CEO (rows it created); owner otherwise |
-| PK01–PK07 | the email wrapper of a toggle on the Notion packages page | The CEO |
+| T01–T11 | tasks on the team's board | The CEO (rows it created); owner otherwise |
+| PK01–PK07 | the email wrapper of a package on the board's Packages list | The CEO |
 | PS01–PS06 | the sources and company facts of a packages-page toggle | Package Designer |
 | PD01–PD07 | package files handed over in `the-ceo/raw/packages/` | Package Designer |
 | SC01–SC07 | provider records in `common-data/providers-found.md` | Scout |
-| LD01–LD05 | rows on the Notion Leads board | Lead Gen |
+| LD01–LD05 | rows on the Leads board | Lead Gen |
 
 A new kind of check needs a check function in `../checks.py`; a new *wording* of an existing rule
 only needs this file.
 
 ## Where the rules came from
 
-- The owner's Notion task-board conventions (properties, status vocabulary, priority scale, title quality).
+- The owner's task-board conventions (fields, status vocabulary, priority scale, title quality).
 - Each bot's `persona.md`: what it produces and how.
-- The owner's direction: detail is the job; Notion is the human team's board; free tiers only.
+- The owner's direction: detail is the job; the board is the human team's; free tiers only.
 - `~/Projects/bot/src/explorer/policy.py`: the code-enforced minimums (a package needs a price with a
   figure, two deliverables, opened sources; a task needs a title, details, a valid priority and date).
 

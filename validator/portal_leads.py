@@ -1,10 +1,12 @@
-"""The Leads board on the team portal for the Validator (common-data/configs/common.toml [leads] portal_url).
+"""The team's board for the Validator: the starter dashboard's local board, or the hosted portal at the same paths
+(common.toml [leads] portal_url, http://127.0.0.1:3000 by default; queue 572: the starter has no Notion).
 
-Unset portal_url = the board stays on Notion and nothing here runs. Set, the Validator reads the rows from the Mac's one
-copy of the board -- common-data/shared-state/portal-leads-cache.json, shared with the agents' lead stores (the engine's
-portal_store.py) under the same lock: one full pull a day for the whole Mac, then only the rows changed since the copy's
-revision, with the ETag so an unchanged board costs no body -- and writes its few cells (Tools on site, Site health, Lead
-score; a number the team marked false) with its own key, common-data/keys/portal-validator.key, each write read back.
+The Validator reads the leads from the Mac's one copy of the board -- common-data/shared-state/portal-leads-cache.json,
+shared with the agents' lead stores (the engine's portal_store.py) under the same lock: one full pull a day for the whole
+Mac, then only the rows changed since the copy's revision, with the ETag so an unchanged board costs no body -- the tasks
+(GET /v1/boards/tasks/rows) and the packages with their drafts (GET /v1/assets/packages, /v1/assets/packages/drafts), and
+writes its few cells (Tools on site, Site health, Lead score; a number the team marked false) with its own key,
+common-data/keys/portal-validator.key, each write read back. Its own values may sit in common-data/configs/local.toml.
 """
 from __future__ import annotations
 
@@ -19,15 +21,17 @@ from typing import Any
 
 import httpx
 
-from sources import LeadRow
+from sources import LeadRow, PackageToggle, TaskRow
 
 BOTS = Path.home() / "bots"
 COMMON = BOTS / "common-data" / "configs" / "common.toml"
+LOCAL = BOTS / "common-data" / "configs" / "local.toml"     # the user's own values, untracked (queue 572)
+DEFAULT_URL = "http://127.0.0.1:3000"
 KEY = BOTS / "common-data" / "keys" / "portal-validator.key"
 CACHE = BOTS / "common-data" / "shared-state" / "portal-leads-cache.json"
 ACTOR = "validator"
 FALSE_STATUS = "False Whatsapp Number"
-# Notion column -> portal field (the engine's portal_store.PORTAL_FIELDS)
+# board column (as the checks name it) -> portal field (the engine's portal_store.PORTAL_FIELDS)
 FIELDS = {"Business": "business", "Website": "website", "Business email": "business_email", "Email check": "email_check",
           "Location": "location", "Industry": "industry", "Company size": "size", "Contact person": "contact_person",
           "Contact role": "contact_role", "Founder LinkedIn": "founder_linkedin", "LinkedIn found via": "linkedin_via",
@@ -36,11 +40,20 @@ FIELDS = {"Business": "business", "Website": "website", "Business email": "busin
           "Lead score": "lead_score", "Draft email": "draft_email", "Draft Whatsapp msg": "draft_whatsapp", "Status": "status"}
 
 
-def portal_url(common: Path = COMMON) -> str:
-    try:
-        return str((tomllib.loads(common.read_text(encoding="utf-8")).get("leads") or {}).get("portal_url") or "").strip().rstrip("/")
-    except (OSError, ValueError):
-        return ""
+def leads_settings(common: Path = COMMON, local: Path = LOCAL) -> dict[str, Any]:
+    """common.toml's [leads], with common-data/configs/local.toml's [leads] on top (the user's own values win)."""
+    out: dict[str, Any] = {}
+    for p in (common, local):
+        try:
+            out.update(tomllib.loads(p.read_text(encoding="utf-8")).get("leads") or {})
+        except (OSError, ValueError):
+            pass
+    return out
+
+
+def portal_url(common: Path = COMMON, local: Path = LOCAL) -> str:
+    """The board's address: [leads] portal_url, else the dashboard's local board."""
+    return str(leads_settings(common, local).get("portal_url") or DEFAULT_URL).strip().rstrip("/")
 
 
 def _text(v: Any) -> str:
@@ -60,7 +73,7 @@ def _hex(s: str) -> str:
 def to_row(lead: dict[str, Any], app: str) -> LeadRow:
     g = lambda k: _text(lead.get(k))   # noqa: E731
     return LeadRow(
-        page_id=_hex(str(lead.get("notion_page_id") or "")) or _hex(str(lead.get("id", ""))),
+        page_id=_hex(str(lead.get("id", ""))),
         url=f"{app}/leads/{lead.get('id', '')}", business=g("business"), website=g("website"), email=g("business_email"),
         location=g("location"), industry=g("industry"), company_size=g("size"), pain_point=g("pain_point"), how_we_help=g("package"),
         evidence=g("evidence"), stage="", found_on=None, source_pages=g("source_pages"), found_by=g("found_by"),
@@ -71,7 +84,7 @@ def to_row(lead: dict[str, Any], app: str) -> LeadRow:
 
 
 class PortalLeads:
-    """leads() and select_options() as NotionReader answers them, write() for the Validator's cells."""
+    """leads(), tasks(), package_toggles() and select_options() for the checks, write() for the Validator's cells."""
 
     def __init__(self, state: dict, url: str, token: str | None = None, http: httpx.Client | None = None,
                  cache: Path | None = CACHE, today: str | None = None) -> None:
@@ -132,7 +145,6 @@ class PortalLeads:
                     tmp.replace(self.cache)
             self._rows = rows
             for l in rows.values():
-                self._ids[_hex(str(l.get("notion_page_id") or ""))] = str(l["id"])
                 self._ids[_hex(str(l["id"]))] = str(l["id"])
         return [l for l in self._rows.values() if not l.get("archived")]
 
@@ -150,7 +162,7 @@ class PortalLeads:
         return sorted(n for n in names if n)
 
     def write(self, page_id: str, fields: dict[str, Any]) -> dict[str, list]:
-        """Cells by Notion column name (or portal field), as actor "validator", read back: {"written", "refused", "differs"}."""
+        """Cells by column name (or portal field), as actor "validator", read back: {"written", "refused", "differs"}."""
         self.board()
         rid = self._ids.get(_hex(page_id))
         if rid is None:
@@ -165,15 +177,47 @@ class PortalLeads:
         differs = [k for k in written if k in lead and _text(lead.get(k)).strip() != _text(sent.get(k)).strip()]
         return {"written": written, "refused": list(data.get("refused") or []), "differs": differs}
 
+    # ---- tasks and packages (queue 572: in place of the Notion task board and packages page) ----------------------
+    def _pages(self, path: str, key: str, **params: Any) -> list[dict]:
+        out: list[dict] = []
+        since = 0
+        for _ in range(200):
+            _, data, _ = self._get(path, since=since, limit=500, **params)
+            out += [x for x in data.get(key) or [] if isinstance(x, dict)]
+            if not data.get("more"):
+                break
+            since = int(data.get("next") or since)
+        return out
+
+    def tasks(self, edited_after: str | None = None) -> list[TaskRow]:
+        """The task board's live tasks, as the checks read them; edited_after (ISO) keeps only the ones changed since."""
+        rows = [t for t in self._pages("/v1/boards/tasks/rows", "tasks") if not t.get("archived")]
+        if edited_after:
+            rows = [t for t in rows if str(t.get("updated_at") or "") >= edited_after[:19]]
+        return [task_row(t, self.app) for t in rows]
+
+    def package_toggles(self) -> list[PackageToggle]:
+        """Every package on the board (published, and the bots' drafts with their sources and reasons), as the PK checks
+        read a package: the title with its price, the offer as the pitch, the reasons as the conclusion."""
+        _, data, _ = self._get("/v1/assets/packages")
+        pkgs = {str(p.get("id")): p for p in data.get("packages") or [] if isinstance(p, dict) and p.get("id")}
+        try:
+            _, d2, _ = self._get("/v1/assets/packages/drafts")
+            for p in d2.get("drafts") or d2.get("packages") or []:
+                if isinstance(p, dict) and p.get("id"):
+                    pkgs[str(p["id"])] = {**pkgs.get(str(p["id"]), {}), **p}
+        except RuntimeError:
+            pass        # a board without the drafts route: the published list still checks
+        return [package_toggle(p, self.app) for p in pkgs.values()]
+
     def false_whatsapp(self) -> list[dict]:
         """Rows whose number the team marked false (the whatsapp status, or the old combined Status)."""
         return [l for l in self.board() if FALSE_STATUS in (_text(l.get("whatsapp_status")), _text(l.get("status")))]
 
 
-def reader_for(state: dict, notion_reader):
-    """The Leads reader for this Mac: PortalLeads when common.toml sets [leads] portal_url, else the NotionReader given."""
-    url = portal_url()
-    return PortalLeads(state, url) if url else notion_reader
+def reader_for(state: dict, _unused=None) -> "PortalLeads":
+    """The board reader for this Mac (the local board unless [leads] portal_url says otherwise)."""
+    return PortalLeads(state, portal_url())
 
 
 def writer(portal: PortalLeads):
@@ -185,3 +229,49 @@ def writer(portal: PortalLeads):
             return False
         return not got["refused"] and not got["differs"]
     return write
+
+
+def task_row(t: dict[str, Any], app: str) -> TaskRow:
+    names = t.get("assignees") or []
+    names = names if isinstance(names, list) else [names]
+    projects = t.get("projects") or []
+    return TaskRow(page_id=_hex(str(t.get("id", ""))), url=f"{app}/tasks/{t.get('id', '')}", title=_text(t.get("title")),
+                   status=_text(t.get("status")), priority=_text(t.get("priority")), assignee_ids=[str(x).strip().lower() for x in names],
+                   assignee_names=[str(x) for x in names], due=_text(t.get("due"))[:10] or None,
+                   project_ids=[str(x) for x in (projects if isinstance(projects, list) else [projects])],
+                   created=_text(t.get("created_at")), edited=_text(t.get("updated_at")), body=_text(t.get("details")),
+                   uid=_text(t.get("uid") or t.get("number")), blocker=_text(t.get("blocker")),
+                   blocks=_blocks(_text(t.get("details"))))
+
+
+def _blocks(text: str) -> list[tuple[str, str, bool]]:
+    """Markdown details as the (type, text, bold) blocks the task checks read: '### X' a heading, '- [ ] x' a to-do."""
+    out: list[tuple[str, str, bool]] = []
+    for line in (text or "").splitlines():
+        t = line.strip()
+        if not t:
+            continue
+        if m := re.match(r"^#{1,3}\s+(.+)$", t):
+            out.append(("heading_3", m.group(1).strip(), False))
+        elif m := re.match(r"^[-*]\s+\[[ xX]?\]\s+(.+)$", t):
+            out.append(("to_do", m.group(1).strip(), False))
+        elif m := re.match(r"^[-*•]\s+(.+)$", t):
+            out.append(("bulleted_list_item", m.group(1).strip(), False))
+        elif m := re.match(r"^\d+[.)]\s+(.+)$", t):
+            out.append(("numbered_list_item", m.group(1).strip(), False))
+        else:
+            out.append(("paragraph", t, t.startswith("**") and t.endswith("**")))
+    return out
+
+
+def package_toggle(p: dict[str, Any], app: str) -> PackageToggle:
+    name, price = _text(p.get("name")).strip(), _text(p.get("price")).strip()
+    deliverables = p.get("deliverables") or []
+    deliverables = deliverables if isinstance(deliverables, list) else [deliverables]
+    extra = {k: v for k, v in (("Who it is for", _text(p.get("buyer"))), ("Price and timeline", price),
+                                ("What is included", "\n".join(str(d) for d in deliverables)),
+                                ("Created", f"Created {_text(p.get('created_at') or p.get('updated_at'))[:10]}"),
+                                ("Status", _text(p.get("status")))) if v.strip()}
+    return PackageToggle(block_id=str(p.get("id", "")), title=f"{name} — {price}" if price else name, email=_text(p.get("offer")),
+                         sources=[str(u) for u in (p.get("sources") or []) if str(u).strip()], company={},
+                         conclusion=_text(p.get("why")), page_url=f"{app}/packages", extra=extra)

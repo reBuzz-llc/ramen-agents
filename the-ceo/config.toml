@@ -9,7 +9,7 @@ name = "The CEO"
 bio = "FILL-ME: one or two sentences. Who the company is, what this agent is for right now (e.g. find new customers in {market} and turn strategy into clear tasks for the team)."
 self_goals = true
 cycle_delay_seconds = 120
-tags = ["notion_writer"]   # shown in 'bot list' and the daily review: this bot writes to the owner's Notion
+tags = ["board_writer"]   # shown in 'bot list' and the daily review: this bot writes to the team's board
 # Every 4th episode looks across all open threads and advances the most-ready one; every 6th reads back over the
 # journal and changes one thing about how it works.
 triage_every_episodes = 4
@@ -52,25 +52,24 @@ search_engines = ["searxng", "hn", "corpus", "yc"]
 [dashboard]
 port = 8788
 
-[notion]
-# Tasks go to a Notion task board; packages to a Notion page, one toggle per package. Create the board with
-#   bot --config ~/bots/the-ceo/config.toml notion-board
-# then paste the ids and switch this on. The key goes in common-data/keys/notion.key.
-enabled = false                 # FILL-ME: true once database_id is set
-database_id = ""                # FILL-ME: the task board's data source id
-api_version = "2025-09-03"
-api_key_file = "~/bots/common-data/keys/notion.key"
-default_project_id = ""         # optional: a project page every task is linked to
-max_tasks_per_day = 10
+[tasks]
+# Tasks go to the team's board (the dashboard's local board; [leads] portal_url in common.toml). Your own values go in
+# the-ceo/config.local.toml, never here.
+enabled = true
+default_project = ""            # optional: a project on the board every task is filed under
+max_per_day = 10
 min_details_chars = 300         # a task is a full brief; a one-liner is refused
-package_page_id = ""            # FILL-ME: the Notion page that holds the packages
-package_format_version = 1      # raise it to have every older toggle republished once in the current shape
-package_republish_own = true    # a toggle on the page is replaced when its title or email changed, once a day
-package_email_allowed_figures = []   # figures every pitch may carry although no package record has them
+
+[packages]
+# A package the Package Designer hands over goes to the board's Packages list as a draft; only a person publishes it.
+enabled = true
+format_version = 1              # raise it to have every older package handed over again once in the current shape
+republish_own = true            # a package is handed over again when its title or email changed, once a day
+email_allowed_figures = []      # figures every pitch may carry although no package record has them
 # "visible": no price check, The CEO sets the price. Others: "record" (figures must be in the record), "range", "off".
-package_email_price_rule = "visible"
-package_email_required_phrases = []
-package_signoff = "Regards,\n-- FILL-ME company name"
+email_price_rule = "visible"
+email_required_phrases = []
+signoff = "Regards,\n-- FILL-ME company name"
 
 [messaging]
 # pace_member: The CEO may pause, slow or restart members (workspace/HOLD, ends by itself within 24h). Never a member
@@ -98,8 +97,7 @@ folder = "~/bots/validator"
 
 [leads]
 # The CEO decides the Leads board's "How we can help" column and nothing else on a row; it never lists a lead.
-enabled = false                 # FILL-ME: true once database_id is set
-database_id = ""                # FILL-ME: the Leads board's data source id (the same one Lead Gen writes to)
+enabled = true
 update_any_row = true
 update_only_fields = ["how_we_help"]
 max_updates_per_episode = 3

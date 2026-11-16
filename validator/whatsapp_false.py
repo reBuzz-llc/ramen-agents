@@ -13,14 +13,11 @@ import json
 import re
 from pathlib import Path
 
-import httpx
 
 BOTS = Path.home() / "bots"
 SHARED = BOTS / "common-data" / "shared-state"
 FALSE_FILE = SHARED / "whatsapp-false-numbers.json"
 CLEARS_FILE = SHARED / "leads-script-clears.json"
-KEY_FILE = BOTS / "common-data" / "keys" / "notion.key"
-API = "https://api.notion.com/v1"
 FALSE_STATUS = "False Whatsapp Number"
 
 
@@ -35,51 +32,6 @@ def ruled_out() -> dict[str, dict]:
 def digits_of(link: str) -> str:
     m = re.search(r"wa\.me/\+?(\d{7,15})", link or "")
     return m.group(1) if m else re.sub(r"\D", "", link or "")
-
-
-def _rows(client: httpx.Client, data_source: str) -> list[dict]:
-    rows, cur = [], None
-    while True:
-        body = {"page_size": 100, "filter": {"property": "Status", "select": {"equals": FALSE_STATUS}},
-                **({"start_cursor": cur} if cur else {})}
-        d = client.post(f"{API}/data_sources/{data_source}/query", json=body).json()
-        rows += d.get("results", [])
-        if not d.get("has_more"):
-            return rows
-        cur = d["next_cursor"]
-
-
-def clear_false(data_source: str, *, now: dt.datetime, api_version: str = "2025-09-03", dry_run: bool = False) -> list[dict]:
-    """Clear every False-Whatsapp row; returns [{business, page_id, number}] for the ones cleared (or that would be)."""
-    key = KEY_FILE.read_text(encoding="utf-8").strip()
-    client = httpx.Client(headers={"Authorization": f"Bearer {key}", "Notion-Version": api_version}, timeout=60)
-    stamp = now.strftime("%Y-%m-%dT%H:%M:%S")
-    false = ruled_out()
-    try:
-        clears = json.loads(CLEARS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        clears = {}
-    done: list[dict] = []
-    for p in _rows(client, data_source):
-        props = p.get("properties", {})
-        business = "".join(t.get("plain_text", "") for t in (props.get("Business", {}).get("title") or []))
-        link = (props.get("Whatsapp") or {}).get("url") or ""
-        rec = {"business": business, "page_id": p["id"], "number": digits_of(link)}
-        if dry_run:
-            done.append(rec)
-            continue
-        if rec["number"]:
-            false[rec["number"]] = {"business": business, "page_id": p["id"], "at": stamp}
-            FALSE_FILE.write_text(json.dumps(false, indent=1, ensure_ascii=False), encoding="utf-8")
-        why = f"Validator: the team marked {link or 'the number'} False Whatsapp Number; cleared for a new search"
-        for col in ("Whatsapp", "Status"):
-            clears[f"{p['id']}|{col}"] = {"at": stamp, "by": why}
-        CLEARS_FILE.write_text(json.dumps(clears, indent=1, ensure_ascii=False), encoding="utf-8")
-        r = client.patch(f"{API}/pages/{p['id']}", json={"properties": {"Whatsapp": {"url": None}, "Status": {"select": None}}})
-        after = r.json().get("properties", {}) if r.status_code == 200 else {}
-        if after and not (after.get("Whatsapp") or {}).get("url") and not (after.get("Status") or {}).get("select"):
-            done.append(rec)
-    return done
 
 
 def clear_false_portal(portal, *, now: dt.datetime, dry_run: bool = False) -> list[dict]:

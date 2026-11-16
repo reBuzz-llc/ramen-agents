@@ -143,7 +143,7 @@ def test_research_for_a_person_is_refused_as_family_work():
 
 def test_research_deliverables_for_a_person_are_family_work():
     """Owner, 2026-10-07: "ceoA is creating way to many task related to research and findings"."""
-    for t in ("Draft AI Agent Services Client Advisory Guide for Local Shops", "Update Notion Pages with Trending AI Agent Services",
+    for t in ("Draft AI Agent Services Client Advisory Guide for Local Shops", "Update Web Pages with Trending AI Agent Services",
               "Build a Local Shop Target List for Custom AI Agent Services", "Develop AI Agent Service Offerings for Local Shops"):
         assert gate.family_work({"title": t}), t
     for t in ("Outreach: Sweet Corner and 9 more", "Send the AI agent proposal to Harbor Restaurant", "Review and sign the Harbor proposal"):
@@ -155,7 +155,7 @@ def test_a_deliverable_for_a_meeting_or_a_person_stays_human_work():
               "Create marketing materials for the trade show", "Create a Canva presentation for the client pitch"):
         assert not gate.family_work({"title": t}), t
     assert gate.family_work({"title": "Develop AI Agent Service Offerings for Local Shops"})
-    assert gate.family_work({"title": "Update Notion Pages with Trending AI Agent Services"})
+    assert gate.family_work({"title": "Update Web Pages with Trending AI Agent Services"})
 
 
 def test_the_research_analyst_never_writes_to_the_board():

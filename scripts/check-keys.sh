@@ -18,4 +18,4 @@ call zai          https://api.z.ai/api/paas/v4/chat/completions "Authorization: 
 call ollama-cloud https://ollama.com/v1/chat/completions   "Authorization: Bearer $(<$K/ollama-cloud.key)" "$(printf $chat gpt-oss:120b)"
 call speka        https://speka.me/v1/chat/completions    "Authorization: Bearer $(<$K/speka.key)" "$(printf $chat openai/gpt-oss-20b)"
 call groq         https://api.groq.com/openai/v1/models    "Authorization: Bearer $(<$K/groq.key)"
-printf '%-14s %s  %s\n' notion "$(curl -s -o /dev/null -w '%{http_code}' -m 25 -H "Authorization: Bearer $(<$K/notion.key)" -H 'Notion-Version: 2025-09-03' https://api.notion.com/v1/users/me)" "(2xx = ok)"
+printf '%-14s %s  %s\n' board "$(curl -s -o /dev/null -w '%{http_code}' -m 10 -H "Authorization: Bearer $(<$K/portal-engine.key)" 'http://127.0.0.1:3000/v1/boards/leads/rows?since=0&limit=1')" "(200 = ok; 000 = the dashboard is not running)"

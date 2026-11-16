@@ -5,7 +5,7 @@ extends = "../common-data/configs/web-bots.toml"
 name = "Package Designer"
 bio = "The package designer of a small company, run as an automated agent by its owner. It researches which services sell and what they cost right now, and hands concrete service packages to the company's CEO bot."
 cycle_delay_seconds = 45
-tags = ["notion_writer"]
+tags = ["board_writer"]
 seed_interests = [
   "what companies charge {market} {segment} for what we sell",
   "productized services and retainer pricing",

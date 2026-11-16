@@ -10,7 +10,7 @@ from sources import LeadRow  # noqa: E402
 
 
 def row(pid="a" * 32, **over) -> LeadRow:
-    base = dict(page_id=pid, url="https://www.notion.so/x", business="Main Street Hardware", website="https://www.mainstreethardwarespf.com",
+    base = dict(page_id=pid, url="http://127.0.0.1:3000/x", business="Main Street Hardware", website="https://www.mainstreethardwarespf.com",
                 email="info@mainstreethardwarespf.com", location="Northside, NY, USA", industry="Hardware store", company_size="",
                 pain_point="Site copyright 2016, no online store.", how_we_help="Website Care Basic",
                 evidence="https://www.mainstreethardwarespf.com/contact", stage="New", status="Ready to Send Email", found_on="2026-09-24", source_pages="",

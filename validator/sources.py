@@ -1,9 +1,7 @@
-"""Read-only readers for everything the Validator checks: the Notion task board, the Notion packages
-page, the package files the Package Designer hands to The CEO, the Scout's provider report, the CEO's
-own record of the tasks it created, and the owner's team list. Nothing in this module writes anywhere.
-
-Runs with the bot code's venv (~/Projects/bot/.venv) for the Notion client; the file readers need
-only the standard library.
+"""Read-only shapes and file readers for what the Validator checks: the rows, tasks and packages the board reader
+(portal_leads.py) hands over, the package files the Package Designer hands to The CEO, the Scout's provider report, the
+CEO's own record of the tasks it created, and the owner's team list. Nothing in this module writes anywhere; the file
+readers need only the standard library.
 """
 from __future__ import annotations
 
@@ -11,7 +9,6 @@ import datetime as dt
 import json
 import re
 import sqlite3
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,13 +16,12 @@ from urllib.parse import urlparse
 
 BOTS = Path.home() / "bots"
 _HEX32 = re.compile(r"([0-9a-f]{32})$")
-_PAUSE = 0.34  # Notion allows ~3 requests a second
 
 
 # ---- small helpers -----------------------------------------------------------
 
 def page_id_of(text: str) -> str:
-    """A Notion page/block id without dashes, from an id or a notion.so / app.notion.com URL."""
+    """A board id without dashes (32 hex characters), from an id or a URL that ends in one."""
     s = text.strip().split("?")[0].rstrip("/").replace("-", "").lower()
     m = _HEX32.search(s)
     return m.group(1) if m else ""
@@ -195,186 +191,6 @@ class ProviderRecord:
         return f"provider \"{self.name}\""
 
 
-# ---- Notion ---------------------------------------------------------------------
-
-class NotionReader:
-    """Reads the task data source and the packages page through the bot code's NotionClient."""
-
-    def __init__(self, api_version: str, api_key: str | None = None):
-        from explorer.config import NotionConfig  # the bot code, on the venv's path
-        from explorer.model import load_api_key
-        from explorer.notion import NotionClient
-
-        key = api_key or load_api_key("NOTION_API_KEY", NotionConfig().api_key_file)
-        if not key:
-            raise RuntimeError("no Notion token: expected ~/bots/common-data/keys/notion.key")
-        cfg = NotionConfig(enabled=True, api_version=api_version)
-        self.client = NotionClient(cfg, key)
-        self.requests = 0
-
-    def _req(self, method: str, path: str, **kw: Any) -> dict[str, Any]:
-        if self.requests:
-            time.sleep(_PAUSE)
-        self.requests += 1
-        return self.client._request(method, path, **kw)
-
-    def _children(self, block_id: str) -> list[dict[str, Any]]:
-        out: list[dict[str, Any]] = []
-        cursor: str | None = None
-        for _ in range(20):
-            params = {"page_size": 100, **({"start_cursor": cursor} if cursor else {})}
-            data = self._req("GET", f"/v1/blocks/{block_id}/children", params=params)
-            out += [b for b in data.get("results", []) if isinstance(b, dict)]
-            cursor = data.get("next_cursor") if data.get("has_more") else None
-            if not cursor:
-                break
-        return out
-
-    @staticmethod
-    def _block_text(b: dict[str, Any]) -> str:
-        body = b.get(b.get("type", ""), {})
-        return plain(body.get("rich_text", [])) if isinstance(body, dict) else ""
-
-    def body_blocks(self, page_id: str) -> list[tuple[str, str, bool]]:
-        """(type, text, bold) for each top-level block with text; to_do/heading types kept for checks."""
-        out: list[tuple[str, str, bool]] = []
-        for b in self._children(page_id):
-            text = self._block_text(b)
-            if not text:
-                continue
-            rich = (b.get(b.get("type", ""), {}) or {}).get("rich_text") or []
-            bold = bool(rich) and all((r.get("annotations") or {}).get("bold") for r in rich if isinstance(r, dict))
-            out.append((str(b.get("type", "")), text, bold))
-        return out
-
-    def body_text(self, page_id: str) -> str:
-        return "\n".join(t for _, t, _ in self.body_blocks(page_id))
-
-    def tasks(self, data_source_id: str, edited_after: str | None = None) -> list[TaskRow]:
-        """Every row (or only rows edited on/after `edited_after`, ISO UTC), oldest first, with body text."""
-        body: dict[str, Any] = {"page_size": 100, "sorts": [{"timestamp": "created_time", "direction": "ascending"}]}
-        if edited_after:
-            body["filter"] = {"timestamp": "last_edited_time", "last_edited_time": {"on_or_after": edited_after}}
-        rows: list[TaskRow] = []
-        cursor: str | None = None
-        for _ in range(50):
-            if cursor:
-                body["start_cursor"] = cursor
-            data = self._req("POST", f"/v1/data_sources/{data_source_id}/query", json=body)
-            for r in data.get("results", []):
-                if isinstance(r, dict) and r.get("object") == "page":
-                    rows.append(self._task(r))
-            cursor = data.get("next_cursor") if data.get("has_more") else None
-            if not cursor:
-                break
-        return rows
-
-    def _task(self, r: dict[str, Any]) -> TaskRow:
-        props: dict[str, Any] = r.get("properties") or {}
-
-        def of_type(kind: str, name: str) -> dict[str, Any]:
-            p = props.get(name)
-            if isinstance(p, dict) and p.get("type") == kind:
-                return p
-            return next((v for v in props.values() if isinstance(v, dict) and v.get("type") == kind), {})
-
-        title = plain(of_type("title", "Task").get("title"))
-        status = str((of_type("status", "Status").get("status") or {}).get("name") or "")
-        priority = str((of_type("select", "Priority").get("select") or {}).get("name") or "")
-        people = of_type("people", "Assign").get("people") or []
-        due = (of_type("date", "Dead Line").get("date") or {}).get("start")
-        projects = of_type("relation", "Projects").get("relation") or []
-        uid = of_type("unique_id", "ID").get("unique_id") or {}
-        uid_text = f"{uid.get('prefix')}-{uid.get('number')}" if uid.get("number") is not None else ""
-        blocker = plain((props.get("Blocker") or {}).get("rich_text"))
-        pid = page_id_of(str(r.get("id", "")))
-        blocks = self.body_blocks(pid)
-        return TaskRow(
-            page_id=pid,
-            url=str(r.get("url") or ""),
-            title=title,
-            status=status,
-            priority=priority,
-            assignee_ids=[page_id_of(str(p.get("id", ""))) for p in people if isinstance(p, dict)],
-            assignee_names=[str(p.get("name") or "") for p in people if isinstance(p, dict)],
-            due=str(due) if due else None,
-            project_ids=[page_id_of(str(p.get("id", ""))) for p in projects if isinstance(p, dict)],
-            created=str(r.get("created_time") or ""),
-            edited=str(r.get("last_edited_time") or ""),
-            body="\n".join(t for _, t, _ in blocks),
-            uid=uid_text,
-            blocker=blocker,
-            blocks=blocks,
-        )
-
-    def select_options(self, data_source_id: str, prop: str) -> list[str]:
-        data = self._req("GET", f"/v1/data_sources/{data_source_id}")
-        spec = (data.get("properties") or {}).get(prop) or {}
-        opts = (spec.get(spec.get("type", "")) or {}).get("options") or []
-        return [str(o.get("name", "")) for o in opts if isinstance(o, dict) and o.get("name")]
-
-    def leads(self, data_source_id: str, edited_after: str | None = None) -> list[LeadRow]:
-        """Rows of the Leads board (all, or edited on/after `edited_after`), oldest first."""
-        body: dict[str, Any] = {"page_size": 100, "sorts": [{"timestamp": "created_time", "direction": "ascending"}]}
-        if edited_after:
-            body["filter"] = {"timestamp": "last_edited_time", "last_edited_time": {"on_or_after": edited_after}}
-        rows: list[LeadRow] = []
-        cursor: str | None = None
-        for _ in range(50):
-            if cursor:
-                body["start_cursor"] = cursor
-            data = self._req("POST", f"/v1/data_sources/{data_source_id}/query", json=body)
-            for r in data.get("results", []):
-                if isinstance(r, dict) and r.get("object") == "page":
-                    rows.append(self._lead(r))
-            cursor = data.get("next_cursor") if data.get("has_more") else None
-            if not cursor:
-                break
-        return rows
-
-    @staticmethod
-    def _lead(r: dict[str, Any]) -> LeadRow:
-        props: dict[str, Any] = r.get("properties") or {}
-
-        def val(name: str) -> str:
-            p = props.get(name) or {}
-            kind = p.get("type", "")
-            v = p.get(kind)
-            if kind in ("title", "rich_text"):
-                return plain(v)
-            if kind in ("url", "email", "phone_number"):
-                return str(v or "")
-            if kind in ("select", "status"):
-                return str((v or {}).get("name") or "")
-            if kind == "date":
-                return str((v or {}).get("start") or "")
-            return ""
-
-        return LeadRow(
-            page_id=page_id_of(str(r.get("id", ""))), url=str(r.get("url") or ""), business=val("Business"),
-            website=val("Website"), email=val("Business email"), location=val("Location"), industry=val("Industry"),
-            company_size=val("Company size"), pain_point=val("Pain point"), how_we_help=val("How can I help") or val("How we can help"),
-            evidence=val("Evidence"), stage=val("Stage"), found_on=val("Found on") or None,
-            source_pages=val("Source pages"), found_by=val("Found by"), founded_by=val("Contact person") or val("Founder / CEO") or val("Founded by"),
-            contact_role=val("Contact role"), email_check=val("Email check"),
-            result=val("Result"), result_date=val("Result date"), draft_email=val("Draft email"), whatsapp=val("Whatsapp"), status=val("Status"),
-            draft_whatsapp=val("Draft Whatsapp msg"), map_url=val("google map location"),
-            founder_linkedin=val("Founder LinkedIn"), linkedin_via=val("LinkedIn found via"),
-            created=str(r.get("created_time") or ""), edited=str(r.get("last_edited_time") or ""),
-        )
-
-    def package_toggles(self, page_id: str) -> list[PackageToggle]:
-        """Each toggle on the packages page, split into sections (see parse_toggle_blocks)."""
-        page_url = f"https://www.notion.so/{page_id.replace('-', '')}"
-        out: list[PackageToggle] = []
-        for tg in self._children(page_id):
-            if tg.get("type") != "toggle":
-                continue
-            title = plain(tg.get("toggle", {}).get("rich_text"))
-            out.append(parse_toggle_blocks(page_id_of(str(tg["id"])), title, self._children(str(tg["id"])), page_url))
-        return out
-
-
 # Section labels seen on the packages page: the CEO's publish_package writes bold paragraphs
 # ("Email pitch" / "Sources & company" / "Conclusion"); the rebuilt page uses headings
 # ("Who it is for" / "Price and timeline" / "What is included" / "Why this price" /
@@ -507,7 +323,7 @@ def providers(path: Path) -> list[ProviderRecord]:
 
 
 def bot_task_page_ids(db_path: Path) -> set[str]:
-    """Page ids of the Notion tasks a bot itself created (its tasks table), so a row it did not create
+    """Ids of the board tasks a bot itself created (its tasks table), so a row it did not create
     is reported to the owner instead of blamed on the bot."""
     if not db_path.exists():
         return set()
@@ -523,15 +339,20 @@ def bot_task_page_ids(db_path: Path) -> set[str]:
 
 
 def team_members(path: Path) -> dict[str, str]:
-    """Notion user id (no dashes) -> display name from the owner's team list."""
+    """The owner's team list as the task checks match an assignee: the person's id and lower-cased name and email (as
+    the board names an assignee) -> display name."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     out: dict[str, str] = {}
     for m in data.get("members", []) if isinstance(data, dict) else []:
-        if isinstance(m, dict) and m.get("notionId"):
-            out[page_id_of(str(m["notionId"]))] = str(m.get("name") or m.get("email") or "")
+        if not isinstance(m, dict) or not str(m.get("name") or "").strip():
+            continue
+        name = str(m["name"]).strip()
+        for k in (m.get("id"), m.get("name"), m.get("email")):
+            if str(k or "").strip():
+                out[str(k).strip().lower()] = name
     return out
 
 

@@ -15,7 +15,7 @@ def test_ticks_are_held_to_the_record(tmp_path):
     con.execute("CREATE TABLE actions (id INTEGER PRIMARY KEY, ts TEXT, action_type TEXT, verdict TEXT)")
     con.executemany("INSERT INTO actions VALUES (?,?,?,?)", [
         (1, "2026-09-26T18:41:00", "message", "allowed"),
-        (2, "2026-09-26T18:42:00", "update_lead", "failed: Notion did not show it back"),
+        (2, "2026-09-26T18:42:00", "update_lead", "failed: the board did not show it back"),
         (3, "2026-09-26T18:43:00", "search", "allowed"),
     ]); con.commit(); con.close()
     plan = {"task": "Confirm the goal", "started": "2026-09-26T18:40:41", "status": "done", "steps": [

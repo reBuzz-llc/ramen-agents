@@ -1,4 +1,4 @@
-"""The Leads board on the team portal for the Validator: rows as NotionReader gives them, one shared copy of the board with
+"""The Leads board on the team portal for the Validator: rows as the checks read them, one shared copy of the board with
 since/ETag deltas, the Validator's writes read back, the false-WhatsApp clean-up there."""
 from __future__ import annotations
 
@@ -69,9 +69,12 @@ def test_false_whatsapp_cleared_on_the_portal(tmp_path, monkeypatch):
     assert "15550100" in json.loads((tmp_path / "false.json").read_text())
 
 
-def test_portal_url_from_common_toml(tmp_path):
-    f = tmp_path / "common.toml"
+def test_portal_url_from_common_toml_and_the_local_overlay(tmp_path):
+    f, local = tmp_path / "common.toml", tmp_path / "local.toml"
     f.write_text("[leads]\nportal_url = \"https://portal.example.com/\"\n")
-    assert portal_leads.portal_url(f) == "https://portal.example.com"
+    assert portal_leads.portal_url(f, local) == "https://portal.example.com"
+    local.write_text("[leads]\nportal_url = \"https://mine.example.com\"\n")
+    assert portal_leads.portal_url(f, local) == "https://mine.example.com"     # the user's own value wins (queue 572)
+    local.unlink()
     f.write_text("# [leads]\n# portal_url = \"x\"\n")
-    assert portal_leads.portal_url(f) == ""
+    assert portal_leads.portal_url(f, local) == "http://127.0.0.1:3000"        # unset: the dashboard's local board

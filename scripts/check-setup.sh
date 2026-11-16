@@ -18,17 +18,15 @@ else
 fi
 
 say "== Keys (common-data/keys/<name>.key); a model provider without a key is skipped"
-for k in zai gemini groq speka mistral openrouter ollama-cloud notion quickemailverification sniffmail; do
+for k in zai gemini groq speka mistral openrouter ollama-cloud quickemailverification sniffmail portal-engine portal-validator portal-dashboard; do
   if [ -s "common-data/keys/$k.key" ]; then say "  ok       $k"; else say "  missing  $k"; fi
 done
 have=0; for k in zai gemini groq speka mistral openrouter ollama-cloud; do [ -s "common-data/keys/$k.key" ] && have=1; done
 [ "$have" = 1 ] || { say "  -> no model provider key yet: the bots would run on the local model only"; todo=1; }
-[ -s common-data/keys/notion.key ] || { say "  -> no Notion key: tasks, packages and leads cannot be written"; todo=1; }
+[ -s common-data/keys/portal-engine.key ] || { say "  -> no board key: tasks, packages and leads cannot be written (sh scripts/setup.sh writes it)"; todo=1; }
 
-say "== Notion boards switched on"
-for f in the-ceo/config.toml lead-gen/config.toml; do
-  if grep -q '^enabled = false .*FILL-ME' "$f"; then say "  off  $f"; todo=1; else say "  on   $f"; fi
-done
+say "== The board (the dashboard's local board on 127.0.0.1:3000)"
+if curl -s -o /dev/null -m 5 http://127.0.0.1:3000/; then say "  ok       the dashboard answers"; else say "  missing  the dashboard does not answer: start it (the members rest until it does)"; todo=1; fi
 
 say "== Software"
 [ -x "$HOME/Projects/bot/.venv/bin/bot" ] && say "  ok       engine (~/Projects/bot/.venv)" || { say "  missing  engine: clone it to ~/Projects/bot and install it (SETUP.md step 1)"; todo=1; }

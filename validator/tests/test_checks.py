@@ -46,7 +46,7 @@ def ck() -> Checker:
 
 def task(**kw) -> TaskRow:
     base = dict(
-        page_id="a" * 32, url="https://www.notion.so/x", title="Draft ten LinkedIn messages for SPF biotech founders",
+        page_id="a" * 32, url="http://127.0.0.1:3000/x", title="Draft ten LinkedIn messages for SPF biotech founders",
         status="Not started", priority="P3", assignee_ids=["11111111222233334444555566667777"],
         assignee_names=["Jo"], due="2026-10-06", project_ids=["p" * 32], created="2026-09-21T18:54:00.000Z",
         edited="2026-09-22T11:04:00.000Z", body="Why: " + "x" * 320 + " Done looks like: three drafts in the shared doc.",
@@ -99,7 +99,7 @@ def toggle(**kw) -> PackageToggle:
         block_id="b" * 32, title="NY Startup Starter Plus — $14,000 fixed price", email=GOOD_EMAIL,
         sources=["https://www.acmeagency.com/pricing", "https://www.acmeagency.com/about"],
         company={"Company": "Acme Agency", "Website": "https://www.acmeagency.com", "Founded": "2015"},
-        conclusion="Priced under SPF agencies.", page_url="https://www.notion.so/page",
+        conclusion="Priced under SPF agencies.", page_url="http://127.0.0.1:3000/page",
     )
     base.update(kw)
     return PackageToggle(**base)
@@ -166,7 +166,7 @@ def test_providers_parser_reads_the_real_report():
 
 
 def test_helpers():
-    assert page_id_of("https://app.notion.com/p/Develop-content-deck-aaaaaaaabbbbccccddddeeeeffff0000") == "aaaaaaaabbbbccccddddeeeeffff0000"
+    assert page_id_of("http://127.0.0.1:3000/tasks/aaaaaaaabbbbccccddddeeeeffff0000") == "aaaaaaaabbbbccccddddeeeeffff0000"
     assert page_id_of("aaaaaaaa-bbbb-cccc-dddd-eeeeffff0000") == "aaaaaaaabbbbccccddddeeeeffff0000"
     assert is_search_results_url("https://hn.algolia.com/?q=mvp")
     assert is_search_results_url("https://news.ycombinator.com/")
@@ -177,7 +177,7 @@ def test_helpers():
 
 
 def _blocks(spec):
-    """[(type, text, bold)] -> Notion-shaped blocks."""
+    """[(type, text, bold)] -> rich-text blocks (the toggle parser's input)."""
     out = []
     for kind, text, bold in spec:
         out.append({"type": kind, kind: {"rich_text": [{"plain_text": text, "annotations": {"bold": bold}}]}})
@@ -192,7 +192,7 @@ def test_toggle_parser_reads_both_layouts(ck):
         ("paragraph", "Sources & company", True), ("bulleted_list_item", "https://www.acmeagency.com/pricing", False),
         ("bulleted_list_item", "Company: Acme Agency", False), ("bulleted_list_item", "Website: https://www.acmeagency.com", False),
         ("paragraph", "Conclusion", True), ("paragraph", "Priced under SPF agencies.", False),
-    ]), "https://www.notion.so/p")
+    ]), "http://127.0.0.1:3000/p")
     assert old.email == GOOD_EMAIL and old.sources == ["https://www.acmeagency.com/pricing"]
     assert old.company == {"Company": "Acme Agency", "Website": "https://www.acmeagency.com"} and old.conclusion
     assert check_package_toggle(ck, old, own_domains=[]) == []
@@ -205,7 +205,7 @@ def test_toggle_parser_reads_both_layouts(ck):
         ("heading_3", "Ready-to-send email", False), ("paragraph", GOOD_EMAIL, False),
         ("heading_3", "Sources", False), ("bulleted_list_item", "https://hn.algolia.com/?q=retainer", False),
         ("bulleted_list_item", "https://acme.example/", False),
-    ]), "https://www.notion.so/p")
+    ]), "http://127.0.0.1:3000/p")
     assert new.email == GOOD_EMAIL and new.conclusion.startswith("Because") and new.extra["Who it is for"] == "local small businesses"
     assert rules_of(check_package_toggle(ck, new, own_domains=["acme.example"])) == ["PS02", "PS03", "PS04"]
 
@@ -253,7 +253,7 @@ PACKAGES = ["Starter Standard", "Starter Plus", "Growth Plan"]
 
 
 def lead(**kw) -> LeadRow:
-    base = dict(page_id="c" * 32, url="https://www.notion.so/l", business="Acme Bakery", website="https://www.acmebakery.com",
+    base = dict(page_id="c" * 32, url="http://127.0.0.1:3000/l", business="Acme Bakery", website="https://www.acmebakery.com",
                 email="hello@acmebakery.com", location="Northside, NY", industry="Food", company_size="10-20 staff",
                 pain_point="Pain point: On their site: the online ordering page 404s; hiring a web developer per their careers page.\n"
                            "They can try: point the Order button at their online store until the page is fixed.\n"
@@ -324,7 +324,7 @@ def test_toggle_needs_a_created_date_line(ck):
         ("heading_3", "Why this price", False), ("paragraph", "Because.", False),
         ("heading_3", "Sources", False), ("bulleted_list_item", "https://www.acmeagency.com/pricing", False),
         ("bulleted_list_item", "Company: Acme Agency", False), ("bulleted_list_item", "Website: https://www.acmeagency.com", False),
-    ]), "https://www.notion.so/p")
+    ]), "http://127.0.0.1:3000/p")
     assert dated.extra["Created"].startswith("Created 2026-09-22") and dated.email == GOOD_EMAIL
     assert check_package_toggle(ck, dated, own_domains=[]) == []
 

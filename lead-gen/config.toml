@@ -1,4 +1,4 @@
-# Lead Gen: lists potential customers on the owner's Notion Leads board. Shared settings come from web-bots.toml.
+# Lead Gen: lists potential customers on the team's Leads board. Shared settings come from web-bots.toml.
 extends = "../common-data/configs/web-bots.toml"
 
 [agent]
@@ -7,7 +7,7 @@ bio = "The lead finder of a small company, run as an automated agent by its owne
 persona_file = "persona.md"
 cycle_delay_seconds = 45
 max_cycle_delay_seconds = 60
-tags = ["notion_writer"]
+tags = ["board_writer"]
 seed_interests = [
   "{market} {segment} with an outdated or broken website",
   "{areas} {segment} that publish a business email on their own site",
@@ -39,8 +39,7 @@ search_engines = ["searxng", "corpus"]
 port = 8794
 
 [leads]
-enabled = false                 # FILL-ME: true once database_id is set
-database_id = ""                # FILL-ME: the Leads board's data source id
+enabled = true
 max_per_episode = 0
 max_per_day = 0
 max_updates_per_episode = 0
@@ -53,10 +52,6 @@ candidates_shown = 5
 # Each email is checked before the row is written. Free plans, no card; leave the key files out to skip the check.
 email_verify_key_file = "~/bots/common-data/keys/quickemailverification.key"
 email_verify_fallback_key_file = "~/bots/common-data/keys/sniffmail.key"
-
-[notion]
-api_key_file = "~/bots/common-data/keys/notion.key"
-api_version = "2025-09-03"
 
 [messaging]
 max_room_posts_per_day = 0

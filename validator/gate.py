@@ -1,7 +1,7 @@
 """The Validator's rules at write time (owner, 2026-09-25: "valB is supposed to keep all output in check").
 
 The engine calls `check(action, payload, bot=...)` before a `lead`, `update_lead`, `task`, `update_task` or
-`publish_package` action writes to Notion. It returns reasons in the bots' vocabulary; an empty list means the write
+`publish_package` action writes to the board. It returns reasons in the bots' vocabulary; an empty list means the write
 may go ahead. Checking stays the Validator's job -- the rule text is validator/instructions/*.md, the rule code is
 checks.py -- the engine only gains the authority to refuse. This module is pure: no network, no writes, answers in
 milliseconds; only rules marked as errors refuse (a [warn] stays an after-the-fact finding). What needs the web or
@@ -50,7 +50,7 @@ _FIELDS = {
 GATE_REFUSES = {
     # the fence: personal data, invented or wrong-business values, an address that bounces
     "LD01", "LD02", "LD14", "LD15", "LD18", "MG03", "LD20", "LD23", "LD24",
-    # board integrity: a value Notion would add as a new dropdown option
+    # board integrity: a value that is not one of the board's own options
     "LD03",
     # the owner's own rules (2026-10-01/02) and the repeat guard
     "PK14", "MG04", "MG01", "RA05", "MG05",
@@ -163,7 +163,7 @@ def check(action: str, payload: dict, *, bot: str = "", min_details: int = 300) 
             return [f"LD21: {weak}. Write three lines: 'Pain point: <one gap you saw, and where>', 'They can try: <a fix "
                     "they can do themselves>', 'We propose: <what our team does, from the row's package>'"]
     if slug == "research-analyst" and action in GATED:
-        return ["RA05: the Research Analyst never writes to the task board or Notion: research is never a task; "
+        return ["RA05: the Research Analyst never writes to the task board or the Leads board: research is never a task; "
                 "post the findings and answer The CEO by message"]
     ck = Checker(instructions())
     skip = _SKIP[action]
@@ -384,12 +384,12 @@ _HAVE_A_BOT = re.compile(r"^\s*(?:have|ask|get|tell|let)\s+(?:the\s+)?(?:package
 
 
 # 2026-10-07 (the owner: The CEO was making too many tasks out of research and findings): seven got through in a day
-# as Develop/Draft/Review/Build/Update ... recommendations, guide, offerings, materials, target list, Notion pages.
+# as Develop/Draft/Review/Build/Update ... recommendations, guide, offerings, materials, target list, pages.
 _FAMILY_DELIVERABLE = re.compile(
     r"^\s*(?:develop|draft|create|build|review|update|prepare|write|produce|incorporate|consolidate|publish|finali[sz]e|"
     r"coordinate|complete|polish)\b"
     r".*\b(?:recommendations?|guides?|offerings?|materials?|presentations?|strateg(?:y|ies)|reports?|research|advisory|"
-    r"target lists?|lists?|notion pages?|overview|playbook|analysis|findings|trends?|trending|"
+    r"target lists?|lists?|web pages?|overview|playbook|analysis|findings|trends?|trending|"
     r"(?:findings |blog )?posts?|articles?|publication|packages?)\b", re.I)   # 2026-10-09: 4 "findings post" tasks went to a person
 
 
