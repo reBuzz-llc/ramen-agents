@@ -84,3 +84,29 @@ def test_an_overlay_value_already_there_wins(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "ROOT", r)
     m.migrate()
     assert tomllib.loads((r / "the-ceo/config.local.toml").read_text())["agent"]["bio"] == "mine already"
+
+
+def test_committed_edits_are_lifted_against_the_starter_and_put_back_in_a_commit(tmp_path, monkeypatch):
+    """The old SETUP said: commit your cards and configs to a repository of your own. Those edits are in commits, so
+    the lift compares with the starter's version (the merge base), not with HEAD, and the put-back is a commit."""
+    r = repo(tmp_path)
+    run = lambda *a: subprocess.run(["git", "-c", "user.email=t@example.com", "-c", "user.name=t", *a], cwd=r, check=True, capture_output=True, text=True).stdout  # noqa: E731
+    base = run("rev-parse", "HEAD").strip()
+    (r / "validator/config.toml").write_text('[validator]\nown_domains = ["cobalt.example"]\ntask_data_source_id = ""\n')
+    (r / "the-ceo/persona.md").write_text("You are the CEO's agent at Cobalt Web.\n")
+    (r / "my-own-file.md").write_text("mine\n")
+    run("add", "-A")
+    run("commit", "-qm", "my own edits")
+    (r / "common-data/configs/common.toml").write_text('[messaging]\nmax_per_day = 20\n[leads]\n# portal_url = "x"\n')  # and one not committed
+    import migrate_local as m
+    importlib.reload(m)
+    monkeypatch.setattr(m, "ROOT", r)
+    monkeypatch.setattr(m, "BASE", base)
+    notes = m.migrate()
+    assert any(n.startswith("committed:") for n in notes), notes
+    assert run("status", "--porcelain", "--untracked-files=no") == ""
+    # every starter file is as the starter has it; the file of your own stays
+    assert run("diff", "--name-only", base, "HEAD").split() == ["my-own-file.md"]
+    assert tomllib.loads((r / "validator/config.local.toml").read_text()) == {"validator": {"own_domains": ["cobalt.example"]}}
+    assert tomllib.loads((r / "common-data/configs/local.toml").read_text()) == {"messaging": {"max_per_day": 20}}
+    assert (r / "common-data/local/before-update/the-ceo/persona.md").read_text().endswith("Cobalt Web.\n")

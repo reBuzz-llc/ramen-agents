@@ -3,7 +3,9 @@
 
     python3 scripts/migrate_local.py [--dry-run]      # in ~/bots, before the pull
 
-For every tracked file you changed (against the commit you have checked out):
+For every tracked file you changed -- against the starter's version you last took (RAMEN_BASE, which update.sh sets to
+the merge base with the starter; the checked-out commit without it), so edits you committed count as well as edits you
+did not:
   - a TOML config (common.toml, web-bots.toml, <member>/config.toml, validator/config.toml): each value you set that
     differs goes to its git-ignored overlay -- common-data/configs/local.toml for the shared files,
     <member>/config.local.toml for a member's own -- where it still wins; the old Notion settings are moved to their new
@@ -11,8 +13,9 @@ For every tracked file you changed (against the commit you have checked out):
   - target.toml and team.json: your market and your team go to common-data/local/family.toml ([target], [[team]]);
   - any other tracked file you edited (a card, a knowledge page): your version is kept in
     common-data/local/before-update/<path>;
-then the tracked file is put back as the repository has it. An overlay that already exists keeps its values (yours win
-over what is lifted). Nothing is deleted: keys stay in common-data/keys. Standard library only (Python 3.11+).
+then the tracked file is put back as the starter has it (with commits of your own, that is one more commit, "your values
+moved to the git-ignored files", so the pull meets no edit). An overlay that already exists keeps its values (yours
+win over what is lifted). Nothing is deleted: keys stay in common-data/keys. Standard library only (Python 3.11+).
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(os.environ.get("RAMEN_ROOT") or Path(__file__).resolve().parent.parent)  # RAMEN_ROOT: run from a copy (update.sh on an old checkout)
+BASE = os.environ.get("RAMEN_BASE") or "HEAD"  # the starter's commit to compare with
 SHARED = {"common-data/configs/common.toml", "common-data/configs/web-bots.toml"}
 # valiCC's list (queue 572): the [notion] keys that moved, and where
 MOVED = {
@@ -51,16 +55,34 @@ def git(*args: str, check: bool = True) -> str:
 
 
 def changed_files() -> list[str]:
-    """Tracked files that differ from the checked-out commit (staged or not)."""
+    """Files the starter has at BASE that differ from it here: committed since, staged or not. A file the starter does
+    not have (one you added) is yours alone and merges as it is."""
     out = []
-    for line in git("status", "--porcelain", "--untracked-files=no").splitlines():
-        path = line[3:].strip()
-        out.append(path.split(" -> ")[-1])  # a rename: its new name
+    for path in git("diff", "--name-only", "--no-renames", BASE).splitlines():
+        if path and subprocess.run(["git", "cat-file", "-e", f"{BASE}:{path}"], cwd=ROOT, capture_output=True).returncode == 0:
+            out.append(path)
     return out
 
 
 def base_text(path: str) -> str:
-    return git("show", f"HEAD:{path}", check=False)
+    return git("show", f"{BASE}:{path}", check=False)
+
+
+def put_back(path: str) -> None:
+    """The tracked file as the starter has it at BASE."""
+    git("checkout", BASE, "--", path)
+
+
+def commit_put_back(paths: list[str], notes: list[str]) -> None:
+    """With commits of your own on these files, the put-back is a commit too, or the pull would meet it."""
+    if BASE == "HEAD" or not paths:
+        return
+    if subprocess.run(["git", "diff", "--cached", "--quiet", "HEAD", "--", *paths], cwd=ROOT).returncode == 0:
+        return
+    msg = "update.sh: your values moved to the git-ignored files (common-data/local/, config.local.toml)"
+    if subprocess.run(["git", "commit", "-q", "-m", msg, "--", *paths], cwd=ROOT, capture_output=True).returncode != 0:
+        git("-c", "user.name=ramen-agents update", "-c", "user.email=update@ramen-agents.invalid", "commit", "-q", "-m", msg, "--", *paths)
+    notes.append(f"committed: {msg}")
 
 
 def diff(user: Any, base: Any) -> Any:
@@ -203,6 +225,7 @@ def migrate(dry: bool = False) -> list[str]:
     fam_path = ROOT / "common-data" / "local" / "family.toml"
     family = tomllib.loads(fam_path.read_text(encoding="utf-8")) if fam_path.exists() else {}
     fam_before = json.dumps(family, sort_keys=True)
+    restored: list[str] = []
     for path in files:
         full = ROOT / path
         if not full.exists():
@@ -223,7 +246,8 @@ def migrate(dry: bool = False) -> list[str]:
                         merge_into(ov, over, "Your own values, lifted from the tracked config by sh scripts/update.sh. Not in git; yours win here.")
                     notes.append(f"{path}: your values went to {ov.relative_to(ROOT)}")
                 if not dry:
-                    git("checkout", "--", path)
+                    put_back(path)
+                    restored.append(path)
                 continue
         if path.endswith(("target.toml", "team.json")):
             family_lift(path, user_text, family, notes)
@@ -231,12 +255,15 @@ def migrate(dry: bool = False) -> list[str]:
         if not dry:
             backup.parent.mkdir(parents=True, exist_ok=True)
             backup.write_text(user_text, encoding="utf-8")
-            git("checkout", "--", path)
+            put_back(path)
+            restored.append(path)
         notes.append(f"{path}: your version is kept in common-data/local/before-update/{path}")
     if json.dumps(family, sort_keys=True) != fam_before and not dry:
         fam_path.parent.mkdir(parents=True, exist_ok=True)
         fam_path.write_text("# Your family's answers (sh scripts/setup.sh). Not in git.\n" + dumps(family) + "\n", encoding="utf-8")
         os.chmod(fam_path, 0o600)
+    if not dry:
+        commit_put_back(restored, notes)
     return notes
 
 

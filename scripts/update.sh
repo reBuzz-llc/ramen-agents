@@ -38,7 +38,9 @@ if ! git diff --quiet HEAD "$UP" -- scripts/migrate_local.py 2>/dev/null || [ ! 
   MIG="${TMPDIR:-/tmp}/ramen-migrate-local.py"
   git show "$UP:scripts/migrate_local.py" > "$MIG"
 fi
-mig=$(RAMEN_ROOT="$ROOT" "$PY" "$MIG")
+# against the starter's version you last took, so edits you committed (to a repository of your own) are lifted too
+BASE=$(git merge-base HEAD "$UP" 2>/dev/null || echo HEAD)
+mig=$(RAMEN_ROOT="$ROOT" RAMEN_BASE="$BASE" "$PY" "$MIG")
 printf '%s\n' "$mig"
 
 echo "2. The newest version"
@@ -51,7 +53,7 @@ if [ -d "$ENGINE/.git" ]; then
   echo "  ok       the engine: $ebefore -> $(git -C "$ENGINE" rev-parse --short HEAD)"
 fi
 # the new version's migration may know more (a renamed setting): once more, quietly
-RAMEN_ROOT="$ROOT" "$PY" scripts/migrate_local.py >/dev/null
+RAMEN_ROOT="$ROOT" RAMEN_BASE="$(git merge-base HEAD "$UP" 2>/dev/null || echo HEAD)" "$PY" scripts/migrate_local.py >/dev/null
 
 if [ "$NO_INSTALL" != 1 ]; then
   echo "3. Reinstall and restart"
