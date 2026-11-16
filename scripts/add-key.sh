@@ -28,7 +28,10 @@ echo "Get a free $name key here: $where"
 [ -s "$f" ] && echo "(a $name key is already on file; a new one replaces it)"
 if [ -t 0 ]; then
   printf "Paste the key (it is not shown) and press Return: "
+  # Ctrl-C at the prompt: the terminal gets its echo back, and nothing is saved
+  trap 'stty echo; echo; exit 130' INT TERM
   stty -echo; IFS= read -r key || key=""; stty echo; echo
+  trap - INT TERM
 else
   IFS= read -r key || key=""
 fi

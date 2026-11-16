@@ -29,7 +29,7 @@ test("reasons in plain words; a Validator rule by its code; an unknown one tidie
 });
 
 test("markers: the engine's commits for every bot, each bot's last restart for that bot", () => {
-  const e = engineMarkers("2026-11-09T17:24:29+05:45|930e754|A WhatsApp-only row gets the owner's message\nnot a line\n");
+  const e = engineMarkers("2026-11-09T17:24:29Z|930e754|A WhatsApp-only row gets the owner's message\nnot a line\n");
   assert.deepEqual(e, [{ at: "2026-11-09T17:24:29", by: "engine", bots: ["*"], kind: "engine", what: "930e754 A WhatsApp-only row gets the owner's message" }]);
   const r = restartMarkers({ fleet: [{ slug: "the-ceo", name: "The CEO", started: "2026-11-09T14:32:41" }, { slug: "x", started: "" }] });
   assert.deepEqual(r, [{ at: "2026-11-09T14:32:41", by: "restart", bots: ["the-ceo"], kind: "restart", what: "The CEO restarted" }]);

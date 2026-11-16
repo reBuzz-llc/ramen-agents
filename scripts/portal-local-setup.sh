@@ -6,8 +6,7 @@
 #   common-data/keys/portal-local.key   one line: the database's URL (db-standby.sh --to-local / --from-local read it)
 #   common-data/keys/portal-local.env   the portal's settings in local mode (scripts/portal-local.sh loads it): the
 #                                       database, PEEK_LOCAL_MODE=1 (sign-in codes instead of the hosted sign-in), files
-#                                       on this Mac, and the encryption key copied from the portal's .env.local (the
-#                                       copied rows were encrypted with it)
+#                                       on this Mac
 # then the portal's own migrations on it. Safe to run again: an existing role, database or file is kept.
 #
 #   sh ~/bots/scripts/portal-local-setup.sh            # then: sh ~/bots/scripts/db-standby.sh --to-local
@@ -62,7 +61,6 @@ fi
 
 # 3. the portal's settings for local mode
 if [ -r "$ENVF" ]; then say "$ENVF exists: kept"; elif [ "$DRY" = 1 ]; then say "would write $ENVF (mode 600)"; else
-  ENC="$(grep -E '^TEAMS_ENCRYPTION_KEY=' "$PORTAL/.env.local" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
   mkdir -p "$FILES" && chmod 700 "$FILES"
   (umask 077 && cat >"$ENVF" <<EOF
 # The portal in local mode: loaded by scripts/portal-local.sh. Never on a hosting provider.
@@ -70,10 +68,8 @@ DATABASE_URL=$URL
 DATABASE_URL_UNPOOLED=$URL
 PEEK_LOCAL_MODE=1
 FILES_DIR=$FILES
-TEAMS_ENCRYPTION_KEY=$ENC
 EOF
   )
-  [ -n "$ENC" ] || say "warning: no TEAMS_ENCRYPTION_KEY in $PORTAL/.env.local; encrypted settings will not open"
 fi
 
 # 4. the portal's migrations on it (the same script its hosted build runs)

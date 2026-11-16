@@ -1,7 +1,7 @@
 // The public starter carries nothing of the family's own (queue 572; creatorCC 11-16: a link to one of the family's
 // Notion pages shipped in work-plan-view.tsx): every tracked file of this repository is scanned for a Notion link or page
 // id, a 32-hex id that is not an obvious placeholder, a Supabase project ref, a tailnet or device name, and the family's
-// own addresses and repo names. A placeholder reads as one: "<project-ref>", "<mac>.<tailnet>.ts.net", a run of one
+// own addresses and repo names, and a timestamp with a local UTC offset. A placeholder reads as one: "<project-ref>", "<mac>.<tailnet>.ts.net", a run of one
 // character, or an id starting 0123 / 1234 / abcd / dead.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -18,6 +18,8 @@ const PATTERNS: [string, RegExp][] = [
   ["a Notion link", /\b(?:www\.)?notion\.(?:so|site)\/|app\.notion\.com\//i],
   ["a Supabase project ref", /\b(?!<)[a-z]{20}\.supabase\.(?:co|com)\b/],
   ["a tailnet name", /\btail[0-9a-f]{6}\.ts\.net\b/i],
+  // a date-time with a UTC offset other than Z / +00:00 dates a file to a place (creatorCC 11-16)
+  ["a timestamp with a local offset", /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?[+-](?!00:?00\b)\d{2}:?\d{2}\b/],
   ["the family's own name", new RegExp(OWN.map((s) => s.replace(/[-.]/g, "\\$&")).join("|"), "i")],
 ];
 const HEX = /\b[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}\b/gi;
