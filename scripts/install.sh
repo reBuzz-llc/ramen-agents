@@ -89,7 +89,7 @@ if [ -d "$SXD/src/.git" ]; then ok "SearXNG's clone"; else git clone -q --depth 
 
 echo "6. The dashboard"
 if [ -d webapp/node_modules ] && [ webapp/node_modules/.package-lock.json -nt webapp/package-lock.json ]; then ok "the dashboard's packages"
-else (cd webapp && npm ci --no-audit --no-fund --loglevel=error >/dev/null) && did "the dashboard's packages"; fi
+else (cd webapp && npm ci --no-audit --no-fund --no-update-notifier --loglevel=error >/dev/null) && did "the dashboard's packages"; fi
 if [ -f webapp/.next/BUILD_ID ] && [ -z "$(find webapp/app webapp/lib -newer webapp/.next/BUILD_ID -type f 2>/dev/null | head -1)" ]; then ok "the dashboard's build"
 else (cd webapp && npm run build >"$ROOT/common-data/logs/dashboard-build.log" 2>&1) && did "the dashboard's build" || stop "the dashboard's build failed: see common-data/logs/dashboard-build.log"; fi
 
