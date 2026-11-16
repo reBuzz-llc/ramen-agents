@@ -105,3 +105,57 @@ def test_setup_check_wants_the_board_keys_and_defaults_to_the_local_board(tmp_pa
     (tmp_path / "common-data" / "configs" / "local.toml").write_text('[leads]\nportal_url = "https://hosted.example/"\n')
     assert mod.portal_url() == "https://hosted.example"
     assert [k for k, _, _ in mod.PORTAL_KEYS] == ["portal-engine", "portal-validator", "portal-dashboard"]
+
+
+# ---- the first-run answers: common-data/local/family.toml --------------------------------------------------------
+
+def test_the_rule_cards_and_settings_take_the_first_run_answers(tmp_path, monkeypatch):
+    import checks
+    (tmp_path / "target.toml").write_text('market = "Old Town"\nmarket_short = "OT"\nsegment = "cafes"\n')
+    (tmp_path / "family.toml").write_text('[company]\nname = "Acme Studio"\nowner = "Sam"\nsignoff = "Regards,\\nSam"\n'
+                                          'own_domains = ["acme.example"]\n[target]\nmarket = "Riverside"\n')
+    monkeypatch.setattr(checks, "TARGET", tmp_path / "target.toml")
+    monkeypatch.setattr(checks, "LOCAL", tmp_path / "family.toml")
+    t = checks.target()
+    assert t["market"] == "Riverside" and t["market_short"] == "Riverside" and t["segment"] == "cafes" and t["company"] == "Acme Studio"
+    assert checks.fill("{owner} at {company} in {market}; {unknown}") == "Sam at Acme Studio in Riverside; {unknown}"
+    assert checks.family()["company"]["own_domains"] == ["acme.example"]
+
+
+def test_the_team_comes_from_family_toml_when_it_has_one(tmp_path):
+    (tmp_path / "local").mkdir()
+    (tmp_path / "team.json").write_text(json.dumps({"members": [{"name": "Someone Else"}]}))
+    (tmp_path / "local" / "family.toml").write_text('[[team]]\nname = "Sam Lee"\nemail = "sam@acme.example"\n')
+    assert team_members(tmp_path / "team.json") == {"sam lee": "Sam Lee", "sam@acme.example": "Sam Lee"}
+
+
+def test_no_fill_me_is_left_in_the_cards_and_configs():
+    for d in ("the-ceo", "lead-gen", "package-designer", "research-analyst", "scout", "validator"):
+        for p in (HERE.parent / d).glob("*"):
+            if p.suffix in (".md", ".toml"):
+                assert "FILL-ME" not in p.read_text(encoding="utf-8"), p
+
+
+def test_setup_check_wants_the_first_run_answers_not_fill_me_markers(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("setup_check_572b", HERE.parent / "scripts" / "setup-check.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    assert "family.toml" in mod.family_missing()[0]
+    (tmp_path / "common-data" / "local").mkdir(parents=True)
+    f = tmp_path / "common-data" / "local" / "family.toml"
+    f.write_text('[company]\nname = "Acme"\n')
+    assert mod.family_missing() == ["[company] sells", "[company] buyers", "[target] market"]
+    f.write_text('[company]\nname = "Acme"\nsells = "sites"\nbuyers = "cafes"\n[target]\nmarket = "Riverside"\n')
+    assert mod.family_missing() == []
+    assert not hasattr(mod, "fill_me")
+
+
+def test_the_gate_reads_the_first_run_steer_before_steers_md(tmp_path, monkeypatch):
+    import checks
+    import gate
+    monkeypatch.setattr(checks, "LOCAL", tmp_path / "family.toml")
+    (tmp_path / "family.toml").write_text('steer = "Bakeries first this month."\n')
+    assert gate.newest_steer() == "Bakeries first this month."
+    (tmp_path / "family.toml").write_text('[company]\nname = "Acme"\n')
+    assert gate.newest_steer() != "Bakeries first this month."           # unset: steers.md's newest section, as before

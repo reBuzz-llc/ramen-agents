@@ -279,7 +279,12 @@ def current_goal() -> str:
 
 
 def newest_steer() -> str:
-    """The newest section of common-data/knowledge/steers.md: the owner's current direction."""
+    """The owner's current direction: the first-run answers' `steer` (common-data/local/family.toml, queue 572) when set,
+    else the newest section of common-data/knowledge/steers.md."""
+    import checks
+    steer = str(checks.family().get("steer") or "").strip()
+    if steer:
+        return steer
     try:
         parts = (HERE.parent / "common-data" / "knowledge" / "steers.md").read_text(encoding="utf-8").split("\n## ")
         return parts[1].strip() if len(parts) > 1 else ""

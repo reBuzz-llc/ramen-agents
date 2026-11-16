@@ -6,7 +6,7 @@ extends = "../common-data/configs/web-bots.toml"
 
 [agent]
 name = "The CEO"
-bio = "FILL-ME: one or two sentences. Who the company is, what this agent is for right now (e.g. find new customers in {market} and turn strategy into clear tasks for the team)."
+bio = "The CEO's agent at {company}, which sells {sells} to {buyers} in {place}. It finds new customers in {market} and turns strategy into clear tasks for the team."
 self_goals = true
 cycle_delay_seconds = 120
 tags = ["board_writer"]   # shown in 'bot list' and the daily review: this bot writes to the team's board
@@ -18,7 +18,7 @@ reflect_every_episodes = 6
 seed_interests = [
   "how companies like ours win clients in {market}",
   "what {market} {segment} pay and expect for what we sell",
-  "FILL-ME: a topic the decision maker should read about",
+  "what {buyers} in {market} are buying, and from whom",
 ]
 
 [policy]
@@ -69,7 +69,7 @@ email_allowed_figures = []      # figures every pitch may carry although no pack
 # "visible": no price check, The CEO sets the price. Others: "record" (figures must be in the record), "range", "off".
 email_price_rule = "visible"
 email_required_phrases = []
-signoff = "Regards,\n-- FILL-ME company name"
+signoff = "{signoff}"           # from your first-run answers (common-data/local/family.toml)
 
 [messaging]
 # pace_member: The CEO may pause, slow or restart members (workspace/HOLD, ends by itself within 24h). Never a member

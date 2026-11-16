@@ -25,7 +25,7 @@ run_every_hours = 6
 notify = true
 max_messages_per_bot_per_day = 3
 max_flags_per_message = 3
-own_domains = []                # FILL-ME: your own site's domain(s)
+own_domains = []                # your own site's domain(s); family.toml [company] own_domains is added to these
 package_signoff = []            # e.g. ["Regards,", "-- Your Company"]; empty = the sign-off is not checked
 draft_signoff = []              # the Outreach Writer's sign-off lines, e.g. ["Regards,", "Alex", "-- Acme LLC"]; empty = not checked
 draft_whatsapp = ""             # your own wa.me link a draft may end with ("WhatsApp: <link>"), e.g. "https://wa.me/12125550100"; "" = none
@@ -73,7 +73,7 @@ key_file = "~/bots/common-data/keys/zai.key"
 [validator.offers]
 # PK14, one offer one toggle: the products you sell, as the words that name them (a name = a regular expression).
 # Two packages that name the same product are the same offer, whatever the headline or the price says.
-# FILL-ME, for example:
+# Optional, for example:
 # "website care" = "website (care|maintenance)|site care"
 # "online ordering" = "online ordering|ordering app"
 # "ai agent" = "\\bai[- ]agents?\\b|autonomous agents?|agentic"

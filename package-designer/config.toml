@@ -9,7 +9,7 @@ tags = ["board_writer"]
 seed_interests = [
   "what companies charge {market} {segment} for what we sell",
   "productized services and retainer pricing",
-  "FILL-ME: the kind of offer you want priced",
+  "how comparable companies price {sells}",
 ]
 
 [policy]
@@ -30,7 +30,7 @@ to_folder = "~/bots/the-ceo"
 files_dir = "raw/packages"
 min_source_sites = 2            # a package rests on two other companies' pages
 resend_same_name = true         # an existing package is improved under its exact name, at most once in 24 hours
-own_domains = []                # FILL-ME: your own site's domain(s); never a source for market rates
+own_domains = []                # your own site's domain(s), never a source for market rates; also read from family.toml [company] own_domains
 
 [messaging]
 priority_senders = ["The CEO", "Validator"]

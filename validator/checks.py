@@ -42,16 +42,46 @@ class Instructions:
 
 
 TARGET = Path.home() / "bots" / "common-data" / "knowledge" / "target.toml"
+LOCAL = Path.home() / "bots" / "common-data" / "local" / "family.toml"     # the user's own first-run answers (queue 572)
+COMPANY_KEYS = {"name": "company", "sells": "sells", "buyers": "buyers", "place": "place", "owner": "owner", "signoff": "signoff"}
+
+
+def family() -> dict:
+    """common-data/local/family.toml, untracked: [company], [target], [[team]], steer; {} when there is none."""
+    import tomllib
+    try:
+        data = tomllib.loads(LOCAL.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def target() -> dict[str, str]:
-    """The family's current market (owner, 2026-09-30: "it should be said in task and goals, not in code"). One file,
-    common-data/knowledge/target.toml; rule text uses {market}, {market_short}, {segment}, {trades}, {areas}."""
+    """The family's current market (owner, 2026-09-30: "it should be said in task and goals, not in code"):
+    common-data/knowledge/target.toml, with family.toml's [target] on top and its [company] as {company}, {sells},
+    {buyers}, {place}, {owner}, {signoff}. Rule text uses {market}, {market_short}, {segment}, {trades}, {areas} too."""
     import tomllib
     try:
-        return {k: str(v) for k, v in tomllib.loads(TARGET.read_text(encoding="utf-8")).items()}
+        out = {k: str(v) for k, v in tomllib.loads(TARGET.read_text(encoding="utf-8")).items()}
     except (OSError, ValueError):
-        return {}
+        out = {}
+    fam = family()
+    mine = {k: str(v) for k, v in (fam.get("target") or {}).items() if str(v).strip()} if isinstance(fam.get("target"), dict) else {}
+    if mine.get("market"):
+        for k in ("market_short", "market_slug"):
+            out.pop(k, None)
+        out.setdefault("market_short", mine["market"])
+    out.update(mine)
+    company = fam.get("company") if isinstance(fam.get("company"), dict) else {}
+    out.update({token: str(company[k]) for k, token in COMPANY_KEYS.items() if str(company.get(k) or "").strip()})
+    return out
+
+
+def fill(text: str) -> str:
+    """The known placeholders in a setting or a card line; any other brace stays as written."""
+    for k, v in target().items():
+        text = text.replace("{" + k + "}", v)
+    return text
 
 
 def market_words() -> set[str]:
