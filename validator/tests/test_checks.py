@@ -159,10 +159,15 @@ def test_provider_checks(ck):
     assert rules_of(check_provider(ck, trial)) == ["SC02", "SC07"]
 
 
-def test_providers_parser_reads_the_real_report():
-    recs = providers(Path.home() / "bots" / "common-data" / "providers-found.md")
-    assert recs and all(r.name for r in recs)
-    assert any(r.endpoint.startswith("http") for r in recs)
+def test_providers_parser_reads_a_report(tmp_path):
+    report = tmp_path / "providers-found.md"      # the Scout's format; a fresh install has no report yet
+    report.write_text("# Providers found\n\n## Example AI\nFound 2026-11-01 by Scout\n- **Endpoint:** https://api.example.ai/v1\n"
+                      "- **Free terms:** free tier, no card\n- **Models:** small-1\nA free model API.\nSources:\n- https://example.ai/pricing\n\n"
+                      "## Old One\n**Declined** by the owner\n- **Endpoint:** https://old.example/v1\n")
+    recs = providers(report)
+    assert [r.name for r in recs] == ["Example AI"] and recs[0].endpoint == "https://api.example.ai/v1"
+    assert recs[0].sources == ["https://example.ai/pricing"] and recs[0].found == "2026-11-01"
+    assert providers(tmp_path / "missing.md") == []
 
 
 def test_helpers():
@@ -292,8 +297,10 @@ def test_declined_providers_are_skipped(tmp_path):
     assert [r.name for r in providers(md)] == ["Speka"]
 
 
-def test_judge_chain_and_parsing():
+def test_judge_chain_and_parsing(tmp_path):
     from judge import Judge, Provider, judge_prompt, parse_verdicts
+    key = tmp_path / "next.key"                   # a key file of its own: a fresh install has none in ~/bots
+    key.write_text("k")
     calls = []
 
     def fake_post(url, headers, body):
@@ -304,7 +311,7 @@ def test_judge_chain_and_parsing():
                      "usage": {"prompt_tokens": 100, "completion_tokens": 20}}
 
     chain = [Provider("big", "https://first.example/v1", "big-model", "/nonexistent.key"),
-             Provider("next", "https://second.example/v1", "next-model", str(Path.home() / "bots/common-data/keys/groq.key"))]
+             Provider("next", "https://second.example/v1", "next-model", str(key))]
     j = Judge(chain, post=fake_post)
     ans = j.ask("sys", judge_prompt("task", {"Title": "x"}, ["Q1?", "Q2?"]))
     assert ans is not None and ans.provider == "next" and ans.tokens == 120
