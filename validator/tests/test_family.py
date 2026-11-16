@@ -8,6 +8,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import family  # noqa: E402
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _this_repos_roster(tmp_path, monkeypatch):
+    """The tests' own family, not the Mac's: family.py reads ~/bots/common-data/family-roster.toml and each member's
+    STOP file, which on a machine already running a family is that family (one without Desk Agent failed two tests)."""
+    monkeypatch.setattr(family, "FAMILY", dict(family._FALLBACK))
+    monkeypatch.setattr(family, "BOTS", tmp_path / "no-bots")
 
 NOW = dt.datetime(2026, 9, 25, 20, 0)
 
