@@ -15,10 +15,11 @@ no leads, notes, packages, finds, memories or logs. Everything a bot learns from
 | The CEO | `the-ceo/` | Decides what the family works on; writes tasks for the human team and publishes packages to the Packages board |
 | Lead Gen | `lead-gen/` | Finds businesses with a published business email and lists them on the Leads board |
 | Package Designer | `package-designer/` | Researches what comparable companies charge and hands The CEO service packages |
+| Research Analyst | `research-analyst/` | Answers one research question at a time from public pages, with sources |
 | Scout | `scout/` | Finds free, card-free tools and watches the terms of the providers the family uses |
 | Validator | `validator/` | Checks what the others write against the owner's rules, before and after it reaches a board |
 
-Research Analyst and Scout are included and off by default ([docs/your-family.md](docs/your-family.md)). Each bot folder
+Research Analyst and Scout are off by default; `sh scripts/setup.sh` asks whether to start them ([docs/your-family.md](docs/your-family.md)). Each bot folder
 holds a `config.toml` (settings) and a `persona.md` (its instruction card). Shared settings and the handbook are under
 `common-data/`. The dashboard is `webapp/`, and it serves the local board: Leads, Tasks and Packages in one file on
 this Mac, with pages to sort, filter and edit them.
