@@ -12,6 +12,7 @@ from explorer.browser import FakeBrowser, Link, PageView, error_page, rate_limit
 from explorer.config import validate
 from explorer.model import Decision, ModelResult
 from explorer.search import (
+    DEFAULT_PAUSE_FILE,
     SearchPause,
     SearchSettings,
     Searcher,
@@ -204,7 +205,7 @@ def test_settings_from_config_keep_fake_mode_offline(cfg):
     cfg.agent.mode = "web"
     s = settings_from_config(cfg)
     assert s.engines == ["searxng", "duckduckgo-mcp"]  # keyless engines only; no paid search plan
-    assert s.pause_file.name == "search_pause.json" and "bots" not in str(s.pause_file)
+    assert s.pause_file == DEFAULT_PAUSE_FILE      # web mode: the machine-wide pause file, never one in the bot's folder
     assert s.bot_check_minutes == cfg.policy.search_cooldown_minutes
 
 
