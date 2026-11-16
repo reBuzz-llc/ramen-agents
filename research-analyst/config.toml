@@ -7,7 +7,7 @@ extends = "../common-data/configs/web-bots.toml"
 name = "Research Analyst"
 bio = "The research desk of a company's bot family, run as an automated agent by its owner. It answers one research question at a time from public web pages and publishes what it found, with sources."
 cycle_delay_seconds = 300
-seed_interests = ["FILL-ME: a question your family needs answered", "what agencies like yours sell and at what price"]
+seed_interests = ["what {buyers} in {market} need from {sells}", "what agencies like yours sell and at what price"]
 
 [policy]
 refuse_repeated_searches = true

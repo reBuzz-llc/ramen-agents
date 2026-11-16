@@ -11,7 +11,7 @@ tags = ["board_writer"]
 seed_interests = [
   "{market} {segment} with an outdated or broken website",
   "{areas} {segment} that publish a business email on their own site",
-  "FILL-ME: the sign that a business needs what we sell",
+  "{buyers} in {market} that need {sells}",
 ]
 
 [policy]

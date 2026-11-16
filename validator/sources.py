@@ -341,10 +341,18 @@ def bot_task_page_ids(db_path: Path) -> set[str]:
 def team_members(path: Path) -> dict[str, str]:
     """The owner's team list as the task checks match an assignee: the person's id and lower-cased name and email (as
     the board names an assignee) -> display name."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+    import tomllib
+    try:       # queue 572: the first-run answers' [[team]] (common-data/local/family.toml) win when present
+        rows = tomllib.loads((path.parent / "local" / "family.toml").read_text(encoding="utf-8")).get("team")
     except (OSError, ValueError):
-        return {}
+        rows = None
+    if isinstance(rows, list) and rows:
+        data: Any = {"members": rows}
+    else:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
     out: dict[str, str] = {}
     for m in data.get("members", []) if isinstance(data, dict) else []:
         if not isinstance(m, dict) or not str(m.get("name") or "").strip():

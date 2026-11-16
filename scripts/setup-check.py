@@ -44,7 +44,6 @@ PORTAL_KEYS = [
     ("portal-validator", "validator board:read board:write", "the Validator checks and fills leads"),
     ("portal-dashboard", "dashboard board:read", "the dashboard reads the board"),
 ]
-FILL_DIRS = ["the-ceo", "lead-gen", "package-designer", "scout", "research-analyst", "validator/config.toml", "common-data"]
 
 
 def key_ok(name: str) -> bool:
@@ -79,19 +78,19 @@ def portal_url() -> str:
     return "http://127.0.0.1:3000"
 
 
-def fill_me() -> list[tuple[str, int]]:
-    """Files with FILL-ME markers left, and how many."""
-    out = []
-    for d in FILL_DIRS:
-        p = ROOT / d
-        files = [p] if p.is_file() else [f for f in p.rglob("*") if f.suffix in {".md", ".toml", ".json"}] if p.is_dir() else []
-        for f in sorted(files):
-            if "keys" in f.parts or "workspace" in f.parts:
-                continue
-            n = f.read_text(encoding="utf-8", errors="ignore").count("FILL-ME")
-            if n:
-                out.append((str(f.relative_to(ROOT)), n))
-    return out
+def family_missing() -> list[str]:
+    """What the first-run answers still lack (queue 572): common-data/local/family.toml needs [company] name, sells and
+    buyers and [target] market. Written by sh scripts/setup.sh or the dashboard's first-run page."""
+    import tomllib
+    f = ROOT / "common-data" / "local" / "family.toml"
+    try:
+        data = tomllib.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ["common-data/local/family.toml (run sh scripts/setup.sh, or open the dashboard's first-run page)"]
+    company = data.get("company") if isinstance(data.get("company"), dict) else {}
+    target = data.get("target") if isinstance(data.get("target"), dict) else {}
+    return [f"[company] {k}" for k in ("name", "sells", "buyers") if not str(company.get(k) or "").strip()] + \
+           ([] if str(target.get("market") or "").strip() else ["[target] market"])
 
 
 def checks() -> tuple[list[str], list[str], int]:
@@ -139,8 +138,8 @@ def checks() -> tuple[list[str], list[str], int]:
         if not key_ok(n):
             optional.append(f"common-data/keys/{n}.key: {who}, {link}")
     # 5. the company, in your words
-    left = fill_me()
-    need(not left, "FILL-ME markers to fill (setup-queue step 5): " + ", ".join(f"{f} ({n})" for f, n in left[:8]) + (f" and {len(left) - 8} more files" if len(left) > 8 else ""))
+    left = family_missing()
+    need(not left, "your family (step 5): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
     # 6. search and the local model
     need(local_answers("http://127.0.0.1:8888/config"), "the local search (SearXNG) does not answer on 127.0.0.1:8888 (SETUP.md step 4; it starts with the launch agents)")
     if not local_answers("http://127.0.0.1:11434/api/tags"):

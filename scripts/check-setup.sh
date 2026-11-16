@@ -6,15 +6,16 @@ cd "$(dirname "$0")/.."
 todo=0
 say() { printf '%s\n' "$*"; }
 
-say "== Fill-in markers (FILL-ME) left in cards, configs and knowledge"
-left=$(grep -rn "FILL-ME" --include='*.md' --include='*.toml' --include='*.json' \
-  the-ceo lead-gen package-designer scout validator/config.toml common-data 2>/dev/null | grep -v "searxng-settings.yml" || true)
-if [ -n "$left" ]; then
-  printf '%s\n' "$left" | sed -E 's/^([^:]+):([0-9]+):.*/\1/' | sort | uniq -c | sed 's/^/  /'
-  say "  (see each with: grep -rn FILL-ME <file>)"
-  todo=1
+say "== Your family (common-data/local/family.toml: what you sell, to whom, where)"
+f=common-data/local/family.toml
+if [ ! -s "$f" ]; then
+  say "  missing  run: sh scripts/setup.sh (or the dashboard's first-run page)"; todo=1
 else
-  say "  none"
+  for k in name sells buyers; do
+    awk -v k="$k" '/^\[/{t=$0} t=="[company]" && $1==k && $0 ~ /= *"[^"]+"/ {f=1} END{exit !f}' "$f" || { say "  missing  [company] $k"; todo=1; }
+  done
+  awk '/^\[/{t=$0} t=="[target]" && $1=="market" && $0 ~ /= *"[^"]+"/ {f=1} END{exit !f}' "$f" || { say "  missing  [target] market"; todo=1; }
+  [ "$todo" = 0 ] && say "  ok"
 fi
 
 say "== Keys (common-data/keys/<name>.key); a model provider without a key is skipped"

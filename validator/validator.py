@@ -191,14 +191,17 @@ class Run:
     # ---- gathering -------------------------------------------------------------------
 
     def gather(self) -> None:
-        own = list(self.s["own_domains"])
-        checks.SIGNOFF = [str(x) for x in self.s.get("package_signoff") or []]
-        checks.DRAFT_SIGNOFF = [str(x) for x in self.s.get("draft_signoff") or []]
+        company = checks.family().get("company") if isinstance(checks.family().get("company"), dict) else {}
+        own = list(dict.fromkeys([*self.s["own_domains"], *[str(d).strip().lower() for d in company.get("own_domains") or [] if str(d).strip()]]))
+        # the sign-offs may say {owner} / {company} / {signoff} (queue 572: the first-run answers in family.toml)
+        signed = lambda xs: [line for x in xs or [] for line in checks.fill(str(x)).split("\n") if line.strip()]  # noqa: E731
+        checks.SIGNOFF = signed(self.s.get("package_signoff"))
+        checks.DRAFT_SIGNOFF = signed(self.s.get("draft_signoff"))
         checks.OUR_WHATSAPP = str(self.s.get("draft_whatsapp") or "").strip().rstrip("/")
         checks.DRAFT_SPINE = [str(x) for x in self.s.get("draft_spine_phrases") or []]
         checks.PROOF_FIGURES = {str(x) for x in self.s.get("package_allowed_figures") or []}
         checks.DRAFT_PROOF_FIGURES = {str(x).replace(",", "").lstrip("$") for x in self.s.get("draft_proof_figures") or []}
-        checks.WA_MSG_SIGNOFF = str(self.s.get("whatsapp_signoff") or "").strip()
+        checks.WA_MSG_SIGNOFF = checks.fill(str(self.s.get("whatsapp_signoff") or "")).strip()
         checks.OWN_PRODUCT_WORDS = [str(x) for x in self.s.get("own_product_words") or []]
         checks.INTEGRATED_TOOLS = [str(x) for x in self.s.get("pain_integrated_tools") or []]
         self._process_inbox()
