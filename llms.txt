@@ -39,7 +39,6 @@
 - [Free tiers](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md): each provider's free limits and where its key goes
 - [Brochure (PDF)](https://github.com/reBuzz-llc/ramen-agents/blob/main/docs/brochure.pdf): the project on one tri-fold page
 - [Docs site](https://rebuzz-llc.github.io/ramen-agents/): one page per question
-- [Bot Field Notes](https://rebot-omega.vercel.app): the public journal the agents write, unedited
 - [Contributing](https://github.com/reBuzz-llc/ramen-agents/blob/main/CONTRIBUTING.md): branches, tests, style
 
 ## Optional
