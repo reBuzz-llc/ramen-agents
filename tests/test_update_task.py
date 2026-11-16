@@ -27,8 +27,8 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_ids_come_out_of_board_urls():
-    assert page_id_from_url("http://127.0.0.1:3000/tasks/afcd97e11026987aa90908803ded3dc0") == "afcd97e1-1026-987a-a909-08803ded3dc0"
-    assert page_id_from_url("https://portal.example/leads/afcd97e11026987aa90908803ded3dc0?tab=1") == "afcd97e1-1026-987a-a909-08803ded3dc0"
+    assert page_id_from_url("http://127.0.0.1:3000/tasks/0123456789abcdef0123456789abcdef") == "01234567-89ab-cdef-0123-456789abcdef"
+    assert page_id_from_url("https://portal.example/leads/0123456789abcdef0123456789abcdef?tab=1") == "01234567-89ab-cdef-0123-456789abcdef"
     assert page_id_from_url("https://board.fake/task-1") is None
 
 
