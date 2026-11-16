@@ -217,6 +217,7 @@ def test_the_outreach_writer_drafts_only_its_column_from_the_oldest_new_rows(cfg
 
     cfg.leads.enabled, cfg.leads.update_any_row = True, True
     cfg.leads.update_only_fields = ["draft_email"]
+    cfg.leads.draft_queue_stage = "New"   # this test is about the stage filter (the board itself has no Stage, queue 572)
     cfg.leads.draft_queue_column = "Draft email"
     board = FakeBoard()
     board.create_row("Acme Bakery", {"Website": "https://www.acmebakery.example", "Stage": "New", "Pain point": "no online ordering"})

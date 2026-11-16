@@ -575,8 +575,8 @@ class LeadsConfig:
     # A person checked the row's WhatsApp link in WhatsApp Web and it does not reach WhatsApp: no bot writes Whatsapp
     # on such a row again (its number would be re-filled from the same page).
     whatsapp_false_status: str = "False Whatsapp Number"
-    # The Outreach Writer (owner, 2026-10-07): board rows whose Stage is draft_queue_stage and whose draft_queue_column is
-    # empty, oldest first, are its work list in every prompt (with website, pain point, package, evidence, founder).
+    # The Outreach Writer (owner, 2026-10-07): board rows whose draft_queue_column is empty (and whose Stage is draft_queue_stage, when
+    # that is set), oldest first, are its work list in every prompt (with website, pain point, package, evidence, founder).
     # "" = off.
     draft_queue_column: str = ""
     # Owner, 2026-10-07: a phone number a page prints becomes the row's "Whatsapp" wa.me link; a national number gets
@@ -589,7 +589,8 @@ class LeadsConfig:
     # package_aliases maps a board "How can I help" name to the start of its toggle title on the page.
     package_emails_file: str = ""
     package_aliases: dict[str, str] = field(default_factory=dict)
-    draft_queue_stage: str = "New"
+    # "" = any stage (queue 572: the board has no Stage field, so "New" left a starter Writer an empty queue)
+    draft_queue_stage: str = ""
     draft_queue_shown: int = 15
     # The exact last lines of every draft. A package email's own sign-off is replaced by these in the work list
     # (2026-10-09: the package emails' own closing was copied into 32 drafts that lacked the signer's name). [] = as is.

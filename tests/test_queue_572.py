@@ -301,3 +301,19 @@ def test_a_fresh_member_started_before_the_dashboard_rests_then_wakes_by_itself(
     assert not t.is_alive() and out.get("rc") is not None        # it woke by itself and worked a cycle
     assert not board_down.read(flag)
     assert any("board_back" in r.getMessage() for r in caplog.records)
+
+
+def test_a_writer_added_to_a_starter_gets_a_draft_queue_from_the_board_as_shipped(cfg):
+    """The board has no Stage field: with the shipped default (draft_queue_stage = "") every row without a draft is
+    the Writer's work, best first; with "New" (the old default) the queue was always empty."""
+    rows = [{"id": "a" * 32, "business": "Corner Bakery", "website": "https://corner.example", "package": "Starter Website",
+             "pain_point": "No online menu", "draft_email": None, "rev": 1, "created_at": "2026-11-16T10:00:00"},
+            {"id": "b" * 32, "business": "Done Deli", "website": "https://done.example", "draft_email": "Hi team", "rev": 2}]
+    http = httpx.Client(base_url="http://127.0.0.1:3000", transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"leads": rows, "next": 2, "more": False})))
+    cfg.leads.enabled = True
+    cfg.leads.draft_queue_column = "Draft email"
+    assert cfg.leads.draft_queue_stage == ""
+    c = make_controller(cfg, leads_board=PortalLeadStore("http://127.0.0.1:3000", "k", "Outreach Writer", http=http))
+    text = "\n".join(c._draft_queue_lines())
+    assert "Corner Bakery" in text and "Done Deli" not in text
