@@ -15,7 +15,8 @@ const ITEMS: Item[] = [
   { href: "/", label: "Home", icon: "house", full: true }, // a full load, as the wordmark: always gets home
   { href: TAB_PATH.plan, label: "Work plan", icon: "checklist" },
   { href: TAB_PATH.past, label: "Past jobs", icon: "clock" },
-  { href: TAB_PATH.leads, label: "Leads", icon: "person-2" },
+  // the local board's Leads, Tasks and Packages (queue 572); the leads' results stay on the Work plan's Leads page
+  { href: "/boards", label: "Boards", icon: "person-2" },
   { href: TAB_PATH.checks, label: "Checks", icon: "chart" },
 ];
 
@@ -23,7 +24,7 @@ function useNav() {
   const path = (usePathname() ?? "/").replace(/\/$/, "") || "/";
   const att = useWorkPlanAttention();
   return ITEMS.map((it) => {
-    const current = path === it.href;
+    const current = path === it.href || (it.href === "/boards" && path.startsWith("/boards/"));
     // the Work plan's red dot: a job finished or stuck, or 3+ steps ticked since the owner last looked
     const dot = it.href === TAB_PATH.plan && att.dot;
     return { ...it, current, dot, label: it.label, aria: dot ? `${it.label}: needs a look (${att.why})` : it.label };

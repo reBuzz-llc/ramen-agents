@@ -42,7 +42,6 @@ is git-ignored. Any subset works; more keys mean more fallbacks. Limits and what
 
 ## 4. The boards and the email check
 
-- [ ] `notion.key`: a Notion internal integration's secret, https://www.notion.so/my-integrations
 - [ ] Create the task board, the packages page and the Leads board, and share them with the integration
       (`SETUP.md` step 6; `scripts/create_leads_board.py` makes the Leads board).
 - [ ] Optional: `quickemailverification.key` (https://quickemailverification.com) and `sniffmail.key`
@@ -81,7 +80,7 @@ is git-ignored. Any subset works; more keys mean more fallbacks. Limits and what
       `... api-key.mjs validator` (`portal-validator.key`) and `... api-key.mjs dashboard` (read only,
       `portal-dashboard.key`).
 - [ ] Point the family at it in `common-data/configs/common.toml`: `[leads]` then `portal_url = "https://..."`. From
-      then on the agents, the Validator and the dashboard read and write leads in the portal, not Notion; the
+      then on the agents, the Validator and the dashboard read and write leads in the portal, not the local board; the
       dashboard keeps a cache and pulls only what changed. `python3 scripts/setup-check.py --probe` tests each key.
 - [ ] Its database's safety net: a nightly standby copy to a second free database, local mode for an outage, and
       the dashboard's "Other free tiers" warnings. All in [portal-database.md](portal-database.md).

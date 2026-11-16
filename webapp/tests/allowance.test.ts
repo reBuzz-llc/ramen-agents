@@ -38,7 +38,7 @@ const CALLS = {
 };
 const HISTORY = { since: "2026-11-05", days: { "2026-11-05": { hosts: { "proxy.gonkabroker.com": { calls: 10, tokens: 100_000 }, "inference.dahl.global": { calls: 3, tokens: 900 } } } } };
 const run = (over: Partial<Parameters<typeof allowanceOf>[0]> = {}) =>
-  allowanceOf({ config: CONFIG, calls: CALLS, history: HISTORY, keys: ["zai", "groq", "speka", "gonka-broker", "tavily", "quickemailverification", "dahl-inference", "openai", "peek-owner", "notion"], search: { tavily: { "2026-10-09": 1 } }, verify: { a: { at: "2026-11-06T12:50:00" }, b: { at: "2026-11-05T10:00:00", by: "sniffmail" } }, ...over }, new Date("2026-11-06T13:00:00"));
+  allowanceOf({ config: CONFIG, calls: CALLS, history: HISTORY, keys: ["zai", "groq", "speka", "gonka-broker", "tavily", "quickemailverification", "dahl-inference", "openai", "peek-owner"], search: { tavily: { "2026-10-09": 1 } }, verify: { a: { at: "2026-11-06T12:50:00" }, b: { at: "2026-11-05T10:00:00", by: "sniffmail" } }, ...over }, new Date("2026-11-06T13:00:00"));
 
 test("the config: the chain, the providers' caps, top-level numbers", () => {
   const c = parseConfig(CONFIG);
@@ -64,7 +64,7 @@ test("a row per chain provider: calls against the cap, Groq's daily tokens, the 
   assert.deepEqual(a.alerts, ["groq at 90%", "speka not answering", "ollama-cloud at 93%"]);
 });
 
-test("keys out of the chain: searches and verifiers with their counts, models with their last day; no portal or notion", () => {
+test("keys out of the chain: searches and verifiers with their counts, models with their last day; no portal key", () => {
   const idle = run().idle;
   assert.deepEqual(idle.map((r) => r.name), ["dahl-inference", "openai", "quickemailverification", "tavily"]);
   const by = (n: string) => idle.find((r) => r.name === n)!;

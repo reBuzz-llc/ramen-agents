@@ -21,14 +21,14 @@ const STATE_COOLDOWN_MS = 30 * 60 * 1000;
 const STUCK_AFTER_MS = Number(process.env.ALERTS_STUCK_AFTER_MS) || 15 * 60 * 1000;
 
 const ALERT_TYPES = {
-  task: { label: "Notion task created", detail: "A bot added a task to your Notion board", notify: true, tile: "bg-sys-indigo", icon: "check" },
+  task: { label: "Task created", detail: "A bot added a task to your Tasks board", notify: true, tile: "bg-sys-indigo", icon: "check" },
   package: { label: "Service package ready", detail: "The Package Designer handed a package to another bot", notify: true, tile: "bg-sys-orange", icon: "sparkles" },
   provider: { label: "Free provider or tool found", detail: "The Scout recorded a free AI provider, search tool, data source or verification tool", notify: true, tile: "bg-sys-purple", icon: "key" },
   say: { label: "Message from a bot", detail: "A bot wrote to you in its chat", notify: true, tile: "bg-sys-blue", icon: "chat" },
   stopped: { label: "Bot stopped unexpectedly", detail: "A bot stopped without being told to, and did not come back", notify: true, tile: "bg-sys-red", icon: "stop" },
   stuck: { label: "Bot may be stuck", detail: "No heartbeat for a while, or its watchdog gave up", notify: true, tile: "bg-sys-orange", icon: "arrow-clockwise" },
   models: { label: "Models keep failing", detail: "Three or more model failures in a row", notify: true, tile: "bg-sys-red", icon: "sparkles" },
-  notion: { label: "Notion refused a write", detail: "Notion is full or the bots lost access: nothing new reaches your boards", notify: true, tile: "bg-sys-red", icon: "flag" },
+  board: { label: "The board is down", detail: "The dashboard's board did not answer or refused the bots' key: nothing new is saved until it does", notify: true, tile: "bg-sys-red", icon: "flag" },
   message: { label: "Bot-to-bot message", detail: "One bot sent research or tips to another", notify: false, tile: "bg-sys-teal", icon: "chat" },
 } as const;
 type AlertType = keyof typeof ALERT_TYPES;
@@ -106,38 +106,36 @@ async function add(s: Store, bot: BotProfile, type: AlertType, title: string, bo
 
 const trimQuote = (t: string | undefined, n = 140) => (t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
-// Notion's free plan ran out of blocks on 2026-09-28 22:23 and every write came back 403 "restricted_resource". One
-// alert for the whole fleet (NOTION_COOLDOWN_MS), not one per failed write, and it names the fix when the reason is known.
-const NOTION_FULL = /free blocks|restricted_resource|upgrade its plan/i;
-const NOTION_COOLDOWN_MS = 12 * 3600 * 1000;
+// The board (the dashboard's local board, or the hosted portal) not answering, or refusing the bots' key: every bot hits
+// the same wall, so one alert for the whole fleet (BOARD_COOLDOWN_MS), not one per failed write. The engine rests the
+// member with the plain reason and keeps the write; its all-clear takes the banner down.
+const BOARD_DOWN = /board (?:is )?down|board did not answer|the portal could not be reached|portal answered HTTP 5\d\d|refused the agents' key/i;
+const BOARD_COOLDOWN_MS = 12 * 3600 * 1000;
 
-const NOTION_OK_TITLE = "Notion is writable again";
+const BOARD_OK_TITLE = "The board answers again";
 
-function notionTrouble(e: BotEvent): { type: AlertType; title: string; body: string; href: string | null } | null {
-  // The engine's all-clear (bot-creator's pause guard): the newest "notion" alert then takes the banner down.
-  if (e.kind === "notion_restored") return { type: "notion", title: NOTION_OK_TITLE, body: trimQuote(e.msg, 160), href: null };
+function boardTrouble(e: BotEvent): { type: AlertType; title: string; body: string; href: string | null } | null {
+  if (e.kind === "board_restored") return { type: "board", title: BOARD_OK_TITLE, body: trimQuote(e.msg, 160), href: null };
   const text = [e.msg, e.result, e.error, e.exc, e.reason].filter(Boolean).join(" ");
-  if (NOTION_FULL.test(text)) {
+  if (e.kind === "board_down" || (BOARD_DOWN.test(text) && String(e.ok) !== "true")) {
+    const key = /key/i.test(text);
     return {
-      type: "notion",
-      title: "Notion is full: the bots cannot write",
-      body: "The free plan's blocks are used up. Delete old pages or rows, then empty Notion's trash (trashed pages still count).",
+      type: "board",
+      title: key ? "The board refused the bots' key" : "The board is down: the bots cannot save",
+      body: key ? "Run sh scripts/check-setup.sh: it says which key file is missing or wrong." : "Is the dashboard running? sh scripts/check-setup.sh says what is wrong.",
       href: null,
     };
-  }
-  if (/NotionError/.test(text) && /\b40[13]\b/.test(text) && String(e.ok) !== "true") {
-    return { type: "notion", title: "Notion refused a write (403)", body: trimQuote(e.result ?? e.msg, 160), href: null };
   }
   return null;
 }
 
 function fromEvent(bot: BotProfile, e: BotEvent): { type: AlertType; title: string; body: string; href: string | null } | null {
   const page = `/work-plan#${bot.slug}`; // its card; the bot pages are gone (owner, 2026-10-30)
-  const notion = notionTrouble(e);
-  if (notion) return notion;
+  const board = boardTrouble(e);
+  if (board) return board;
   switch (e.kind) {
     case "task":
-      return { type: "task", title: "Created a Notion task", body: trimQuote(e.title), href: e.url && /^https:\/\//.test(e.url) ? e.url : page };
+      return { type: "task", title: "Created a task", body: trimQuote(e.title), href: e.url && /^https?:\/\//.test(e.url) ? e.url : page };
     case "package":
       return { type: "package", title: `Handed a package to ${e.to ?? "another bot"}`, body: [trimQuote(e.name, 90), e.price].filter(Boolean).join(" · "), href: page };
     case "provider":
@@ -194,10 +192,10 @@ async function checkBot(s: Store, bot: BotProfile): Promise<void> {
     for (const e of fresh) {
       const a = fromEvent(bot, e);
       if (!a) continue;
-      if (a.type === "notion" && a.title !== NOTION_OK_TITLE) {
+      if (a.type === "board" && a.title !== BOARD_OK_TITLE) {
         // Fleet-wide: every bot hits the same wall, and every retry would be another alert.
-        if (Date.now() - (s.cooldowns["fleet:notion"] ?? 0) < NOTION_COOLDOWN_MS) continue;
-        s.cooldowns["fleet:notion"] = Date.now();
+        if (Date.now() - (s.cooldowns["fleet:board"] ?? 0) < BOARD_COOLDOWN_MS) continue;
+        s.cooldowns["fleet:board"] = Date.now();
       }
       await add(s, bot, a.type, a.title, a.body, a.href);
     }

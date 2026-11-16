@@ -28,7 +28,6 @@ const PAGES: Record<string, string> = {
   langsearch: "https://langsearch.com/",
   parallel: "https://platform.parallel.ai/",
   apify: "https://console.apify.com/settings/integrations",
-  notion: "https://www.notion.so/profile/integrations",
   kaggle: "https://www.kaggle.com/settings",
   "cloudflare-pages": "https://dash.cloudflare.com/profile/api-tokens",
   "cloudflare-r2": "https://dash.cloudflare.com/?to=/:account/r2/api-tokens",

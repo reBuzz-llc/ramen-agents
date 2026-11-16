@@ -33,18 +33,6 @@ async function getJson(url: string, init: RequestInit = {}): Promise<{ status: n
 
 const SERVICES: Service[] = [
   {
-    name: "Notion",
-    file: "notion.key",
-    usedFor: "The CEO, Lead Gen, Package Designer: the task board, Leads board and Packages page",
-    signup: "https://www.notion.so/my-integrations",
-    check: async (k) => {
-      // "Who am I" for the integration: free, reads nothing from the workspace.
-      const r = await getJson("https://api.notion.com/v1/users/me", { headers: { Authorization: `Bearer ${k}`, "Notion-Version": "2022-06-28" } });
-      const bot = (r.body as { name?: string })?.name;
-      return r.status === 200 ? { ok: true, detail: `Integration${bot ? ` "${bot}"` : ""} answers` } : { ok: false, detail: `Refused (HTTP ${r.status})` };
-    },
-  },
-  {
     name: "QuickEmailVerification",
     file: "quickemailverification.key",
     usedFor: "Checks that a lead's email exists before Lead Gen records it (100 free checks a day)",

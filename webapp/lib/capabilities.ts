@@ -46,19 +46,17 @@ export async function capabilitiesOf(bot: BotProfile): Promise<Capabilities> {
   if (local && !tor) can.push("Think with a model on this Mac");
 
   // Outputs.
-  if (on("notion.enabled")) {
-    const cap = num("notion.max_tasks_per_day");
-    can.push(`Create and fix tasks on your Notion task board${cap ? ` (up to ${cap} a day)` : ""}`);
-    if (typeof cfg.get("notion.package_page_id") === "string") can.push("Publish packages to your Notion Packages page");
+  // the boards (queue 572: the dashboard's local board, or the hosted portal): [tasks], [packages] and [leads]
+  if (on("tasks.enabled")) {
+    const cap = num("tasks.max_per_day");
+    can.push(`Create tasks on your Tasks board${cap ? ` (up to ${cap} a day)` : ""}; a person moves their status`);
   }
+  if (on("packages.enabled")) can.push("Hand packages over to your Packages page as drafts; a person prices and publishes them");
   if (on("leads.enabled")) {
     const cap = num("leads.max_per_day");
     can.push(`Add and fix rows on the Leads board${cap ? ` (up to ${cap} a day)` : ""}${on("leads.update_any_row") ? ", any row" : ", its own rows"}`);
   }
-  // [scout] notion_database_id: provider finds also become rows on an owner's Notion board (the Onion Reader's "onion" board).
-  const findsBoard = on("scout.enabled") && typeof cfg.get("scout.notion_database_id") === "string" && cfg.get("scout.notion_database_id") !== "";
-  if (findsBoard) can.push("Add its finds as rows on your Notion finds board (clearnet sites only)");
-  if (!on("notion.enabled") && !on("leads.enabled") && !findsBoard) cannot.push("Write to Notion (no task board, no Leads board)");
+  if (!on("tasks.enabled") && !on("packages.enabled") && !on("leads.enabled")) cannot.push("Write to the boards (no Tasks, Packages or Leads)");
   if (on("site_gate.enabled")) {
     const t = await readTarget(); // the target lives in target.toml, never in code (owner, 2026-09-30)
     can.push(`Reads the own websites of ${t.market || "the target market"}'s ${t.segment || "businesses"}; skips directories and articles`);

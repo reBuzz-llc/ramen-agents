@@ -551,8 +551,6 @@ function TestRunsPanel({ runs }: { runs: TestRun[] }) {
 
 /** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
  * people send from the business mailbox. */
-// The routine lives on the Leads board itself, in the board's description (owner, 2026-10-10); rows are not assigned per person.
-const SEND_GUIDE = "https://app.notion.com/p/3e3d905fccff80f1af6afe3c063ed179";
 
 function HowWeSend({ results }: { results: LeadResults }) {
   const team = results.sending.team;
@@ -578,11 +576,7 @@ function HowWeSend({ results }: { results: LeadResults }) {
         </li>
       </ol>
       <p className="mt-2 text-xs text-muted">
-        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts. The full step-by-step is the{" "}
-        <a href={SEND_GUIDE} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
-          Leads board&apos;s description
-        </a>
-        .
+        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts.
       </p>
     </section>
   );

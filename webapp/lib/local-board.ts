@@ -453,3 +453,30 @@ export function localTasksMeasure(closed: Set<string>): { open: number; done: st
   }
   return { open, done };
 }
+
+/** Leads from a CSV (lib/csv-import.ts csvRows), written as `actor`: a row matching a lead on the board (the same website
+ *  domain, or with no website the same business name) only fills that lead's empty cells -- a filled cell is never
+ *  overwritten -- and any other row becomes a new lead. A row without a business is skipped. */
+export function importLeads(rows: Record<string, string>[], actor: Actor) {
+  const out = { created: 0, filled: 0, unchanged: 0, skipped: 0, keptFilled: 0, errors: [] as string[] };
+  for (const [i, r] of rows.entries()) {
+    if (!r.business?.trim()) {
+      out.skipped++;
+      continue;
+    }
+    const dom = domainOf(r.website);
+    const match = allRows("leads").find((l) =>
+      dom ? domainOf(l.website) === dom : !l.website && String(l.business ?? "").trim().toLowerCase() === r.business.trim().toLowerCase(),
+    );
+    const res = match ? writeRow("leads", { id: match.id }, r, actor, { fillOnly: true }) : writeRow("leads", {}, r, actor, { create: true });
+    if (!res.ok) {
+      if (out.errors.length < 10) out.errors.push(`row ${i + 2}: ${res.message}`);
+      continue;
+    }
+    if (res.created) out.created++;
+    else if (res.written.length) out.filled++;
+    else out.unchanged++;
+    out.keptFilled += res.refused.filter((x) => x.reason === "filled").length;
+  }
+  return out;
+}

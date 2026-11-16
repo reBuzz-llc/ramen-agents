@@ -6,8 +6,8 @@
 //   bot    runs on a timer or a trigger and follows fixed rules: it has no loop of its own. The Validator
 //          is valB. Marked in its config with [agent] not_a_bot_run_agent = true.
 //
-// Display only: they keep their full names in their prompts, in their messages to each other and in
-// Notion, because "You are The CEO" carries a role that "ceoA" does not and they address one another by
+// Display only: they keep their full names in their prompts, in their messages to each other and on
+// the boards, because "You are The CEO" carries a role that "ceoA" does not and they address one another by
 // exact name. Pure and dependency-free, so the server can stamp it on a profile and the browser can use it.
 
 type Kind = "agent" | "bot";

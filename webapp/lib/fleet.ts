@@ -2,7 +2,7 @@
 // database (read-only, as lib/summary.ts), its live state from its data server, and the relation map:
 // which bot hands work to which (config [handoff] and [[messaging.peers]]) and how much actually moved
 // through those channels in the period (the sender's `package` and `message` actions), plus the owner's
-// chat, tasks sent to Notion and AI providers recorded by the Scout.
+// chat, tasks put on the Tasks board and AI providers recorded by the Scout.
 import { readFile } from "node:fs/promises";
 import type { BotProfile } from "./bot";
 import { readConfig } from "./bots";

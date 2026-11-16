@@ -59,7 +59,7 @@ const KNOWN_HOSTS: Record<string, string> = {
   replicate: "api.replicate.com",
 };
 // Key files that are not providers of free work, or not this page's business.
-const NOT_PROVIDERS = /^(portal-|peek-|notion$|cloudflare-r2$)/;
+const NOT_PROVIDERS = /^(portal-|peek-|cloudflare-r2$)/;
 // The keyed search engines (creatorCC queue 329, after valiCC's 274: engine 8720b69, fleet 8ffa3ff). Each engine's day
 // counts are the sum of its usage files: Tavily's are The CEO's by hand and the Research Analyst's own daily share.
 const SEARCH: Record<string, { files: string[]; capKey: string; cap: number; capText?: string; note: string }> = {

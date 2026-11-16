@@ -72,7 +72,6 @@ const FREE: Record<string, string> = {
   sniffmail: "500 basic checks a month",
   ezverify: "200 checks a month",
   tavily: "1,000 credits a month (fleet cap 30/day)",
-  notion: "free plan (single-member workspace)",
   "cloudflare-r2": "10 GB storage free (needs R2 switched on)",
   // The Scout's finds the owner saved keys for on 2026-11-04 (providers-found.md); terms as the Scout recorded them.
   "dahl-inference": "free models (GLM-5.3 Flash, MiniMax M2.7, DeepSeek V4 Flash); limits not checked yet",
@@ -90,7 +89,6 @@ const SERVICE_KIND: Record<string, KeyKind> = {
   ezverify: "Email check",
   tavily: "Search",
   "cloudflare-r2": "Storage",
-  notion: "Workspace",
   orcarouter: "AI model",
   textperfector: "Writing",
   kaggle: "Training",
@@ -262,8 +260,7 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
     } else if (name === "ezverify") {
       callsToday = byChecker("ezverify");
       today = callsToday ? `${callsToday} checks today (third in line)` : "third in line: used when the first two do not answer";
-    } else if (name === "notion") today = "the bots' board writes";
-    else today = "not used yet";
+    } else today = "not used yet";
     // The team portal's own API keys (portal-engine, portal-validator, ...) are not models.
     const kind = SERVICE_KIND[name] ?? (name.startsWith("portal-") ? "Portal API" : "AI model");
     rows.push({

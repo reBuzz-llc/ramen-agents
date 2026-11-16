@@ -64,24 +64,24 @@ export default function NotificationsView() {
   const types = new Map(view.types.map((t) => [t.key, t]));
   // An alert of a type you switched off is muted: kept, but out of the way until you ask for it.
   const muted = view.alerts.filter((a) => !types.get(a.type)?.notify);
-  // Notion refusing writes blocks every board at once: the newest such alert of the last day stays pinned on top.
-  // The newest Notion alert decides: an all-clear ("Notion is writable again") after a failure takes the banner down.
-  const lastNotion = view.alerts.find((a) => a.type === "notion");
-  const notionDown =
-    lastNotion && !lastNotion.title.startsWith("Notion is writable again") && now > 0 && now - new Date(lastNotion.at).getTime() < 24 * 3600e3 ? lastNotion : undefined;
+  // The board down blocks every write at once: the newest such alert of the last day stays pinned on top, until the
+  // all-clear ("The board answers again") takes it down.
+  const lastBoard = view.alerts.find((a) => a.type === "board");
+  const boardDown =
+    lastBoard && !lastBoard.title.startsWith("The board answers again") && now > 0 && now - new Date(lastBoard.at).getTime() < 24 * 3600e3 ? lastBoard : undefined;
   const listed = showMuted ? view.alerts : view.alerts.filter((a) => types.get(a.type)?.notify);
 
   return (
     <>
-      {notionDown ? (
+      {boardDown ? (
         <div role="alert" className="mb-4 flex gap-3 rounded-xl bg-sys-red/12 p-4 ring-1 ring-sys-red/30">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-sys-red text-white">
             <Icon name="flag" className="h-[18px] w-[18px]" />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-bad">{notionDown.title}</p>
-            <p className="mt-0.5 text-sm break-words text-ink/85">{notionDown.body}</p>
-            <p className="mt-1 text-xs text-muted">First seen {ago(notionDown.at, now)} from {notionDown.botName}. Leads, tasks and packages wait until this is fixed.</p>
+            <p className="text-sm font-semibold text-bad">{boardDown.title}</p>
+            <p className="mt-0.5 text-sm break-words text-ink/85">{boardDown.body}</p>
+            <p className="mt-1 text-xs text-muted">First seen {ago(boardDown.at, now)} from {boardDown.botName}. Leads, tasks and packages wait until it answers; nothing is lost.</p>
           </div>
         </div>
       ) : null}
