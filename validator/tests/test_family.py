@@ -14,7 +14,7 @@ import pytest  # noqa: E402
 @pytest.fixture(autouse=True)
 def _this_repos_roster(tmp_path, monkeypatch):
     """The tests' own family, not the Mac's: family.py reads ~/bots/common-data/family-roster.toml and each member's
-    STOP file, which on a machine already running a family is that family (one without Desk Agent failed two tests)."""
+    STOP file, which on a machine already running a family is that family (one without a member these tests name failed two tests)."""
     monkeypatch.setattr(family, "FAMILY", dict(family._FALLBACK))
     monkeypatch.setattr(family, "BOTS", tmp_path / "no-bots")
 
@@ -37,7 +37,7 @@ def test_fold_matches_the_engine(tmp_path):
         ask(1, "The CEO", "Lead Gen", "Please harvest 30 founders", 3, priority=True),
         {"kind": "read", "id": "r1", "at": (NOW - dt.timedelta(hours=2.5)).isoformat()},
         ask(2, "The CEO", "Scout", "Checked the jobs page, nothing there", 1, priority=True),   # a status note
-        ask(3, "Scout", "Onion Reader", "Which onion news outlets?", 60),                        # expired
+        ask(3, "Scout", "Research Analyst", "Which news outlets?", 60),                        # expired
         ask(4, "Package Designer", "The CEO", "Rate for a landing page?", 1),
         {"kind": "answered", "id": "r4", "answer": "$1,200-2,000", "at": NOW.isoformat()},
     ])
@@ -52,11 +52,11 @@ def test_rules_name_the_bot_that_answers_for_it(tmp_path):
     p = record(tmp_path, [
         ask(1, "The CEO", "Lead Gen", "Please harvest 30 founders", 3, priority=True),
         {"kind": "read", "id": "r1", "at": (NOW - dt.timedelta(hours=2.5)).isoformat()},
-        ask(2, "Desk Agent", "Lead Gen", "please list the founders in the file I routed to you", 8),
+        ask(2, "Package Designer", "Lead Gen", "please list the founders in the file I routed to you", 8),
         ask(3, "The CEO", "Grok Bot", "Can you help?", 1, priority=True),
         ask(4, "Scout", "Validator", "leaA, which rows are blank?", 1),
         ask(5, "The CEO", "Scout", "Find SPF accelerators", 3, priority=True),
-        ask(6, "Scout", "Onion Reader", "Which onion news outlets?", 60),
+        ask(6, "Scout", "Research Analyst", "Which news outlets?", 60),
         ask(7, "Package Designer", "The CEO", "Fresh and answered", 0.5),
         {"kind": "answered", "id": "r7", "at": NOW.isoformat()},
     ])
@@ -74,7 +74,7 @@ def test_rules_name_the_bot_that_answers_for_it(tmp_path):
     # A CEO ask 3 h old but never read and no actions since: not FM02; under 6 h so not FM01 either.
     assert ("FM02", "r5") not in by and ("FM01", "r5") not in by
     # Expired: reported against the recipient as a pattern, not chased.
-    assert by[("FM04", "r6")].bot == "onion-reader"
+    assert by[("FM04", "r6")].bot == "research-analyst"
     assert not any(f.ask.id == "r7" for f in found)
     assert family.summary(family.fold(p, now=NOW), NOW).startswith("family: 4 open ask(s), 2 from The CEO")
 
@@ -98,10 +98,10 @@ def test_fleet_notices_are_not_asks(tmp_path):
     """A drop routed to you, a lead listed, a 'done:' report: information, never chased (2026-09-25 the record
     held three 30-hour-old 'the owner dropped a file for you' notices to Lead Gen)."""
     p = record(tmp_path, [
-        ask(1, "Desk Agent", "Lead Gen", "the owner dropped a file for you: leads.csv (CSV, 32 KB)", 30),
+        ask(1, "Package Designer", "Lead Gen", "the owner dropped a file for you: leads.csv (CSV, 32 KB)", 30),
         ask(2, "Lead Gen", "The CEO", "new lead \"Main Street Hardware\" (https://mainstreethardwarespf.com): old site", 30),
         ask(3, "Lead Gen", "Validator", "done: Main Street Hardware: Founded by; could not find: Location", 30),
-        ask(4, "The CEO", "Desk Agent", "Processed the file as instructed. Drafted cold emails.", 30, priority=False),
+        ask(4, "The CEO", "Package Designer", "Processed the file as instructed. Drafted cold emails.", 30, priority=False),
     ])
     asks = family.fold(p, now=NOW)
     assert all(a.note for a in asks)

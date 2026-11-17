@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import family as roster
 from sources import (LeadRow, PackageFile, PackageToggle, ProviderRecord, TaskRow, domain, is_search_results_url,
                      norm_title)
 
@@ -708,14 +709,14 @@ def check_lead(ck: Checker, ld: LeadRow, *, allowed_packages: list[str], duplica
     f = lambda rid, detail: ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, when=ld.created[:10], name=ld.business)  # noqa: E731
     out: list[Flag] = []
     for rid, detail in draft_issues(ld.draft_email, founded_by=ld.founded_by, website=ld.website, whatsapp=ld.whatsapp, status=ld.status):
-        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot="outreach-writer",
+        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot=roster.route("outreach-writer"),
                                 when=ld.created[:10], name=ld.business))
     wa = whatsapp_shape(ld.whatsapp)
     if wa:
         out += _collect(f("LD20", wa))
     for rid, detail in whatsapp_draft_issues(ld.draft_whatsapp, founded_by=ld.founded_by, website=ld.website,
                                              whatsapp=ld.whatsapp, status=ld.status, on_row=True):
-        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot="outreach-writer",
+        out += _collect(ck.flag(rid, "lead", ld.page_id, ld.label, ld.url, detail, bot=roster.route("outreach-writer"),
                                 when=ld.created[:10], name=ld.business))
     # at write time the row is not in hand (an update carries only its own fields): whose profile it is is checked in the sweep
     role = contact_role_issue(ld.contact_role, ld.founded_by, on_row=bool(ld.page_id))

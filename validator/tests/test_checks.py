@@ -677,3 +677,22 @@ def test_a_contact_role():
     assert contact_role_issue("Owner", "", on_row=False) == ""          # at write time the row is not in hand
     import gate
     assert gate.check("update_lead", {"type": "update_lead", "name": "X", "contact_role": "Boss"}, bot="Lead Enricher")[0].startswith("LD24")
+
+
+def test_a_draft_flag_follows_the_roster(ck, monkeypatch):
+    """A flag on a Draft email goes to the Outreach Writer only when the roster has one; the starter ships none, so a
+    person's draft is flagged to the team ("owner"), never to a member that is not in the roster (creatorCC, 11-17)."""
+    import family
+    row = lead(draft_email="Hi Bob,\n\nA short note about your ordering page.\n\nRegards,\n-- Acme LLC")
+    monkeypatch.setattr(family, "FAMILY", dict(family._FALLBACK))
+    flags = [f for f in check_lead(ck, row, allowed_packages=PACKAGES, duplicate_of=[]) if f.rule.startswith("OW")]
+    assert flags and {f.bot for f in flags} == {"owner"}
+    monkeypatch.setattr(family, "FAMILY", {**family._FALLBACK, "Outreach Writer": ("outA", "outreach-writer")})
+    flags = [f for f in check_lead(ck, row, allowed_packages=PACKAGES, duplicate_of=[]) if f.rule.startswith("OW")]
+    assert flags and {f.bot for f in flags} == {"outreach-writer"}
+
+
+def test_the_fallback_roster_names_only_shipped_members():
+    import family
+    shipped = {p.name for p in HERE.parent.iterdir() if (p / "config.toml").is_file()}
+    assert {slug for _, slug in family._FALLBACK.values()} <= shipped

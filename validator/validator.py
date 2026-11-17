@@ -691,7 +691,7 @@ class Run:
             ld = by_name.get(enricher_check._norm(m["name"]))
             col = {"founded_by": "Contact person", "location": "Location", "size": "Company size", "founder_linkedin": "Founder LinkedIn"}[m["field"]]
             self.current += _collect(self.ck.flag("EN05", "lead", ld.page_id if ld else m["name"], f'lead "{m["name"]}"',
-                                                        ld.url if ld else "", f"{col}: {m['why']}", bot="lead-enricher",
+                                                        ld.url if ld else "", f"{col}: {m['why']}", bot=family.route("lead-enricher"),
                                                         when=m["ts"][:10], name=m["name"]))
 
     def _verify_lead_whatsapp(self, leads: list) -> None:

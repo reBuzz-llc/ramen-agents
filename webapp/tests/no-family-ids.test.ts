@@ -46,3 +46,39 @@ test("no id, link or name of the family's own in any tracked file", () => {
   }
   assert.deepEqual(found, []);
 });
+
+// creatorCC 11-17: the docs may not credit a member the starter does not ship. The family's own members are never
+// named in the prose; a member you can add (Lead Enricher, Outreach Writer) is named only in a paragraph or table row
+// that says so. Prompts and rule files (validator/instructions/, */persona.md) are rules for the member, not claims.
+const FAMILY_ONLY = new RegExp([["Jobless", "Bot"].join("-"), ["Onion", "Reader"].join(" "), ["Desk", "Agent"].join(" ")].join("|"), "i");
+const ADDABLE = /\b(?:Lead\s+)?Enricher\b|\bOutreach\s+Writer\b/i;
+const SAYS_ADDABLE = /if you add one|does not ship|ships no\b|not part of this starter/i;
+
+test("the docs credit no member the starter does not ship", () => {
+  const files = execFileSync("git", ["ls-files", "*.md", "*.txt"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+  const found: string[] = [];
+  for (const f of files) {
+    if (f.startsWith("validator/instructions/") || /(^|\/)persona\.md$/.test(f)) continue;
+    const text = readFileSync(path.join(ROOT, f), "utf8");
+    text.split("\n").forEach((line, i) => {
+      if (FAMILY_ONLY.test(line)) found.push(`${f}:${i + 1}: a member only the family has`);
+    });
+    // a unit is a paragraph (a run of non-blank lines) or one table row; headings are skipped
+    const units: [number, string][] = [];
+    let para: [number, string[]] | null = null;
+    text.split("\n").forEach((line, i) => {
+      const row = /^\s*\|/.test(line), head = /^\s*#/.test(line);
+      if (!line.trim() || row || head) {
+        if (para) units.push([para[0], para[1].join(" ")]);
+        para = null;
+        if (row) units.push([i + 1, line]);
+        return;
+      }
+      if (!para) para = [i + 1, []];
+      para[1].push(line);
+    });
+    if (para) units.push([(para as [number, string[]])[0], (para as [number, string[]])[1].join(" ")]);
+    for (const [at, block] of units) if (ADDABLE.test(block) && !SAYS_ADDABLE.test(block)) found.push(`${f}:${at}: names a member the starter does not ship`);
+  }
+  assert.deepEqual(found, []);
+});

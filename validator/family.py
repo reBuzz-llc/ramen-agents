@@ -20,14 +20,11 @@ from typing import Callable
 BOTS = Path.home() / "bots"
 REQUESTS = BOTS / "common-data" / "shared-state" / "requests.jsonl"
 
-# Full name -> handle (dashboard only) and folder. The owner's list, in the owner's order.
+# Full name -> handle (dashboard only) and folder, used when common-data/family-roster.toml is missing.
 _FALLBACK = {
     "The CEO": ("ceoA", "the-ceo"), "Package Designer": ("pacA", "package-designer"), "Scout": ("scoA", "scout"),
-    "Lead Gen": ("leaA", "lead-gen"), "Jobless-Bot": ("jobA", "jobless-bot"), "Onion Reader": ("oniA", "onion-reader"),
-    "Desk Agent": ("desA", "desk-agent"), "Validator": ("valB", "validator"),
-    "Research Analyst": ("anaA", "research-analyst"),        # joined 2026-10-07 (owner)
-    "Outreach Writer": ("outA", "outreach-writer"),          # joined 2026-10-07 (owner)
-}
+    "Lead Gen": ("leaA", "lead-gen"), "Validator": ("valB", "validator"), "Research Analyst": ("anaA", "research-analyst"),
+}   # only the members the starter ships; a member you add goes in common-data/family-roster.toml
 
 
 def _roster() -> dict[str, tuple[str, str]]:
@@ -59,6 +56,12 @@ def slug_of(name: str) -> str | None:
 
 def is_family(name: str) -> bool:
     return name.strip() in FAMILY
+
+
+def route(slug: str) -> str:
+    """Who a flag goes to: the member `slug` when the roster has it, otherwise the team ("owner"): a flag is never
+    sent to a member that is not in the roster (a person's Draft email in a family with no Outreach Writer)."""
+    return slug if slug in {s for _, s in FAMILY.values()} else "owner"
 
 
 @dataclass

@@ -1,6 +1,6 @@
 # botBox: the drop folder (owner -> fleet)
 
-Put a file here. The drop-folder watcher (the optional Desk Agent, not part of this starter) notices it:
+Put a file here. A drop-folder watcher, if you add one (the starter does not ship one), notices it:
 
 - `lead-gen--name.csv`, `package-designer--brief.md`, `scout--tools.txt`, `the-ceo--notes.md`: goes to that bot at once.
 - `everyone--hours.txt`: goes to every bot.
