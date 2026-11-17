@@ -2,6 +2,26 @@
 layout: null
 permalink: /robots.txt
 ---
+# Search and AI crawlers are welcome on every page (queue 586).
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
 User-agent: *
 Allow: /
+
 Sitemap: {{ site.url }}{{ site.baseurl }}/sitemap.xml

@@ -1,7 +1,7 @@
 # GitHub Pages (Settings -> Pages -> Deploy from branch: main, /docs). Plain Markdown, built by GitHub; no build step.
 title: ramen-agents
 description: >-
-  Free AI agents for founders with no budget: an open-source family of small web agents that runs on free model tiers
+  Free AI agents for founders: an open-source family of small web agents that runs on free model tiers
   and keyless search, with a hard fence (no accounts, no spending, no personal data).
 url: https://rebuzz-llc.github.io
 baseurl: /ramen-agents
@@ -11,6 +11,11 @@ plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
 image: /assets/og.png
+defaults:            # queue 586: every page's og:image and twitter:image (jekyll-seo-tag reads it per page)
+  - scope:
+      path: ""
+    values:
+      image: /assets/og.png
 logo: /assets/og.png
 github_username: reBuzz-llc
 social:

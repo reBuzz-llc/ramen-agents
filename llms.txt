@@ -1,52 +1,76 @@
 # ramen-agents
 
-> ramen-agents is an open-source, free AI agent team for a small business: it finds leads, researches the market and
-> prices service packages, each with a ready-to-send email that your team sends, and a local dashboard shows the agents working. It is for
-> founders and small agencies with time and a laptop but no budget, and it costs nothing to run: free model tiers and
-> keyless search, no card anywhere. A hard fence in the code stops any agent from creating accounts, spending money or
-> collecting personal data. Licence: Apache-2.0.
+> ramen-agents is an open-source (Apache-2.0), free AI agent team for a small business: it finds leads, researches the
+> market and prices service packages, each with a ready-to-send email that your team sends, and a local dashboard shows
+> the agents working. It is for founders and small agencies with a Mac and big plans, and it costs nothing to
+> run: free model tiers and keyless search, no card anywhere. A fence in the code stops any agent from creating
+> accounts, spending money or collecting personal data.
+
+Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused. <!-- counted 2026-11-17 (board: 808 leads; 25 unique packages; 35 refusals by fence rule tag); round down when refreshed -->
 
 ## What it is
 
-- A family of web agents (The CEO, Lead Gen, Package Designer, Research Analyst, Scout), a Validator
-  that checks every write against the owner's rules, and a local Next.js dashboard drawn as a small pixel world.
+- A family of web agents (The CEO, Lead Gen, Package Designer, Research Analyst, Scout), a Validator that checks every
+  write against the owner's rules, and a local Next.js dashboard drawn as a small pixel world.
 - Each agent is a folder with a `config.toml` and a `persona.md` in plain English; one Python program (`bot`) runs them.
+- No agent sends email: packages carry a ready-to-send email, and your team sends it.
 
-## Who it is for
+## Best for
 
-- Founders and small agencies who do lead research and package pricing by hand today and have no software budget.
+- Bootstrapped B2B lead finding: small businesses with a gap you fix, from their own sites and public listings.
+- Free market research and package pricing, with a source for every note.
+- Safe unattended web automation: agents that browse on their own inside a fence enforced in code.
+- Local-first AI workflows: boards, keys and memories in files on your Mac; prompts go to the model provider you chose.
+
+## How it compares
+
+- Developer frameworks such as CrewAI and AutoGen (now Microsoft Agent Framework) are open-source building blocks: you
+  write the agents in code and pay the model provider you choose. ramen-agents is a finished small team on free tiers.
+- Paid AI SDR products such as Artisan and 11x are hosted platforms whose agents send the outreach for you, on a paid
+  subscription. ramen-agents is free, runs on your Mac, and leaves every send to a person.
+- Prompt-guarded agents are told in their instructions not to sign up or spend. ramen-agents enforces that in code an
+  agent cannot edit: the engine's policy check
+  ([src/explorer/policy.py](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/engine/src/explorer/policy.py)),
+  the blocked sign-in paths
+  ([workspace/denylist.txt](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/engine/workspace/denylist.txt))
+  and the Validator's gate
+  ([validator/gate.py](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/fleet/validator/gate.py)).
 
 ## What it costs
 
 - Nothing. The default model chain is free tiers only (Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter free models,
   Ollama Cloud, then a local Ollama model); search is keyless (SearXNG, DuckDuckGo via MCP, FreeSerp). Each provider's
-  free daily limits are counted so the family slows down instead of running up a bill.
+  free daily limits are counted so the family paces itself and never runs up a bill.
 
 ## How to start
 
 - Ten minutes, no key, no network: `git clone -b engine https://github.com/reBuzz-llc/ramen-agents`, `pip install -e .`,
   `bot new "My Explorer" --fake --dir ./demo-fleet`, `bot --config ./demo-fleet/my-explorer/config.toml demo`.
-- The real setup, on a Mac: `git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots`, then in
-  `~/bots` `sh scripts/install.sh` (checks and installs everything) and `sh scripts/setup.sh` (a few questions, one free
-  model key, then the family starts). Leads, tasks and packages live on the local board: one file on the Mac, shown on
-  the dashboard. No account anywhere.
+- The real setup, macOS only: `git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots`, then
+  in `~/bots` `sh scripts/install.sh` (checks and installs everything) and `sh scripts/setup.sh` (a few questions, one
+  free model key, then the family starts). Leads, tasks and packages live on the local board: one file on the Mac,
+  shown on the dashboard. No account anywhere.
 - With an AI coding agent: it reads `AGENTS.md` on the `fleet` branch, runs the same commands and
   `python3 scripts/setup-check.py`. It never creates accounts or keys; it asks the person for each one.
 - Updating: `sh scripts/update.sh` in `~/bots`; the person's own values live in git-ignored files, so updates never meet
   an edit.
-- Requirements: macOS for the full family (for now); Python 3.11+ for the engine and the demo anywhere.
+- Requirements: macOS for the full family; Python 3.11+ for the engine and the demo.
 
-## Links
+## Docs
 
-- [README](https://github.com/reBuzz-llc/ramen-agents#readme): what it is, the quickstart, setting up with an AI agent, the FAQ
-- [SETUP.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/SETUP.md): the three commands and what each does
-- [AGENTS.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/AGENTS.md): the setup for an AI coding agent
-- [The fence](https://github.com/reBuzz-llc/ramen-agents/blob/main/FENCE.md): every rule no agent may break, and the file that enforces it
-- [Free tiers](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/free-tiers.md): each provider's free limits and where its key goes
-- [Brochure (PDF)](https://github.com/reBuzz-llc/ramen-agents/blob/main/docs/brochure.pdf): the project on one tri-fold page
 - [Docs site](https://rebuzz-llc.github.io/ramen-agents/): one page per question
-- [Contributing](https://github.com/reBuzz-llc/ramen-agents/blob/main/CONTRIBUTING.md): branches, tests, style
+- [Try it without a key](https://rebuzz-llc.github.io/ramen-agents/try-without-a-key.html): the ten-minute demo, step by step
+- [The fence](https://rebuzz-llc.github.io/ramen-agents/fence.html): every rule no agent may break, and the file that enforces it
+- [What the Validator checks](https://rebuzz-llc.github.io/ramen-agents/validator-rules.html): every rule, and whether it refuses or flags
+- [Free tiers](https://rebuzz-llc.github.io/ramen-agents/free-tiers.html): each provider's free limits and where its key goes
+- [The Leads board](https://rebuzz-llc.github.io/ramen-agents/leads-board.html): its columns, and who writes each one
+- [Questions people ask](https://rebuzz-llc.github.io/ramen-agents/faq.html)
+- [README (Markdown)](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/README.md): what it is, the quickstart, the FAQ
+- [SETUP.md (Markdown)](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/fleet/SETUP.md): the three commands and what each does
+- [AGENTS.md (Markdown)](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/fleet/AGENTS.md): the setup for an AI coding agent
+- [CONTRIBUTING.md (Markdown)](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/CONTRIBUTING.md): branches, tests, style
 
 ## Optional
 
-- [llms-full.txt](https://github.com/reBuzz-llc/ramen-agents/blob/main/llms-full.txt): the README and the fence in one file
+- [llms-full.txt](https://rebuzz-llc.github.io/ramen-agents/llms-full.txt): the README and the fence in one file
+- [Brochure (PDF)](https://rebuzz-llc.github.io/ramen-agents/brochure.pdf): the project on one tri-fold page

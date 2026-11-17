@@ -1,8 +1,9 @@
 # ramen-agents
 
 **What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
-**Who it is for:** a founder or a small agency with time and a laptop, but no budget for software or ads.<br>
-**What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.
+**Who it is for:** a founder or a small agency with a laptop and big plans: the team works while you build the business.<br>
+**What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.<br>
+**Running in production since late September 2026:** 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused. <!-- counted 2026-11-17 (board: 808 leads; 25 unique packages; 35 refusals by fence rule tag); round down when refreshed -->
 
 ![15 seconds of the dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now, a close-up of whoever acts and a ticker of the day's numbers along the bottom](docs/assets/world.gif)
 
@@ -18,8 +19,8 @@ money, or collect personal data: that fence is in the code, not in a prompt.
 
 *(A note from the founder: edit freely.)*
 
-Young people starting out don't have money for software, ads or an agency. They have time, a laptop and the open web.
-ramen-agents is built for them: a small team of agents that does the slow, daily work of an early company (finding
+Young people starting out have time, a laptop and the open web. That is enough.
+ramen-agents is built for them: a small team of agents that does the steady, daily work of an early company (finding
 businesses that need you, reading what the market charges, keeping notes with sources, writing the email your team sends), and
 does it on the free tiers that model providers and search engines already give away. The name comes from "ramen
 profitable": living on ramen while the company finds its feet.
@@ -96,8 +97,8 @@ The agents run on a single shared chain of free tiers, tried in order, with a lo
   local Ollama model on your own machine. A provider without a key is simply skipped.
 - **Search:** a local SearXNG instance, DuckDuckGo through its MCP server, and FreeSerp's keyless index. No paid search
   API is needed.
-- **Budget:** each provider's own free daily limits are counted for the whole machine, so the family slows down instead
-  of running up a bill. No step asks for a card.
+- **Budget:** each provider's own free daily limits are counted for the whole machine, so the family paces itself and
+  never runs up a bill. No step asks for a card.
 
 ## Run it for real
 
@@ -141,9 +142,6 @@ changed and restarts what was running. On a checkout from before `update.sh` exi
 cd ~/bots && git fetch starter && git show starter/fleet:scripts/update.sh | sh
 ```
 
-Coming from the earlier setup that used Notion: its settings are moved or dropped by name. Your leads are not copied:
-export the Notion board as CSV and use Import CSV on the dashboard's Leads page.
-
 ## Set up with your AI agent
 
 An AI coding agent (Claude Code, Codex, Cursor and the like) can do the setup with you. Clone the `fleet` branch to
@@ -154,72 +152,82 @@ never creates an account or a key for you: you make the one key yourself, at the
 
 ## How it compares
 
-Most agent frameworks give you building blocks and a cloud model bill: you write the orchestration, choose the model
-and pay per token. Most "AI employee" products give you a finished agent behind a subscription. ramen-agents sits
-between them. It is a complete, working small team you can read end to end, run on free tiers, and change by editing
-plain-English instruction files. It has a Validator and a hard fence because it was built to run unattended on a real
-business's leads, where one invented email or one sign-up would be one too many.
+| | ramen-agents | Agent frameworks (CrewAI, AutoGen, now Microsoft Agent Framework) | Paid AI SDRs (Artisan, 11x) |
+|---|---|---|---|
+| **Monthly cost** | Nothing: free model tiers and keyless search, no card | The framework is open source (MIT); you pay the model provider you choose | A paid subscription |
+| **Setup and UI** | Three commands on a Mac; a local dashboard with the Leads, Tasks and Packages boards | You write the agents in code; visual editors are offered too (Crew Studio, AutoGen Studio) | A hosted web platform |
+| **Safety guardrails** | A fence in code that no agent can edit (no accounts, no spending, no personal data), and a Validator that checks every write | What you build and configure | Set by the vendor |
+| **Data and privacy** | Boards, keys and the agents' memories in files on your Mac; prompts go to the model provider you chose | Runs where you deploy it; prompts go to the model provider you choose | Your leads and messages live on the vendor's platform |
+| **Email outreach** | Packages carry a ready-to-send email; your team sends it | Whatever you build | The vendor's agents send the outreach |
+
+ramen-agents is a complete small team you can read end to end, run on free tiers and change by editing plain-English
+instruction files. It has a Validator and a hard fence because it was built to run unattended on a real business's
+leads, where one invented email or one sign-up would be one too many.
 
 ## FAQ
 
 ### What is ramen-agents?
 
-An open-source team of AI agents for a small business: one finds businesses that need what you sell, others research
-the market and price your packages (each with a ready-to-send email your team sends), and a Validator checks every write. A local
-dashboard shows them working. It is Python and Next.js, Apache-2.0.
+ramen-agents is an open-source (Apache-2.0) team of AI agents for a small business: it finds leads, researches the
+market and prices service packages on free model tiers, and a Validator checks every write. Each package carries a
+ready-to-send email that your team sends. A local dashboard shows the agents working; it is Python and Next.js.
 
 ### Who is it for?
 
-Founders and small agencies who have time and a laptop but no budget: people who would otherwise do lead research and
-package pricing by hand. It was built for, and is run every day by, a small agency.
+ramen-agents is for founders and small agencies who want lead research and package pricing done every day without
+doing it by hand. It was built for, and is run every day by, a small agency.
 
 ### Can my AI coding agent set it up?
 
-Yes. Point it at `AGENTS.md` on the `fleet` branch ([Set up with your AI agent](#set-up-with-your-ai-agent)): it runs
-the three setup commands, asks you the questions and runs `scripts/setup-check.py`. It never creates accounts or keys:
-it asks you for each one, with the link.
+Yes: an AI coding agent such as Claude Code, Codex or Cursor can set up ramen-agents by reading `AGENTS.md` on the
+`fleet` branch, running the three setup commands and asking you the setup questions
+([Set up with your AI agent](#set-up-with-your-ai-agent)). It never creates accounts or keys: it asks you for each one,
+with the link.
 
 ### Does it cost anything?
 
-No. Every model and search service in the default chain has a free tier with no card, and the engine counts each
-provider's daily limits so it never goes past them. You only need a computer that stays on.
+No: ramen-agents costs nothing to run, because every model and search service in its default chain has a free tier
+with no card, and the engine counts each provider's daily limits so it never goes past them. You only need a Mac that
+stays on.
 
 ### Which models does it use?
 
-A chain of free tiers in order: Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter (free models), Ollama Cloud, then a
-local Ollama model. You add a key for each one you want; the rest are skipped. The quickstart uses none of them.
+ramen-agents uses a chain of free model tiers, tried in order: Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter's free
+models, Ollama Cloud, then a local Ollama model. You add a key for each one you want; the rest are skipped. The
+quickstart uses none of them.
 
 ### Can an agent spend money or sign up for something?
 
-No. There is no action for it, sign-in and sign-up pages are blocked, goals about paying or acquiring credentials are
-refused, and the Validator refuses writes that break the owner's rules. See [FENCE.md](FENCE.md).
+No: a ramen-agents agent cannot spend money, sign up or log in, because it has no action for it, sign-in and sign-up
+pages are blocked, and goals about paying or acquiring credentials are refused in code. The Validator also refuses
+writes that break the owner's rules. See [FENCE.md](FENCE.md).
 
 ### Can I use my own OpenAI or Anthropic key?
 
-The default chain is free tiers only, on purpose. The provider chain is a list in a config file, so you can add any
-provider with an OpenAI-compatible API, but nothing in this repository asks you to.
+Yes, if you add it yourself: the provider chain is a list in a config file and takes any provider with an
+OpenAI-compatible API. The default chain is free tiers only, on purpose, and nothing in this repository asks you to add
+a paid key.
 
 ### Does my data leave my machine?
 
-Your boards live in one file on your Mac (the local board), your keys stay in files on your machine, and the agents'
-memories are local SQLite files. Page text goes to whichever model provider answers the call: choose providers you are comfortable
-with, or run everything on the local model.
+Your boards, keys and the agents' memories stay in files on your Mac, but each prompt, including the page text an agent
+read, goes to the model provider that answers it. Choose providers you are comfortable with, or run everything on the
+local model.
 
 ### Does it need a Mac?
 
-For the full family, yes, for now: the installer and the always-on setup (launch agents, the dashboard as a service)
-are macOS only, and on Linux or Windows the scripts stop on their first line and say so. The engine and the ten-minute
-demo run anywhere Python 3.11 runs.
+Yes: the full ramen-agents family runs on macOS only for now, because its installer and always-on setup (launch agents,
+the dashboard as a service) are built for macOS. The engine and the ten-minute demo need only Python 3.11 or newer.
 
 ### How do I update it?
 
-`sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the update never meets an edit of
-yours; anything it has to move, it names. See [Updating](#updating).
+To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the
+update never meets an edit of yours; anything it has to move, it names. See [Updating](#updating).
 
 ### How do I add an agent?
 
-`bot new "Name" --persona explorer --dir ~/bots` makes a folder with a config and a persona. Edit the persona in plain
-English, then `bot --config ~/bots/name/config.toml install` keeps it running.
+To add an agent, run `bot new "Name" --persona explorer --dir ~/bots`, which makes a folder with a config and a
+persona; edit the persona in plain English, then `bot --config ~/bots/name/config.toml install` keeps it running.
 
 ## Repository layout
 

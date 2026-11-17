@@ -16,7 +16,7 @@ any of it.
   - Topics: `ai-agents` `multi-agent` `free-tier` `startups` `agent-framework` `lead-generation` `llm` `autonomous-agents` `open-source` `python` `searxng` `ollama` `agent-safety` `bootstrapping` `small-business` `research-agent` `local-first` `founders` `prompt-injection-defense`
 - [ ] **Settings → General → Social preview:** upload `docs/assets/og.png`.
 - [ ] **Settings → General → Features:** Discussions on; Wiki off.
-- [ ] **Settings → Pages:** Deploy from a branch → `main` → `/docs`. The site appears at `https://rebuzz-llc.github.io/ramen-agents/`.
+- [x] **Settings → Pages:** Deploy from a branch → `main` → `/docs` (on, 2026-11-17). The site is at `https://rebuzz-llc.github.io/ramen-agents/`.
 - [ ] **Settings → Code security:** Private vulnerability reporting on (CONTRIBUTING.md and the issue template point to it).
 - [ ] **Default branch:** `main` (the README lives there).
 - [ ] **Visibility:** Settings → General → Danger zone → Change visibility → Public. Last, after reading the README.
@@ -26,7 +26,8 @@ any of it.
 - [ ] **Discussions:** open and pin "Start here: what are you building?". Ask people to share what they run it for.
 - [ ] **Release:** create `v0.1.0` from the `engine` branch, with the CHANGELOG entry as notes.
 - [ ] **Search engines:** add the docs site to Google Search Console and Bing Webmaster Tools, and submit
-  `https://rebuzz-llc.github.io/ramen-agents/sitemap.xml`.
+  `https://rebuzz-llc.github.io/ramen-agents/sitemap.xml` (live since 2026-11-17; the submission needs your own Search
+  Console and Bing accounts).
 - [ ] **PyPI:** reserve the name by publishing `ramen-agents` 0.1.0 from the engine branch
   (`python -m build && twine upload dist/*`). This needs your PyPI account; nothing in the repo holds the token.
 

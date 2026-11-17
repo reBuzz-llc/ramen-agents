@@ -6,8 +6,8 @@ permalink: /free-tiers.html
 
 <!-- Mirrored from docs/free-tiers.md on the fleet branch; edit it there. -->
 
-The family runs on free tiers only. That means no card on file, no trial credit that turns into a bill, and no paid plan,
-even a cheap one. If a provider asks for a payment method before it answers, it is not used. The person running the
+The family runs on free tiers only. That means no card on file, no trial credit that turns into a bill, and no paid plan
+of any size. If a provider asks for a payment method before it answers, it is not used. The person running the
 family signs up and creates every key by hand; **bots never sign up, log in or create keys**.
 
 ## Where keys go
@@ -47,7 +47,7 @@ provider's. Everything else is "not measured".
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only, no card | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
 | free.ai (`freeai`) | 30,000 tokens a day, as published | a family call is about 5,500 tokens | 5 calls/day | https://free.ai |
 | Ollama Cloud (`ollama-cloud`) | free plan with a monthly allowance, 1 request at a time; limits not published | the monthly limit was reached once (2026-10-02); after that it answers 429 until the month resets | 60 calls/day, 12-hour cooldown | https://ollama.com/settings/keys |
-| Local Ollama | runs on your own Mac, no key | always available; slower and weaker than the remote models | none | https://ollama.com/download |
+| Local Ollama | runs on your own Mac, no key | always available; the remote models write better | none | https://ollama.com/download |
 
 ## Search engines
 

@@ -1,6 +1,6 @@
 # Contributing to ramen-agents
 
-Thank you for helping. ramen-agents exists so that a founder with no budget can run a small team of agents on free
+Thank you for helping. ramen-agents exists so that any founder can run a small team of agents on free
 tiers, safely. Every contribution is judged against that.
 
 ## Before you start
