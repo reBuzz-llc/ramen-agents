@@ -45,7 +45,8 @@ Lead Gen's rows: one per business, with a way to reach it, evidence, and the pac
 
 ## The Lead Enricher
 
-The Lead Enricher fills empty cells on rows already on the Leads board; it never lists a lead. The Lead Gen shape
+A Lead Enricher, if you add one (the starter does not ship one), fills empty cells on rows already on the Leads
+board; it never lists a lead. The Lead Gen shape
 rules (LD07, LD08, LD15, LD20-LD24) and MG03 apply to its writes too.
 
 | Rule | What it checks | When |

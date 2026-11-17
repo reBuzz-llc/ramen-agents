@@ -9,7 +9,7 @@ opens each PR (or issue) by hand, one a day, from the reBuzz-llc account. Re-rea
 
 The one-line description used everywhere (under 200 characters, no superlatives):
 
-> Free AI agent team for a small business: finds leads, drafts first emails and researches pricing on free LLM API tiers only, with a Validator that checks every write.
+> Free AI agent team for a small business: finds leads and researches pricing on free LLM API tiers only, with a Validator that checks every write.
 
 | List | Stars | Where | Ready? |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Free AI agent team for a small business, on free LLM API tiers only
 Productivity, Multi-agent, Sales
 
 ### Description
-- Seven agents for a small company's daily work: a lead finder, a lead enricher, an outreach writer, a research analyst, a package designer, a scout for free tools and a CEO agent that steers them.
+- Five agents for a small company's daily work: a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that steers them, plus a Validator that checks every write.
 - Runs only on free LLM API tiers (Groq, Gemini, Z.ai, Ollama Cloud and others) behind one OpenAI-compatible chain, and keyless web search; no step needs a card.
 - A Validator checks every write in code before it reaches the board: sources required, repeats and invented figures refused.
 - A hard fence: no agent can create an account, spend money, send an email or collect personal data.
@@ -61,7 +61,7 @@ Productivity, Multi-agent, Sales
 ```text
 Adds ramen-agents (Apache-2.0) under Open-source projects, in alphabetical order.
 
-It is a team of seven agents for a small business's daily work (finding leads, drafting first emails, researching
+It is a team of five agents for a small business's daily work (finding leads, researching
 pricing), built to run only on free LLM API tiers and keyless search, with a Validator that checks every write and a
 fence in code (no accounts, no spending, no personal data). We run it every day at our own small agency.
 
@@ -82,7 +82,7 @@ a PR must edit `awesome-agents.json`, not the README.
 **Fields:**
 
 - **Project name:** ramen-agents
-- **Description:** Free AI agent team for a small business: finds leads, drafts first emails and researches pricing on free LLM API tiers only, with a Validator that checks every write.
+- **Description:** Free AI agent team for a small business: finds leads and researches pricing on free LLM API tiers only, with a Validator that checks every write.
 - **Repository:** https://github.com/reBuzz-llc/ramen-agents
 - **Recent commit evidence:** the `main`, `engine` and `fleet` branches have had commits in November 2026 (link the newest commit on `main` when you open the issue).
 - **How people use it:** clone the engine branch and run `bot demo` for a ten-minute demo with no key; the full setup runs the agents on your own machine on schedules, with a local dashboard that shows each agent's current action. The agents search the web, read pages, write leads, notes and draft emails to a board, and each write passes a Validator first. They cannot create accounts, spend money, send email or record personal data.
@@ -104,7 +104,7 @@ not an issue.
 **Entry:**
 
 ```markdown
-- [ramen-agents](https://github.com/reBuzz-llc/ramen-agents): A free AI agent team for a small business that finds leads, drafts first emails and researches pricing on free LLM API tiers only, with a Validator that checks every write and a fence in code (no accounts, no spending, no personal data). ![GitHub Repo stars](https://img.shields.io/github/stars/reBuzz-llc/ramen-agents?style=social)
+- [ramen-agents](https://github.com/reBuzz-llc/ramen-agents): A free AI agent team for a small business that finds leads and researches pricing on free LLM API tiers only, with a Validator that checks every write and a fence in code (no accounts, no spending, no personal data). ![GitHub Repo stars](https://img.shields.io/github/stars/reBuzz-llc/ramen-agents?style=social)
 ```
 
 **PR title:** `Add ramen-agents to Automation`
@@ -132,7 +132,7 @@ Repo: https://github.com/reBuzz-llc/ramen-agents
 name: "ramen-agents"
 website_url: "https://rebuzz-llc.github.io/ramen-agents/"
 source_code_url: "https://github.com/reBuzz-llc/ramen-agents"
-description: "Team of AI agents for a small business that finds leads, drafts first emails and researches pricing, on free LLM API tiers only."
+description: "Team of AI agents for a small business that finds leads and researches pricing, on free LLM API tiers only."
 licenses:
   - Apache-2.0
 platforms:

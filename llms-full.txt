@@ -6,7 +6,7 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 
 # ramen-agents
 
-**What it is:** a free AI agent team for a small business: it finds leads, writes the first outreach, and a dashboard watches it work.<br>
+**What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
 **Who it is for:** a founder or a small agency with time and a laptop, but no budget for software or ads.<br>
 **What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.
 
@@ -26,7 +26,7 @@ money, or collect personal data: that fence is in the code, not in a prompt.
 
 Young people starting out don't have money for software, ads or an agency. They have time, a laptop and the open web.
 ramen-agents is built for them: a small team of agents that does the slow, daily work of an early company (finding
-businesses that need you, reading what the market charges, keeping notes with sources, drafting the first email), and
+businesses that need you, reading what the market charges, keeping notes with sources, writing the email your team sends), and
 does it on the free tiers that model providers and search engines already give away. The name comes from "ramen
 profitable": living on ramen while the company finds its feet.
 
@@ -170,14 +170,14 @@ business's leads, where one invented email or one sign-up would be one too many.
 
 ### What is ramen-agents?
 
-An open-source team of AI agents for a small business: one finds businesses that need what you sell, one writes the
-first email, others research the market and price your packages, and a Validator checks every write. A local
+An open-source team of AI agents for a small business: one finds businesses that need what you sell, others research
+the market and price your packages (each with a ready-to-send email your team sends), and a Validator checks every write. A local
 dashboard shows them working. It is Python and Next.js, Apache-2.0.
 
 ### Who is it for?
 
 Founders and small agencies who have time and a laptop but no budget: people who would otherwise do lead research and
-first emails by hand. It was built for, and is run every day by, a small agency.
+package pricing by hand. It was built for, and is run every day by, a small agency.
 
 ### Can my AI coding agent set it up?
 

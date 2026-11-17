@@ -1,7 +1,7 @@
 # ramen-agents
 
-> ramen-agents is an open-source, free AI agent team for a small business: it finds leads, writes the first outreach
-> email, researches the market and prices service packages, and a local dashboard shows the agents working. It is for
+> ramen-agents is an open-source, free AI agent team for a small business: it finds leads, researches the market and
+> prices service packages, each with a ready-to-send email that your team sends, and a local dashboard shows the agents working. It is for
 > founders and small agencies with time and a laptop but no budget, and it costs nothing to run: free model tiers and
 > keyless search, no card anywhere. A hard fence in the code stops any agent from creating accounts, spending money or
 > collecting personal data. Licence: Apache-2.0.
@@ -14,7 +14,7 @@
 
 ## Who it is for
 
-- Founders and small agencies who do lead research and first emails by hand today and have no software budget.
+- Founders and small agencies who do lead research and package pricing by hand today and have no software budget.
 
 ## What it costs
 
