@@ -9,7 +9,7 @@ keyless search.** It gives you a lead finder, a research analyst, a package desi
 agent that steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account,
 spend money, or collect personal data: that fence is in the code, not in a prompt.
 
-**Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.** <!-- counted 2026-11-17 (board: 808 leads; 25 unique packages; 35 refusals by fence rule tag); round down when refreshed -->
+**Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.**
 
 The name comes from "ramen profitable": the stretch when a young company lives on ramen while it finds its first
 customers. This is the team for that stretch, and it costs nothing to run.

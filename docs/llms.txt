@@ -6,7 +6,7 @@
 > run: free model tiers and keyless search, no card anywhere. A fence in the code stops any agent from creating
 > accounts, spending money or collecting personal data.
 
-Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused. <!-- counted 2026-11-17 (board: 808 leads; 25 unique packages; 35 refusals by fence rule tag); round down when refreshed -->
+Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.
 
 ## What it is
 

@@ -9,7 +9,7 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 **What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
 **Who it is for:** a founder or a small agency with a laptop and big plans: the team works while you build the business.<br>
 **What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.<br>
-**Running in production since late September 2026:** 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused. <!-- counted 2026-11-17 (board: 808 leads; 25 unique packages; 35 refusals by fence rule tag); round down when refreshed -->
+**Running in production since late September 2026:** 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.
 
 ![15 seconds of the dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now, a close-up of whoever acts and a ticker of the day's numbers along the bottom](https://rebuzz-llc.github.io/ramen-agents/assets/world.gif)
 
