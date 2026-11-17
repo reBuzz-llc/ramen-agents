@@ -56,7 +56,7 @@ def render(e: dict[str, str]) -> str:
         "",
         "[[team]]",
         f"name = {q(g('TEAMMATE') or owner)}",
-        'role = "sends the first emails and answers replies"',
+        'role = "sends the first emails by hand and answers replies"',
         'details = "Tasks about sending, replies and meetings go to this person."',
     ]
     return "\n".join(lines) + "\n"

@@ -41,7 +41,7 @@ trades = "cafes, salons, clinics"
 
 [[team]]
 name = "Sam"
-role = "sends the first emails and answers replies"
+role = "sends the first emails by hand and answers replies"
 ```
 
 `name`, `sells`, `buyers` and `market` are needed; ask for the rest and leave out what the person does not give. Use

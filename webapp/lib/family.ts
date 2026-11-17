@@ -161,7 +161,7 @@ export function applyAnswers(f: Family | null, raw: unknown): Family {
   if (placeChanged || !str(next.target, "market_short")) next.target.market_short = a.place.split(",")[0].trim();
   const mate = a.teammate || owner;
   if (next.team.length) next.team[0].name = mate;
-  else next.team.push({ name: mate, role: "sends the first emails and answers replies", details: "Tasks about sending, replies and meetings go to this person." });
+  else next.team.push({ name: mate, role: "sends the first emails by hand and answers replies", details: "Tasks about sending, replies and meetings go to this person." });
   next.steer = a.steer || undefined;
   return next;
 }
