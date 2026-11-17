@@ -55,7 +55,7 @@ rules (LD07, LD08, LD15, LD20-LD24) and MG03 apply to its writes too.
 | EN02 | Flags a fill that replaces a value already on the row, or writes back a value the team deleted. | Flagged in the sweep |
 | EN03 | Flags a value that no page the bot opened states, or that breaks the Lead Gen shape rules. | Flagged in the sweep |
 | EN04 | Flags a guess, an unconfirmed public-record owner name, or a person's home address; an empty cell is an acceptable answer. | Flagged in the sweep |
-| EN05 | Flags, after a fact-check of the cited pages, a founder, city or size figure that no page prints (reported to the Enricher and the owner). | Flagged in the sweep |
+| EN05 | Flags, after a fact-check of the cited pages, a founder, city or size figure that no page prints (reported to the Enricher if you add one, otherwise to your team). | Flagged in the sweep |
 
 ## Outreach drafts
 
