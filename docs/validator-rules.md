@@ -58,8 +58,8 @@ rules (LD07, LD08, LD15, LD20-LD24) and MG03 apply to its writes too.
 
 ## Outreach drafts
 
-The Outreach Writer drafts a first email (and a WhatsApp message where there is a number) into the Leads board. A
-person on the team reads, edits and sends it; the bot never contacts a business.
+An Outreach Writer, if you add one (the starter does not ship one), drafts a first email (and a WhatsApp message where
+there is a number) into the Leads board. A person on the team reads, edits and sends it; no agent contacts a business.
 
 | Rule | What it checks | When |
 |---|---|---|
@@ -187,7 +187,7 @@ rows, the Package Designer's of packages-page toggles.
 | MJ01 (packages) | Is the audience a specific buyer rather than "businesses"? | Flagged in the sweep |
 | MJ02 (packages) | Does the rationale rest on the cited pages rather than general claims? | Flagged in the sweep |
 
-The Outreach Writer, Research Analyst and Scout files keep a few plain-English questions (is the opening line an
+The Outreach Writer (if you add one), Research Analyst and Scout files keep a few plain-English questions (is the opening line an
 observed gap, does the note say only what its page says, are the free terms an ongoing allowance) for a person reviewing
 by hand. They are retired from model judging: the exact rules above already cover most of what they ask, and judging
 them well would mean re-reading the source page for every draft or note, which costs a page of model tokens per item

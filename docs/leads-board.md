@@ -25,8 +25,8 @@ anything off afterwards. The people on the team own Status, Result, Result date,
 | Whatsapp | `https://wa.me/<digits>` for a number a page the bot opened prints | Lead Gen, Lead Enricher |
 | Status | where outreach stands: Ready to Send Email, Email Sent, WhatsApp Verified, Waiting response for WhatsApp verification, False Whatsapp Number | your team (the Validator clears a number your team marks False and asks for another) |
 | How can I help | the one package that fits, by its exact name | The CEO |
-| Draft email | a first email for the team to read, edit and send, built on the package email | Outreach Writer |
-| Draft Whatsapp msg | a short first WhatsApp message (under 90 words), only for rows with a working Whatsapp | Outreach Writer |
+| Draft email | a first email for the team to read, edit and send, built on the package email | your team (an Outreach Writer fills it if you add one; the starter does not ship one) |
+| Draft Whatsapp msg | a short first WhatsApp message (under 90 words), only for rows with a working Whatsapp | your team (an Outreach Writer fills it if you add one; the starter does not ship one) |
 | Evidence | the page that shows the business and its gap (for a business with no site, its public listing) | Lead Gen |
 | Contact person | the person to talk to: the highest person the business's own pages name (founder, owner, practice manager ...); a first name alone is fine | Lead Gen, Lead Enricher |
 | Contact role | that person's role, one of eleven options | Lead Gen, Lead Enricher |
@@ -52,5 +52,5 @@ anything off afterwards. The people on the team own Status, Result, Result date,
 ## The rules behind it
 
 The Validator's rules for this board are in `validator/instructions/lead-gen.md` (the LD rules), `lead-enricher.md` (EN)
-and `outreach-writer.md` (OW). Each one carries the reason it exists. The ones the gate enforces before a write
+and `outreach-writer.md` (OW, for an Outreach Writer if you add one). Each one carries the reason it exists. The ones the gate enforces before a write
 are marked "refused at write time"; the rest are flagged in the Validator's report.
