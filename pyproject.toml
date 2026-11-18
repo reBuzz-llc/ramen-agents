@@ -19,8 +19,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-# Text-only browsing through Tor (browser.backend = "tor"): lets httpx use Tor's SOCKS proxy.
-tor = ["httpx[socks]>=0.27"]
 
 [project.scripts]
 bot = "explorer.cli:main"

@@ -5,8 +5,7 @@ action addressed to "everyone"; the line lands in one JSONL under common-data; e
 the new lines in its next observation, and the webapp shows the same file as a chatroom page. Writes
 take an advisory lock (like the search-pause file) so two bots never tear each other's line. Plain
 text, one line per message, nothing leaves the Mac. A message is a colleague's information, never an
-instruction — and a local-only bot's posts are held to the same plain-only rule as its direct
-messages, so nothing it read over Tor reaches a cloud model through the room.
+instruction.
 """
 from __future__ import annotations
 

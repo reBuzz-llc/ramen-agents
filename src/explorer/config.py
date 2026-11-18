@@ -168,17 +168,13 @@ class BrowserConfig:
     fake_web_dir: str = "workspace/fake_web"
     navigation_timeout_seconds: float = 30.0
     # light = a plain HTTP fetch turned into text, with Chromium started only for pages that need
-    # JavaScript or refuse plain clients (light_browser.py); chromium = Playwright for every page;
-    # tor = text only over Tor (tor_browser.py). The tor backend never loads images, scripts or media,
-    # searches a local onion directory instead of a search engine, and needs policy.allowlist_file.
+    # JavaScript or refuse plain clients (light_browser.py); chromium = Playwright for every page.
     backend: str = "light"
-    tor_proxy: str = "socks5h://127.0.0.1:9050"
     max_page_bytes: int = 2_000_000
-    onion_directory_file: str = "workspace/onion_directory.json"
     # Search engines tried in order (search.py): marginalia (small independent sites; results are
     # CC-BY-NC-SA, so not for commercial bots), wikipedia, hn (Hacker News via Algolia), browser
     # (search_url, Brave by default, in Chromium; serves bot checks; `brave-web` is its old name). No engine needs a paid plan. Empty = marginalia,
-    # wikipedia, hn (fake mode: the fake browser only; tor: the onion directory). An engine with no
+    # wikipedia, hn (fake mode: the fake browser only). An engine with no
     # results hands the query to the next one. An engine that answers with a rate limit
     # or a bot check is paused in search_pause_file, which every bot on this Mac shares by default
     # ("" = ~/.config/explorer/search_pause.json; fake mode keeps it in the workspace).
@@ -327,7 +323,6 @@ class PolicyConfig:
     respect_robots: bool = True
     allow_private_networks: bool = False
     # A file of hosts this bot may read (one per line, subdomains included). Empty = no allowlist.
-    # Required for browser.backend = "tor"; `bot onion-directory` writes it.
     allowlist_file: str = ""
 
 
@@ -444,10 +439,6 @@ class ScoutConfig:
     report_file: str = field(default_factory=lambda: str(_common_data() / "providers-found.md"))
     max_per_episode: int = 1
     max_per_day: int = 4
-    # What the report lists: "provider" (AI/data APIs with a key file to add -- the Scout) or "agent" (AI agents and
-    # what they do, free if possible -- the Onion Reader's catalogue for the owner, 2026-09-25). Same `provider`
-    # action; the report's wording and the action's help follow the kind.
-    kind: str = "provider"
 
 
 @dataclass
@@ -647,10 +638,7 @@ class MessagingConfig:
 
     A `message` action drops a short JSON message into a peer's workspace/inbox/, which that bot
     sees on its next step as "From <this bot>: ..." (handoff.py's Inbox, the same reader packages
-    use). Nothing leaves the Mac. `plain_only` restricts this bot's outgoing messages to a short,
-    plain question, topic or tip with no URLs, .onion hosts, or quoted page text; it is set for the
-    local-only Onion Reader, so nothing it reads over Tor can reach a peer whose model is in the
-    cloud. Each peer is one `[[messaging.peers]]` table with a name and an absolute folder. The peer
+    use). Nothing leaves the Mac. Each peer is one `[[messaging.peers]]` table with a name and an absolute folder. The peer
     treats the message as a colleague's information, never an instruction."""
 
     # Names a bot may use for the owner, who is reached with `say`, not `message` (the owner's own name goes in config).
@@ -662,8 +650,7 @@ class MessagingConfig:
     # by every bot on this Mac). Turned on for the whole fleet from the shared common.toml.
     room: bool = False
     room_file: str = ""
-    plain_only: bool = False  # restrict outgoing to a short plain topic/question/tip (local-only bots)
-    max_chars: int = 600  # longest outgoing message; keep a local-only bot's small (a topic, not a passage)
+    max_chars: int = 600  # longest outgoing message
     max_per_episode: int = 1
     max_per_day: int = 6
     # Chatroom posts: a post that restates one of this bot's own posts from the last `room_repeat_hours` is refused
@@ -801,9 +788,11 @@ class PathsConfig:
 
 
 # queue 603 (the family's 595): sections, keys and action names of removed features, read and ignored so an old config
-# still loads: the desktop agent's [desktop], the blog-post [publish], messaging.route_only_peers.
+# still loads: the desktop agent's [desktop], the blog-post [publish], messaging.route_only_peers, and the Tor
+# reader's browser.tor_proxy, browser.onion_directory_file, messaging.plain_only and scout.kind.
 RETIRED_SECTIONS = frozenset({"desktop", "publish"})
-RETIRED_KEYS: dict[str, frozenset[str]] = {"messaging": frozenset({"route_only_peers"})}
+RETIRED_KEYS: dict[str, frozenset[str]] = {"messaging": frozenset({"route_only_peers", "plain_only"}),
+                                           "browser": frozenset({"tor_proxy", "onion_directory_file"}), "scout": frozenset({"kind"})}
 RETIRED_ACTIONS = frozenset({"interest", "publish", "app", "look", "click", "type", "hotkey"})
 SECTIONS: dict[str, type] = {
     "agent": AgentConfig,
@@ -1049,21 +1038,11 @@ def _apply_env(cfg: Config) -> None:
 def validate(cfg: Config) -> None:
     if cfg.agent.mode not in ("fake", "web"):
         raise ValueError(f"agent.mode must be 'fake' or 'web', got {cfg.agent.mode!r}")
-    if cfg.browser.backend not in ("light", "chromium", "tor"):
-        raise ValueError(f"browser.backend must be 'light', 'chromium' or 'tor', got {cfg.browser.backend!r}")
-    if cfg.browser.backend == "tor":
-        # socks5:// would resolve names on this Mac: .onion addresses fail and every lookup leaks.
-        if not cfg.browser.tor_proxy.startswith("socks5h://"):
-            raise ValueError("browser.tor_proxy must be a socks5h:// URL so DNS goes through Tor")
-        if not cfg.policy.allowlist_file.strip():
-            raise ValueError("browser.backend = 'tor' requires policy.allowlist_file (run `bot onion-directory`)")
-        engines = getattr(cfg.browser, "search_engines", None)
-        if engines and list(engines) != ["onion-directory"]:
-            raise ValueError("browser.backend = 'tor' searches only the onion directory; remove browser.search_engines")
-    else:
-        unknown = [e for e in cfg.browser.search_engines if e not in SEARCH_ENGINES]
-        if unknown:
-            raise ValueError(f"browser.search_engines: unknown engine(s) {unknown}; choose from {', '.join(SEARCH_ENGINES)}")
+    if cfg.browser.backend not in ("light", "chromium"):
+        raise ValueError(f"browser.backend must be 'light' or 'chromium', got {cfg.browser.backend!r}")
+    unknown = [e for e in cfg.browser.search_engines if e not in SEARCH_ENGINES]
+    if unknown:
+        raise ValueError(f"browser.search_engines: unknown engine(s) {unknown}; choose from {', '.join(SEARCH_ENGINES)}")
     if cfg.browser.max_page_bytes < 10_000:
         raise ValueError("browser.max_page_bytes must be at least 10000")
     if cfg.model.provider == "openrouter":
@@ -1125,8 +1104,6 @@ def validate(cfg: Config) -> None:
         raise ValueError(f"policy.disabled_actions names unknown actions: {bad}")
     if "summarize" in cfg.policy.disabled_actions:
         raise ValueError("policy.disabled_actions cannot include summarize (an episode must be able to close)")
-    if cfg.scout.kind not in ("provider", "agent"):
-        raise ValueError(f"scout.kind must be 'provider' or 'agent', got {cfg.scout.kind!r}")
     if cfg.model.budget_scope not in ("fleet", "bot", "active"):
         raise ValueError(f"model.budget_scope must be 'fleet', 'bot' or 'active', got {cfg.model.budget_scope!r}")
     if cfg.model.remote_for not in ("all", "writing"):

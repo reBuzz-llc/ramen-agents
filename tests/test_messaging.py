@@ -54,22 +54,6 @@ def test_message_policy_peer_length_and_rarity():
     assert "daily limit" in p.check(msg(), ctx(messages_today=3)).reason
 
 
-def test_plain_only_bot_may_not_send_links_or_onion_hosts():
-    """The Onion Reader is local-only; nothing it read over Tor may reach the Scout's cloud model."""
-    p = policy(peers=[{"name": "Scout", "folder": "/tmp/scout"}], plain_only=True, max_chars=300)
-    ok = p.check(msg(to="Scout", text="Any provider that hosts an uncensored small model, cheaply?"), ctx())
-    assert ok.allowed
-    for leak in (
-        "see https://example.onion/page",
-        "read bbcnewsv2vjtpsuy.onion for this",
-        "the page at http://x said so",
-        "check www.example.com",
-    ):
-        v = p.check(msg(to="Scout", text=leak), ctx())
-        assert not v.allowed and "stays on this Mac" in v.reason
-    assert not p.check(msg(to="Scout", text="y" * 301), ctx()).allowed  # its own shorter cap
-
-
 def test_send_message_writes_a_note_the_peer_reads_once(tmp_path: Path):
     onion = tmp_path / "onion-reader"
     msg_file = send_message(str(onion), "Scout", "Which onion news outlets are worth reading?")
@@ -174,20 +158,16 @@ def test_chatroom_post_and_read_back(tmp_path: Path):
     assert room.since(after_id=room.last_id()) == []  # nothing new
 
 
-def test_policy_room_post_needs_the_room_and_still_honours_plain_only():
+def test_policy_room_post_needs_the_room():
     from explorer.chatroom import ROOM_RECIPIENT
 
     # Room off: "everyone" is refused even though peers exist.
     no_room = policy(peers=[{"name": "Scout", "folder": "/tmp/scout"}])
     assert not no_room.check(msg(to=ROOM_RECIPIENT), ctx()).allowed
-    # Room on: posting to "everyone" is allowed, and so are the synonyms a small model might reach for...
+    # Room on: posting to "everyone" is allowed, and so are the synonyms a small model might reach for.
     on = policy(peers=[], room=True)
     for token in (ROOM_RECIPIENT, "all", "room", "the room", "Chatroom"):
         assert on.check(msg(to=token), ctx()).allowed, token
-    # ...but a plain-only (local) bot still may not put links or page text in a room post.
-    local = policy(peers=[], room=True, plain_only=True, max_chars=300)
-    leak = local.check(msg(to=ROOM_RECIPIENT, text="see https://x.onion/leak"), ctx())
-    assert not leak.allowed and "stays on this Mac" in leak.reason
 
 
 def test_room_reads_as_a_conversation_and_refuses_repeats(cfg, tmp_path: Path):
@@ -216,17 +196,11 @@ def test_room_reads_as_a_conversation_and_refuses_repeats(cfg, tmp_path: Path):
     assert not v.allowed and "already posted that" in v.reason
 
 
-def test_scout_and_researcher_personas_write_a_messaging_section(tmp_path: Path):
+def test_the_scout_persona_writes_a_messaging_section(tmp_path: Path):
     scout = fleet.new_bot("Scout", tmp_path / "bots", persona="scout", port=8792)
     text = (scout / "config.toml").read_text()
     assert "[messaging]" in text and "enabled = false" in text and "plain_only" not in text
     assert load_config(scout / "config.toml").messaging.enabled is False
-
-    onion = fleet.new_bot("Onion Reader", tmp_path / "bots", persona="researcher", port=8789)
-    otext = (onion / "config.toml").read_text()
-    assert "[messaging]" in otext and "plain_only = true" in otext and "max_chars = 300" in otext
-    ocfg = load_config(onion / "config.toml")
-    assert ocfg.messaging.plain_only is True and ocfg.messaging.max_chars == 300
 
 
 def test_room_kinds_receipts_and_seen_by(tmp_path):

@@ -36,11 +36,6 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or "provider"
 
 
-HEADER_AGENTS = ("# AI agents the Onion Reader has found\n\nWritten by the Onion Reader for the owner (asked in its chat, "
-                 "2026-09-25): AI agents, free if possible, and what each one does. Nothing here was signed up for or run; "
-                 "every line comes from a page the bot read.\n")
-
-
 def find_category(p: Provider) -> str:
     """One of CATEGORY_LABELS for this find: what the model said when it names one, else read from the record's own
     words. Capabilities that say verification / search / data win over a stray model name; nothing recognisable is a
@@ -60,20 +55,10 @@ def find_label(p: Provider) -> str:
     return CATEGORY_LABELS[find_category(p)]
 
 
-def entry_markdown(p: Provider, now: dt.datetime, kind: str = "provider") -> str:
+def entry_markdown(p: Provider, now: dt.datetime) -> str:
     models = ", ".join(m.strip() for m in p.models if m.strip()) or "(not noted)"
     sources = "\n".join(f"- {s.strip()}" for s in p.sources if s.strip()) or "- (none)"
     card = "needs a card" if p.needs_card else "no card required"
-    if kind == "agent":
-        return (
-            f"## {p.name.strip()}\n\n"
-            f"Found {now.date().isoformat()}.\n\n"
-            f"- **Website:** {p.base_url.strip()}\n"
-            f"- **Free?** {p.free_terms.strip()} ({card})\n"
-            f"- **Runs on / models:** {models}\n"
-            f"- **What it does:** {p.why.strip()}\n\n"
-            f"Sources:\n{sources}\n"
-        )
     if find_category(p) != "model":
         return (
             f"## {p.name.strip()}\n\n"
@@ -109,11 +94,10 @@ def record_provider(cfg: ScoutConfig, provider: Provider, now: dt.datetime | Non
     now = now or dt.datetime.now()
     path = Path(cfg.report_file).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    kind = getattr(cfg, "kind", "provider")
-    body = path.read_text(encoding="utf-8") if path.exists() else (HEADER_AGENTS if kind == "agent" else HEADER)
+    body = path.read_text(encoding="utf-8") if path.exists() else HEADER
     if not body.endswith("\n"):
         body += "\n"
-    body += "\n" + entry_markdown(provider, now, kind)
+    body += "\n" + entry_markdown(provider, now)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     tmp.write_text(body, encoding="utf-8")
     os.replace(tmp, path)

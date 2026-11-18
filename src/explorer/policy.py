@@ -408,7 +408,7 @@ class PolicyContext:
 
 
 class Allowlist:
-    """Hosts a bot may read. A listed host covers its subdomains (bbc...onion covers www.bbc...onion).
+    """Hosts a bot may read. A listed host covers its subdomains (example.org covers www.example.org).
     Lines may be bare hosts or URLs; '#' starts a comment."""
 
     def __init__(self, hosts: list[str] | None = None):
@@ -604,7 +604,7 @@ class Policy:
         self.self_goals = self_goals
         self.propose_teammates = propose_teammates
         self.denylist = denylist
-        # When set, every page must be on it (the Tor bot); None means the whole web minus the denylist.
+        # When set, every page must be on it; None means the whole web minus the denylist.
         self.allowlist = allowlist
         self.robots = robots
         self.chat_partner = chat_partner or ChatPartnerConfig()  # disabled unless configured
@@ -718,9 +718,6 @@ class Policy:
             return Verdict.no("keep the provider name under 120 characters")
         if not action.base_url.strip().startswith(("http://", "https://")):
             return Verdict.no("base_url must be the provider's https:// API endpoint")
-        if getattr(self.scout, "kind", "provider") == "agent" and ".onion" in action.base_url.lower():
-            return Verdict.no("an AI agent's website must be a clearnet https page; a Tor address is not an agent for the owner's list "
-                              "(OnionShare, 2026-09-26). Read the agent's own site first")
         sources = [u.strip() for u in action.sources if u.strip()]
         schemes = ("http://", "https://", "fake://") if ctx.mode == "fake" else ("http://", "https://")
         if not sources or any(not u.startswith(schemes) for u in sources):
@@ -1275,13 +1272,6 @@ class Policy:
                 f"keep the message under {limit} characters; send a short question or topic, not a long passage"
                 + ("" if _answering else " (an answer to a priority ask may run to 1500)")
             )
-        if m.plain_only:
-            low = text.lower()
-            if "://" in low or ".onion" in low or "http" in low or "www." in low:
-                return Verdict.no(
-                    "send your colleague only a short plain question or topic: no links, no URLs, no .onion "
-                    "addresses, and no quoted page text. What you read over Tor stays on this Mac."
-                )
         pr = ctx.priority_request
         answering_priority = bool(pr) and to.lower() == str(pr.get("sender", "")).strip().lower()
         claims = ("done", "updated", "published", "fixed", "created", "listed", "filled", "completed", "added", "replaced", "sent the")

@@ -43,7 +43,6 @@ UPDATE_LEAD_ACTION_HELP = """- update_lead: {"type":"update_lead","name":"<exact
 
 PROVIDER_ACTION_HELP = """- provider: {"type":"provider","name":"...","base_url":"https://...","free_terms":"...","needs_card":false,"models":["..."],"category":"model|search|data|verification|tool","why":"...","sources":["https://..."]} : record a free, card-free provider or tool you found -- an AI model API, a search or page-reader API, a data or verification API -- for the owner to review and maybe add. `category` says which: "model" ONLY for an API that serves AI models; an email checker is "verification". `models` holds model ids or, for a tool, its capabilities. Only from pages you actually read (sources), only a durable free tier with no card, at most one per episode, never one already in the report or declined."""
 
-AGENT_ACTION_HELP = """- provider: {"type":"provider","name":"<the agent's name>","base_url":"https://<its website>","free_terms":"free / free tier / paid, in a phrase","needs_card":false,"models":["what it runs on, if stated"],"why":"what the agent does, in one or two plain sentences","sources":["https://... pages you actually read"]} : add one AI agent to the owner's list (the file the owner reads). Only from pages you opened; never sign up for or run anything. Each agent once; one per episode."""
 
 MESSAGE_ACTION_HELP = """- message: {"type":"message","to":"...","text":"..."} : send a short message to one of: {targets}. Put the exact name (or "everyone") in "to". A question, a tip, or a useful fact for them, in your own words -- not page text or links. When a colleague's message asked you something or handed you work, reply to THEM by name once you act on it -- one line saying what you did -- so the fleet can see it landed. Never post the same offer or announcement to the room twice. At most one per episode; a name goes to that bot's inbox, "everyone" posts to the shared fleet chatroom every bot reads."""
 
@@ -75,7 +74,6 @@ def system_prompt(
     scout_enabled: bool = False,
     merge_tasks: bool = False,
     pace_members: bool = False,
-    scout_kind: str = "provider",
     message_peers: list[str] | None = None,
     message_room: bool = False,
     mode: str = "web",
@@ -142,7 +140,7 @@ def system_prompt(
     if pace_members:
         actions += "\n" + PACE_MEMBER_ACTION_HELP
     if scout_enabled:
-        actions += "\n" + (AGENT_ACTION_HELP if scout_kind == "agent" else PROVIDER_ACTION_HELP)
+        actions += "\n" + PROVIDER_ACTION_HELP
     if handoff_to:
         actions += "\n" + PACKAGE_ACTION_HELP.replace("{to_name}", handoff_to)
     if package_page:

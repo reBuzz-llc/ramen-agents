@@ -129,33 +129,6 @@ def test_openrouter_is_a_known_free_provider_again():
     assert prov.api_key_file.endswith("/openrouter.key")
 
 
-def test_agent_finds_stay_in_the_file_with_no_agent_board(cfg, tmp_path):
-    """Queue 572: there is no agent board any more; a find is recorded in the report file only."""
-    from explorer.actions import Provider
-    from conftest import make_controller
-
-    cfg.scout.enabled, cfg.scout.kind = True, "agent"
-    cfg.scout.report_file = str(tmp_path / "agents.md")
-    c = make_controller(cfg)
-    assert c._agent_board() is None
-    r = c._execute_provider(Provider(type="provider", name="AGENTS.inc", base_url="https://www.agents.inc", free_terms="free tier, no card",
-                                     why="ready-made agents for news radar and company research", sources=["https://www.agents.inc/about"]))
-    assert r.ok and "AGENTS.inc" in (tmp_path / "agents.md").read_text() and "and the board" not in r.summary
-def test_agent_entries_need_a_clearnet_website():
-    from explorer.actions import Provider
-    from explorer.config import PolicyConfig, ScoutConfig
-    from explorer.policy import Denylist, Policy, PolicyContext
-    from conftest import DENYLIST
-
-    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), scout=ScoutConfig(enabled=True, kind="agent"))
-    ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
-    ctx.visited_urls = {"http://abc.onion/", "https://www.agents.inc/"}
-    onion = Provider(type="provider", name="OnionShare", base_url="http://abc.onion/", free_terms="free", why="file sharing", sources=["http://abc.onion/"])
-    assert "clearnet" in policy.check(onion, ctx).reason
-    clear = Provider(type="provider", name="AGENTS.inc", base_url="https://www.agents.inc", free_terms="free tier", why="agents", sources=["https://www.agents.inc/"])
-    assert "clearnet" not in policy.check(clear, ctx).reason
-
-
 def test_a_find_is_called_what_it_is():
     """Owner, 2026-10-02: the Scout recorded an email checker and the owner was told "Found a free AI provider"."""
     import datetime as dt

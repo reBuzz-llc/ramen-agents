@@ -2,7 +2,7 @@
 
 Most of what the agent reads (Wikipedia, blogs, docs, small independent sites) is plain HTML, and a
 headless Chromium spends hundreds of megabytes to show it. Here a page is first one HTTP GET, turned
-into text and links by the same parser the fake and Tor browsers use. Chromium (browser.py) is
+into text and links by the same parser the fake browser uses. Chromium (browser.py) is
 started only when that is not enough:
 
 - the page is a JavaScript shell (almost no text, or it says JavaScript is required),

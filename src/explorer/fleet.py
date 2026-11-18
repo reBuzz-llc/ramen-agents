@@ -56,14 +56,6 @@ PERSONAS: dict[str, dict[str, Any]] = {
         "cycle_delay_seconds": 45,
         "tasks": True,
     },
-    "researcher": {
-        "bio": "A text-only research agent run by a human. It reads legitimate onion sites through Tor to understand the onion web, and keeps a journal.",
-        "seed_interests": ["why news outlets run onion services", "censorship circumvention", "how onion services work", "privacy tools and their history"],
-        "cycle_delay_seconds": 45,
-        "tasks": False,
-        "tor": True,  # browser.backend = "tor", local model only, allowlist from `bot onion-directory`
-        "messaging": True,  # [messaging]: a plain-only research channel to a peer bot (handoff.py inbox)
-    },
     "package-designer": {
         "bio": "The package designer of a small company, run as an automated agent by its owner. It researches which services sell and what they cost right now, and hands concrete service packages to the company's CEO bot.",
         "seed_interests": ["best-selling software development service packages", "what agencies charge for mvp development", "productized services for startups", "retainer and subscription pricing for dev and marketing services"],
@@ -112,10 +104,9 @@ def render_plist(label: str, code_root: Path, config_path: Path, workspace: Path
 
 def shared_config_for(parent: Path, persona: str) -> Path | None:
     """The shared file a new bot in `parent` should extend, when the parent has the common-data layout:
-    common-data/configs/web-bots.toml for clear-web bots, common.toml for the Tor researcher (whose model
-    must stay local). None for a parent without shared configs."""
+    common-data/configs/web-bots.toml, else common.toml. None for a parent without shared configs."""
     configs = parent / "common-data" / "configs"
-    names = ["common.toml"] if PERSONAS[persona].get("tor") else ["web-bots.toml", "common.toml"]
+    names = ["web-bots.toml", "common.toml"]
     return next((configs / n for n in names if (configs / n).is_file()), None)
 
 
@@ -134,7 +125,6 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
     network (2026-10-14)."""
 
     spec = PERSONAS[persona]
-    tor = bool(spec.get("tor"))
     shared = shared_config_for(folder.parent, persona)
     have = _inherited(shared)
 
@@ -157,30 +147,9 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
         if spec["tasks"]
         else ""
     )
-    tor_note = (
-        "# Before the first run: `bot --config <this file> onion-directory` stages the site list, you review it,\n"
-        "# `... onion-directory --accept` writes the allowlist, then `bot check`.\n"
-        if tor
-        else ""
-    )
-    # The Tor bot's model is always written here: page text read over Tor never goes to a cloud provider,
-    # whatever a shared file says.
-    model = (
-        "# Local only: pages read over Tor stay on this Mac instead of going to a cloud provider.\nprovider = \"ollama\"\n"
-        if tor
-        else ("" if "model.provider" in have else 'provider = "ollama"\n')  # web bots take the shared model chain
-    )
+    model = "" if "model.provider" in have else 'provider = "ollama"\n'  # web bots take the shared model chain
     if fake:
         model = '# Fake mode: a built-in model that needs no key; nothing leaves this machine.\nprovider = "fake"\nprovider_chain = []\n'
-    tor_browser = 'backend = "tor"\ntor_proxy = "socks5h://127.0.0.1:9050"\n' if tor else ""
-    tor_policy = (
-        'allowlist_file = "workspace/allowed_hosts.txt"\n'
-        "# Onion circuits are slow and these sites are run by small teams; read gently.\n"
-        "pages_per_hour = 30\n"
-        "per_domain_delay_seconds = 20\n"
-        if tor
-        else ""
-    )
     fake_web = str(code_root / "workspace" / "fake_web")
     denylist = "" if "policy.denylist_file" in have else 'denylist_file = "workspace/denylist.txt"\n'
 
@@ -193,14 +162,12 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
             f"# {name}: a bot made by `bot new` on {dt.date.today().isoformat()} with the {persona} persona.\n"
             f"# Shared settings come from {rel.as_posix()}; anything set below wins over them. The rest keeps\n"
             f"# the defaults in {code_root / 'config.example.toml'}.\n"
-            f"{tor_note}"
             f'extends = "{rel.as_posix()}"\n'
         )
     else:
         header = (
             f"# {name}: a bot made by `bot new` on {dt.date.today().isoformat()} with the {persona} persona.\n"
             f"# Everything not set here keeps the defaults in {code_root / 'config.example.toml'}.\n"
-            f"{tor_note}"
         )
     text = (
         header
@@ -214,8 +181,8 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
             + f"seed_interests = [{interests}]\n",
         )
         + section("model", model)
-        + section("browser", tor_browser + (f'fake_web_dir = "{fake_web}"\n' if fake else line("browser.fake_web_dir", fake_web, f'"{fake_web}"')))
-        + section("policy", denylist + tor_policy)
+        + section("browser", (f'fake_web_dir = "{fake_web}"\n' if fake else line("browser.fake_web_dir", fake_web, f'"{fake_web}"')))
+        + section("policy", denylist)
         + section("dashboard", f"port = {port}\n")
         + section("quiet", line("quiet.enabled", True, "true"))  # type: ignore[arg-type]
         + tasks_block
@@ -237,13 +204,6 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
             "# peer's workspace/inbox/, and their messages land in yours. Add a [[messaging.peers]] table\n"
             "# (name + absolute folder) for each colleague, then enabled = true. `bot check` shows it.\n"
             "enabled = false\n"
-            + (
-                # A local-only (Tor) bot must never carry page text to a cloud-model peer: keep it plain and short.
-                "plain_only = true\n"
-                "max_chars = 300\n"
-                if tor
-                else ""
-            )
             + "\n# [[messaging.peers]]\n"
             '# name = "Scout"\n'
             '# folder = "/absolute/path/to/bots/scout"\n'

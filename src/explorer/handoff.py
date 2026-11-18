@@ -99,8 +99,7 @@ def send_message(peer_folder: str | Path, sender: str, text: str, now: dt.dateti
     """Drop a plain research message into the peer bot's inbox. Returns the message file.
 
     The peer reads it with the same Inbox as packages ("From <sender>: ..."). No package file: this
-    is a short question, tip or answer, not a deliverable. The policy already capped and (for a
-    plain_only bot) sanitised the text; this only trims to the hard ceiling and writes it."""
+    is a short question, tip or answer, not a deliverable. The policy already capped the text; this only trims to the hard ceiling and writes it."""
     now = now or dt.datetime.now()
     recipient = Path(peer_folder).expanduser()
     stamp = now.strftime("%Y-%m-%d-%H%M%S")

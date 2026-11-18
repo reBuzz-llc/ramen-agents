@@ -70,43 +70,7 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
     model = build_model(cfg.model, logger, bot_name=cfg.agent.name)
     policy: Policy | None = None
     searcher = None
-    if cfg.agent.mode == "web" and cfg.browser.backend == "tor":
-        from .search import Searcher, SearchPause, SearchSettings
-        from .tor_browser import OnionDirectory, TorTextBrowser, tor_user_agent
-
-        tor_agent = tor_user_agent(cfg.agent.name)  # never cfg.user_agent: that one carries agent.contact
-        directory = OnionDirectory.load(cfg.path(cfg.browser.onion_directory_file))
-        if not directory:
-            logger.warning("the onion directory is empty; run `bot onion-directory` so search has something to find")
-        browser = TorTextBrowser(
-            cfg.browser.tor_proxy,
-            tor_agent,
-            directory,
-            max_links=cfg.browser.max_links,
-            timeout_seconds=max(cfg.browser.navigation_timeout_seconds, 60.0),  # onion circuits are slow
-            max_bytes=cfg.browser.max_page_bytes,
-            # Redirects are checked against the same rules as the first address. The policy exists by the
-            # time the browser is first used.
-            allow_url=lambda url: policy.static_reason(url, "web") if policy is not None else "policy not ready",
-        )
-        robots = RobotsCache(tor_agent, fetch=browser.fetch_text) if cfg.policy.respect_robots else None
-        # One engine, the local directory, with its own pause file: a Tor bot must never fall back to a
-        # clearnet search engine, and a pause set by the Chromium bots is not about it.
-        # (Its own files come first when [browser] corpus_dir is set: pages the owner or a fetch script saved for it --
-        # the AI-agent lists, 2026-09-25 -- so a small local model finds links to follow instead of wandering.)
-        tor_engines = ["onion-directory"]
-        tor_extra: dict[str, Any] = {"onion-directory": browser.search}
-        if cfg.browser.corpus_dir.strip():
-            from .corpus import Corpus
-
-            tor_extra["corpus"] = Corpus(cfg.path(cfg.browser.corpus_dir), logger).search
-            tor_engines = ["corpus", "onion-directory"]
-        search_settings = SearchSettings(
-            engines=tor_engines, pause_file=cfg.workspace / "search_pause.json", user_agent=tor_agent,
-            api_user_agent=tor_agent,
-        )
-        searcher = Searcher(browser, search_settings, SearchPause(search_settings.pause_file), logger, extra_engines=tor_extra)
-    elif cfg.agent.mode == "web" and cfg.browser.backend == "light":
+    if cfg.agent.mode == "web" and cfg.browser.backend == "light":
         from .light_browser import LightBrowser
 
         def chromium() -> PlaywrightBrowser:
@@ -175,7 +139,7 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         )
     quiet = QuietDetector(cfg.quiet) if cfg.quiet.enabled else None
     transcripts = None
-    if cfg.agent.mode == "web" and cfg.browser.backend != "tor" and cfg.browser.video_transcripts:
+    if cfg.agent.mode == "web" and cfg.browser.video_transcripts:
         from .transcript import YouTubeTranscripts
 
         transcripts = YouTubeTranscripts(cfg.browser.video_transcript_languages, logger=logger)
@@ -411,12 +375,11 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         report(target.is_dir(), f"handoff: packages go to {cfg.handoff.to_name} at {target / cfg.handoff.files_dir}"
                + ("" if target.is_dir() else " (that folder does not exist)"))
     if cfg.messaging.enabled:
-        plain = ", plain-only (no links or page text)" if cfg.messaging.plain_only else ""
         missing = [p["name"] for p in cfg.messaging.peers if not Path(str(p["folder"])).expanduser().is_dir()]
         channels = [*cfg.messaging.peer_names]
         if cfg.messaging.room:
             channels.append(f"the fleet chatroom ({cfg.messaging.room_path()})")
-        report(not missing, f"messaging: {', '.join(channels) or 'nothing configured'}{plain}"
+        report(not missing, f"messaging: {', '.join(channels) or 'nothing configured'}"
                + (f" (missing peer folders: {', '.join(missing)})" if missing else ""))
     inbox = cfg.workspace / "inbox"
     if inbox.is_dir():
@@ -426,18 +389,6 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         allow_path = cfg.path(cfg.policy.allowlist_file)
         allowed = Allowlist.load(allow_path)
         report(len(allowed) > 0, f"allowlist: {len(allowed)} hosts ({allow_path})" + ("" if len(allowed) else "; nothing may be read"))
-    if cfg.browser.backend == "tor":
-        from .tor_browser import OnionDirectory, TorTextBrowser, tor_user_agent
-
-        directory = OnionDirectory.load(cfg.path(cfg.browser.onion_directory_file))
-        report(len(directory) > 0, f"onion directory: {len(directory)} sites ({cfg.path(cfg.browser.onion_directory_file)})"
-               + ("" if len(directory) else "; run `bot onion-directory`"))
-        probe = TorTextBrowser(cfg.browser.tor_proxy, tor_user_agent(cfg.agent.name), directory)
-        try:
-            good, text = probe.available()
-        finally:
-            probe.close()
-        report(good, text)
     if (cfg.agent.mode == "web" and cfg.browser.backend in ("light", "chromium")) or args.all:
         import os
 
@@ -533,85 +484,6 @@ def cmd_tasks(cfg: Config, args: argparse.Namespace) -> int:
         due = f" due {r['due']}" if r["due"] else ""
         print(f"{r['created_at']}  [{r['priority']}] {r['title']}{who}{due}\n    {r['url']}")
     return 0
-
-# ---- the Tor backend's directory ----------------------------------------------
-
-def pending_directory_path(cfg: Config) -> Path:
-    live = cfg.path(cfg.browser.onion_directory_file)
-    return live.with_name(live.stem + ".pending" + live.suffix)
-
-
-def cmd_onion_directory(cfg: Config, args: argparse.Namespace) -> int:
-    """Stage the onion site directory for review; `--accept` makes the staged copy live.
-
-    The directory decides what the Tor bot may read, and it comes from a README anyone with
-    commit rights upstream can edit. So a fetch (or `--from-file`) only writes a pending copy and
-    prints which hosts it would add and remove; nothing the bot reads changes until the owner has
-    looked and run `--accept`."""
-    from .tor_browser import (
-        RWOS_URL,
-        OnionDirectory,
-        fetch_directory,
-        parse_rwos,
-        registered_domain,
-        tor_user_agent,
-        write_allowlist,
-    )
-
-    if not cfg.policy.allowlist_file.strip():
-        print("set policy.allowlist_file in this bot's config first (for example workspace/allowed_hosts.txt)", file=sys.stderr)
-        return 2
-    live_path = cfg.path(cfg.browser.onion_directory_file)
-    pending_path = pending_directory_path(cfg)
-    allow_path = cfg.path(cfg.policy.allowlist_file)
-
-    if args.accept:
-        pending = OnionDirectory.load(pending_path)
-        if not pending:
-            print(f"nothing to accept: no staged directory at {pending_path}; fetch one first", file=sys.stderr)
-            return 1
-        pending.save(live_path)
-        hosts = write_allowlist(allow_path, pending.hosts())
-        pending_path.unlink()
-        print(f"accepted: {len(pending)} sites -> {live_path}")
-        print(f"allowlist: {hosts} hosts -> {allow_path} (lines you add below the marker are kept)")
-        return 0
-
-    try:
-        if args.from_file:
-            source = Path(args.from_file).expanduser()
-            directory = OnionDirectory(
-                parse_rwos(source.read_text(encoding="utf-8")), str(source),
-                dt.datetime.now().replace(microsecond=0).isoformat(),
-            )
-        else:
-            directory = fetch_directory(cfg.browser.tor_proxy, tor_user_agent(cfg.agent.name), source=args.source or RWOS_URL)
-    except Exception as exc:  # noqa: BLE001 - network, file and parse failures are reported, not raised
-        where = args.from_file or f"through Tor ({cfg.browser.tor_proxy})"
-        print(f"could not read the directory {where}: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
-    if not directory:
-        print("the list was read but no onion sites were found in it; nothing staged", file=sys.stderr)
-        return 1
-    directory.save(pending_path)
-    live_hosts = set(OnionDirectory.load(live_path).hosts())
-    new_hosts = set(directory.hosts())
-    added, removed = sorted(new_hosts - live_hosts), sorted(live_hosts - new_hosts)
-    by_host = {}
-    for entry in directory.entries:
-        by_host.setdefault(registered_domain(entry.host), entry)  # the same key hosts() uses
-    print(f"staged: {len(directory)} sites in {len(directory.sections())} sections from {directory.source} -> {pending_path}")
-    print(f"compared with the live directory ({len(live_hosts)} hosts): {len(added)} added, {len(removed)} removed")
-    for host in added:
-        entry = by_host.get(host)
-        print(f"  + {host}" + (f"  {entry.name} [{entry.section}]" if entry else ""))
-    for host in removed:
-        print(f"  - {host}")
-    print("nothing the bot reads has changed. Review the list above, then run this command again with --accept.")
-    return 0
-
-
-# ---- several bots, one codebase ---------------------------------------------
 
 def cmd_new(cfg: Config, args: argparse.Namespace) -> int:
     from .fleet import new_bot
@@ -833,15 +705,6 @@ def build_parser() -> argparse.ArgumentParser:
     tasks = sub.add_parser("tasks", help="list the tasks this bot created on the board")
     tasks.add_argument("-n", type=int, default=20)
     tasks.set_defaults(func=cmd_tasks)
-
-    onion = sub.add_parser(
-        "onion-directory",
-        help="stage the onion site directory for review (through Tor, or --from-file); --accept makes it live (use --config)",
-    )
-    onion.add_argument("--source", default="", help="Real-World Onion Sites README URL to fetch through Tor (default: the upstream list)")
-    onion.add_argument("--from-file", default="", help="stage a README you saved and read yourself instead of fetching")
-    onion.add_argument("--accept", action="store_true", help="make the staged directory live: write it and the allowlist")
-    onion.set_defaults(func=cmd_onion_directory)
 
     new = sub.add_parser("new", help="create a new bot folder (config, persona, workspace)")
     new.add_argument("name", help='the bot\'s name, e.g. "The CEO"')

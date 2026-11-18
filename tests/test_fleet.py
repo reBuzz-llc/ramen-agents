@@ -80,18 +80,6 @@ def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
     assert bots[1]["config"] == str(tmp_path / "The CEO" / "config.toml")
 
 
-def test_researcher_persona_makes_a_tor_only_local_model_bot(tmp_path: Path):
-    folder = fleet.new_bot("Onion Reader", tmp_path / "bots", persona="researcher", port=8789)
-    cfg = load_config(folder / "config.toml")
-    assert cfg.browser.backend == "tor" and cfg.browser.tor_proxy.startswith("socks5h://")
-    assert cfg.model.provider == "ollama"  # onion page text never goes to a cloud provider
-    assert cfg.policy.allowlist_file == "workspace/allowed_hosts.txt"
-    assert cfg.policy.pages_per_hour == 30 and cfg.policy.per_domain_delay_seconds == 20
-    assert cfg.browser.search_engines == []  # validate() forbids clearnet engines on the tor backend
-    assert (folder / "persona.md").read_text().startswith("You study the Tor onion web")
-    assert "onion-directory" in (folder / "config.toml").read_text()
-
-
 def shared_layout(parent: Path) -> Path:
     """A ~/bots-style parent with common-data/configs like the owner's, but self-contained."""
     configs = parent / "common-data" / "configs"
@@ -125,12 +113,3 @@ def test_new_bot_in_the_shared_layout_extends_instead_of_repeating(tmp_path: Pat
     assert cfg.dashboard.port == 8790 and cfg.agent.name == "The CEO"
 
 
-def test_researcher_in_the_shared_layout_keeps_its_model_local(tmp_path: Path):
-    parent = shared_layout(tmp_path / "bots")
-    folder = fleet.new_bot("Onion Reader", parent, persona="researcher", port=8789)
-    text = (folder / "config.toml").read_text()
-    assert 'extends = "../common-data/configs/common.toml"' in text
-    cfg = load_config(folder / "config.toml")
-    assert cfg.model.provider == "ollama"  # written explicitly, so the shared remote chain never applies
-    assert cfg.browser.backend == "tor" and cfg.policy.allowlist_file == "workspace/allowed_hosts.txt"
-    assert not (folder / "workspace" / "denylist.txt").exists()

@@ -92,23 +92,15 @@ navigation_timeout_seconds = 30
 # light = one plain HTTP fetch per page turned into text; Chromium starts only for pages that need
 # JavaScript or refuse plain clients, and closes again after 8 pages without it (light_browser.py).
 # Only Chromium pages get a dashboard screenshot. chromium = Playwright for every page.
-# tor = text only over Tor (needs the Tor service and the `tor` extra: .venv/bin/pip install -e '.[tor]').
-# The tor backend fetches only the page itself (no images, scripts or media), searches a local onion
-# directory instead of a search engine, takes no screenshots, and refuses to start without
-# policy.allowlist_file. `bot --config <this file> onion-directory` stages both and prints what changed;
-# after you review it, `... onion-directory --accept` makes them live.
 backend = "light"
-tor_proxy = "socks5h://127.0.0.1:9050"
 max_page_bytes = 2000000
-onion_directory_file = "workspace/onion_directory.json"
 # Search engines in order: marginalia (Marginalia Search, small independent websites; the shared
 # `public` key is often over its per-minute quota, a free personal key comes by email; results are
 # CC-BY-NC-SA, so leave it out for a bot doing commercial work), wikipedia (MediaWiki search; needs
 # agent.contact in the user agent or Wikipedia answers 403), hn (Hacker News through Algolia's public
 # API: good for startups, agencies, founders, tools), corpus (the owner's own folder, corpus_dir below),
 # browser (opt-in only, in no default chain: search_url, Brave by default, in Chromium, which serves bot checks after a few
-# dozen searches). No engine needs a paid plan. Empty = marginalia, wikipedia, hn. The tor backend
-# ignores this list and searches the onion directory.
+# dozen searches). No engine needs a paid plan. Empty = marginalia, wikipedia, hn.
 # An API engine with no results passes the query to the next one (an empty corpus does too).
 # An engine that answers with a rate limit
 # or a bot check is paused for

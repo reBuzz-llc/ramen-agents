@@ -355,7 +355,6 @@ class Controller:
             scout_enabled=self.scout_enabled,
             merge_tasks=False,
             pace_members=cfg.messaging.enabled and cfg.messaging.can_pace_members,
-            scout_kind=cfg.scout.kind,
             message_peers=cfg.messaging.peer_names if cfg.messaging.enabled else [],
             message_room=cfg.messaging.room if cfg.messaging.enabled else False,
             mode=cfg.agent.mode,
@@ -1755,15 +1754,6 @@ class Controller:
         path = record_provider(self.cfg.scout, action)
         name = action.name.strip()
         card = "needs a card" if action.needs_card else "no card"
-        if self.cfg.scout.kind == "agent":
-            board = self._agent_board_row(action, card)
-            where = f"{path.name}" + (f" and the owner's board ({board})" if board and board.startswith("http") else "")
-            self.memory.add_chat("bot", f"Added an AI agent to your list: {name} -- {action.why.strip()[:160]} ({action.free_terms.strip()}, {card}). It is in {where}.")
-            self.memory.write_journal(f"Catalogued an AI agent for the owner: {name} ({path}" + (f"; board row {board}" if board else "") + ")", heading="Agent")
-            event(self.logger, "provider", report="agent", name=name[:120], base_url=action.base_url.strip()[:80], file=str(path), board=board or "")
-            note = "" if not board or board.startswith("http") else f" ({board})"
-            return ExecResult(True, f"added AI agent '{name[:60]}' to {path.name}" + (" and the board" if board and board.startswith("http") else ""), True,
-                              feedback=f"{name} is on the list now; do not add it again. Find a different agent.{note}")
         category, label = find_category(action), find_label(action)
         next_step = "add a key if you want it" if category == "model" else "tell the dev agent if you want the family to use it"
         self.memory.add_chat("bot", f"Found a free {label} worth a look: {name} ({action.free_terms.strip()}, {card}). Added to {path.name}; {next_step}.")
@@ -1773,46 +1763,6 @@ class Controller:
             True, f"recorded provider '{name[:60]}' in {path.name}", True,
             feedback=f"{name} is in the report now; do not record it again. Look for a different provider.",
         )
-
-    def _agent_board(self):
-        """Off (queue 572): there is no agent board; the finds stay in the report file."""
-        if getattr(self, "_agent_board_client", None) is not None or getattr(self, "_agent_board_tried", False):
-            return getattr(self, "_agent_board_client", None)
-        self._agent_board_tried = True
-        return None       # queue 572: the Onion Reader's finds stay in its file; there is no agent board
-
-    @staticmethod
-    def _clearnet(url: str) -> str:
-        """The URL when it is an http(s) clearnet address, else "" -- nothing read over Tor leaves the Mac."""
-        u = (url or "").strip()
-        if not u.lower().startswith(("http://", "https://")) or ".onion" in u.lower():
-            return ""
-        return u[:400]
-
-    def _agent_board_row(self, action: Provider, card: str) -> str:
-        """Write the agent find as a row on the owner's board. Returns the row URL, "" when the board is off, or a short
-        reason when the row was not written (an .onion address) -- the file entry stands either way."""
-        client = self._agent_board()
-        if client is None:
-            return ""
-        website = self._clearnet(action.base_url)
-        if not website:
-            event(self.logger, "agent_board_skip", name=action.name.strip()[:80], why="website is not a clearnet address")
-            return "not on the board: its address is not a clearnet site, so it stays in the file"
-        source = next((self._clearnet(s) for s in action.sources if self._clearnet(s)), "")
-        fields = {"Website": website, "What it does": action.why.strip()[:1900], "Free terms": action.free_terms.strip()[:400],
-                  "Card": "card" if action.needs_card else "no card", "Source": source, "Found on": time.strftime("%Y-%m-%d"),
-                  "Found by": self.cfg.agent.name}
-        try:
-            url = client.create_row(action.name.strip(), fields)
-            problem = self._confirm_write(client, "agent_row", page_id=page_id_from_url(url) or "", expect={"Website": website})
-        except Exception as exc:  # noqa: BLE001 - the file entry stands; the board is a copy
-            event(self.logger, "agent_board_failed", name=action.name.strip()[:80], error=str(exc)[:200])
-            return f"not on the board: {str(exc)[:120]}"
-        if problem:
-            return f"not on the board: {problem}"
-        event(self.logger, "agent_board_row", name=action.name.strip()[:80], url=url)
-        return url
 
     def _execute_package(self, action: Package) -> ExecResult:
         """Write the package into the recipient bot's folder and its inbox. The policy applied the rules."""
@@ -2247,7 +2197,7 @@ class Controller:
     def _known_finds(self) -> str | None:
         """The names already in the scout's report, in every prompt: the bot cannot read the report file itself, and
         recorded three email checkers in a row while the family already had two (2026-10-03 audit)."""
-        if not self.cfg.scout.enabled or self.cfg.scout.kind == "agent":
+        if not self.cfg.scout.enabled:
             return None
         try:
             names = sorted(existing_names(Path(self.cfg.scout.report_file).expanduser()))
