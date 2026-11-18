@@ -82,3 +82,26 @@ test("the docs credit no member the starter does not ship", () => {
   }
   assert.deepEqual(found, []);
 });
+
+// creatorCC queue 578 (the last step): with their code gone, the three members only the family had are named in no
+// tracked file at all, by name or by slug (code, tests, fixtures, configs and docs alike).
+const FAMILY_SLUGS = new RegExp(["jobless", "onion-reader", "desk-agent"].map((s, i) => (i ? s : `${s}-bot`)).join("|"), "i");
+
+test("no tracked file names a member only the family had", () => {
+  const files = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+  const found: string[] = [];
+  for (const f of files) {
+    if (f === SELF || /(^|\/)package-lock\.json$|\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|sqlite3?)$/.test(f)) continue;
+    if (FAMILY_ONLY.test(f) || FAMILY_SLUGS.test(f)) found.push(`${f}: its path`);
+    let text = "";
+    try {
+      text = readFileSync(path.join(ROOT, f), "utf8");
+    } catch {
+      continue;
+    }
+    text.split("\n").forEach((line, i) => {
+      if (FAMILY_ONLY.test(line) || FAMILY_SLUGS.test(line)) found.push(`${f}:${i + 1}: a member only the family had`);
+    });
+  }
+  assert.deepEqual(found, []);
+});
