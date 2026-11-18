@@ -368,30 +368,3 @@ def utc_now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
-@dataclass
-class AgentEntry:
-    name: str
-    website: str
-    what: str
-    sources: list[str]
-
-    @property
-    def key(self) -> str:
-        return "agent:" + self.name.strip().lower()
-
-
-def agent_entries(path: Path) -> list[AgentEntry]:
-    """The Onion Reader's AI-agents list: one '## Name' section per agent."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return []
-    out = []
-    for chunk in re.split(r"^## ", text, flags=re.M)[1:]:
-        name = chunk.splitlines()[0].strip()
-        web = re.search(r"\*\*Website:\*\*\s*(\S*)", chunk)
-        what = re.search(r"\*\*What it does:\*\*\s*(.*)", chunk)
-        src = chunk.split("Sources:", 1)[1] if "Sources:" in chunk else ""
-        out.append(AgentEntry(name, web.group(1) if web else "", what.group(1).strip() if what else "",
-                              re.findall(r"^-\s*(https?://\S+)", src, flags=re.M)))
-    return out

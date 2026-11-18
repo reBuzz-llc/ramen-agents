@@ -222,7 +222,6 @@ class Run:
         for r in recs:
             self.checked.add(("provider", r.key))
             self.current += check_provider(self.ck, r)
-        self._onion_notes()
         self._analyst_notes()
         import plans
         n_plans = 0
@@ -238,13 +237,6 @@ class Run:
                 if flag:
                     self.current.append(flag)
         self.counts["bot plans checked"] = n_plans
-        from sources import agent_entries
-        from checks import check_agent_entry
-        agents = agent_entries(BOTS / "common-data" / "ai-agents-found.md")
-        self.counts["AI-agent entries"] = len(agents)
-        for a in agents:
-            self.checked.add(("agent", a.key))
-            self.current += [x for x in check_agent_entry(self.ck, a) if x]
 
     def _family_check(self) -> None:
         """The key check: the requests record against the family rules (family.py). Every run, both loops."""
@@ -521,40 +513,6 @@ class Run:
             if self.s.get("provider_bot") and due:
                 self.pending_messages.setdefault(self.s["provider_bot"], []).append(provider_message(up.work, len(leads), paused=(BOTS / self.s["lead_owner_bot"] / "workspace" / "STOP").exists() or not to_lead_bot))
                 self.state["provider_gaps_sent_at"] = self.stamp
-
-    def _onion_notes(self) -> None:
-        """O05/O06: the Onion Reader's notes carry their source page, and a headline claim a second proof page. Read-only
-        from its own sqlite; only notes made since the last full sweep (a first run looks back two days)."""
-        import sqlite3
-        db = BOTS / "onion-reader" / "workspace" / "explorer.sqlite3"
-        if not db.exists() or not any(r.startswith("O0") for r in self.ins.rules):
-            return
-        since = str(self.state.get("onion_notes_since") or (self.now - dt.timedelta(days=2)).isoformat(timespec="seconds"))
-        try:
-            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-            try:
-                rows = con.execute("SELECT id, created_at, title, body, source_url FROM notes WHERE created_at > ? ORDER BY id", (since,)).fetchall()
-            finally:
-                con.close()
-        except sqlite3.Error as exc:
-            self.errors.append(f"onion-reader notes unreadable: {exc}")
-            return
-        claim = re.compile(r"\b(claim|verdict|proofs?|confirmed|reported|according to)\b", re.I)
-        url = re.compile(r"https?://\S+")
-        for nid, created, title, body, src in rows:
-            art, label = f"onion-note-{nid}", f'note #{nid} "{(title or "")[:60]}"'
-            self.checked.add(("note", art))
-            f = lambda rid, detail: self.ck.flag(rid, "note", art, label, "", detail, when=str(created)[:10], name=title or "")  # noqa: E731
-            flags = []
-            if not (src or "").startswith(("http://", "https://")):
-                flags.append(f("O05", "the note records no source page"))
-            text = f"{title}\n{body}"
-            if claim.search(text) and not [u for u in url.findall(body or "") if u.rstrip(".,)") != (src or "").rstrip("/")]:
-                flags.append(f("O06", "states a headline claim with no proof page besides its own source"))
-            self.current += [x for x in flags if x]
-        self.counts["onion notes checked"] = len(rows)
-        if rows:
-            self.state["onion_notes_since"] = str(rows[-1][1])
 
     def _analyst_notes(self) -> None:
         """RA01/RA03/RA04: the Research Analyst's notes (its findings posts) cite their page, carry no personal data and

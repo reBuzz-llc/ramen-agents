@@ -971,22 +971,6 @@ def duplicate_index(rows: dict[str, dict[str, str]]) -> dict[str, list[str]]:
     return out
 
 
-_AI_WORDS = re.compile(r"\b(ai|agents?|assistant|llm|models?|gpt|copilot|chatbot|automat\w*|machine learning|autonomous)\b", re.I)
-
-
-def check_agent_entry(ck: Checker, a) -> list[Flag]:
-    f = lambda rid, detail: ck.flag(rid, "agent", a.key, f'AI agent "{a.name[:60]}"', "", detail, name=a.name)  # noqa: E731
-    out: list[Flag] = []
-    host = a.website.split("/")[2] if a.website.count("/") >= 2 else ""
-    if not a.website.startswith("https://") or host.endswith(".onion"):
-        out += _collect(f("O07", f"Website is '{a.website[:70] or 'empty'}', not a clearnet https page"))
-    if not a.sources:
-        out += _collect(f("O08", "no Sources page"))
-    if not _AI_WORDS.search(a.what):
-        out += _collect(f("O09", f"What it does reads '{a.what[:70]}', which is not an AI agent"))
-    return out
-
-
 def closest_package(value: str, names: list[str]) -> str:
     """The accepted package name nearest to what a bot wrote: most shared words, then the shorter name (the board's
     option rather than a long toggle headline). "Acme POS for Franchise Chains" -> "Acme POS"."""
