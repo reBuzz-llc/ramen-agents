@@ -61,14 +61,14 @@ addresses.
 ## Before going online
 
 - Set `agent.contact` in `config.toml` if you want site owners to be able to reach you; it goes into the browser user agent. Leave it empty to stay anonymous.
-- Search uses keyless engines, in order: `marginalia`, `wikipedia`, `hn` (plus `corpus`, the owner's own `raw/` folder, when listed in `browser.search_engines`). Wikipedia refuses bots without `agent.contact`. The Tor backend searches its local onion directory instead.
+- Search uses keyless engines, in order: `marginalia`, `wikipedia`, `hn` (plus `corpus`, the owner's own `raw/` folder, when listed in `browser.search_engines`). Wikipedia refuses bots without `agent.contact`.
 - API keys are read from the env var (e.g. `GROQ_API_KEY`) or from `~/bots/common-data/keys/<name>.key` (`EXPLORER_KEYS_DIR` moves the folder); never from the config.
 - robots.txt is honoured; a site that refuses plain HTTP clients is asked again through Chromium.
 
 ## Modes
 
 - `mode = "fake"` browses only the HTML files under `workspace/fake_web`. Nothing leaves the machine.
-- `mode = "web"` reads the real web through `browser.backend`: `"light"` (default) is a plain HTTP fetch with Chromium (its own empty profile under `workspace/browser_profile`) only for pages that need it; `"chromium"` uses Chromium for every page; `"tor"` is text only over Tor.
+- `mode = "web"` reads the real web through `browser.backend`: `"light"` (default) is a plain HTTP fetch with Chromium (its own empty profile under `workspace/browser_profile`) only for pages that need it; `"chromium"` uses Chromium for every page.
 - `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is the local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order with Ollama as the fallback.
 
 ## Safety switches
@@ -88,42 +88,6 @@ addresses.
 - `workspace/logs/explorer.jsonl` structured log (rotated at 5 MB, five files kept)
 - `workspace/screenshots/current.png` the page it is on, for the dashboard (Chromium pages only; `dashboard.screenshots = false` to skip)
 - `workspace/dashboard.token` the dashboard's write token, while it runs
-- `workspace/published/` posts, once publishing is enabled
-
-## Letting it use the Mac
-
-Off by default. With `[desktop] enabled = true` the agent may use a few Mac apps while you are away:
-the Mac counts as free after `idle_minutes` without keyboard or mouse input, when the screen is not
-locked, and inside `hours` if you set them. The moment input that the agent did not generate shows up,
-it stops touching the Mac and goes back to the web for another `idle_minutes`.
-
-It never aims at pixels. It sees the frontmost app's accessibility tree as a numbered list of elements
-and picks by number: `app` brings an allowed app to the front, `look` re-reads the screen, `click`,
-`type`, and `hotkey` act on it. The policy refuses anything else: apps outside `allowed_apps`, typing
-into password fields or into apps that are not allowed, shortcuts outside `allowed_hotkeys`, and a
-hard-coded never list (app switching, quitting, Spotlight, logout, screenshots, power).
-
-At the end of every episode, if the Mac is free, the agent also types its journal entry into the first
-app on `allowed_apps` (TextEdit by default), so you find what it learned on the screen; it never saves
-or closes anything. That is a fixed routine, because the local model does not reliably pick up desktop
-actions on its own.
-
-`dry_run = true` (the default when enabled) validates and logs every desktop action without performing
-it, so you can watch what it would do in the dashboard first. `backend = "fake"` runs the same loop
-against an in-memory TextEdit and Calculator, which is how the tests and offline dry runs work.
-
-The real backend needs the pyobjc extras (`.venv/bin/pip install -e ".[desktop]"`) and two macOS
-permissions: Accessibility (reading the tree, clicking, typing) and Screen Recording (pictures for
-the dashboard). Grant both in System Settings > Privacy & Security to the Python app bundle the venv
-runs, normally `/Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app`: press the
-`+` button, then Cmd+Shift+G in the file dialog and paste that path. When you start the bot from a
-terminal instead of launchd, macOS attributes the permission to the terminal app, so grant it there
-too for trials. `bot check --desktop` prints what is granted and the exact path to use. After a
-Python upgrade the checkbox can look on but be dead; toggle it off and on.
-
-While the bot may use the Mac, the Mac has to stay awake and unlocked; the bot refuses to act
-behind the lock screen or a screensaver and never unlocks anything. `pmset -g` shows your sleep
-settings; the screensaver and lock delay are in System Settings.
 
 ## Running at login
 

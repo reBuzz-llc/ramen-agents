@@ -4,7 +4,7 @@ Owner's intent (2026-09-14): this bot is now named Jobless-Bot. Later there will
 each with its own persona and its own share of the machine, all running the way this one does
 (launchd, supervisor, quiet mode).
 
-**Status, same day, later:** built. `bot new NAME --persona explorer|ceo|researcher --port N` creates
+**Status, same day, later:** built. `bot new NAME --persona explorer|ceo|package-designer|scout --port N` creates
 `~/bots/<slug>/` (config, persona.md, workspace); `bot --config ... install` renders
 `launchd/bot.plist.template` to `com.ramen-agents.bot.<slug>`; `bot list` reads the installed agents.
 Personas live in `personas/` and are injected into the system prompt via `agent.persona_file`.
@@ -21,8 +21,7 @@ original reasoning; the notes in brackets say where it has since changed.
 the model chain). A bot's `config.toml` names one with a top-level `extends = "../common-data/configs/web-bots.toml"`
 (paths relative to the naming file, a list allowed); the bot's own values win, tables merge key by
 key, arrays replace. `bot new` writes that line when the parent folder has `common-data/configs`,
-leaves out what the shared files already set, copies the denylist only when none is shared, and
-always writes `provider = "ollama"` for the Tor researcher. API keys for every bot are in
+leaves out what the shared files already set, and copies the denylist only when none is shared. API keys for every bot are in
 `~/bots/common-data/keys/<name>.key`.
 
 ## What is already per-bot
