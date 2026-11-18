@@ -363,16 +363,16 @@ def test_tavily_answers_within_its_daily_budget_and_steps_aside_without_a_key(tm
 def test_only_a_bot_the_owner_allows_may_name_the_special_engine():
     # owner, 2026-10-02: "keep tavily and use it for special sites (let ceo decide)"
     from explorer.actions import Search
-    from explorer.config import PolicyConfig, PublishConfig
+    from explorer.config import PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
     from conftest import DENYLIST
 
     c = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
-    plain = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST))
+    plain = Policy(PolicyConfig(), Denylist.load(DENYLIST))
     v = plain.check(Search(type="search", query="Noodle Bar One owner contact", engine="tavily"), c)
     assert not v.allowed and "cannot choose the search engine" in v.reason and "The CEO" in v.reason
     assert plain.check(Search(type="search", query="Noodle Bar One owner contact"), c).allowed
-    ceo = Policy(PolicyConfig(search_engines_on_request=["tavily"], refuse_repeated_searches=True), PublishConfig(), Denylist.load(DENYLIST))
+    ceo = Policy(PolicyConfig(search_engines_on_request=["tavily"], refuse_repeated_searches=True), Denylist.load(DENYLIST))
     c.episode_search_queries = ["Noodle Bar One owner contact"]
     assert ceo.check(Search(type="search", query="Noodle Bar One owner contact", engine="tavily"), c).allowed  # a special retry of the same words
     assert not ceo.check(Search(type="search", query="Noodle Bar One owner contact"), c).allowed

@@ -1,8 +1,8 @@
 import time
 
-from explorer.actions import Ask, Follow, Note, Open, Publish, Rest, Say, Search, Summarize
+from explorer.actions import Ask, Follow, Note, Open, Rest, Say, Search, Summarize
 from explorer.browser import Link, PageView
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.policy import Denylist, Policy, PolicyContext, RobotsCache, is_private_host
 
 from conftest import DENYLIST
@@ -10,7 +10,7 @@ from conftest import DENYLIST
 
 def make_policy(**overrides):
     cfg = PolicyConfig(**overrides)
-    return Policy(cfg, PublishConfig(), Denylist.load(DENYLIST))
+    return Policy(cfg, Denylist.load(DENYLIST))
 
 
 def ctx(mode="web", page=None, actions=0, pages=0, questions=0, last=None, blocked=None):
@@ -91,12 +91,8 @@ def test_follow_resolves_link_numbers():
     assert not policy.check(Follow(type="follow", link=1), ctx(page=None)).allowed
 
 
-def test_publish_and_rest_limits():
+def test_rest_limits():
     policy = make_policy(max_rest_seconds=10)
-    assert not policy.check(Publish(type="publish", destination="local", title="t", body="b"), ctx()).allowed
-    enabled = Policy(PolicyConfig(), PublishConfig(enabled=True, destinations=["local"]), Denylist())
-    assert enabled.check(Publish(type="publish", destination="local", title="t", body="b"), ctx()).allowed
-    assert not enabled.check(Publish(type="publish", destination="twitter", title="t", body="b"), ctx()).allowed
     assert not policy.check(Rest(type="rest", seconds=11), ctx()).allowed
     assert policy.check(Rest(type="rest", seconds=10), ctx()).allowed
 
@@ -114,7 +110,7 @@ def test_robots_cache_respects_disallow():
     assert not robots.can_fetch("https://x.org/private/page")
     unreachable = RobotsCache("RoamExplorer/0.1", fetch=lambda url: None)
     assert unreachable.can_fetch("https://x.org/anything")
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), robots)
+    policy = Policy(PolicyConfig(), Denylist(), robots)
     assert not policy.check(Open(type="open", url="https://x.org/private/1"), ctx()).allowed
 
 
@@ -277,11 +273,11 @@ def test_a_task_handed_to_a_colleague_is_not_handed_twice_while_open():
     from explorer.actions import Task
     from explorer.config import MessagingConfig, PackagesConfig, TasksConfig
     from explorer.policy import Policy, Denylist
-    from explorer.config import PolicyConfig, PublishConfig
+    from explorer.config import PolicyConfig
     from conftest import DENYLIST
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Package Designer", "folder": "/tmp/pd"}])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig(), messaging=m)
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig(), messaging=m)
     c = ctx(); c.open_asks_to = {"package designer": [("task for you: Update Fixed-Price MVP Development package toggle title with exact price\nx", "2026-09-29T02:05:00")]}
     again = Task(type="task", title="Update the Fixed-Price MVP Development toggle title to include the exact price", details="y" * 320, assignee="Package Designer")
     v = policy.check(again, c)
@@ -300,10 +296,10 @@ def test_three_refused_notes_or_tasks_end_that_type_for_the_episode():
     c = ctx(); c.refused_notes_in_episode = 3
     v = policy.check(Note(type="note", title="t", body="b", source_url="https://x.example/"), c)
     assert not v.allowed and "no more notes" in v.reason
-    from explorer.config import PolicyConfig, PublishConfig
+    from explorer.config import PolicyConfig
     from explorer.policy import Policy, Denylist
     from conftest import DENYLIST
-    p2 = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    p2 = Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     c2 = ctx(); c2.refused_tasks_in_episode = 3
     assert "no more tasks" in p2.check(Task(type="task", title="x" * 20, details="y" * 320), c2).reason
 

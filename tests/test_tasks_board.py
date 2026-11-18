@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 
 from explorer.actions import Task
-from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig
 from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext
 
 from conftest import DENYLIST, make_controller
 
 def make_policy(tasks: TasksConfig | None = None) -> Policy:
-    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=tasks)
+    return Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=tasks)
 
 
 def ctx(**over) -> PolicyContext:

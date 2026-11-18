@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from explorer.actions import Decision, ProposeTeammate
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.model import ModelResult
 from explorer.policy import Denylist, Policy, PolicyContext
 from explorer.teammates import existing_roles, record_proposed_teammate
@@ -29,9 +29,9 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_gates_fences_and_dedupes_proposals():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(proposal(), ctx()).reason
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(), propose_teammates=True)
+    on = Policy(PolicyConfig(), Denylist(), propose_teammates=True)
     assert on.check(proposal(), ctx()).allowed
     assert not on.check(proposal(role=""), ctx()).allowed
     # The fence: a proposed bot can't exist to do a forbidden thing.

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from explorer.actions import Decision, MergeTask, Task, UpdateTask
-from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig
 from explorer.model import ModelResult
 from explorer.board import FakeBoard, page_id_from_url
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -33,9 +33,9 @@ def test_ids_come_out_of_board_urls():
 
 
 def test_policy_only_fixes_the_bots_own_tasks_with_real_changes():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(upd(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    policy = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     assert policy.check(upd(), ctx()).allowed
     assert "task you created" in policy.check(upd(title="Someone else's task"), ctx()).reason
     assert "at least one change" in policy.check(upd(due=None), ctx()).reason
@@ -85,7 +85,7 @@ def test_the_controller_updates_the_task_and_its_own_record(cfg):
 def test_republish_is_allowed_only_for_a_toggle_that_lacked_the_company():
     from test_publish_package import pub, ctx as pctx
 
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
+    on = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     dup = on.check(pub(), pctx(published_package_names={"mvp launch starter"}))
     assert not dup.allowed and dup.permanent and "source-company facts" in dup.reason
     again = on.check(pub(), pctx(published_package_names={"mvp launch starter"}, republishable_package_names={"mvp launch starter"}))
@@ -147,7 +147,7 @@ def test_the_designer_may_resend_a_company_less_package_once_it_has_the_company(
     from explorer.config import HandoffConfig
     from test_handoff import package, ctx as hctx
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    policy = Policy(PolicyConfig(), Denylist(),
                     handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/x"))
     sent = {"mvp launch starter"}
     # The helper package() carries a source company; the same name again is a duplicate unless the earlier one had none.

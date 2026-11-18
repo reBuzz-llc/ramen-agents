@@ -11,7 +11,6 @@ from explorer.heartbeat import Heartbeat
 from explorer.memory import Memory
 from explorer.model import FakeModel
 from explorer.policy import Denylist, Policy
-from explorer.publish import Publisher
 
 REPO = Path(__file__).resolve().parents[1]
 FAKE_WEB = REPO / "workspace" / "fake_web"
@@ -34,16 +33,14 @@ def cfg(tmp_path: Path) -> Config:
 
 
 def make_controller(
-    cfg: Config, model=None, browser=None, desktop=None, chat_partner=None, developer=None, quiet=None, board=None,
+    cfg: Config, model=None, browser=None, chat_partner=None, developer=None, quiet=None, board=None,
     searcher=None, transcripts=None, leads_board=None,
 ) -> Controller:
     db = Database(cfg.db_path)
     memory = Memory(db, cfg.workspace)
     policy = Policy(
         cfg.policy,
-        cfg.publish,
         Denylist.load(Path(cfg.policy.denylist_file)),
-        desktop=cfg.desktop,
         chat_partner=cfg.chat_partner,
         developer=cfg.developer,
         developer_root=cfg.path(cfg.developer.root),
@@ -57,7 +54,6 @@ def make_controller(
         leads=cfg.leads,
     )
     heartbeat = Heartbeat(db, cfg.watchdog)
-    publisher = Publisher(cfg.publish, cfg.root, cfg.agent.name, cfg.agent.bio)
     logger = logging.getLogger("explorer.test")
     return Controller(
         cfg,
@@ -66,9 +62,7 @@ def make_controller(
         browser or FakeBrowser(FAKE_WEB),
         policy,
         heartbeat,
-        publisher,
         logger,
-        desktop=desktop,
         chat_partner=chat_partner,
         developer=developer,
         quiet=quiet,

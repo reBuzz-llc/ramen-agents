@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from explorer.actions import Decision, Lead, Open
 from explorer.browser import PageView
-from explorer.config import LeadsConfig, PolicyConfig, PublishConfig
+from explorer.config import LeadsConfig, PolicyConfig
 from explorer.model import ModelResult
 from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext, email_domain, same_site
@@ -39,9 +39,9 @@ def test_email_helpers():
 
 
 def test_policy_wants_a_published_business_email_and_grounded_facts():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(lead(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
     assert policy.check(lead(), ctx()).allowed
     # No email, no lead -- and it must be theirs, on their site, on a page that was opened.
     assert "a way to reach the business" in policy.check(lead(email=""), ctx()).reason
@@ -194,7 +194,7 @@ def test_optional_lead_facts_are_kept_only_when_the_sites_pages_state_them(cfg):
 
 def test_an_email_on_another_domain_is_accepted_when_the_businesss_own_page_prints_it():
     # owner, 2026-09-30: shopcityspf.com on shopcity.us, sweetcorner.org on the .com site -- "yes"
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
     printed = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: sandra@acmebakery-nyc.example"})
     assert policy.check(lead(email="sandra@acmebakery-nyc.example"), printed).allowed
     assert "does not appear on any page" in policy.check(lead(email="sandra@acmebakery-nyc.example"), ctx()).reason  # not printed: refused
@@ -266,7 +266,7 @@ def test_a_business_with_no_website_is_a_lead_through_its_public_listing():
     from explorer.actions import Lead
     from explorer.policy import lead_key
 
-    policy_for = lambda: Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True))  # noqa: E731
+    policy_for = lambda: Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True))  # noqa: E731
     listing = "https://www.yellowpages.com/brooklyn-ny/mip/corner-bakery-123"
     base = dict(type="lead", name="Corner Bakery", website="", email="cornerbakery@gmail.com", pain_point="No website at all; only this listing",
                 how_we_help="SMB Website Care Retainer", evidence=listing, location="Brooklyn, NY, USA")

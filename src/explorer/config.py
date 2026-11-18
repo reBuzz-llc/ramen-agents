@@ -341,23 +341,6 @@ class WatchdogConfig:
 
 
 @dataclass
-class PublishConfig:
-    enabled: bool = False
-    destinations: list[str] = field(default_factory=lambda: ["local"])
-    local_dir: str = "workspace/published"
-    # "git": posts go into a repository the agent owns and are committed (publish.py). Pushing
-    # happens only when git_remote is set: a plain https:// URL of a repository the owner created
-    # and labelled as a bot's, with a token scoped to that one repository in git_token_file.
-    git_dir: str = "workspace/site"
-    git_branch: str = "main"
-    git_remote: str = ""
-    git_token_file: str = field(default_factory=lambda: key_file("github"))
-    git_author_email: str = "bot@localhost"
-    # Posts the agent may make per day across all destinations; publishing is a writing action.
-    max_posts_per_day: int = 3
-
-
-@dataclass
 class DashboardConfig:
     host: str = "127.0.0.1"  # keep it on this machine
     port: int = 8787
@@ -713,9 +696,6 @@ class MessagingConfig:
     # whole run searching the web for a report file named in an ask, 2026-09-30). The owner's asks expire on their own.
     priority_request_give_up: int = 30
     priority_request_grace: int = 4
-    # Peers that read nothing from bots except a drop-folder route line (the Desk Agent): any other message to them is
-    # refused, since it would sit unread forever as an open request (six did, 2026-09-25).
-    route_only_peers: list[str] = field(default_factory=list)
 
     def room_path(self) -> Path:
         return Path(self.room_file).expanduser() if self.room_file.strip() else (_common_data() / "chatroom.jsonl")
@@ -814,62 +794,23 @@ class DeveloperConfig:
 
 
 @dataclass
-class DesktopConfig:
-    """Using the Mac itself, only while the owner is away. Off by default; dry-run by default when on."""
-
-    enabled: bool = False
-    backend: str = "mac"  # mac | fake
-    dry_run: bool = True  # validate and log desktop actions without performing them
-    idle_minutes: float = 10.0  # the Mac counts as free after this long without human input
-    hours: str = ""  # e.g. "22:00-07:00"; empty means any time of day
-    allowed_apps: list[str] = field(default_factory=lambda: ["TextEdit", "Calculator", "Notes"])
-    allowed_hotkeys: list[str] = field(
-        default_factory=lambda: ["cmd+n", "cmd+a", "cmd+z", "cmd+shift+z", "escape", "return", "tab"]
-    )
-    max_elements: int = 150  # elements shown to the model per look
-    max_type_chars: int = 500
-    # Desktop mode only: offer to do GUI work for the other bots. When on, the agent posts to the fleet
-    # chatroom offering help while it is free, and does requests from other bots -- but only within the
-    # guards above (a request is information, never permission to break them). Needs [messaging] room = true.
-    serve_chatroom: bool = False
-    # Remote control (owner, 2026-09-24): the desk agent's tasks come from the owner in the dashboard chat. Between
-    # tasks it idles without calling a model (a heartbeat every idle_cycle_seconds); an unread owner message wakes it
-    # and it works at agent.cycle_delay_seconds until it has answered and the episode is summarised.
-    wake_on_chat: bool = False
-    idle_cycle_seconds: float = 600.0
-    # When a GUI task is blocked (the Mac is not free, Accessibility not granted, an app not allowed, no online model,
-    # a step refused twice), the controller -- not the model -- tells the owner in the chat what blocks it and what would
-    # fix it, posts a report line, and drops a "blocker" message into this checker bot's inbox (the Validator) so it
-    # verifies the cause and files it. Absolute folder; "" = no checker.
-    blocker_report_folder: str = ""
-    # The owner's drop folder, ~/bots/common-data/botBox (dropbox.py; owner, 2026-09-24). Polled from the idle loop, no model call. A file named
-    # "<bot slug>--name.ext" (or "everyone--") goes to that bot at once; any other file is announced to the router peer
-    # (a name in [messaging] peers, normally "The CEO"), which replies "route <name> to <bot>: <why>" and the copy is
-    # made. Copies live under <dropbox>/routed/<slug>/ for dropbox_keep_days; originals under done/ for
-    # dropbox_done_days. "" = off. Every bot's own-files search also covers routed/<its slug>/ and routed/everyone/.
-    dropbox_folder: str = ""
-    dropbox_router: str = ""
-    dropbox_done_days: int = 7
-    dropbox_keep_days: int = 90
-    # Owner-configured commands run when a file is routed to a bot: {slug: "command with {file}"} (the routed copy's
-    # path). Deterministic tools only (the lead-list checker); started detached, output under <dropbox>/logs/.
-    dropbox_hooks: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
 class PathsConfig:
     workspace: str = "workspace"
     db: str = "workspace/explorer.sqlite3"
     log: str = "workspace/logs/explorer.jsonl"
 
 
+# queue 603 (the family's 595): sections, keys and action names of removed features, read and ignored so an old config
+# still loads: the desktop agent's [desktop], the blog-post [publish], messaging.route_only_peers.
+RETIRED_SECTIONS = frozenset({"desktop", "publish"})
+RETIRED_KEYS: dict[str, frozenset[str]] = {"messaging": frozenset({"route_only_peers"})}
+RETIRED_ACTIONS = frozenset({"interest", "publish", "app", "look", "click", "type", "hotkey"})
 SECTIONS: dict[str, type] = {
     "agent": AgentConfig,
     "model": ModelConfig,
     "browser": BrowserConfig,
     "policy": PolicyConfig,
     "watchdog": WatchdogConfig,
-    "publish": PublishConfig,
     "dashboard": DashboardConfig,
     "chat_partner": ChatPartnerConfig,
     "tasks": TasksConfig,
@@ -882,7 +823,6 @@ SECTIONS: dict[str, type] = {
     "site_gate": SiteGateConfig,
     "quiet": QuietConfig,
     "developer": DeveloperConfig,
-    "desktop": DesktopConfig,
     "paths": PathsConfig,
 }
 
@@ -895,7 +835,6 @@ class Config:
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     policy: PolicyConfig = field(default_factory=PolicyConfig)
     watchdog: WatchdogConfig = field(default_factory=WatchdogConfig)
-    publish: PublishConfig = field(default_factory=PublishConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     chat_partner: ChatPartnerConfig = field(default_factory=ChatPartnerConfig)
     tasks: TasksConfig = field(default_factory=TasksConfig)
@@ -908,7 +847,6 @@ class Config:
     site_gate: SiteGateConfig = field(default_factory=SiteGateConfig)
     quiet: QuietConfig = field(default_factory=QuietConfig)
     developer: DeveloperConfig = field(default_factory=DeveloperConfig)
-    desktop: DesktopConfig = field(default_factory=DesktopConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
 
     def path(self, rel: str | os.PathLike[str]) -> Path:
@@ -1031,14 +969,16 @@ def overlay_paths(cfg_path: Path) -> list[Path]:
 def check_keys(data: dict[str, Any], where: str) -> None:
     """Every section and key known, or the bot stops at load naming the file: a leftover [notion] (queue 572) or a
     typo in an overlay is never silently ignored."""
-    unknown = sorted(k for k, v in data.items() if k not in SECTIONS)
+    unknown = sorted(k for k, v in data.items() if k not in SECTIONS and k not in RETIRED_SECTIONS)
     if unknown:
         hint = " (Notion is gone: scripts/update.sh moves its settings to [tasks] and [packages])" if "notion" in unknown else ""
         raise ValueError(f"unknown section(s) {unknown} in {where}{hint}")
     for name, value in data.items():
+        if name in RETIRED_SECTIONS:
+            continue
         if not isinstance(value, dict):
             raise ValueError(f"[{name}] in {where} must be a table")
-        bad = sorted(set(value) - {f.name for f in dataclasses.fields(SECTIONS[name])})
+        bad = sorted(set(value) - {f.name for f in dataclasses.fields(SECTIONS[name])} - RETIRED_KEYS.get(name, frozenset()))
         if bad:
             raise ValueError(f"unknown keys in [{name}] in {where}: {bad}")
 
@@ -1069,7 +1009,8 @@ def load_config(path: str | os.PathLike[str] | None = None, root: Path | None = 
         data = _expand_home(_merge_tables(data, _read_overlays(cfg_path)))
     if root is None:
         root = cfg_path.parent.resolve() if cfg_path.exists() else Path.cwd()
-    sections = {name: _build(cls, dict(data.get(name, {})), name) for name, cls in SECTIONS.items()}
+    sections = {name: _build(cls, {k: v for k, v in dict(data.get(name, {})).items() if k not in RETIRED_KEYS.get(name, ())}, name)
+                for name, cls in SECTIONS.items()}
     cfg = Config(root=Path(root), **sections)
     if cfg_path.exists():
         _family_domains(cfg, cfg_path)
@@ -1106,23 +1047,8 @@ def _apply_env(cfg: Config) -> None:
 
 
 def validate(cfg: Config) -> None:
-    if cfg.agent.mode not in ("fake", "web", "desktop"):
-        raise ValueError(f"agent.mode must be 'fake', 'web' or 'desktop', got {cfg.agent.mode!r}")
-    if cfg.agent.mode == "desktop":
-        # Desktop-first mode operates the Mac's GUI and does not browse the web. It needs the desktop
-        # backend on, and a capable online model (it must never drive the GUI with the local fallback).
-        if not cfg.desktop.enabled:
-            raise ValueError("agent.mode = 'desktop' requires [desktop] enabled = true")
-        if cfg.model.provider not in ("remote", "gemini"):
-            raise ValueError(
-                "agent.mode = 'desktop' needs an online model: set model.provider = 'remote' "
-                "(with provider_chain) or 'gemini'"
-            )
-    if cfg.desktop.serve_chatroom:
-        if cfg.agent.mode != "desktop":
-            raise ValueError("desktop.serve_chatroom only applies to agent.mode = 'desktop'")
-        if not cfg.messaging.room:
-            raise ValueError("desktop.serve_chatroom needs [messaging] room = true (it works through the fleet chatroom)")
+    if cfg.agent.mode not in ("fake", "web"):
+        raise ValueError(f"agent.mode must be 'fake' or 'web', got {cfg.agent.mode!r}")
     if cfg.browser.backend not in ("light", "chromium", "tor"):
         raise ValueError(f"browser.backend must be 'light', 'chromium' or 'tor', got {cfg.browser.backend!r}")
     if cfg.browser.backend == "tor":
@@ -1194,7 +1120,7 @@ def validate(cfg: Config) -> None:
             raise ValueError("messaging.max_chars, max_per_episode and max_per_day must be at least 1")
     from .actions import ALL_TYPES
 
-    bad = [a for a in cfg.policy.disabled_actions if a not in ALL_TYPES]
+    bad = [a for a in cfg.policy.disabled_actions if a not in ALL_TYPES and a not in RETIRED_ACTIONS]
     if bad:
         raise ValueError(f"policy.disabled_actions names unknown actions: {bad}")
     if "summarize" in cfg.policy.disabled_actions:
@@ -1237,12 +1163,3 @@ def validate(cfg: Config) -> None:
         raise ValueError("developer.max_file_bytes must be positive")
     if cfg.developer.upgrade_enabled and not cfg.developer.enabled:
         raise ValueError("developer.upgrade_enabled requires developer.enabled")
-    if cfg.desktop.backend not in ("mac", "fake"):
-        raise ValueError(f"desktop.backend must be 'mac' or 'fake', got {cfg.desktop.backend!r}")
-    if cfg.desktop.idle_minutes < 0:
-        raise ValueError("desktop.idle_minutes must not be negative")
-    if cfg.desktop.hours:
-        import re
-
-        if not re.fullmatch(r"\d{2}:\d{2}-\d{2}:\d{2}", cfg.desktop.hours.strip()):
-            raise ValueError("desktop.hours must look like '22:00-07:00'")

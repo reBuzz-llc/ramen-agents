@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from explorer.actions import ListFiles, ReadFile, RunCommand, WriteFile
-from explorer.config import DeveloperConfig, PolicyConfig, PublishConfig
+from explorer.config import DeveloperConfig, PolicyConfig
 from explorer.developer import Developer
 from explorer.policy import Denylist, Policy, PolicyContext
 
@@ -16,7 +16,7 @@ def make_policy(tmp_path: Path, **dev) -> tuple[Policy, Path]:
     root = tmp_path / "dev"
     root.mkdir(exist_ok=True)
     policy = Policy(
-        PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), developer=DeveloperConfig(**dev), developer_root=root
+        PolicyConfig(), Denylist.load(DENYLIST), developer=DeveloperConfig(**dev), developer_root=root
     )
     return policy, root
 

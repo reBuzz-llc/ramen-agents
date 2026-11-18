@@ -19,14 +19,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-# Real desktop control on macOS (desktop.backend = "mac"); tests and the fake backend need none of it.
-desktop = [
-  "pyobjc-core==12.2.2",
-  "pyobjc-framework-Cocoa==12.2.2",
-  "pyobjc-framework-Quartz==12.2.2",
-  "pyobjc-framework-ApplicationServices==12.2.2",
-]
-
 # Text-only browsing through Tor (browser.backend = "tor"): lets httpx use Tor's SOCKS proxy.
 tor = ["httpx[socks]>=0.27"]
 

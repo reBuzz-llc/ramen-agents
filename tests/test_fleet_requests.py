@@ -81,7 +81,7 @@ def test_after_the_grace_only_answering_and_reading_are_allowed(cfg, tmp_path: P
     from explorer.policy import Denylist, Policy, PolicyContext
 
     m = MessagingConfig(enabled=True, peers=[{"name": "The CEO", "folder": "/tmp/x"}, {"name": "Scout", "folder": "/tmp/y"}], priority_request_grace=3)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ask = {"sender": "The CEO", "text": "list the franchise brands from the owner's file", "actions_since_read": 3}
     waiting = PolicyContext(**base, priority_request=ask)
@@ -94,7 +94,7 @@ def test_after_the_grace_only_answering_and_reading_are_allowed(cfg, tmp_path: P
     assert not policy.check(Message(type="message", to="Scout", text="unrelated: any free email checkers?"), waiting).allowed
     assert policy.check(Message(type="message", to="The CEO", text="done: three franchise brands listed with published emails"), waiting).allowed
     # grace 0 = banner only, never a refusal
-    off = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=MessagingConfig(enabled=True, peers=m.peers, priority_request_grace=0))
+    off = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=MessagingConfig(enabled=True, peers=m.peers, priority_request_grace=0))
     assert off.check(note, waiting).allowed
 
 
@@ -130,7 +130,7 @@ def test_priority_replies_bypass_the_per_episode_message_cap_and_summarize_stays
     from explorer.policy import Denylist, Policy, PolicyContext
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Desk Agent", "folder": "/tmp/x"}, {"name": "Scout", "folder": "/tmp/y"}], max_per_episode=1, priority_request_grace=1)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     ask = {"sender": "Desk Agent", "text": "file dropped by the owner: b.csv (.csv, 1 KB). Preview: x", "actions_since_read": 5}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=3, pages_last_hour=0, open_questions=0, last_visit_by_domain={}, messages_in_episode=1, priority_request=ask)
     assert policy.check(Message(type="message", to="Desk Agent", text="route b.csv to Lead Gen: prospects"), ctx).allowed
@@ -210,7 +210,7 @@ def test_a_status_note_to_a_colleague_is_refused_unless_it_answers_them(cfg):
     from explorer.policy import Denylist, Policy, PolicyContext
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Lead Gen", "folder": "/tmp/l"}, {"name": "Validator", "folder": "/tmp/v"}])
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     note = Message(type="message", to="Lead Gen", text="Checked out the biotech growth strategies on Airship's blog. Noted that onboarding friction matters.")
     refused = policy.check(note, PolicyContext(**base))
@@ -239,7 +239,7 @@ def test_a_question_back_is_not_an_answer_and_priority_is_the_readers_view(tmp_p
     assert reader_side.answer("The CEO", "Lead Gen", "done: 30 founders listed; 4 without a published email").id == "ask"
 
 
-def test_a_reply_does_not_open_a_new_request_and_stopped_or_route_only_peers_are_not_messaged(cfg, tmp_path: Path):
+def test_a_reply_does_not_open_a_new_request_and_stopped_peers_are_not_messaged(cfg, tmp_path: Path):
     from explorer.config import MessagingConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
@@ -247,14 +247,12 @@ def test_a_reply_does_not_open_a_new_request_and_stopped_or_route_only_peers_are
     for f in (scout, desk, ceo):
         (f / "workspace" / "inbox").mkdir(parents=True, exist_ok=True)
     (scout / "workspace" / "STOP").write_text("", encoding="utf-8")
-    m = MessagingConfig(enabled=True, peers=[{"name": "Scout", "folder": str(scout)}, {"name": "Desk Agent", "folder": str(desk)}, {"name": "The CEO", "folder": str(ceo)}],
-                        route_only_peers=["Desk Agent"])
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    m = MessagingConfig(enabled=True, peers=[{"name": "Scout", "folder": str(scout)}, {"name": "Desk Agent", "folder": str(desk)}, {"name": "The CEO", "folder": str(ceo)}])
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     assert "is stopped" in policy.check(Message(type="message", to="Scout", text="Please find a free SPF accelerator list"), ctx).reason
     # the bot is told who is not running before it tries (owner, 2026-10-03), and a task for a stopped member is refused too
     assert m.peer_states() == {"Scout": "stopped", "Desk Agent": "running", "The CEO": "running"}
-    assert "reads only route lines" in policy.check(Message(type="message", to="Desk Agent", text="Can you look into the lead bot?"), ctx).reason
     assert policy.check(Message(type="message", to="Desk Agent", text="route list.csv to Lead Gen: prospects"), ctx).allowed
     (scout / "workspace" / "STOP").unlink()
     assert policy.check(Message(type="message", to="Scout", text="Please find a free SPF accelerator list"), ctx).allowed
@@ -317,7 +315,7 @@ def test_an_owner_chat_instruction_is_the_bots_top_request_until_the_next_one(cf
     assert len(open_) == 1 and "pacA" in open_[0].text  # the newer word supersedes the older
     # under the grace, messaging a colleague and saying are allowed; a note is not
     m = MessagingConfig(enabled=True, peers=cfg.messaging.peers, priority_request_grace=1)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     pr = {"sender": "Owner", "text": "shift focus to SMB", "actions_since_read": 5}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=2, pages_last_hour=0, open_questions=0, last_visit_by_domain={}, priority_request=pr)
     assert policy.check(Message(type="message", to="Lead Gen", text="Please prioritise Springfield SMB leads from now on."), ctx).allowed
@@ -329,7 +327,7 @@ def test_the_same_ask_is_not_sent_again_while_the_first_is_open(cfg):
     from explorer.policy import Denylist, Policy, PolicyContext
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Lead Gen", "folder": "/tmp/l"}])
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     waiting = {"lead gen": [("Please shift your search focus to SMB leads in Springfield, especially biotech startups.", "2026-09-25T21:40:00")]}
     again = Message(type="message", to="Lead Gen", text="Please shift your search focus to SMB leads in Springfield, especially biotech startups and small businesses.")
@@ -364,14 +362,14 @@ def test_the_write_gate_refuses_with_the_validators_reasons_and_fails_open(cfg, 
         "        raise RuntimeError('broken checker')\n"
         "    return []\n", encoding="utf-8")
     cfg.policy.write_gate = str(gate)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)))
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)))
     lead = Lead(type="lead", name="X", website="https://x.example", email="info@gmail.com", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")
     v = policy.gate_write(lead, bot="Lead Gen")
     assert not v.allowed and v.reason.startswith("Validator rules: LD01")
     ok = Lead(type="lead", name="X", website="https://x.example", email="info@x.example", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")
     assert policy.gate_write(ok, bot="Lead Gen").allowed
     assert policy.gate_write(Task(type="task", title="t", details="d"), bot="The CEO").allowed  # broken gate: fails open
-    off = Policy(cfg.policy.__class__(), cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)))
+    off = Policy(cfg.policy.__class__(), Denylist.load(Path(cfg.policy.denylist_file)))
     assert off.gate_write(lead, bot="Lead Gen").allowed  # no gate configured
 
 
@@ -442,7 +440,7 @@ def test_a_done_reply_needs_an_accepted_write_behind_it(cfg):
     from explorer.policy import Denylist, Policy, PolicyContext
 
     m = MessagingConfig(enabled=True, peers=[{"name": "Validator", "folder": "/tmp/v"}], priority_senders=["Validator"])
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     base = dict(mode="web", current_page=None, actions_in_episode=3, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ask = {"sender": "Validator", "text": "Leads board upkeep: 28 rows have cells you can fill", "actions_since_read": 6, "writes_since_read": 0}
     claim = Message(type="message", to="Validator", text="done: Corner Chicken House: Founded by, Location, Company size")
@@ -464,7 +462,7 @@ def test_a_reworded_task_and_a_one_site_package_are_refused(cfg):
     from explorer.config import HandoffConfig, PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)),
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)),
                     tasks=TasksConfig(enabled=True), packages=PackagesConfig(), handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/c", min_source_sites=2))
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx = PolicyContext(**base, recent_task_titles={"compile spf biotech startup target list for q4 2026 outreach"}, visited_urls={"https://a.example/pricing", "https://b.example/pricing", "https://a.example/about"})
@@ -541,7 +539,7 @@ def test_the_prompt_names_who_is_not_running_and_a_task_for_a_stopped_member_is_
 
     from explorer.config import PackagesConfig, TasksConfig
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging,
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging,
                     tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nThe toggle is stale.\n### What to do\n1. Rewrite it.\n### Done when\n- [ ] it reads right\n" + "x" * 300
@@ -579,7 +577,7 @@ def test_the_ceo_may_replace_its_own_toggle_once_a_day_and_a_retired_name_is_cal
     from explorer.policy import Denylist, Policy, PolicyContext
 
     tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, republish_own=True)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
     email = "Hi [Name],\nWebsite care at $299 a month.\n1. Updates\n2. Backups\nRegards,\n-- Acme LLC"
     sha = hashlib.sha256(email.encode()).hexdigest()
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
@@ -596,7 +594,7 @@ def test_the_ceo_may_replace_its_own_toggle_once_a_day_and_a_retired_name_is_cal
     retired = policy.check(pub(name="Fixed-Price MVP - $30,000"), ctx).reason
     assert "was retired" in retired and "Website Care Basic" in retired
     # switched off (the default), the old rule stands
-    old = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
+    old = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert "already on the packages page" in old.check(pub(title="Other"), PolicyContext(**base)).reason
 
 
@@ -650,7 +648,7 @@ def test_audit_fixes_of_2026_10_03(cfg):
 
     cfg.policy.open_only_seen_urls = True
     cfg.policy.refuse_repeated_searches = True
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx = PolicyContext(**base, visited_urls={"https://poplarbooks.com/"}, recent_task_titles=titles, episode_search_queries=["handbook lead rule"])
     assert "actually seen" not in (policy.check(Open(type="open", url="https://poplarbooks.com"), ctx).reason or "")
@@ -672,7 +670,7 @@ def test_one_outreach_batch_a_day_and_no_past_deadline(cfg):
     from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z\n" + "x" * 300
     task = lambda **kw: Task(**{**dict(type="task", title="Outreach: Noodle Bar One and 9 more", details=details, due="2099-12-01"), **kw})  # noqa: E731
@@ -687,7 +685,7 @@ def test_a_package_named_by_its_headline_is_that_package(cfg):
     from explorer.policy import Denylist, Policy, PolicyContext
 
     tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, republish_own=True)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=tasks_cfg, packages=packages_cfg)
     page = {"website care basic": {"name": "Website Care Basic", "title": "Care for Your Shop's Website – $99/month", "email_sha": "x", "day": "2026-09-30"}}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         published_package_names={"website care basic"}, packages_on_page=page)
@@ -702,7 +700,7 @@ def test_any_outreach_title_counts_as_todays_batch(cfg):
     from explorer.config import PackagesConfig, TasksConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     details = "### Why\nx\n### What to do\n1. y\n### Done when\n- [ ] z\n" + "x" * 300
     again = Task(type="task", title="Perform outreach to local leads in legal and dental", details=details)
@@ -716,7 +714,7 @@ def test_a_repeated_search_is_answered_from_the_results_already_had_twice(cfg):
     from explorer.policy import Denylist, Policy, PolicyContext
 
     cfg.policy.refuse_repeated_searches = True
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(), packages=PackagesConfig())
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), tasks=TasksConfig(), packages=PackagesConfig())
     base = dict(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                 episode_search_queries=["maple diner springfield contact email"])
     again = Search(type="search", query="Maple Diner Springfield contact email")
@@ -758,7 +756,7 @@ def test_the_ceo_pauses_slows_and_restarts_a_member_but_never_the_owners_stop(cf
                                     peers=[{"name": "Package Designer", "folder": str(designer)}, {"name": "Lead Gen", "folder": str(leadgen)},
                                            {"name": "Validator", "folder": str(val)}])
     ceo = make_controller(cfg)
-    policy = Policy(cfg.policy, cfg.publish, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging)
+    policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=cfg.messaging)
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=1, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     assert not policy.check(PaceMember(type="pace_member", name="Validator", mode="pause", why="x"), ctx).allowed
     assert not policy.check(PaceMember(type="pace_member", name="Lead Gen", mode="pause"), ctx).allowed  # says why

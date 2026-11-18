@@ -18,11 +18,9 @@ from .actions import (
     Ask,
     Back,
     Follow,
-    Interest,
     Lead,
     Note,
     Open,
-    Publish,
     Read,
     Rest,
     Say,
@@ -40,11 +38,6 @@ from .actions import (
     Plan,
     ProposeTeammate,
     PublishPackage,
-    App,
-    Click,
-    Hotkey,
-    Look,
-    TypeText,
     ListFiles,
     ReadFile,
     WriteFile,
@@ -52,7 +45,6 @@ from .actions import (
     Upgrade,
     UpgradeTest,
     UpgradeSubmit,
-    DESKTOP_TYPES,
     DEVELOPER_TYPES,
     NAVIGATION_TYPES,
     UPGRADE_TYPES,
@@ -61,7 +53,6 @@ from .actions import (
 from .browser import Browser, PageView
 from .chat_partner import ChatPartner
 from .developer import CHECKOUT_DIR, UPGRADE_EXIT_CODE, Developer
-from .desktop import Desktop, DesktopView, within_hours
 from .config import Config
 from .control import pause_requested, stop_requested
 from .heartbeat import Heartbeat
@@ -78,7 +69,6 @@ from collections import OrderedDict
 from .chatroom import Chatroom, is_room_recipient
 from .scout import existing_names, find_category, find_label, record_provider
 from .team import Member, default_member, find_member, load_team, team_block
-from .publish import Publisher
 from .search import Searcher, SearchPause, settings_from_config
 
 
@@ -95,11 +85,7 @@ ROOM_NUDGE_AFTER_EPISODES = 3
 # have dropped Wikipedia on its own. Reversible: the counts live in db state, the engine stays in config.
 ENGINE_PRUNE_MIN_ANSWERED = 8
 
-# A desk-agent serving the fleet over the chatroom (desktop.serve_chatroom) reads other bots' requests
-# as untrusted data. It ingests at most this many chatroom messages per episode, so a flood of them (a
-# looping bot, or web content injected via a bot's post) cannot monopolise its GUI session. Every action
-# it then takes is still bounded by the desktop guards (allowed_apps, no-destructive, dry_run) as well.
-DESKTOP_SERVE_REQUEST_CAP = 6
+
 
 
 @dataclass
@@ -172,9 +158,7 @@ class Controller:
         browser: Browser,
         policy: Policy,
         heartbeat: Heartbeat,
-        publisher: Publisher,
         logger: logging.Logger,
-        desktop: Desktop | None = None,
         chat_partner: ChatPartner | None = None,
         developer: Developer | None = None,
         quiet: QuietDetector | None = None,
@@ -190,7 +174,6 @@ class Controller:
         self.browser = browser
         self.policy = policy
         self.heartbeat = heartbeat
-        self.publisher = publisher
         self.logger = logger
         self.cycle_no = int(memory.db.get_state("cycle", "0") or 0)
         self.page: PageView | None = None
@@ -215,23 +198,11 @@ class Controller:
         self.chatroom = Chatroom(cfg.messaging.room_path()) if cfg.messaging.room else None
         self.room_seen_id = int(memory.db.get_state("chatroom_seen_id", "-1") or -1)
         self.shown_room: list = []
-        self._room_ingested_episode = 0  # chatroom messages a serving desk-agent has taken in this episode
-        self._serving_chatroom = cfg.desktop.serve_chatroom and cfg.agent.mode == "desktop" and self.chatroom is not None
         self.requests = None
         if cfg.messaging.enabled:
             from .fleet_requests import RequestLog  # every direct message on record; priority requests stay on top
 
             self.requests = RequestLog(cfg.messaging.requests_path(cfg.root), list(cfg.messaging.priority_senders))
-        self.dropbox = None
-        if cfg.desktop.dropbox_folder.strip() and cfg.agent.mode == "desktop":
-            from .dropbox import DropBox  # the owner's drop folder, polled from the idle loop
-
-            router = cfg.desktop.dropbox_router.strip()
-            self.dropbox = DropBox(Path(cfg.desktop.dropbox_folder).expanduser(), cfg.root.parent, cfg.agent.name,
-                                   router_name=router, router_folder=(cfg.messaging.folder_for(router) or "") if router else "",
-                                   done_days=cfg.desktop.dropbox_done_days, keep_days=cfg.desktop.dropbox_keep_days, logger=logger,
-                                   on_sent=(lambda id, to, text: self.requests.record(id, cfg.agent.name, to, text)) if self.requests is not None else None,
-                                   hooks=dict(cfg.desktop.dropbox_hooks))
         # Search engines in order with a pause shared by every bot on this Mac (search.py).
         if searcher is None:
             settings = settings_from_config(cfg)
@@ -279,11 +250,6 @@ class Controller:
             event(self.logger, "engine_stats_reset", epoch=epoch)
         self._last_answer_engine: str | None = None
         self._apply_engine_tuning(announce=False)
-        self.desktop = desktop if cfg.desktop.enabled else None
-        self.desktop_view: DesktopView | None = None
-        self.desktop_available = False
-        self.desktop_reason = "desktop control is disabled"
-        self.desktop_blocked_until = 0.0  # after the owner is seen, no desktop use until this time
         self.chat_partner = chat_partner if cfg.chat_partner.enabled else None
         self.partner_turns: list[dict[str, str]] = []  # this episode's conversation, reset per episode
         self.partner_turns_since_note = 0  # a soft nudge, not restart-durable, matches pages_since_note
@@ -378,9 +344,6 @@ class Controller:
         return system_prompt(
             cfg.agent.name,
             self.target.fill(cfg.agent.bio),
-            cfg.publish.enabled,
-            desktop_enabled=self.desktop is not None,
-            desktop_dry_run=cfg.desktop.dry_run,
             chat_partner_enabled=self.chat_partner is not None,
             chat_partner_name=cfg.chat_partner.name,
             developer_enabled=self.developer is not None,
@@ -398,8 +361,6 @@ class Controller:
             mode=cfg.agent.mode,
             self_goal=self.self_goal,
             self_goals_enabled=cfg.agent.self_goals,
-            desktop_serve=cfg.desktop.serve_chatroom and self.chatroom is not None,
-            desktop_remote=cfg.desktop.wake_on_chat,
             propose_teammates=cfg.agent.propose_teammates,
             disabled_actions=sorted(set(cfg.policy.disabled_actions) | hidden),
             package_page=self.package_board is not None,
@@ -463,7 +424,7 @@ class Controller:
                 if max_cycles is not None and done >= max_cycles:
                     event(self.logger, "cycles_done", cycles=done)
                     return 0
-                self._sleep(self.cfg.desktop.idle_cycle_seconds if (self.cfg.desktop.wake_on_chat and not getattr(self, "_task_active", False) and self.cfg.agent.mode == "desktop") else self._paced_delay())
+                self._sleep(self._paced_delay())
         except KeyboardInterrupt:
             event(self.logger, "stop", reason="keyboard interrupt")
             return 0
@@ -476,8 +437,6 @@ class Controller:
             self.heartbeat.tick(self.cycle_no, "exiting", force=True)
             self.memory.write_markdown_mirrors()
             self.browser.close()
-            if self.desktop is not None:
-                self.desktop.close()
 
     def _idle_reason(self) -> str:
         """Why this bot has nothing to do now ("" = it has work); see [agent] idle_when_empty."""
@@ -750,7 +709,6 @@ class Controller:
             self.pages_since_note = 0
             self.partner_turns = []
             self.partner_turns_since_note = 0
-            self._room_ingested_episode = 0
             event(self.logger, "episode", episode=eid, question=question["question"] if question else None)
             self._apply_engine_tuning()
             self._task_nudge()
@@ -758,54 +716,9 @@ class Controller:
             assert ep is not None
         return ep
 
-    def _poll_dropbox(self) -> None:
-        """The owner's drop folder: route replies from the router are carried out and never shown to the model; new files
-        are announced; each outcome is one report line the owner sees in the chatroom."""
-        if self.dropbox is None:
-            return
-        try:
-            reports, consumed = self.dropbox.poll(self.inbox.unread(20))
-        except OSError as exc:
-            event(self.logger, "dropbox_error", error=str(exc)[:200])
-            return
-        if consumed:
-            self.inbox.mark_seen(consumed)
-            if self.requests is not None:
-                for m in consumed:
-                    try:
-                        self.requests.resolve(m.path.name, "route line carried out by the drop folder")
-                    except OSError:
-                        pass
-        for line in reports:
-            event(self.logger, "dropbox", text=line[:200])
-            self._report(f"drop folder: {line}"[:400])
-
-    def _idle_for_chat(self) -> bool:
-        """Desktop remote control: True when there is nothing to do -- no unread owner message and no task under way --
-        so the cycle costs a heartbeat, not a model call. A task is under way from an owner message until the model
-        summarises (ends the episode) or has gone `max_idle_task_actions` actions without another owner word."""
-        d = self.cfg.desktop
-        if not (d.enabled and d.wake_on_chat and self.cfg.agent.mode == "desktop"):
-            return False
-        if self.memory.unseen_owner_messages(1):
-            self._task_active = True
-            self._task_actions = 0
-            return False
-        if not getattr(self, "_task_active", False):
-            return True
-        ep = self.memory.current_episode()
-        if ep is None or self._task_actions >= 24:
-            self._task_active = False
-            return True
-        return False
-
     def _cycle(self) -> None:
         self.cycle_no += 1
         self.memory.db.set_state("cycle", str(self.cycle_no))
-        self._poll_dropbox()
-        if self._idle_for_chat():
-            self.heartbeat.tick(self.cycle_no, "idle (waiting for a task in chat)")
-            return
         if getattr(self, "_task_active", False):
             self._task_actions = getattr(self, "_task_actions", 0) + 1
         ep = self._ensure_episode()
@@ -844,8 +757,6 @@ class Controller:
             self.shown_room = []
         decision = result.decision
         action = decision.action
-        if self.cfg.agent.mode == "desktop":
-            action = self._desktop_guard(action)
         if isinstance(action, Note) and self.page is not None and self.page.ok and self.cfg.agent.mode != "fake":
             src = (action.source_url or "").strip()
             if not src.startswith(("http://", "https://", "corpus://")):  # 27 notes refused for a bad/missing source, 2026-09-29
@@ -892,8 +803,6 @@ class Controller:
                 if verdict.tag == "domain_cap":
                     self._plan_stuck_on_domain(target or "", verdict.reason)
             self.feedback = f"Your last action ({action.type}) was not allowed: {verdict.reason}"
-            if action.type in DESKTOP_TYPES:
-                self._note_desktop_blocker(verdict.reason, ep)
             self.heartbeat.record_action(action.type, key, progress=False)
             self.heartbeat.tick(self.cycle_no, "running", self._current_url(), obs.current_question)
             self.refusal_streak += 1
@@ -908,8 +817,6 @@ class Controller:
                 self._close_early(ep, f"{self.refusal_streak} refused actions in a row")
             return
         self.refusal_streak = 0
-        if action.type in DESKTOP_TYPES:
-            self._clear_desktop_blockers(ep)
         exec_result = self._execute(action, ep, target)
         self.memory.bump_episode_actions(ep["id"])
         # A write that the policy allowed but the executor could not complete (the board's 404, a peer folder gone) is
@@ -1080,9 +987,6 @@ class Controller:
             extra = f"{self._current_url() or ''}:{self.page_offset}"
         elif isinstance(action, Summarize):
             extra = str(ep["id"])
-        elif isinstance(action, (Click, TypeText, Hotkey)):
-            view = self.desktop_view
-            extra = f"{view.app.name}:{view.window_title}" if view is not None and view.app is not None else ""
         return action_key(action, resolved_url=target, extra=extra)
 
     def _text_window(self) -> tuple[str, bool]:
@@ -1201,8 +1105,6 @@ class Controller:
             skills.append(("task", "task", "create a task on the team's board", memory.count_tasks_today(), self.cfg.tasks.max_per_day))
         if self.cfg.handoff.enabled:
             skills.append(("package", "package", f"hand a package to {self.cfg.handoff.to_name}", memory.count_actions_today("package"), self.cfg.handoff.max_per_day))
-        if self.cfg.publish.enabled:
-            skills.append(("publish", "post", "publish a post to your site", memory.count_actions_today("publish"), self.cfg.publish.max_posts_per_day))
         # Once today's cap is reached the policy refuses every further one, so nagging for output would
         # only send a small model into a refuse-retry loop. Say the opposite instead.
         capped = [(noun, done) for _, noun, _, done, cap in skills if cap > 0 and done >= cap]
@@ -1364,7 +1266,7 @@ class Controller:
         if question is not None and question["status"] != "open":
             question = None  # already answered: stop presenting it, or the model keeps re-answering it
         owner_rows = self.memory.unseen_owner_messages(5)
-        if self.requests is not None and owner_rows and self.cfg.agent.mode != "desktop":  # the desk agent's chat IS its task queue
+        if self.requests is not None and owner_rows:
             try:  # an owner chat line that asks for something is the bot's top request until it acts (The CEO promised in
                 for row in owner_rows:  # chat to steer two colleagues and sent nothing for 25 minutes, 2026-09-25)
                     self.requests.record_owner_instruction(f"owner-chat-{int(row['id'])}", self.cfg.agent.name, str(row["text"]),
@@ -1383,37 +1285,11 @@ class Controller:
                 pass
         self.shown_inbox = sorted(unread, key=lambda m: (m.sender.strip().lower() not in prio, str(m.path)))[:3]
         self.shown_room = self.chatroom.since(self.room_seen_id, self.cfg.agent.name, 5) if self.chatroom else []
-        if self._serving_chatroom:
-            # A serving desk-agent treats room posts as untrusted requests; cap how many it takes per
-            # episode so a flood cannot fill its GUI session. Extra ones wait (the marker only advances
-            # over what is shown), to be seen next episode.
-            room_left = max(0, DESKTOP_SERVE_REQUEST_CAP - self._room_ingested_episode)
-            self.shown_room = self.shown_room[:room_left]
-            self._room_ingested_episode += len(self.shown_room)
         # The room reads as a conversation, not a one-shot inbox: show the recent transcript every cycle
         # (so a bot can reply in context), and nudge a reply when a colleague has posted something new.
         room_transcript = [p.render() for p in self.chatroom.recent(6)] if self.chatroom else []
         room_reply = bool(self.shown_room)
         self.shown_owner_ids = [int(r["id"]) for r in owner_rows]
-        self.desktop_available, self.desktop_reason = self._desktop_window()
-        desktop_note: str | None = None
-        desktop_lines: list[str] = []
-        if self.desktop is not None:
-            if self.desktop_available:
-                dry = " (dry run: your desktop actions are logged, not performed)" if self.cfg.desktop.dry_run else ""
-                desktop_note = f"the Mac is free; apps you may use: {', '.join(self.cfg.desktop.allowed_apps)}{dry}"
-                if self.desktop_view is not None:
-                    desktop_lines = self.desktop_view.render()
-                elif self.memory.notes_for_episode(ep["id"]) and self.cfg.desktop.allowed_apps:
-                    # A concrete next step lands far better with a small model than a standing permission.
-                    first = self.cfg.desktop.allowed_apps[0]
-                    desktop_note += (
-                        f'. You have notes from this episode: write them up in {first} with '
-                        f'{{"type":"app","name":"{first}"}}, then type a few sentences into its document.'
-                    )
-            else:
-                desktop_note = f"not available ({self.desktop_reason})"
-                self.desktop_view = None
         links = self._visible_links()
         eid = ep["id"]
         every = self.cfg.agent.triage_every_episodes
@@ -1458,7 +1334,6 @@ class Controller:
             page_has_more=has_more,
             visited_urls=self.memory.visited_among(link.url for link in links),
             feedback=self.feedback,
-            publish_destinations=list(self.cfg.publish.destinations) if self.cfg.publish.enabled else [],
             visible_links=links,
             owner_messages=[str(r["text"]) for r in owner_rows],
             bot_messages=[m.render() for m in self.shown_inbox],
@@ -1470,8 +1345,6 @@ class Controller:
             curiosity=curiosity,
             reflection=reflection,
             reflection_journal=reflection_journal,
-            desktop_note=desktop_note,
-            desktop_lines=desktop_lines,
             developer_note=self._developer_note(),
             owner_goal_line=self.owner_plan.step_line(),
             plan_lines=self._plan_lines(),
@@ -1489,127 +1362,6 @@ class Controller:
             decide_hint=(self.cfg.leads.decide_hint + self._rates_text()) if (self.cfg.leads.decide_glob.strip() or self.cfg.leads.draft_queue_column.strip()) else "",
             dead_ends=self._dead_ends(),
         )
-
-    def _desktop_guard(self, action: Action) -> Action:
-        """Desktop mode: refuse web actions, and never drive the GUI with the local fallback model.
-        A blocked action becomes a short rest with feedback so the model tries again correctly."""
-        from .actions import Rest
-
-        if action.type in ("search", "open", "follow", "read", "back", "publish"):
-            self.feedback = (
-                f"You are in desktop mode: there is no web here and {action.type} does not exist. "
-                "Operate the Mac's apps instead."
-            )
-            return Rest(type="rest", seconds=5)
-        # Fail closed: a model with no `using_fallback` (a bare OllamaModel, when provider="remote"
-        # has no key) is local, so it must not act. Only a real FallbackModel on a remote returns False.
-        if action.type in ("app", "look", "click", "type", "hotkey") and getattr(self.model, "using_fallback", True):
-            self.feedback = (
-                "No online model is available right now, so I will not operate the Mac with the local "
-                "model. Resting until an online model is back."
-            )
-            memory = getattr(self, "memory", None)  # tests drive this guard on a bare stand-in
-            ep = memory.current_episode() if memory is not None else None
-            if ep is not None:
-                self._note_desktop_blocker("no online model is available", ep)
-            return Rest(type="rest", seconds=60)
-        return action
-
-    # -- blockers: figured out and routed by the controller, not left to the model -----------------------------------
-
-    BLOCKER_FIXES = (
-        ("accessibility", "grant Accessibility to this bot's desktop app in System Settings > Privacy & Security > Accessibility, then I retry"),
-        ("screen is locked", "unlock the Mac (or leave it unlocked while I work); I retry when it is"),
-        ("screensaver", "wake the screen; I retry when it is"),
-        ("owner was using the mac", "I wait until the Mac has had no local input for a few minutes, then continue by itself"),
-        ("owner used the mac", "I wait until the Mac has had no local input for a few minutes, then continue by itself"),
-        ("outside the allowed hours", "the [desktop] hours window in my config decides when I may work; widen it or wait"),
-        ("not one of your allowed apps", "add the app to [desktop] allowed_apps in my config if you want me to use it"),
-        ("is not allowed", "add the app to [desktop] allowed_apps in my config if you want me to use it"),
-        ("no online model", "every remote model is capped or rate-limited right now; I retry when one answers (the local model never drives the Mac)"),
-        ("hotkey", "that shortcut is on the never-allowed list or not in [desktop] allowed_hotkeys"),
-        ("desktop control is disabled", "set [desktop] enabled = true in my config"),
-    )
-
-    def _blocker_fix(self, reason: str) -> str:
-        low = reason.lower()
-        for needle, fix in self.BLOCKER_FIXES:
-            if needle in low:
-                return fix
-        return "check my log for the refused step; if the rule is right, the task needs a different approach"
-
-    def _clear_desktop_blockers(self, ep: Any) -> None:
-        """A GUI step went through after blockers were reported: tell the checker they are resolved (same line shape,
-        "resolved:" prefix) so it can close them without waiting for its own re-verification."""
-        counts = self.__dict__.get("_desktop_blockers") or {}
-        reported = [k for k, v in counts.items() if k != "_episode" and v >= 1]
-        if not reported:
-            return
-        self._desktop_blockers = {}
-        folder = self.cfg.desktop.blocker_report_folder.strip()
-        if folder:
-            try:
-                send_message(Path(folder).expanduser(), self.cfg.agent.name,
-                             "resolved: " + "; ".join(reported)[:300] + " | a GUI step was allowed again")
-            except OSError:
-                pass
-        event(self.logger, "desktop_blocker_resolved", reasons=reported[:5])
-
-    def _note_desktop_blocker(self, reason: str, ep: Any) -> None:
-        """Count a refused GUI step; the second time the same blocker stops a task in one episode (Accessibility at
-        once), tell the owner in the chat what blocks it and what fixes it, post a report line, and ask the checker
-        bot to verify -- once per blocker per episode. The model then has nothing to figure out or repeat."""
-        key = reason.strip().lower()[:80]
-        counts = self.__dict__.setdefault("_desktop_blockers", {})
-        eid = int(ep["id"]) if ep is not None else -1
-        if counts.get("_episode") != eid:
-            counts.clear(); counts["_episode"] = eid
-        counts[key] = counts.get(key, 0) + 1
-        urgent = "accessibility" in key or "no online model" in key
-        if counts[key] != (1 if urgent else 2):
-            return
-        fix = self._blocker_fix(reason)
-        task = ""
-        try:
-            last = self.memory.db.query("SELECT text FROM chat WHERE role = 'owner' ORDER BY id DESC LIMIT 1")
-            task = str(last[0]["text"])[:120] if last else ""
-        except Exception:  # noqa: BLE001
-            task = ""
-        line = f"Blocked{(' on: ' + task) if task else ''}. Why: {reason}. Fix: {fix}."
-        self.memory.add_chat("system", line)
-        self.feedback = (self.feedback or "") + f" You have already told the owner this blocker ({reason}); do not retry that step. Rest until your state changes or the owner writes."
-        self._report(f"blocked{(' on ' + repr(task[:60])) if task else ''}: {reason}")
-        folder = self.cfg.desktop.blocker_report_folder.strip()
-        if folder:
-            try:
-                send_message(Path(folder).expanduser(), self.cfg.agent.name,
-                             f"blocker: {reason} | task: {task or '(none in chat)'} | fix suggested to owner: {fix} | please verify the cause and file it")
-            except OSError as exc:
-                self.logger.warning("could not tell the checker about a blocker: %s", exc)
-        event(self.logger, "desktop_blocker", reason=reason[:160], task=task[:120], fix=fix[:160])
-
-    def _desktop_window(self) -> tuple[bool, str]:
-        """Is the Mac free for the agent right now? Also notices the owner coming back."""
-        if self.desktop is None:
-            return False, "desktop control is disabled"
-        dcfg = self.cfg.desktop
-        now = time.time()
-        status = self.desktop.status()
-        if status.human_detected:
-            self.desktop_blocked_until = max(self.desktop_blocked_until, now + dcfg.idle_minutes * 60)
-            if self.desktop_view is not None:
-                event(self.logger, "human_present")
-                self.memory.write_journal("The owner came back, so I stopped using the Mac.", heading="Desktop")
-                self.desktop_view = None
-        if now < self.desktop_blocked_until:
-            return False, "the owner was using the Mac a moment ago"
-        if not status.safe:
-            return False, status.reason
-        if status.idle_seconds < dcfg.idle_minutes * 60:
-            return False, f"the owner used the Mac {int(status.idle_seconds)}s ago"
-        if dcfg.hours and not within_hours(dcfg.hours):
-            return False, f"outside the allowed hours ({dcfg.hours})"
-        return True, ""
 
     def _visible_links(self) -> list:
         """Links the model may actually follow: drop denylisted, private, wrong-scheme, and blocked targets."""
@@ -1659,7 +1411,6 @@ class Controller:
             "providers_today": lambda: memory.count_actions_today("provider"),
             "recent_provider_names": lambda: existing_names(Path(self.cfg.scout.report_file).expanduser()),
             "fleet_provider_names": self._fleet_provider_names,
-            "posts_today": (lambda: memory.count_actions_today("publish")) if self.cfg.publish.enabled else (lambda: 0),
             "packages_in_episode": lambda: memory.count_actions(eid, "package"),
             "packages_today": lambda: memory.count_actions_today("package"),
             "recent_package_names": memory.recent_package_names,
@@ -1721,9 +1472,6 @@ class Controller:
             day_blocked_keys=set(self._day_blocks()),
             pages_since_note=self.pages_since_note,
             partner_turns_since_note=self.partner_turns_since_note,
-            desktop_available=self.desktop_available,
-            desktop_reason=self.desktop_reason,
-            desktop_view=self.desktop_view,
             upgrade_active=upgrade_active,
             upgrade_tests_passed=upgrade_tests_passed,
             upgrade_touches_protected=upgrade_protected,
@@ -1898,23 +1646,8 @@ class Controller:
                 qid = self.memory.add_question(action.question)
                 self.pages_since_note = 0
                 return ExecResult(True, f"recorded question #{qid}", True)
-            if isinstance(action, Interest):
-                weight = self.memory.adjust_interest(action.topic, action.delta)
-                return ExecResult(True, f"interest '{action.topic.strip().lower()}' is now {weight:.2f}", True)
             if isinstance(action, Summarize):
                 return self._consolidate(ep)
-            if isinstance(action, Publish):
-                from .publish import PublishError
-
-                try:
-                    where = self.publisher.publish(action.destination, action.title, action.body)
-                except PublishError as exc:
-                    # A git post is committed before the push, so a failed push is not a lost post.
-                    return ExecResult(
-                        False, f"publishing to {action.destination} failed: {exc}", False,
-                        feedback="The post could not be published (it may be saved locally). Do not retry it this episode.",
-                    )
-                return ExecResult(True, f"published to {action.destination}: {where}", True)
             if isinstance(action, Rest):
                 self._sleep(action.seconds)
                 return ExecResult(True, f"rested {action.seconds}s", False)
@@ -1946,8 +1679,6 @@ class Controller:
                 return self._execute_propose_teammate(action)
             if isinstance(action, PublishPackage):
                 return self._execute_publish_package(action)
-            if action.type in DESKTOP_TYPES:
-                return self._execute_desktop(action)
             if action.type in DEVELOPER_TYPES or action.type in UPGRADE_TYPES:
                 return self._execute_developer(action)
             return ExecResult(False, f"unknown action {action.type}", False)
@@ -3918,70 +3649,6 @@ class Controller:
             return ExecResult(True, f"merged the change as {new_head[:8]}; restarting on it", True)
         return ExecResult(False, f"unknown developer action {action.type}", False)
 
-    def _execute_desktop(self, action: Action) -> ExecResult:
-        """Desktop actions. The policy already validated them; here the presence check runs once more,
-        right before touching anything, and dry run logs instead of acting."""
-        assert self.desktop is not None
-        dry = self.cfg.desktop.dry_run
-        before = self.desktop_view.signature if self.desktop_view is not None else None
-        view_id = self.desktop_view.view_id if self.desktop_view is not None else 0
-        status = self.desktop.status()
-        if not status.safe:
-            self.desktop_blocked_until = time.time() + self.cfg.desktop.idle_minutes * 60
-            self.desktop_view = None
-            return ExecResult(False, f"stopped touching the Mac: {status.reason}", False)
-        if isinstance(action, Look):
-            view, label = self.desktop.look(), "looked at the screen"
-        elif isinstance(action, App):
-            if dry:
-                view, label = self.desktop.look(), f"dry run: would bring {action.name} to the front"
-            else:
-                view, label = self.desktop.activate(action.name), f"brought {action.name} to the front"
-        elif isinstance(action, Click):
-            el = self.desktop_view.element(action.number) if self.desktop_view is not None else None
-            what = f"[{action.number}] {el.role} '{el.title}'" if el is not None else f"[{action.number}]"
-            if dry:
-                view, label = self.desktop.look(), f"dry run: would click {what}"
-            else:
-                view, label = self.desktop.click(action.number, view_id), f"clicked {what}"
-        elif isinstance(action, TypeText):
-            shown = action.text[:40] + ("…" if len(action.text) > 40 else "")
-            if dry:
-                view, label = self.desktop.look(), f"dry run: would type {shown!r}"
-            else:
-                view, label = self.desktop.type_text(action.text, view_id), f"typed {shown!r}"
-        elif isinstance(action, Hotkey):
-            if dry:
-                view, label = self.desktop.look(), f"dry run: would press {action.combo}"
-            else:
-                view, label = self.desktop.hotkey(action.combo, view_id), f"pressed {action.combo}"
-        else:
-            return ExecResult(False, f"unknown desktop action {action.type}", False)
-        if dry:
-            event(self.logger, "desktop_dryrun", action=action.type, detail=label)
-        if not view.ok:
-            if dry:
-                # Nothing was done; the screen just could not be read (e.g. no app in front yet).
-                return ExecResult(True, f"{label} (screen not readable: {view.error})", False)
-            self.desktop_view = self.desktop.current()
-            return ExecResult(False, f"{label}: failed, {view.error}", False)
-        self.desktop_view = view
-        self._desktop_snapshot()
-        changed = view.signature != before
-        return ExecResult(True, label + ("" if changed else " (nothing on the screen changed)"), changed and not dry)
-
-    def _desktop_snapshot(self) -> None:
-        if not self.cfg.dashboard.screenshots or self.desktop is None:
-            return
-        target = self.cfg.screenshot_dir / "current.png"
-        tmp = target.with_name("current.tmp.png")
-        try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if self.desktop.screenshot(tmp):
-                tmp.replace(target)
-        except Exception:  # noqa: BLE001
-            self.logger.debug("desktop screenshot failed", exc_info=True)
-
     def _after_nav(self, page: PageView, label: str) -> ExecResult:
         self.memory.record_visit(page.url, page.title, page.ok, page.error)
         gated = self._site_gate(page) if page.ok else None
@@ -4291,65 +3958,12 @@ class Controller:
         self.page_offset = 0
         event(self.logger, "journal", episode=ep["id"], notes=len(notes), chars=len(text))
         summary = f"wrote a journal entry ({len(text)} chars) and closed episode {ep['id']} with {len(notes)} notes"
-        typed = self._desktop_journal(heading, text)
-        if typed:
-            summary += f" and {typed}"
         return ExecResult(True, summary, True)
-
-    def _desktop_journal(self, heading: str, text: str) -> str | None:
-        """When the Mac is free, write the journal entry into the first allowed app (TextEdit by default) so
-        the owner finds it on the screen. A fixed routine, not a model choice: in dry runs the 7B model never
-        picked a desktop action on its own. Returns a short description for the action summary, or None."""
-        if self.desktop is None or not self.cfg.desktop.allowed_apps:
-            return None
-        available, _reason = self._desktop_window()
-        if not available:
-            return None
-        app = self.cfg.desktop.allowed_apps[0]
-        entry = f"{heading}\n\n{text}\n\n"
-        if self.cfg.desktop.dry_run:
-            event(self.logger, "desktop_dryrun", action="journal", detail=f"would type the journal entry into {app}")
-            return f"would have typed it into {app} (dry run)"
-        try:
-            view = self.desktop.activate(app)
-            if not view.ok:
-                event(self.logger, "desktop_journal_failed", reason=view.error)
-                return None
-            focused = view.element(view.focused) if view.focused else None
-            if focused is None or not focused.editable or focused.secure:
-                target = next((e for e in view.elements if e.editable and not e.secure and e.role == "text area"), None)
-                target = target or next((e for e in view.elements if e.editable and not e.secure), None)
-                if target is None and "cmd+n" in {h.lower() for h in self.cfg.desktop.allowed_hotkeys}:
-                    view = self.desktop.hotkey("cmd+n", view.view_id)  # a fresh document
-                    target = next((e for e in view.elements if e.editable and not e.secure), None) if view.ok else None
-                if target is None:
-                    event(self.logger, "desktop_journal_failed", reason=f"{app} shows nothing to type into")
-                    return None
-                view = self.desktop.click(target.number, view.view_id)
-                if not view.ok:
-                    event(self.logger, "desktop_journal_failed", reason=view.error)
-                    return None
-            limit = max(50, self.cfg.desktop.max_type_chars)
-            for start in range(0, len(entry), limit):
-                view = self.desktop.type_text(entry[start : start + limit], view.view_id)
-                if not view.ok:  # the owner came back, or the screen changed under us: stop at once
-                    event(self.logger, "desktop_journal_failed", reason=view.error, typed=start)
-                    self.desktop_view = None
-                    return f"started typing it into {app} but stopped ({view.error})"
-            self.desktop_view = view
-            self._desktop_snapshot()
-            event(self.logger, "desktop_journal", app=app, chars=len(entry))
-            return f"typed it into {app}"
-        except Exception:  # noqa: BLE001 - the journal is already saved; the Mac copy is a bonus
-            self.logger.exception("desktop journal failed")
-            return None
 
     # ---- watchdog ----------------------------------------------------------
 
     def _watchdog(self) -> None:
         problems = self.heartbeat.check()
-        if "stalled" in problems and self._idle_for_chat():
-            problems = [p for p in problems if p != "stalled"]  # waiting for a task in the chat is the design, not a stall
         if "stalled" in problems:
             # A slow bot is not a stalled bot: the Scout acts every ten minutes, so one failed search and a rest already
             # passed the 15-minute mark and the watchdog closed its episode five times in an evening (2026-10-02). A stall
@@ -4390,11 +4004,4 @@ class Controller:
             self.browser.reset()
             self.page = None
             self.page_offset = 0
-            if self.desktop is not None:
-                try:
-                    self.desktop.cancel_modal()
-                    self.desktop.reset()
-                except Exception:  # noqa: BLE001
-                    self.logger.debug("desktop reset failed", exc_info=True)
-                self.desktop_view = None
             self.heartbeat.mark_progress()

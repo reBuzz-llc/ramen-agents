@@ -37,7 +37,6 @@ from .model import (
 )
 from .policy import Allowlist, Denylist, Policy, RobotsCache
 from .presence import QuietDetector
-from .publish import Publisher
 
 
 def build_boards(cfg: Config, logger: logging.Logger) -> tuple[Any, Any]:
@@ -149,10 +148,8 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
     leads_board, board = build_boards(cfg, logger)
     policy = Policy(
         cfg.policy,
-        cfg.publish,
         denylist,
         robots,
-        desktop=cfg.desktop,
         chat_partner=cfg.chat_partner,
         developer=cfg.developer,
         developer_root=developer_root,
@@ -168,21 +165,6 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         leads=cfg.leads,
     )
     heartbeat = Heartbeat(db, cfg.watchdog)
-    publisher = Publisher(cfg.publish, cfg.root, cfg.agent.name, cfg.agent.bio)
-    desktop = None
-    if cfg.desktop.enabled:
-        if cfg.desktop.backend == "fake":
-            from .desktop import FakeDesktop
-
-            desktop = FakeDesktop(max_elements=cfg.desktop.max_elements)
-        else:
-            try:
-                from .desktop_mac import MacDesktop
-            except ImportError as exc:
-                raise SystemExit(
-                    f"desktop.backend = 'mac' needs the pyobjc extras: .venv/bin/pip install -e '.[desktop]' ({exc})"
-                ) from exc
-            desktop = MacDesktop(cfg.desktop, logger)
     chat_partner = OllamaChatPartner(cfg.chat_partner, logger) if cfg.chat_partner.enabled else None
     developer = None
     if cfg.developer.enabled:
@@ -198,8 +180,8 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
 
         transcripts = YouTubeTranscripts(cfg.browser.video_transcript_languages, logger=logger)
     return Controller(
-        cfg, memory, model, browser, policy, heartbeat, publisher, logger,
-        desktop=desktop, chat_partner=chat_partner, developer=developer, quiet=quiet, board=board,
+        cfg, memory, model, browser, policy, heartbeat, logger,
+        chat_partner=chat_partner, developer=developer, quiet=quiet, board=board,
         transcripts=transcripts,
         searcher=searcher,
         leads_board=leads_board,
@@ -440,12 +422,6 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
     if inbox.is_dir():
         waiting = len(list(inbox.glob("*.json")))
         print(f"note  inbox: {waiting} unread message(s) from other bots, {len(list((inbox / 'done').glob('*.json')))} seen")
-    if cfg.publish.enabled or args.all:
-        destinations = ", ".join(cfg.publish.destinations)
-        print(f"note  publishing {'on' if cfg.publish.enabled else 'off'}: {destinations} (max {cfg.publish.max_posts_per_day} posts a day)")
-        if "git" in cfg.publish.destinations:
-            good, text = Publisher(cfg.publish, cfg.root, cfg.agent.name, cfg.agent.bio).status()
-            report(good or not cfg.publish.enabled, text)
     if cfg.policy.allowlist_file.strip():
         allow_path = cfg.path(cfg.policy.allowlist_file)
         allowed = Allowlist.load(allow_path)
@@ -493,22 +469,6 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         print("note  quiet mode is off: the agent keeps working while you use the Mac")
     if pause_requested(cfg):
         print("note  PAUSE flag present")
-    if args.desktop or (cfg.desktop.enabled and cfg.desktop.backend == "mac"):
-        try:
-            from .desktop_mac import doctor
-        except ImportError as exc:
-            report(False, f"desktop extras missing: .venv/bin/pip install -e '.[desktop]' ({exc})")
-        else:
-            facts = doctor()
-            report(facts["accessibility"], "Accessibility permission")
-            report(facts["screen_recording"], "Screen Recording permission (dashboard pictures of the screen)")
-            if not (facts["accessibility"] and facts["screen_recording"]):
-                print(f"note  grant both in System Settings > Privacy & Security to: {facts['grant_to']}")
-                print("note  (use the + button, press Cmd+Shift+G in the file dialog, paste the path)")
-            print(f"note  launched from: {facts['parent_process'] or 'unknown'} (from a terminal, that app is what macOS asks about)")
-            print(f"note  on console: {facts['on_console']}, locked: {facts['locked']}, idle: {facts['idle_seconds']}s, front: {facts['frontmost']}")
-            apps = ", ".join(cfg.desktop.allowed_apps)
-            print(f"note  desktop: enabled={cfg.desktop.enabled} backend={cfg.desktop.backend} dry_run={cfg.desktop.dry_run} apps={apps}")
     return 0 if ok else 1
 
 
@@ -861,7 +821,6 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("init", help="create the workspace and database").set_defaults(func=cmd_init)
     check = sub.add_parser("check", help="verify the environment")
     check.add_argument("--all", action="store_true", help="check every backend, not only the configured ones")
-    check.add_argument("--desktop", action="store_true", help="report macOS permissions and presence for desktop control")
     check.set_defaults(func=cmd_check)
     journal = sub.add_parser("journal", help="print a day's journal")
     journal.add_argument("--date", help="YYYY-MM-DD (default: today)")

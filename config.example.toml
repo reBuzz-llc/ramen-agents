@@ -161,23 +161,6 @@ max_model_failures = 5
 # After a failed model call, wait this many seconds times the failures in a row (at most 60) before retrying.
 model_failure_backoff_seconds = 5
 
-[publish]
-# Milestone 4, off by default. "local" writes Markdown files into local_dir. "git" writes posts into
-# a repository the agent owns (git_dir, created on the first post) and commits; with git_remote set
-# it also pushes there. The owner creates that repository, says in its description that a bot runs
-# it, and makes a token scoped to that one repository (GitHub: fine-grained, Contents read/write):
-#   umask 077 && printf '%s' 'github_pat_...' > ~/bots/common-data/keys/github.key
-# The token never goes into the remote URL or the repo config. `bot check` verifies it.
-enabled = false
-destinations = ["local"]
-local_dir = "workspace/published"
-git_dir = "workspace/site"
-git_branch = "main"
-git_remote = ""   # e.g. "https://github.com/<owner>/<repo>.git"
-git_token_file = "~/bots/common-data/keys/github.key"
-git_author_email = "bot@localhost"
-max_posts_per_day = 3
-
 [dashboard]
 # `bot dashboard` listens here. Keep the host on this machine.
 host = "127.0.0.1"
@@ -278,22 +261,6 @@ protected_names = ["policy.py", "control.py", "config.py", "supervise.sh", "laun
 # and EXPLORER_MAX_ROLLBACKS in the launch agent's environment to change that.
 upgrade_enabled = false
 upgrade_branch_prefix = "bot/proposal-"
-
-[desktop]
-# Letting the agent use the Mac itself, only while you are away. Off by default; dry run by default.
-enabled = false
-# mac = the real Mac through the accessibility tree (needs the pyobjc extras and permissions), fake = tests
-backend = "mac"
-# true: desktop actions are validated and logged but not performed
-dry_run = true
-# the Mac counts as free after this long without human input
-idle_minutes = 10
-# only within these hours, e.g. "22:00-07:00"; empty means any time
-hours = ""
-allowed_apps = ["TextEdit", "Calculator", "Notes"]
-allowed_hotkeys = ["cmd+n", "cmd+a", "cmd+z", "cmd+shift+z", "escape", "return", "tab"]
-max_elements = 150
-max_type_chars = 500
 
 [paths]
 workspace = "workspace"

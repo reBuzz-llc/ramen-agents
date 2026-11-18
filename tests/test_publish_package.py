@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from explorer.actions import Decision, PublishPackage, SourceCompany
-from explorer.config import HandoffConfig, PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
+from explorer.config import HandoffConfig, PackagesConfig, TasksConfig, PolicyConfig
 from explorer.handoff import find_package, send_package
 from explorer.model import ModelResult
 from explorer.board import FakeBoard
@@ -29,9 +29,9 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_needs_the_page_and_publishes_each_once():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    off = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
     assert "not enabled" in off.check(pub(), ctx()).reason  # no package_page_id
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    on = Policy(PolicyConfig(), Denylist(),
                 tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert on.check(pub(), ctx()).allowed
     assert not on.check(pub(title=""), ctx()).allowed
@@ -99,7 +99,7 @@ def test_the_configured_signoff_replaces_whatever_the_model_wrote():
 
 
 def test_the_email_may_not_name_a_price_the_record_does_not_have():
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    on = Policy(PolicyConfig(), Denylist(),
                 tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     record = {"name": "Acme POS", "price": "Priced per deployment; a fixed quote follows a demo", "rationale": "our own product",
               "audience": "chains", "timeline": "", "deliverables": ["POS at every location"]}
@@ -107,11 +107,11 @@ def test_the_email_may_not_name_a_price_the_record_does_not_have():
     invented = on.check(pub(email="Hi,\nstarting at $2,500 for setup with ongoing management from $500/month.\nRegards,\n-- Acme LLC"), c)
     assert not invented.allowed and "$2,500" in invented.reason and "Priced per deployment" in invented.reason
     assert on.check(pub(email="Hi,\nAcme POS is priced per deployment; a fixed quote follows a demo.\nRegards,\n-- Acme LLC"), c).allowed
-    portfolio = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    portfolio = Policy(PolicyConfig(), Denylist(),
                        tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"]))
     assert portfolio.check(pub(email="Hi,\nOur top client does $500,000 a month, up from $300,000.\nRegards,\n-- Acme LLC"), c).allowed
     assert not portfolio.check(pub(email="Hi,\nSetup is $2,500.\nRegards,\n-- Acme LLC"), c).allowed
-    strict = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    strict = Policy(PolicyConfig(), Denylist(),
                     tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"], email_required_phrases=["Alex", "Sam", "$500,000", "$300,000"]))
     short = strict.check(pub(email="Hi,\nPriced per deployment.\nRegards,\n-- Acme LLC"), c)
     assert not short.allowed and "'Alex'" in short.reason and "$500,000" in short.reason
@@ -124,12 +124,12 @@ def test_the_email_may_not_name_a_price_the_record_does_not_have():
 def test_a_trailing_comma_does_not_make_a_new_money_figure():
     # 26 refusals in 44 h: the CEO wrote "$15,000 - $30,000," at a clause end and the check saw "$30,000," (2026-09-27)
     from explorer.policy import Policy, Denylist, PolicyContext
-    from explorer.config import PolicyConfig, PublishConfig, PackagesConfig, TasksConfig
+    from explorer.config import PolicyConfig, PackagesConfig, TasksConfig
     from explorer.actions import PublishPackage
     from conftest import DENYLIST
 
     tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, email_allowed_figures=["$500,000", "$300,000"])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx.package_record = lambda name: {"name": name, "price": "$15,000 - $30,000", "deliverables": ["a", "b"]}
     action = PublishPackage(type="publish_package", name="MVP", title="MVP -- $15,000 - $30,000",
@@ -141,13 +141,13 @@ def test_a_trailing_comma_does_not_make_a_new_money_figure():
 def test_price_rule_modes_record_range_off():
     # owner, 2026-09-28: "let ceoA do whatever he wants with prices" -- built as modes record / range / off / visible
     from explorer.policy import Policy, Denylist, PolicyContext
-    from explorer.config import PolicyConfig, PublishConfig, PackagesConfig, TasksConfig
+    from explorer.config import PolicyConfig, PackagesConfig, TasksConfig
     from explorer.actions import PublishPackage
     from conftest import DENYLIST
 
     def check(rule, price_line):
         tasks_cfg, packages_cfg = TasksConfig(enabled=True), PackagesConfig(enabled=True, email_price_rule=rule)
-        policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
+        policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=tasks_cfg, packages=packages_cfg)
         ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
         ctx.package_record = lambda name: {"name": name, "price": "$15,000 - $30,000", "deliverables": ["a", "b"]}
         action = PublishPackage(type="publish_package", name="MVP", title="MVP", conclusion="fits",
@@ -186,9 +186,9 @@ def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
     """2026-10-10: The CEO retried one republish 118 times in a day, a fresh attempt every episode."""
     from explorer.actions import PublishPackage
     from explorer.config import PackagesConfig, TasksConfig
-    from explorer.policy import Denylist, Policy, PolicyContext, PublishConfig, PolicyConfig
+    from explorer.policy import Denylist, Policy, PolicyContext, PolicyConfig
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_own=True))
+    policy = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_own=True))
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
                         packages_refused_today={"smb ai customer support agent setup"})
     v = policy.check(PublishPackage(type="publish_package", name="SMB AI Customer Support Agent Setup", title="T", email="e", conclusion=""), ctx)
@@ -206,7 +206,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     names = ["24/7 AI Customer Support Agents for Small Shops – Setup & Management",
              "AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops"]
     assert len({package_key(n) for n in names}) == 1
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
+    policy = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
     now = time.time()
     day = lambda d: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - d * 86400))  # noqa: E731
     recent = {package_key(names[0]): day(1)}
@@ -214,7 +214,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
     assert not v.allowed and "published 1 day ago" in v.reason and v.permanent
     assert policy.check(pub(), ctx(recent_package_publishes=recent, now=now)).allowed                      # a different package
     assert policy.check(pub(name=names[1]), ctx(recent_package_publishes=recent, republish_request_keys={package_key(names[2]): ""}, now=now)).allowed
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
+    off = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True))
     assert off.check(pub(name=names[1]), ctx(recent_package_publishes=recent, now=now)).allowed            # republish_days = 0
 
     # the window comes from the actions table: a publish 8 days ago has dropped out
@@ -236,7 +236,7 @@ def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cf
 
     names = ["24/7 AI Customer Support Agents for Small Shops", "24/7 AI Customer Support Agents for Small Shops – Setup & Management",
              "AI Customer Support Agents for Small Shops"]
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
+    policy = Policy(PolicyConfig(), Denylist(), tasks=TasksConfig(enabled=True), packages=PackagesConfig(enabled=True, republish_days=7))
     now = time.time()
     at = lambda h: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - h * 3600))  # noqa: E731
     key = package_key(names[0])

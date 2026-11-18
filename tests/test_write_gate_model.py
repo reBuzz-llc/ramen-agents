@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from explorer.actions import Task
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.policy import Denylist, Policy
 
 from conftest import DENYLIST
@@ -25,7 +25,7 @@ def make_policy(tmp_path: Path, model: str = "local"):
     gate = tmp_path / "gate.py"
     gate.write_text(GATE)
     cfg = PolicyConfig(write_gate=str(gate), write_gate_model=model, write_gate_model_cache=str(tmp_path / "cache.json"))
-    return Policy(cfg, PublishConfig(), Denylist.load(DENYLIST))
+    return Policy(cfg, Denylist.load(DENYLIST))
 
 
 class Judge:
@@ -80,7 +80,7 @@ def test_mg04_refusal_names_the_family_member_to_hand_the_work_to(tmp_path):
     stopped = tmp_path / "scout" / "workspace"; stopped.mkdir(parents=True); (stopped / "STOP").touch()
     m = MessagingConfig(enabled=True, peers=[{"name": "Lead Gen", "folder": str(tmp_path / "lg")}, {"name": "Package Designer", "folder": str(tmp_path / "pd")},
                                              {"name": "Scout", "folder": str(tmp_path / "scout")}])
-    policy = Policy(cfg, PublishConfig(), Denylist.load(DENYLIST), messaging=m)
+    policy = Policy(cfg, Denylist.load(DENYLIST), messaging=m)
     v = policy.gate_write(Task(type="task", title="Find a Northside bakery and its email", details="x" * 320), bot="The CEO",
                           judge=lambda s, p: '{"ok": false, "why": "Lead Gen can find businesses"}')
     assert not v.allowed and "MG04" in v.reason and "assignee set to Lead Gen or Package Designer" in v.reason

@@ -4,7 +4,7 @@ assign Notion tasks to. With a list, every task ends up with one of those people
 import json
 
 from explorer.actions import Decision, Task
-from explorer.config import PackagesConfig, TasksConfig, PolicyConfig, PublishConfig
+from explorer.config import PackagesConfig, TasksConfig, PolicyConfig
 from explorer.model import ModelResult
 from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -53,7 +53,7 @@ def test_the_prompt_block_names_everyone_and_the_default():
 
 
 def policy():
-    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
+    return Policy(PolicyConfig(), Denylist.load(DENYLIST), tasks=TasksConfig(enabled=True), packages=PackagesConfig())
 
 
 def ctx(**kw):

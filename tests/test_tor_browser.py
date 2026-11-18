@@ -11,7 +11,7 @@ import pytest
 
 from explorer.actions import Follow, Open
 from explorer.browser import Link, PageView, backoff_reason
-from explorer.config import Config, PolicyConfig, PublishConfig, validate
+from explorer.config import Config, PolicyConfig, validate
 from explorer.policy import Allowlist, Denylist, Policy, PolicyContext
 from explorer.tor_browser import (
     ALLOWLIST_MARKER,
@@ -231,7 +231,7 @@ def ctx(page: PageView | None = None) -> PolicyContext:
 
 
 def test_policy_allowlist_refuses_unlisted_and_clearnet_sites():
-    policy = Policy(PolicyConfig(respect_robots=False), PublishConfig(), Denylist.load(DENYLIST), allowlist=Allowlist([BBC]))
+    policy = Policy(PolicyConfig(respect_robots=False), Denylist.load(DENYLIST), allowlist=Allowlist([BBC]))
     assert policy.check(Open(type="open", url=f"https://www.{BBC}/news"), ctx()).allowed
     for url in (f"http://{OTHER}/", "https://en.wikipedia.org/wiki/Tor_(network)", "http://127.0.0.1:8787/"):
         verdict = policy.check(Open(type="open", url=url), ctx())
@@ -242,7 +242,7 @@ def test_policy_allowlist_refuses_unlisted_and_clearnet_sites():
     # The listed site's login pages are still denied: the allowlist narrows, it never overrides.
     assert not policy.check(Open(type="open", url=f"https://www.{BBC}/login"), ctx()).allowed
     # Without an allowlist nothing changes for the clearnet bots.
-    open_policy = Policy(PolicyConfig(respect_robots=False), PublishConfig(), Denylist.load(DENYLIST))
+    open_policy = Policy(PolicyConfig(respect_robots=False), Denylist.load(DENYLIST))
     assert open_policy.check(Open(type="open", url="https://en.wikipedia.org/wiki/Tor_(network)"), ctx()).allowed
 
 

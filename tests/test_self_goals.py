@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from explorer.actions import Decision, ReviseGoal
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.model import ModelResult
 from explorer.policy import Denylist, Policy, PolicyContext
 
@@ -25,9 +25,9 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_gates_and_fences_goal_revision():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(revise(), ctx()).reason
-    on = Policy(PolicyConfig(), PublishConfig(), Denylist(), self_goals=True)
+    on = Policy(PolicyConfig(), Denylist(), self_goals=True)
     assert on.check(revise(), ctx()).allowed
     assert not on.check(revise(goal=""), ctx()).allowed
     # The fence, expressed as goal text: acquisition of credentials / stolen data / spending / self-copy.

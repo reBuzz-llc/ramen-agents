@@ -3,7 +3,7 @@ line, and read-back after a Notion write."""
 import json
 
 from explorer.actions import Lead, Plan, Task, UpdateLead
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.board import FakeBoard
 from explorer.plan import OwnerWorkPlan, WorkPlan
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -12,7 +12,7 @@ from conftest import DENYLIST, make_controller
 
 
 def _policy():
-    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST))
+    return Policy(PolicyConfig(), Denylist.load(DENYLIST))
 
 
 def _ctx(plan=None, progress=None):
@@ -140,7 +140,7 @@ def test_a_plan_on_a_capped_site_ends_stuck_and_cannot_be_rebuilt(cfg):
     c.plan = plan
     c._plan_stuck_on_domain("https://sunnydeli-example.com/locations/", "move on: 5 pages ...")
     assert c.plan.status == "stuck" and "sunnydeli-example.com does not state" in c.plan.note and "Tell whoever asked" in (c.feedback or "")
-    policy = Policy(PolicyConfig(domain_no_progress_cap=5), PublishConfig(), Denylist.load(DENYLIST))
+    policy = Policy(PolicyConfig(domain_no_progress_cap=5), Denylist.load(DENYLIST))
     ctx = _ctx(); ctx.domain_visits_no_progress = {"sunnydeli-example.com": 7}
     again = Plan(type="plan", task="Fill the Sunny Deli cells", done_when="filled", steps=["open the site", "update_lead Sunny Deli"])
     v = policy.check(again, ctx)

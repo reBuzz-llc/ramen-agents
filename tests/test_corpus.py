@@ -40,10 +40,10 @@ def test_corpus_search_returns_excerpts_from_the_best_matching_files(tmp_path: P
 
 def test_a_note_may_cite_the_owners_files_but_not_other_schemes():
     from explorer.actions import Note
-    from explorer.config import PolicyConfig, PublishConfig
+    from explorer.config import PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    policy = Policy(PolicyConfig(), Denylist())
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0,
                         last_visit_by_domain={}, blocked_keys=set())
 

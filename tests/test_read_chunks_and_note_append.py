@@ -3,7 +3,7 @@
 source, instead of being refused."""
 from explorer.actions import Note, Read
 from explorer.browser import PageView
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.policy import Denylist, Policy, PolicyContext, new_facts
 
 from conftest import DENYLIST
@@ -33,7 +33,7 @@ def test_new_facts_are_figures_and_sources_the_saved_note_lacks():
 
 
 def _policy():
-    return Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST))
+    return Policy(PolicyConfig(), Denylist.load(DENYLIST))
 
 
 def _ctx(bodies):

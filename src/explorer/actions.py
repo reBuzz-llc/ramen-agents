@@ -46,21 +46,8 @@ class Ask(BaseModel):
     question: str
 
 
-class Interest(BaseModel):
-    type: Literal["interest"]
-    topic: str
-    delta: float
-
-
 class Summarize(BaseModel):
     type: Literal["summarize"]
-
-
-class Publish(BaseModel):
-    type: Literal["publish"]
-    destination: str
-    title: str
-    body: str
 
 
 class Rest(BaseModel):
@@ -75,37 +62,6 @@ class Say(BaseModel):
     type: Literal["say"]
     text: str
     to: Literal["owner", "partner"] = "owner"
-
-
-# Desktop actions exist only when [desktop] is enabled; the policy refuses them otherwise.
-
-
-class App(BaseModel):
-    """Bring one of the allowed Mac apps to the front."""
-
-    type: Literal["app"]
-    name: str
-
-
-class Look(BaseModel):
-    """Re-read the screen: the frontmost app's elements, numbered."""
-
-    type: Literal["look"]
-
-
-class Click(BaseModel):
-    type: Literal["click"]
-    number: int
-
-
-class TypeText(BaseModel):
-    type: Literal["type"]
-    text: str
-
-
-class Hotkey(BaseModel):
-    type: Literal["hotkey"]
-    combo: str  # e.g. "cmd+n"
 
 
 # Developer actions exist only when [developer] is enabled; the policy refuses them otherwise.
@@ -357,8 +313,7 @@ class UpgradeSubmit(BaseModel):
 
 Action = Annotated[
     Union[
-        Search, Open, Read, Follow, Back, Note, Ask, Interest, Summarize, Publish, Rest, Say,
-        App, Look, Click, TypeText, Hotkey,
+        Search, Open, Read, Follow, Back, Note, Ask, Summarize, Rest, Say,
         ListFiles, ReadFile, WriteFile, RunCommand, Upgrade, UpgradeTest, UpgradeSubmit,
         Task, Package, Provider, Message, ReviseGoal, ProposeTeammate, PublishPackage, UpdateTask, Lead, UpdateLead, Plan,
         MergeTask, PaceMember,
@@ -367,13 +322,11 @@ Action = Annotated[
 ]
 
 NAVIGATION_TYPES = frozenset({"search", "open", "follow"})
-CONSOLIDATION_TYPES = frozenset({"summarize", "note", "ask", "interest", "rest", "say", "plan"})  # plan: tick or close it at the end
-DESKTOP_TYPES = frozenset({"app", "look", "click", "type", "hotkey"})
+CONSOLIDATION_TYPES = frozenset({"summarize", "note", "ask", "rest", "say", "plan"})  # plan: tick or close it at the end
 DEVELOPER_TYPES = frozenset({"list_files", "read_file", "write_file", "run_command"})
 UPGRADE_TYPES = frozenset({"upgrade", "upgrade_test", "upgrade_submit"})
 ALL_TYPES = (
-    "search", "open", "read", "follow", "back", "note", "ask", "interest", "summarize", "publish", "rest", "say",
-    "app", "look", "click", "type", "hotkey",
+    "search", "open", "read", "follow", "back", "note", "ask", "summarize", "rest", "say",
     "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit",
     "task", "package", "provider", "message", "revise_goal", "propose_teammate", "publish_package", "update_task", "lead",
     "update_lead", "plan", "merge_task", "pace_member",
@@ -468,22 +421,10 @@ def action_key(action: Action, resolved_url: str | None = None, extra: str | Non
         return f"note:{action.title.strip().lower()}"
     if isinstance(action, Ask):
         return f"ask:{action.question.strip().lower()}"
-    if isinstance(action, Interest):
-        return f"interest:{action.topic.strip().lower()}"
-    if isinstance(action, Publish):
-        return f"publish:{action.title.strip().lower()}"
     if isinstance(action, Read):
         return f"read:{extra or ''}"
     if isinstance(action, Summarize):
         return f"summarize:{extra or ''}"
-    if isinstance(action, App):
-        return f"app:{action.name.strip().lower()}"
-    if isinstance(action, Click):
-        return f"click:{extra or ''}:{action.number}"
-    if isinstance(action, TypeText):
-        return f"type:{extra or ''}:{action.text.strip().lower()[:60]}"
-    if isinstance(action, Hotkey):
-        return f"hotkey:{extra or ''}:{action.combo.strip().lower()}"
     if isinstance(action, ListFiles):
         return f"list_files:{action.path.strip()}"
     if isinstance(action, ReadFile):

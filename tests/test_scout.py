@@ -5,7 +5,7 @@ from pathlib import Path
 
 from explorer import fleet
 from explorer.actions import Decision, Provider
-from explorer.config import Config, PolicyConfig, PublishConfig, ScoutConfig, load_config
+from explorer.config import Config, PolicyConfig, ScoutConfig, load_config
 from explorer.model import ModelResult
 from explorer.policy import Denylist, Policy, PolicyContext, is_meta_topic
 from explorer.scout import existing_names, record_provider
@@ -39,9 +39,9 @@ def test_meta_filter_allows_provider_research_but_still_blocks_rate_limit_bypass
 
 
 def test_policy_requires_evidence_and_rarity():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(provider(), ctx()).reason
-    p = Policy(PolicyConfig(), PublishConfig(), Denylist(), scout=ScoutConfig(enabled=True, max_per_day=2))
+    p = Policy(PolicyConfig(), Denylist(), scout=ScoutConfig(enabled=True, max_per_day=2))
     assert p.check(provider(), ctx()).allowed
     assert "endpoint" in p.check(provider(base_url="ftp://x"), ctx()).reason
     assert "pages you read" in p.check(provider(sources=[]), ctx()).reason
@@ -56,7 +56,7 @@ def test_policy_requires_evidence_and_rarity():
 def test_provider_already_keyed_by_the_fleet_is_refused():
     """The scout kept re-recording OpenRouter/Mistral/Gemini, which the fleet already has keys for.
     A provider the fleet already holds a key for is not a new find; one it has no key for still is."""
-    p = Policy(PolicyConfig(), PublishConfig(), Denylist(), scout=ScoutConfig(enabled=True))
+    p = Policy(PolicyConfig(), Denylist(), scout=ScoutConfig(enabled=True))
     have = {"openrouter", "mistral", "gemini"}
     for name, url, src in [
         ("OpenRouter", "https://openrouter.ai/api/v1", "https://openrouter.ai/docs"),
@@ -143,11 +143,11 @@ def test_agent_finds_stay_in_the_file_with_no_agent_board(cfg, tmp_path):
     assert r.ok and "AGENTS.inc" in (tmp_path / "agents.md").read_text() and "and the board" not in r.summary
 def test_agent_entries_need_a_clearnet_website():
     from explorer.actions import Provider
-    from explorer.config import PolicyConfig, PublishConfig, ScoutConfig
+    from explorer.config import PolicyConfig, ScoutConfig
     from explorer.policy import Denylist, Policy, PolicyContext
     from conftest import DENYLIST
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), scout=ScoutConfig(enabled=True, kind="agent"))
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), scout=ScoutConfig(enabled=True, kind="agent"))
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     ctx.visited_urls = {"http://abc.onion/", "https://www.agents.inc/"}
     onion = Provider(type="provider", name="OnionShare", base_url="http://abc.onion/", free_terms="free", why="file sharing", sources=["http://abc.onion/"])

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from explorer import fleet
 from explorer.actions import Decision, Message, Open, Say
-from explorer.config import MessagingConfig, PolicyConfig, PublishConfig, load_config
+from explorer.config import MessagingConfig, PolicyConfig, load_config
 from explorer.handoff import Inbox, send_message
 from explorer.model import ModelResult
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -31,11 +31,11 @@ def ctx(**over) -> PolicyContext:
 def policy(peers=None, **over) -> Policy:
     spec = dict(enabled=True, peers=peers or [{"name": "Onion Reader", "folder": "/tmp/onion"}], max_per_day=3)
     spec.update(over)
-    return Policy(PolicyConfig(), PublishConfig(), Denylist(), messaging=MessagingConfig(**spec))
+    return Policy(PolicyConfig(), Denylist(), messaging=MessagingConfig(**spec))
 
 
 def test_message_policy_peer_length_and_rarity():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(msg(), ctx()).reason
     p = policy()
     assert p.check(msg(), ctx()).allowed
@@ -251,7 +251,7 @@ def test_room_kinds_receipts_and_seen_by(tmp_path):
 
 def test_policy_refuses_restated_room_posts_and_caps_them_per_day():
     from explorer.actions import Message
-    from explorer.config import MessagingConfig, PolicyConfig, PublishConfig
+    from explorer.config import MessagingConfig, PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
     def ctx(**over):
@@ -259,7 +259,7 @@ def test_policy_refuses_restated_room_posts_and_caps_them_per_day():
         base.update(over)
         return PolicyContext(**base)
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), messaging=MessagingConfig(enabled=True, room=True, max_room_posts_per_day=3))
+    policy = Policy(PolicyConfig(), Denylist(), messaging=MessagingConfig(enabled=True, room=True, max_room_posts_per_day=3))
     offer = "Hey fleet, I'm free and can assist with GUI tasks in Safari, TextEdit, Notes, Finder, or Calculator. Let me know what you need!"
     again = Message(type="message", to="everyone", text="Ready to assist with Safari, TextEdit, Notes, Finder, or Calculator tasks. What can I help with?")
     v = policy.check(again, ctx(own_room_posts_recent=[offer]))
@@ -298,12 +298,12 @@ def test_a_task_assigned_to_a_family_member_becomes_its_request(cfg, tmp_path):
 
 def test_a_claimed_update_needs_a_write_like_done_does():
     from explorer.actions import Message
-    from explorer.config import MessagingConfig, PolicyConfig, PublishConfig
+    from explorer.config import MessagingConfig, PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
     from conftest import DENYLIST
 
     m = MessagingConfig(enabled=True, peers=[{"name": "The CEO", "folder": "/tmp/ceo"}])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), messaging=m)
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), messaging=m)
     c = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     c.priority_request = {"sender": "The CEO", "text": "update the toggle title", "actions_since_read": 3, "writes_since_read": 0}
     v = policy.check(Message(type="message", to="The CEO", text="Updated the Fixed-Price MVP Development package toggle title to include the price."), c)
@@ -313,12 +313,12 @@ def test_a_claimed_update_needs_a_write_like_done_does():
 
 def test_a_reply_to_a_priority_ask_may_run_long_and_ignores_the_daily_cap():
     from explorer.actions import Message
-    from explorer.config import MessagingConfig, PolicyConfig, PublishConfig
+    from explorer.config import MessagingConfig, PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
     from conftest import DENYLIST
 
     m = MessagingConfig(enabled=True, peers=[{"name": "The CEO", "folder": "/tmp/ceo"}], max_chars=600, max_per_day=12)
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), messaging=m)
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), messaging=m)
     c = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     c.messages_today = 12
     c.priority_request = {"sender": "The CEO", "text": "send me the full package record", "actions_since_read": 1, "writes_since_read": 1}
@@ -331,13 +331,13 @@ def test_a_reply_to_a_priority_ask_may_run_long_and_ignores_the_daily_cap():
 def test_an_ask_that_says_answer_a_colleague_lets_that_message_through():
     # the Validator's FM01: "Answer The CEO with a `message` now" -- the grace rule refused the message to The CEO (2026-09-30)
     from explorer.actions import Message
-    from explorer.config import MessagingConfig, PolicyConfig, PublishConfig
+    from explorer.config import MessagingConfig, PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
     from conftest import DENYLIST
 
     m = MessagingConfig(enabled=True, priority_request_grace=4,
                         peers=[{"name": "The CEO", "folder": "/tmp/ceo"}, {"name": "Validator", "folder": "/tmp/v"}, {"name": "Scout", "folder": "/tmp/s"}])
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST), messaging=m)
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST), messaging=m)
     c = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     c.priority_request = {"sender": "Validator", "actions_since_read": 10, "writes_since_read": 0,
                           "text": "Validator format check: The CEO has waited 23 h. Answer The CEO with a `message` now -- what you did, or why you cannot."}

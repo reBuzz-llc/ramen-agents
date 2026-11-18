@@ -18,22 +18,16 @@ from .actions import (
     Action,
     MergeTask,
     PaceMember,
-    App,
     Ask,
-    Click,
     Follow,
-    Hotkey,
-    Interest,
     Lead,
     ListFiles,
-    Look,
     Message,
     Note,
     Open,
     Package,
     ProposeTeammate,
     Provider,
-    Publish,
     PublishPackage,
     ReadFile,
     Rest,
@@ -44,7 +38,6 @@ from .actions import (
     Search,
     Summarize,
     Task,
-    TypeText,
     UpdateLead,
     UpdateTask,
     Upgrade,
@@ -52,11 +45,10 @@ from .actions import (
     UpgradeTest,
     WriteFile,
 )
-from .actions import CONSOLIDATION_TYPES, DESKTOP_TYPES, DEVELOPER_TYPES, NAVIGATION_TYPES, UPGRADE_TYPES
+from .actions import CONSOLIDATION_TYPES, DEVELOPER_TYPES, NAVIGATION_TYPES, UPGRADE_TYPES
 from .browser import PageView
 from .chatroom import ROOM_RECIPIENT, is_room_recipient
-from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DesktopConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, PackagesConfig, PolicyConfig, PublishConfig, ScoutConfig, TasksConfig
-from .desktop import DesktopView, hotkey_never_allowed, normalize_hotkey
+from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, PackagesConfig, PolicyConfig, ScoutConfig, TasksConfig
 from .memory import question_words, questions_are_similar
 from .board import valid_date, valid_priority
 from .places import MAP_LINK
@@ -323,15 +315,11 @@ class PolicyContext:
     partner_turns_since_note: int = 0  # say(to="partner") exchanges since the last note
     partner_turns_in_episode: int = 0  # say(to="partner") exchanges accepted this episode
     search_paused_seconds: float = 0.0  # > 0 while searching is paused after a bot check
-    desktop_available: bool = False  # the Mac is free right now (owner away, unlocked, inside hours)
-    desktop_reason: str = "desktop control is disabled"
-    desktop_view: DesktopView | None = None  # what the agent last saw on the screen
     upgrade_active: bool = False  # an upgrade worktree exists right now
     upgrade_tests_passed: bool = False  # the most recent upgrade_test in this worktree passed
     upgrade_touches_protected: list[str] = field(default_factory=list)  # protected files changed in the worktree
     tasks_in_episode: int = 0  # board tasks created this episode
     tasks_today: int = 0  # board tasks created today
-    posts_today: int = 0  # publish actions allowed today, every destination
     recent_task_titles: set[str] = field(default_factory=set)  # lower-cased, last 30 days: never create one twice
     team: list[Member] = field(default_factory=list)  # the owner's team (team.py); empty = no list, any name goes
     packages_in_episode: int = 0  # package handoffs accepted this episode
@@ -597,10 +585,8 @@ class Policy:
     def __init__(
         self,
         cfg: PolicyConfig,
-        publish: PublishConfig,
         denylist: Denylist,
         robots: RobotsCache | None = None,
-        desktop: DesktopConfig | None = None,
         chat_partner: ChatPartnerConfig | None = None,
         developer: DeveloperConfig | None = None,
         developer_root: Path | None = None,
@@ -617,12 +603,10 @@ class Policy:
         self.cfg = cfg
         self.self_goals = self_goals
         self.propose_teammates = propose_teammates
-        self.publish = publish
         self.denylist = denylist
         # When set, every page must be on it (the Tor bot); None means the whole web minus the denylist.
         self.allowlist = allowlist
         self.robots = robots
-        self.desktop = desktop or DesktopConfig()  # disabled unless configured
         self.chat_partner = chat_partner or ChatPartnerConfig()  # disabled unless configured
         self.developer = developer or DeveloperConfig()  # disabled unless configured
         self.tasks = tasks or TasksConfig()  # disabled unless configured (and the board is ready)
@@ -1268,8 +1252,6 @@ class Policy:
             folder = m.folder_for(to)
             if folder and (Path(folder).expanduser() / "workspace" / "STOP").exists():
                 return Verdict.no(f"{to} is stopped (its STOP file is present); nobody would read that. Note it or ask someone who is running.")
-            if to.lower() in {p.strip().lower() for p in m.route_only_peers} and not re.match(r"^\s*route\s+\S+\s+to\s+\S", text, re.I):
-                return Verdict.no(f"{to} reads only route lines from bots (route <file> to <bot>: <why>); anything else to it is never read. Keep it as a note.")
         pr = ctx.priority_request
         if pr and to.lower() == str(pr.get("sender", "")).strip().lower() and str(pr.get("text", "")).startswith("file dropped by the owner:"):
             # The drop folder's announcement wants a decision the controller can carry out, not a report (The CEO,
@@ -1431,66 +1413,6 @@ class Policy:
                 return Verdict.no("run upgrade_test and get a passing result before submitting")
             return Verdict.ok()
         return Verdict.no(f"unknown upgrade action {action.type}")
-
-    # -- desktop -------------------------------------------------------------
-
-    def _allowed_app(self, name: str) -> bool:
-        return name.strip().lower() in {a.strip().lower() for a in self.desktop.allowed_apps}
-
-    def _check_desktop(self, action: Action, ctx: PolicyContext) -> Verdict:
-        if not self.desktop.enabled:
-            return Verdict.no("desktop actions are not enabled; that action does not exist")
-        if not ctx.desktop_available:
-            return Verdict.no(f"the Mac is not free right now ({ctx.desktop_reason}); stay on the web")
-        apps = ", ".join(self.desktop.allowed_apps)
-        if isinstance(action, App):
-            if not self._allowed_app(action.name):
-                return Verdict.no(f"'{action.name}' is not an app you may use; choose one of: {apps}")
-            return Verdict.ok()
-        if isinstance(action, Look):
-            return Verdict.ok()
-        view = ctx.desktop_view
-        if view is None or not view.ok or view.app is None:
-            return Verdict.no("nothing is on your screen yet; use app to bring one of your apps to the front")
-        if not self._allowed_app(view.app.name):
-            return Verdict.no(
-                f"the app in front ('{view.app.name}') is not one you may use; use app to switch to one of: {apps}"
-            )
-        if isinstance(action, Click):
-            el = view.element(action.number)
-            if el is None:
-                return Verdict.no(f"there is no element [{action.number}] on the screen; look again")
-            if not el.enabled:
-                return Verdict.no(f"element [{action.number}] is disabled")
-            if view.modal and not el.modal:
-                return Verdict.no("a dialog is open; click one of its buttons (marked dialog) or press escape first")
-            return Verdict.ok()
-        if isinstance(action, TypeText):
-            if not action.text.strip():
-                return Verdict.no("nothing to type")
-            if len(action.text) > self.desktop.max_type_chars:
-                return Verdict.no(f"type at most {self.desktop.max_type_chars} characters at a time")
-            focused = view.element(view.focused) if view.focused else None
-            if focused is None or not focused.editable:
-                return Verdict.no("nothing editable has keyboard focus; click a text field or text area first")
-            if focused.secure:
-                return Verdict.no("that is a password field; you never type into those")
-            if view.modal and not focused.modal:
-                return Verdict.no("a dialog is open; deal with it before typing elsewhere")
-            return Verdict.ok()
-        if isinstance(action, Hotkey):
-            norm = normalize_hotkey(action.combo)
-            if norm is None:
-                return Verdict.no(f"'{action.combo}' is not a key combination like cmd+n")
-            if hotkey_never_allowed(norm):
-                return Verdict.no(f"'{norm}' is never allowed")
-            allowed = {normalize_hotkey(h) for h in self.desktop.allowed_hotkeys}
-            if norm not in allowed:
-                return Verdict.no(
-                    f"'{norm}' is not an allowed shortcut; allowed: {', '.join(self.desktop.allowed_hotkeys)}"
-                )
-            return Verdict.ok()
-        return Verdict.no(f"unknown desktop action {action.type}")
 
     # -- helpers -------------------------------------------------------------
 
@@ -1706,7 +1628,7 @@ class Policy:
 
         pr = ctx.priority_request
         grace = self.messaging.priority_request_grace
-        if pr and grace > 0 and int(pr.get("actions_since_read") or 0) >= grace and action.type not in DESKTOP_TYPES:
+        if pr and grace > 0 and int(pr.get("actions_since_read") or 0) >= grace:
             sender = str(pr.get("sender", "a colleague"))
             answering = isinstance(action, Message) and action.to.strip().lower() == sender.strip().lower()
             if isinstance(action, Message) and not answering:
@@ -1722,9 +1644,6 @@ class Policy:
                     f"\"{str(pr.get('text', ''))[:200]}\". Do what it asks -- search, open and read are still allowed for that -- "
                     f"then reply with one `message` to {sender} saying what you did, or why you cannot. Nothing else counts until then."
                 )
-
-        if action.type in DESKTOP_TYPES:
-            return self._check_desktop(action, ctx)
 
         if action.type in DEVELOPER_TYPES:
             return self._check_developer(action, ctx)
@@ -1874,15 +1793,6 @@ class Policy:
                         f"you already have that question open: '{existing[:110]}'. "
                         "Pursue it, or ask about something genuinely different"
                     )
-            return Verdict.ok()
-
-        if isinstance(action, Interest):
-            if not action.topic.strip():
-                return Verdict.no("interest topic is empty")
-            if is_meta_topic(action.topic):
-                return Verdict.no(meta_topic_reason("interest"))
-            if not -1.0 <= action.delta <= 1.0:
-                return Verdict.no("interest delta must be between -1 and 1")
             return Verdict.ok()
 
         if isinstance(action, Rest):
@@ -2068,23 +1978,6 @@ class Policy:
 
         if isinstance(action, PublishPackage):
             return self._check_publish_package(action, ctx)
-
-        if isinstance(action, Publish):
-            if not self.publish.enabled:
-                return Verdict.no("publishing is disabled")
-            if action.destination not in self.publish.destinations:
-                return Verdict.no(f"destination '{action.destination}' is not enabled")
-            if not action.title.strip() or not action.body.strip():
-                return Verdict.no("a post needs a title and a body")
-            if is_meta_topic(action.title):
-                return Verdict.no(meta_topic_reason("post"))
-            if len(action.body) > 20000:
-                return Verdict.no("keep a post under 20000 characters")
-            if ctx.posts_today >= self.publish.max_posts_per_day:
-                return Verdict.no(
-                    f"you have published {ctx.posts_today} posts today, the daily limit; keep notes and post tomorrow"
-                )
-            return Verdict.ok()
 
         if isinstance(action, Summarize):
             if ctx.actions_in_episode == 0:

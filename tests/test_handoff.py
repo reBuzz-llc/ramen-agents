@@ -6,7 +6,7 @@ from pathlib import Path
 
 from explorer import fleet
 from explorer.actions import Decision, Package, Say
-from explorer.config import HandoffConfig, PolicyConfig, PublishConfig, load_config
+from explorer.config import HandoffConfig, PolicyConfig, load_config
 from explorer.handoff import Inbox, send_package
 from explorer.model import ModelResult
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -34,9 +34,9 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_requires_evidence_a_price_and_rarity():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(package(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    policy = Policy(PolicyConfig(), Denylist(),
                     handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/x", max_per_day=2))
     assert policy.check(package(), ctx()).allowed
     assert "real figure" in policy.check(package(price="competitive"), ctx()).reason
@@ -58,7 +58,7 @@ def test_policy_requires_evidence_a_price_and_rarity():
 def test_policy_wants_the_agency_pages_it_read_and_the_company_behind_them():
     """Plan 9: a search-results page and the seller's own site are not sources; every source must have been
     opened; the source company must be named and be the site of one of the sources."""
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(),
+    policy = Policy(PolicyConfig(), Denylist(),
                     handoff=HandoffConfig(enabled=True, to_name="The CEO", to_folder="/tmp/x",
                                           own_domains=["acme.example"]))
     read = {"https://example.com/pricing", "https://example.com/about", "https://hn.algolia.com/?q=mvp+pricing",

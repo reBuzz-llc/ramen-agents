@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from explorer.actions import Ask, Search
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.policy import Denylist, Policy, PolicyContext
 
 from conftest import DENYLIST
 
 
 def make_policy(**overrides) -> Policy:
-    return Policy(PolicyConfig(**overrides), PublishConfig(), Denylist.load(DENYLIST))
+    return Policy(PolicyConfig(**overrides), Denylist.load(DENYLIST))
 
 
 def base(**fields) -> PolicyContext:

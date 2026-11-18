@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from explorer.actions import Note, Say
 from explorer.chat_partner import FakeChatPartner
-from explorer.config import ChatPartnerConfig, DesktopConfig, PolicyConfig, PublishConfig
+from explorer.config import ChatPartnerConfig, PolicyConfig
 from explorer.policy import Denylist, Policy, PolicyContext
 
 from conftest import DENYLIST, make_controller
@@ -11,7 +11,7 @@ from conftest import DENYLIST, make_controller
 
 def make_policy(chat_partner: ChatPartnerConfig | None = None, **overrides) -> Policy:
     cfg = PolicyConfig(**overrides)
-    return Policy(cfg, PublishConfig(), Denylist.load(DENYLIST), desktop=DesktopConfig(), chat_partner=chat_partner)
+    return Policy(cfg, Denylist.load(DENYLIST), chat_partner=chat_partner)
 
 
 def ctx(**over) -> PolicyContext:

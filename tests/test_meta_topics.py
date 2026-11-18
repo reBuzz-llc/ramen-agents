@@ -1,9 +1,9 @@
 """The agent's own tooling is never a subject: rate limits, captchas and search engines are refused
 as searches, questions, notes and interests, and old ones are purged at episode start. Both live
 bots had 'bypassing rate limits' as their top interest on 2026-09-14 before this existed."""
-from explorer.actions import Ask, Interest, Note, Read, Search
+from explorer.actions import Ask, Note, Read, Search
 from explorer.browser import PageView
-from explorer.config import PolicyConfig, PublishConfig
+from explorer.config import PolicyConfig
 from explorer.db import Database
 from explorer.memory import Memory
 from explorer.policy import Denylist, Policy, PolicyContext, is_meta_topic
@@ -48,12 +48,10 @@ def ctx(pages_since_note: int = 0) -> PolicyContext:
 
 
 def test_policy_refuses_the_agents_own_tools_as_a_subject():
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist.load(DENYLIST))
+    policy = Policy(PolicyConfig(), Denylist.load(DENYLIST))
     refused = (
         Search(type="search", query="tools to bypass rate limits API scraping"),
         Ask(type="ask", question="How can I research channels without encountering rate limits?"),
-        Interest(type="interest", topic="bypassing rate limits", delta=0.3),
-        Interest(type="interest", topic="bypassing rate limits", delta=-0.3),
         Note(type="note", title="Wikipedia did not provide specific channels", body="Nothing useful."),
     )
     for action in refused:
@@ -61,11 +59,10 @@ def test_policy_refuses_the_agents_own_tools_as_a_subject():
         assert not verdict.allowed and "your own tools" in verdict.reason, action
     assert policy.check(Ask(type="ask", question="Who in Springfield buys MVP development?"), ctx()).allowed
     assert policy.check(Search(type="search", query="Springfield startups MVP development agencies"), ctx()).allowed
-    assert policy.check(Interest(type="interest", topic="brave new world by huxley", delta=0.2), ctx()).allowed
 
 
 def test_reading_chunk_after_chunk_without_noting_is_refused_like_navigation(cfg):
-    policy = Policy(PolicyConfig(max_pages_without_note=3), PublishConfig(), Denylist.load(DENYLIST))
+    policy = Policy(PolicyConfig(max_pages_without_note=3), Denylist.load(DENYLIST))
     assert policy.check(Read(type="read"), ctx(pages_since_note=2)).allowed
     verdict = policy.check(Read(type="read"), ctx(pages_since_note=3))
     assert not verdict.allowed and "read" in verdict.reason

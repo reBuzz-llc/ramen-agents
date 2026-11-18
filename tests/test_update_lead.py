@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from explorer.actions import Decision, Lead, Open, UpdateLead
 from explorer.browser import PageView
-from explorer.config import LeadsConfig, PolicyConfig, PublishConfig
+from explorer.config import LeadsConfig, PolicyConfig
 from explorer.model import ModelResult
 from explorer.board import FakeBoard
 from explorer.policy import Denylist, Policy, PolicyContext
@@ -33,9 +33,9 @@ def ctx(**over) -> PolicyContext:
 
 
 def test_policy_only_fixes_the_bots_own_leads_with_grounded_changes():
-    off = Policy(PolicyConfig(), PublishConfig(), Denylist())
+    off = Policy(PolicyConfig(), Denylist())
     assert "not enabled" in off.check(upd(), ctx()).reason
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True))
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True))
     assert policy.check(upd(), ctx()).allowed
     assert "lead you listed yourself" in policy.check(upd(name="Someone Else"), ctx()).reason
     assert "at least one change" in policy.check(upd(evidence=None), ctx()).reason
@@ -51,7 +51,7 @@ def test_policy_only_fixes_the_bots_own_leads_with_grounded_changes():
     assert "fixed 2 leads this episode" in policy.check(upd(), ctx(lead_updates_in_episode=2)).reason
     assert policy.check(upd(evidence=None, size="12 people", location="Carroll Gardens, Northside"), ctx()).allowed
     # 0 = no cap, for listing and for fixing (owner, 2026-09-24: "remove caps from lead gen")
-    free = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_updates_per_episode=0))
+    free = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_updates_per_episode=0))
     assert free.check(upd(), ctx(lead_updates_in_episode=50)).allowed
 
 
@@ -144,7 +144,7 @@ def test_with_update_any_row_the_bot_enriches_a_row_the_owner_put_on_the_board(c
     leads = LeadsConfig(enabled=True, update_any_row=True)
     # Policy: the board is asked for the site domain; the email is checked against it as for any lead.
     lookup = lambda name: {"acme bakery": "acmebakery.example", "blank deli": ""}.get(name.lower())  # noqa: E731
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=leads)
+    policy = Policy(PolicyConfig(), Denylist(), leads=leads)
     c = ctx(recent_lead_names={}, lead_site_on_board=lookup)
     assert policy.check(upd(evidence=None, email="orders@acmebakery.example"), c).allowed
     assert "not one of them" in policy.check(upd(name="Nobody", evidence=None, email="x@y.example"), c).reason
@@ -168,7 +168,7 @@ def test_founded_by_is_a_fillable_cell_and_upkeep_stays_allowed_under_a_priority
     board.create_row("Acme Bakery", {"Website": SITE})
     leads = LeadsConfig(enabled=True, update_any_row=True)
     m = MessagingConfig(enabled=True, peers=[{"name": "Validator", "folder": "/tmp/v"}], priority_senders=["Validator"], priority_request_grace=1)
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=leads, messaging=m)
+    policy = Policy(PolicyConfig(), Denylist(), leads=leads, messaging=m)
     waiting = ctx(recent_lead_names={"acme bakery": "acmebakery.example"},
                   priority_request={"sender": "Validator", "text": "Leads board upkeep: 1 row has cells you can fill", "actions_since_read": 5})
     assert policy.check(upd(evidence=None, founded_by="Maria Rossi", location="Northside, NY, USA"), waiting).allowed
@@ -441,10 +441,10 @@ def test_the_enricher_fills_map_link_and_location_from_the_snapshot_for_its_list
 def test_a_fill_only_bots_facts_must_be_printed_on_a_page_it_opened():
     """Owner, 2026-10-10: "enrA can take things slow, I expect high accuracy and fact check from it"."""
     from explorer.actions import UpdateLead
-    from explorer.config import LeadsConfig, PolicyConfig, PublishConfig
+    from explorer.config import LeadsConfig, PolicyConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    policy = Policy(PolicyConfig(), PublishConfig(), Denylist(), leads=LeadsConfig(enabled=True, update_any_row=True, fill_only=True,
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, update_any_row=True, fill_only=True,
                                                                                    update_only_fields=["founded_by", "location", "size", "industry", "sources"]))
     about = "https://acme.example/about"
     def ctx(texts):
