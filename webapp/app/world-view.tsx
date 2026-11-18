@@ -535,12 +535,11 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
           const c1 = d.cards.find((x) => x.slug === m.slug);
           return { slug: m.slug, anim: m.anim, pos: m.pos, atShore: m.shore !== null && !m.path.length, between: !!c1 && betweenSteps(c1.act?.ts, c1.cycleSec, Date.now()) };
         }),
-        { real: realPlayed.current, quiet: quietNow, still, rain: weatherOf(d) === "rain", day: day.phase === "day" },
+        { real: realPlayed.current, quiet: quietNow, still },
         S.beds.filter((slug) => !S.members.has(slug)).map((slug) => ({ slug, pos: bedOf(S, slug) })),
       );
       realPlayed.current = [];
       const card = (slug: string) => d.cards.find((m) => m.slug === slug);
-      const rain = weatherOf(d) === "rain"; // the Onion Reader's umbrella opens
       // the big screens: one per member that holds a slot, on posts over its low wall; the screen is an HTML box (queue 258)
       const slotsNow: Record<string, { x: number; y: number; flag?: string }> = {};
       for (const m of S.members.values()) {
@@ -603,7 +602,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         // the Writer types fast (queue 47); every member carries its props, in the hand unless a signature move has them
         const fr = Math.floor(t / (pose === "type" || pose === "use" ? (g.slug === "outreach-writer" ? 90 : 220) : 160));
         const move = playing ? moveOf(g.slug, playing.kind) : null;
-        const gear = personaRects(g.slug, pose, { rain: rain || gf.umbrella, held: !move && !busy?.prop });
+        const gear = personaRects(g.slug, pose, { held: !move && !busy?.prop });
         items.push({ key: figureKey(g.pos), draw: () => drawFigure(c, p.x, p.y, look, pose, still ? 0 : fr, grey, facing, pose !== "sit", gear) });
         hitList.push({ kind: "member", slug: g.slug, x: p.x, y: p.y });
         const head = p.y - (look.accessory === "crown" || look.accessory === "beanie" ? 24 : 21);
@@ -642,7 +641,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         // an unread reply: the dot rides on the member's HTML screen box (queue 258)
       }
       // the gag between its actors (queue 47 part 4)
-      if (gag && gag.kind !== "boat" && gag.kind !== "umbrella") {
+      if (gag && gag.kind !== "boat") {
         const ma = S.members.get(gag.actors[0]);
         const mb = gag.actors[1] ? S.members.get(gag.actors[1]) : undefined;
         // the one dozing may be asleep on its mat under the tree (queue 52)

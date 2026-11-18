@@ -330,9 +330,6 @@ const LOOKS: Record<string, Look> = {
   "outreach-writer": { shirt: "#b8457a", hair: "#a0522d", skin: "#e0a77f", accessory: "bow" },
   "package-designer": { shirt: "#8a5cc7", hair: "#e3c16f", skin: "#f3d0b4", accessory: "beanie" },
   "research-analyst": { shirt: "#c4862b", hair: "#3a2a20", skin: "#b07a55", accessory: "headphones" },
-  "desk-agent": { shirt: "#5d6b78", hair: "#4a4a4a", skin: "#d9a47e", accessory: "tie" },
-  "jobless-bot": { shirt: "#7a8f3a", hair: "#2a2a2a", skin: "#8d5a3b", accessory: "scarf" },
-  "onion-reader": { shirt: "#9e5a3b", hair: "#d8d0c0", skin: "#efc9a8", accessory: "visor" },
   scout: { shirt: "#3d7f86", hair: "#7a4b2a", skin: "#caa07c", accessory: "flower" },
 };
 const SPARE: Look[] = [
@@ -1354,9 +1351,8 @@ export function takeoffLeg(k: number): { leg: "out" | "touch" | "up"; k: number 
 // binoculars; the Enricher peers through a magnifying glass; the Writer types fast and tosses crumpled paper into a
 // bin by its wall (one ball per accepted draft today, empty again at midnight); the Package Designer sketches on a pad
 // and holds it up on a publish; the Research Analyst reads a thick book and pushes up its glasses on a note; Scout
-// wears a backpack and a compass that spins on a search; the Onion Reader wears a trench coat and keeps an umbrella that
-// opens in the rain. Shirts stay their colours: the coat is open over it.
-export type Gear = "clipboard" | "watch" | "binoculars" | "magnifier" | "pencil" | "sketchpad" | "book" | "glasses" | "backpack" | "compass" | "trenchcoat" | "umbrella";
+// wears a backpack and a compass that spins on a search.
+export type Gear = "clipboard" | "watch" | "binoculars" | "magnifier" | "pencil" | "sketchpad" | "book" | "glasses" | "backpack" | "compass";
 export type Move = "watch" | "sweep" | "magnify" | "toss" | "holdup" | "glasses" | "compass";
 export const PERSONAS: Record<string, { gear: Gear[]; moves: Partial<Record<ActAnim, Move>> }> = {
   "the-ceo": { gear: ["clipboard", "watch"], moves: { clipboard: "watch", propose: "watch", flag: "watch" } },
@@ -1366,11 +1362,10 @@ export const PERSONAS: Record<string, { gear: Gear[]; moves: Partial<Record<ActA
   "package-designer": { gear: ["sketchpad"], moves: { flag: "holdup", laptop: "holdup" } },
   "research-analyst": { gear: ["book", "glasses"], moves: { laptop: "glasses" } },
   scout: { gear: ["backpack", "compass"], moves: { binoculars: "compass" } },
-  "onion-reader": { gear: ["trenchcoat", "umbrella"], moves: {} },
 };
 export const gearOf = (slug: string): Gear[] => PERSONAS[slug]?.gear ?? [];
 /** The gear in words, for the Info card's first line ("Lead Gen · binoculars"). */
-const GEAR_WORDS: Record<Gear, string> = { clipboard: "clipboard", watch: "watch", binoculars: "binoculars", magnifier: "magnifying glass", pencil: "pencil", sketchpad: "sketch pad", book: "book", glasses: "glasses", backpack: "backpack", compass: "compass", trenchcoat: "trench coat", umbrella: "umbrella" };
+const GEAR_WORDS: Record<Gear, string> = { clipboard: "clipboard", watch: "watch", binoculars: "binoculars", magnifier: "magnifying glass", pencil: "pencil", sketchpad: "sketch pad", book: "book", glasses: "glasses", backpack: "backpack", compass: "compass" };
 export const gearWords = (slug: string) => gearOf(slug).map((g) => GEAR_WORDS[g]).join(" & ");
 /** The signature move a real action plays for this member (its own prop), or null: the queue 40 animation then. */
 export const moveOf = (slug: string, kind: ActAnim): Move | null => PERSONAS[slug]?.moves[kind] ?? null;
@@ -1385,10 +1380,9 @@ export type GearRect = [number, number, number, number, string];
 const WOOD = "#8a6544";
 const PAPER = "#fffaf0";
 const DARK = "#2b2b2b";
-const COAT = "#b39b6b";
-/** The pixels of one prop for a pose (lying: small, beside the pillow). `rain` opens the umbrella. `held` false leaves
+/** The pixels of one prop for a pose (lying: small, beside the pillow). `held` false leaves
  *  out what is in the hand (a signature move draws it raised instead). */
-export function gearRects(g: Gear, pose: string, o: { rain?: boolean; held?: boolean } = {}): GearRect[] {
+export function gearRects(g: Gear, pose: string, o: { held?: boolean } = {}): GearRect[] {
   const held = o.held ?? true;
   if (pose === "lie") {
     const small: Partial<Record<Gear, GearRect[]>> = {
@@ -1399,8 +1393,6 @@ export function gearRects(g: Gear, pose: string, o: { rain?: boolean; held?: boo
       sketchpad: [[12, -3, 4, 4, PAPER], [12, -3, 4, 1, "#8a5cc7"]],
       book: [[12, -3, 4, 3, "#7a2f2f"], [12, -3, 4, 1, PAPER]],
       backpack: [[12, -3, 3, 4, "#6b4a2f"]],
-      umbrella: [[12, -1, 6, 1, DARK]],
-      trenchcoat: [[-5, -4, 16, 2, COAT]],
     };
     return small[g] ?? [];
   }
@@ -1428,15 +1420,10 @@ export function gearRects(g: Gear, pose: string, o: { rain?: boolean; held?: boo
       return [[-8, -12, 5, 9, O], [-7, -11, 3, 7, "#d35400"], [-7, -11, 1, 1, "#f39c5a"], [-7, -7, 3, 1, "#8e3b00"], [-4, -10, 1, 4, "#8e3b00"]];
     case "compass":
       return held ? [[4, hy - 4, 5, 5, O], [5, hy - 3, 3, 3, "#e0e0e0"], [6, hy - 3, 1, 1, "#d63b3b"], [6, hy - 2, 1, 1, "#3b3b3b"]] : [];
-    case "trenchcoat": // a long tan silhouette, open over the shirt, down to the shins, collar up, belted
-      return [[-6, -12, 3, 11, "#c2a46e"], [3, -12, 3, 11, "#c2a46e"], [-6, -12, 1, 11, "#6b5530"], [5, -12, 1, 11, "#6b5530"], [-6, -13, 3, 1, "#6b5530"], [3, -13, 3, 1, "#6b5530"], [-6, -6, 12, 1, "#6b5530"]];
-    case "umbrella":
-      if (o.rain) return [[-8, -26, 16, 3, O], [-7, -25, 14, 1, "#3b4a9e"], [-5, -27, 10, 1, O], [5, -23, 1, 17, "#5b5b5b"]];
-      return held ? [[5, -17, 2, 15, O], [5, -17, 1, 13, "#4a4a4a"], [4, -2, 3, 1, O], [5, -18, 1, 1, "#9a9a9a"]] : [];
   }
 }
 /** Every prop of a member for a pose, in drawing order. */
-export const personaRects = (slug: string, pose: string, o: { rain?: boolean; held?: boolean } = {}): GearRect[] => gearOf(slug).flatMap((g) => gearRects(g, pose, o));
+export const personaRects = (slug: string, pose: string, o: { held?: boolean } = {}): GearRect[] => gearOf(slug).flatMap((g) => gearRects(g, pose, o));
 /** The CEO paces at its screen while it works: a small sway left and right (draw-only, room px). */
 export const paceOffset = (slug: string, t: number, working: boolean) => (slug === "the-ceo" && working ? Math.round(Math.sin(t / 1600) * 3) : 0);
 
@@ -1448,10 +1435,9 @@ export const paceOffset = (slug: string, t: number, working: boolean) => (slug =
 // play a short gag, 4-6 s, one at a time, at most one every 2 minutes in the room (never a stalled, blocked or quiet member; the
 // stopped ones under the tree only as the one dozing when a resting member pokes it): a paper ball thrown
 // and dodged; one dozes and the other pokes it awake; a swapped tea cup and a double take; a boat trip for a resting
-// member (rows out, comes back); skipping stones with a ripple count; the Onion Reader's umbrella opening on a sunny
-// day. The choice is a seeded random, so a replay plays the same gags. A real action by one of its actors ends a gag at
+// member (rows out, comes back); skipping stones with a ripple count. The choice is a seeded random, so a replay plays the same gags. A real action by one of its actors ends a gag at
 // once; other members' actions do not. Reduced motion or quiet: no gags.
-export type GagKind = "paperball" | "poke" | "teacup" | "boat" | "stones" | "umbrella";
+export type GagKind = "paperball" | "poke" | "teacup" | "boat" | "stones";
 export type Gag = { kind: GagKind; actors: string[]; start: number; until: number; skips: number };
 export type Pranks = { seed: number; n: number; lastGag: number; gag: Gag | null; recent: Record<string, number> };
 export const PRANK_EVERY_MS = 120_000; // one gag every 2 minutes in the room
@@ -1519,7 +1505,7 @@ export function prankStep(
   pr: Pranks,
   now: number,
   members: { slug: string; anim: Anim; pos: Pt; atShore: boolean; between?: boolean }[],
-  o: { real: string[]; quiet: boolean; still: boolean; rain: boolean; day: boolean },
+  o: { real: string[]; quiet: boolean; still: boolean },
   sleepers: { slug: string; pos: Pt }[] = [],
 ): Gag | null {
   if (pr.gag && pr.gag.actors.some((s) => o.real.includes(s))) pr.gag = null;
@@ -1546,7 +1532,6 @@ export function prankStep(
   if (partner) kinds.push("paperball", "poke", "teacup");
   else if (dozer) kinds.push("poke");
   if (first.anim === "resting" && first.atShore) kinds.push("boat", "stones");
-  if (first.slug === "onion-reader" && !o.rain && o.day) kinds.push("umbrella");
   if (!kinds.length) return null;
   const kind = kinds[Math.floor(rnd() * kinds.length)];
   const length = 4000 + Math.floor(rnd() * 2001);
@@ -1558,10 +1543,10 @@ export function prankStep(
   return pr.gag;
 }
 
-/** What a gag does to one figure at time `now`: a dodge sideways, gone (out in the boat), the umbrella open, a sign
+/** What a gag does to one figure at time `now`: a dodge sideways, gone (out in the boat), a sign
  *  over its head ("!" woken, "?" puzzled). */
-export function gagFigure(g: Gag | null, slug: string, now: number): { dx: number; hide: boolean; umbrella: boolean; sign: "!" | "?" | null } {
-  const none = { dx: 0, hide: false, umbrella: false, sign: null };
+export function gagFigure(g: Gag | null, slug: string, now: number): { dx: number; hide: boolean; sign: "!" | "?" | null } {
+  const none = { dx: 0, hide: false, sign: null };
   if (!g || !g.actors.includes(slug) || now >= g.until) return none;
   const k = (now - g.start) / (g.until - g.start);
   const target = g.actors[1] === slug;
@@ -1574,8 +1559,6 @@ export function gagFigure(g: Gag | null, slug: string, now: number): { dx: numbe
       return { ...none, sign: target && k >= 0.65 ? "?" : null };
     case "boat":
       return { ...none, hide: k > 0.08 && k < 0.92 };
-    case "umbrella":
-      return { ...none, umbrella: true, sign: k >= 0.5 ? "?" : null };
     default:
       return none;
   }

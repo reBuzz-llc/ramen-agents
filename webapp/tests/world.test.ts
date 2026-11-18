@@ -91,7 +91,7 @@ test("walks (queue 37): along the shore and the terrace paths, ending on the spo
 });
 
 test("looks: each family member distinct, the same every time", () => {
-  const slugs = ["the-ceo", "lead-gen", "lead-enricher", "outreach-writer", "package-designer", "research-analyst", "desk-agent", "jobless-bot", "onion-reader", "scout"];
+  const slugs = ["the-ceo", "lead-gen", "lead-enricher", "outreach-writer", "package-designer", "research-analyst", "member-a", "member-b", "member-c", "scout"];
   const looks = slugs.map((s) => lookOf(s));
   assert.equal(new Set(looks.map((l: { shirt: string }) => l.shirt)).size, slugs.length);
   assert.deepEqual(lookOf("lead-gen"), lookOf("lead-gen"));
@@ -579,7 +579,6 @@ test("personalities: each member's props, and the move its real actions play", a
   assert.deepEqual(gearOf("package-designer"), ["sketchpad"]);
   assert.deepEqual(gearOf("research-analyst"), ["book", "glasses"]);
   assert.deepEqual(gearOf("scout"), ["backpack", "compass"]);
-  assert.deepEqual(gearOf("onion-reader"), ["trenchcoat", "umbrella"]);
   assert.deepEqual(gearOf("validator"), [], "the Validator stays a bird");
   const move = (slug: string, type: string, verdict = "allowed") => moveOf(slug, actAnim({ type, verdict }) ?? "puff");
   assert.equal(move("lead-gen", "search"), "sweep");
@@ -603,7 +602,7 @@ test("the Writer's bin: a ball per accepted draft today, capped, empty at midnig
   assert.equal(binCount({ slug: "outreach-writer", output: null }), 0);
 });
 
-test("props persist in every pose and fit the portrait; the umbrella opens in the rain", async () => {
+test("props persist in every pose and fit the portrait", async () => {
   // @ts-ignore TS5097
   const { personaRects, PERSONAS, gearRects, gearOf } = await import("../lib/world.ts");
   for (const slug of Object.keys(PERSONAS)) {
@@ -613,7 +612,6 @@ test("props persist in every pose and fit the portrait; the umbrella opens in th
     // each held or worn prop is at least 4 px in one direction, so it reads at a glance (queue 52)
     for (const g of gearOf(slug)) if (g !== "watch" && g !== "glasses") assert.ok(gearRects(g, "stand").some(([, , w, h]) => Math.max(w, h) >= 4), `${slug} ${g} too small`);
   }
-  assert.notDeepEqual(gearRects("umbrella", "stand", { rain: true }), gearRects("umbrella", "stand"));
   assert.deepEqual(gearRects("binoculars", "stand", { held: false }), gearRects("binoculars", "stand"), "worn on a strap, not in the hand");
   assert.deepEqual(gearRects("magnifier", "stand", { held: false }), [], "a move raises what is in the hand");
 });
@@ -807,7 +805,7 @@ test("the Info card's first line names the gear (queue 52)", async () => {
   // @ts-ignore TS5097
   const { gearWords } = await import("../lib/world.ts");
   assert.equal(gearWords("lead-gen"), "binoculars");
-  assert.equal(gearWords("onion-reader"), "trench coat & umbrella");
+  assert.equal(gearWords("research-analyst"), "book & glasses");
   assert.equal(gearWords("validator"), "");
   assert.equal(dialogue(card("lead-gen") as never).title, "Lead Gen leaA · binoculars");
 });

@@ -131,7 +131,7 @@ async function read(): Promise<Board> {
     await Promise.all(
       bots.map(async (bot) => {
         const ws = await workspaceDir(bot);
-        // retired by the owner (10-30: Start on jobless-bot removed its STOP, and with no launch agents nothing ran)
+        // retired by the owner (10-30: Start on a retired bot removed its STOP, and with no launch agents nothing ran)
         const retiredText = await readFile(/*turbopackIgnore: true*/ path.join(path.dirname(bot.configPath), "RETIRED.md"), "utf8").catch(() => null);
         if (retiredText !== null) {
           const date = /(\d{4}-\d{2}-\d{2})/.exec(retiredText)?.[1] ?? "";

@@ -100,9 +100,9 @@ test("board: reads stall_minutes from the heartbeat row; a database without the 
     return { ws, db };
   };
   const scout = await make("scout", true);
-  const old = await make("desk-agent", false);
+  const old = await make("member-a", false);
   const s = await boardBot({ slug: "scout", name: "Scout", handle: "scoutA" }, scout.ws, scout.db, null, NOW);
-  const o = await boardBot({ slug: "desk-agent", name: "Desk Agent", handle: "deskA" }, old.ws, old.db, null, NOW);
+  const o = await boardBot({ slug: "member-a", name: "Member A", handle: "memA" }, old.ws, old.db, null, NOW);
   assert.equal(s.state.word, "working", "25 min without progress is under Scout's 30");
   assert.deepEqual(o.state, { word: "stalled", tone: "bad", why: "no progress for 25 min" });
 });

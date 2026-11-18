@@ -675,7 +675,7 @@ class Run:
 
     def _process_inbox(self) -> None:
         """Read this bot's inbox: the members' messages are noted (Lead Gen's report of a finished work list is checked
-        as a claim), marked seen, and closed on the fleet's requests record. (The Desk Agent's blocker loop went with it,
+        as a claim), marked seen, and closed on the fleet's requests record. (A removed member's blocker loop went with it,
         queue 578, as in the family's 596.)"""
         try:
             from explorer.handoff import Inbox

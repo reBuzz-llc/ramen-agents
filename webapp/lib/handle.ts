@@ -2,7 +2,7 @@
 // the distinctive name, then A for an agent or B for a bot --
 //
 //   agent  runs its own loop: it decides each step with a model and keeps a journal. The CEO is ceoA,
-//          Package Designer pacA, Onion Reader oniA.
+//          Package Designer pacA, Scout scoA.
 //   bot    runs on a timer or a trigger and follows fixed rules: it has no loop of its own. The Validator
 //          is valB. Marked in its config with [agent] not_a_bot_run_agent = true.
 //

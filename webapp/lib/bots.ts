@@ -121,7 +121,7 @@ export async function listBots(): Promise<BotProfile[]> {
   }
   const handles = await rosterHandles();
   const bots = await Promise.all(
-    // only the family's members (creatorCC queue 481: the owner removed Jobless-Bot and the Desk Agent completely): a folder
+    // only the family's members (the roster): a folder
     // whose member left the roster is not listed; with no roster to read, every bot folder is
     entries.filter((e) => SLUG.test(e) && (!handles.size || handles.has(e))).map(async (slug): Promise<(BotProfile & { portSet: boolean }) | null> => {
       const configPath = path.join(BOTS_DIR, slug, "config.toml");

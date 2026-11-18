@@ -47,7 +47,7 @@ function isAgentProcess(args: string, configPath: string): boolean {
 }
 
 /** The process holding the bot's run lock (workspace/explorer.pid), when it is alive. Catches agents that
- * are not a `bot ... run` command line, such as the Desk Agent.app bundle running the Desk Agent. */
+ * are not a `bot ... run` command line, such as an app bundle that runs an agent. */
 async function lockHolder(pidFile: string, procs: Proc[]): Promise<Proc | null> {
   let pid: number;
   try {

@@ -105,7 +105,7 @@ test("start says it did not start, and puts STOP back, with no launch agents or 
 
 test("a retired bot: Start refused, Bring back recreates its launch agents from another bot's and starts it", async () => {
   const { root, ws, ctx } = await fixture();
-  const job = { ...ctx, slug: "jobless-bot" };
+  const job = { ...ctx, slug: "member-b" };
   await writeFile(path.join(ws, "..", "RETIRED.md"), "# retired 2026-09-25 (owner)\n");
   await writeFile(path.join(ws, "STOP"), "");
   assert.deepEqual(await control(job, "start"), { ok: false, text: "It is retired: use Bring back." });
@@ -117,8 +117,8 @@ test("a retired bot: Start refused, Bring back recreates its launch agents from 
     await writeFile(path.join(ctx.agents, `com.ramen-agents.${kind}.lead-gen.plist`), `<string>com.ramen-agents.${kind}.lead-gen</string><string>/Users/x/bots/lead-gen/config.toml</string>`);
   const r = await control(job, "bringback", { reason: "owner wants it back" });
   assert.equal(r.ok, true, r.text);
-  assert.match(r.text, /^recreated com\.ramen-agents\.bot\.jobless-bot\.plist, com\.ramen-agents\.data\.jobless-bot\.plist from lead-gen's\./);
-  assert.equal(await readFile(path.join(ctx.agents, "com.ramen-agents.bot.jobless-bot.plist"), "utf8"), "<string>com.ramen-agents.bot.jobless-bot</string><string>/Users/x/bots/jobless-bot/config.toml</string>");
+  assert.match(r.text, /^recreated com\.ramen-agents\.bot\.member-b\.plist, com\.ramen-agents\.data\.member-b\.plist from lead-gen's\./);
+  assert.equal(await readFile(path.join(ctx.agents, "com.ramen-agents.bot.member-b.plist"), "utf8"), "<string>com.ramen-agents.bot.member-b</string><string>/Users/x/bots/member-b/config.toml</string>");
   assert.equal(await has(path.join(ws, "..", "RETIRED.md")), false);
   assert.equal(await has(path.join(ws, "..", "RETIRED-until-2026-10-31.md")), true);
   assert.equal(await has(path.join(root, "ran-restart-bot.sh")), true);

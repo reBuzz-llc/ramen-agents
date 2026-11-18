@@ -131,7 +131,7 @@ function replay(snaps: Snap[], opts: { quiet?: (i: number) => boolean } = {}) {
 
 const W = (slug: string, word = "working") => ({ slug, word });
 const SIX = ["lead-enricher", "lead-gen", "outreach-writer", "package-designer", "research-analyst", "the-ceo"];
-const ASLEEP = ["desk-agent", "jobless-bot", "onion-reader", "scout"];
+const ASLEEP = ["member-a", "member-b", "member-c", "scout"];
 
 test("replay: a synthetic day forcing every transition keeps the room's rules at every frame", () => {
   const snaps: Snap[] = [];
@@ -163,7 +163,7 @@ test("replay: a synthetic day forcing every transition keeps the room's rules at
     snaps.push({
       at: at(snaps.length),
       cards: withScout.map((s) => W(s, s === "lead-gen" ? "blocked on the model provider" : s === "package-designer" ? "no heartbeat 25 min" : "working")),
-      stopped: ["desk-agent", "jobless-bot", "onion-reader", "outreach-writer"],
+      stopped: ["member-a", "member-b", "member-c", "outreach-writer"],
     });
   const { sim, frames, walks } = replay(snaps);
   assert.ok(frames > 10_000);
@@ -355,7 +355,7 @@ test("pranks: resting, idle or between-steps members, one at a time, one every 2
     { slug: "the-ceo", anim: "working" as const, pos: at(6, 9.75), atShore: false },
     { slug: "research-analyst", anim: "lost" as const, pos: at(8, 9.75), atShore: false },
   ];
-  const o = { real: [] as string[], quiet: false, still: false, rain: false, day: true };
+  const o = { real: [] as string[], quiet: false, still: false };
   const pr = newPranks(4747, 0);
   assert.equal(prankStep(pr, PRANK_SETTLE_MS - 1, crew, o), null, "the page settles first");
   // other members acting every few seconds do not hold it back (the old family-wide 90 s window)
@@ -391,14 +391,14 @@ test("pranks: resting, idle or between-steps members, one at a time, one every 2
   assert.equal(prankStep(newPranks(1, 0), PRANK_SETTLE_MS, crew, { ...o, still: true }), null);
 });
 
-test("pranks: a seeded choice (the same seed, the same gags); the umbrella only for the Onion Reader on a dry day", async () => {
+test("pranks: a seeded choice (the same seed, the same gags)", async () => {
   // @ts-ignore TS5097
   const { newPranks, prankStep, PRANK_SETTLE_MS, PRANK_REST_MS, gagFigure, boatOut } = await import("../lib/world.ts");
   const crew = [
-    { slug: "onion-reader", anim: "resting" as const, pos: { x: 2.5, y: 5.25 }, atShore: true },
+    { slug: "research-analyst", anim: "resting" as const, pos: { x: 2.5, y: 5.25 }, atShore: true },
     { slug: "scout", anim: "idle" as const, pos: { x: 4.25, y: 5.25 }, atShore: false },
   ];
-  const o = { real: [] as string[], quiet: false, still: false, rain: false, day: true };
+  const o = { real: [] as string[], quiet: false, still: false };
   const run = (seed: number, opts = o) => {
     const pr = newPranks(seed, 0);
     return Array.from({ length: 12 }, (_, i) => prankStep(pr, PRANK_SETTLE_MS + i * PRANK_REST_MS, crew, opts)).map((g: { kind: string; actors: string[] } | null) => g && `${g.kind}:${g.actors.join("+")}`);
@@ -406,15 +406,14 @@ test("pranks: a seeded choice (the same seed, the same gags); the umbrella only 
   assert.deepEqual(run(4747), run(4747));
   assert.notDeepEqual(run(4747), run(9));
   const kinds = new Set(run(4747).concat(run(9), run(23)).map((x: string | null) => x?.split(":")[0]));
-  assert.ok(kinds.has("umbrella") && kinds.size >= 4, [...kinds].join(","));
-  assert.ok(!run(4747, { ...o, rain: true }).some((x: string | null) => x?.startsWith("umbrella")), "not in the rain");
+  assert.ok(kinds.size >= 3, [...kinds].join(","));
   // what a gag does to the figures
-  const boat = { kind: "boat" as const, actors: ["onion-reader"], start: 0, until: 5000, skips: 3 };
-  assert.equal(gagFigure(boat, "onion-reader", 2500).hide, true);
-  assert.equal(gagFigure(boat, "onion-reader", 5000).hide, false, "back on the shore");
+  const boat = { kind: "boat" as const, actors: ["research-analyst"], start: 0, until: 5000, skips: 3 };
+  assert.equal(gagFigure(boat, "research-analyst", 2500).hide, true);
+  assert.equal(gagFigure(boat, "research-analyst", 5000).hide, false, "back on the shore");
   assert.ok(boatOut(boat, 2500) > 60 && boatOut(boat, 0) === 0 && boatOut(boat, 5000) === 0);
-  const ball = { kind: "paperball" as const, actors: ["scout", "onion-reader"], start: 0, until: 5000, skips: 0 };
-  assert.equal(gagFigure(ball, "onion-reader", 3000).dx, -4, "the target dodges");
+  const ball = { kind: "paperball" as const, actors: ["scout", "research-analyst"], start: 0, until: 5000, skips: 0 };
+  assert.equal(gagFigure(ball, "research-analyst", 3000).dx, -4, "the target dodges");
   assert.equal(gagFigure(ball, "scout", 3000).dx, 0);
   assert.equal(gagFigure(ball, "the-ceo", 3000).dx, 0);
 });
@@ -446,7 +445,7 @@ test("pranks in the replay: members acting every 60-90 s, a gag every 2-4 minute
         const last = c ? t - ((t + i * 7000) % (c * 1000)) : 0;
         return { slug: m.slug, anim: m.anim, pos: m.pos, atShore: m.shore !== null && !m.path.length, between: !!c && betweenSteps(stamp(base + last), c, base + t) };
       });
-      const g = prankStep(pr, t, ms as never, { real: acted, quiet: false, still: false, rain: false, day: true });
+      const g = prankStep(pr, t, ms as never, { real: acted, quiet: false, still: false });
       if (g && !starts.includes(g.start)) {
         starts.push(g.start);
         seen.push(`${g.start}:${g.kind}:${g.actors.join("+")}`);
@@ -482,7 +481,7 @@ test("pranks between steps: a working member whose last action is 30 s old and n
   assert.equal(betweenWhy(ago(40), 90, now), null);
   assert.equal(betweenSteps(null, 120, now), false);
   assert.equal(betweenSteps(ago(50), null, now), false);
-  const o = { real: [] as string[], quiet: false, still: false, rain: false, day: true };
+  const o = { real: [] as string[], quiet: false, still: false };
   const at = (x: number, y: number) => ({ x, y });
   const two = [
     { slug: "lead-gen", anim: "working" as const, pos: at(5, 9.75), atShore: false, between: true },

@@ -41,7 +41,7 @@ def _roster() -> dict[str, tuple[str, str]]:
 
 FAMILY = _roster()
 PROVIDER = "The CEO"
-HANDLES = re.compile(r"\b(" + "|".join(sorted({h for h, _ in FAMILY.values()} | {"ceoA", "pacA", "scoA", "leaA", "jobA", "oniA", "desA", "valB", "anaA", "outA", "enrA"})) + r")\b")
+HANDLES = re.compile(r"\b(" + "|".join(sorted({h for h, _ in FAMILY.values()} | {"ceoA", "pacA", "scoA", "leaA", "valB", "anaA", "outA", "enrA"})) + r")\b")
 EXPIRE_HOURS = 48.0          # the engine's rule: an ask nobody answered in two days is expired, not open
 STATUS_OPENERS = re.compile(
     r"^\s*(checked|noted|reviewed|read |looked|quick update|update:|fyi|heads.?up|just a note|for your information|"

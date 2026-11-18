@@ -7,7 +7,7 @@
 //   stop:   workspace/STOP, then scripts/disable-bot.sh <slug> so launchd stops relaunching it.
 //   start:  removes STOP, then scripts/enable-bot.sh <slug> and scripts/restart-bot.sh <slug>; then checks that a run
 //           loop is alive. With no launch agents, or no loop after the restart, it says "did not start: <reason>" and
-//           puts STOP back (10-30: Start on the retired jobless-bot reported ok with nothing running).
+//           puts STOP back (10-30: Start on a retired bot reported ok with nothing running).
 //   bringback: a retired bot (RETIRED.md): recreates its two launch agents from another bot's (the label and folder
 //           swapped, as RETIRED.md says), sets RETIRED.md aside, then starts it as above.
 // The scripts' own output is the result line. Node imports only, so the test runs it on a fixture workspace with a
@@ -78,7 +78,7 @@ async function loopAlive(ctx: Ctx, waitMs: number): Promise<boolean> {
   }
 }
 
-const TEMPLATE_BOTS = ["lead-gen", "research-analyst", "package-designer", "lead-enricher", "outreach-writer", "the-ceo", "scout", "onion-reader"];
+const TEMPLATE_BOTS = ["lead-gen", "research-analyst", "package-designer", "lead-enricher", "outreach-writer", "the-ceo", "scout"];
 
 /** Recreate a retired bot's two launch agents from another bot's: the label and folder swapped. The plists stay unloaded
  *  (enable-bot.sh loads them). Throws a plain reason when no template is found. */
