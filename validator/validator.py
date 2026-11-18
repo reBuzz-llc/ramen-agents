@@ -43,7 +43,6 @@ from leads_upkeep import ASSIGN_HOURS, Deletion, deletion_report, examine, provi
 import claims  # noqa: E402
 import family  # noqa: E402
 import portal_leads  # noqa: E402
-from blockers import Blocker, parse_blocker, parse_resolved, reply_text, unanswered_owner_messages, verify  # noqa: E402
 from sources import BOTS, bot_task_page_ids, norm_title, package_files, providers, team_members, utc_now  # noqa: E402
 
 WS = HERE / "workspace"
@@ -75,9 +74,6 @@ DEFAULTS: dict[str, Any] = {
     # work, so it is rate-limited per sweep and a verdict is cached until it goes stale.
     "email_checks_per_run": 12,
     "email_recheck_days": 30,
-    "blocker_bot": "",
-    "blocker_escalate_hours": 2,
-    "owner_reply_within_minutes": 60,
 }
 
 log = logging.getLogger("validator")
@@ -675,122 +671,38 @@ class Run:
                 rec = cache[key] = {"status": v.status, "where": v.where, "others": list(v.others), "at": self.stamp}
             self.current += check_lead_whatsapp_published(self.ck, ld, _Verdict(rec))
 
-    # ---- Desk Agent blockers and questions (the inbox) -------------------------------
+    # ---- the inbox -------------------------------------------------------------------------
 
     def _process_inbox(self) -> None:
-        """Read this bot's inbox: a "blocker:" line from the Desk Agent is verified against facts on this Mac and
-        answered in its inbox; open blockers are re-checked every run and the Desk Agent told when the cause is
-        cleared; one still open after `blocker_escalate_hours` is a DA01 flag for the owner. An owner chat message
-        the Desk Agent left unanswered for `owner_reply_within_minutes` is a DA02 defect."""
+        """Read this bot's inbox: the members' messages are noted (Lead Gen's report of a finished work list is checked
+        as a claim), marked seen, and closed on the fleet's requests record. (The Desk Agent's blocker loop went with it,
+        queue 578, as in the family's 596.)"""
         try:
-            from explorer.handoff import Inbox, send_message
+            from explorer.handoff import Inbox
         except ImportError as exc:
             self.errors.append(f"inbox unavailable: {exc}")
             return
-        bot = str(self.s.get("blocker_bot") or "")
-        folder = BOTS / (bot or "_no-blocker-bot")  # no such folder: nothing to verify, the rest of the inbox is still read
-        blockers: dict[str, dict[str, Any]] = self.state.setdefault("blockers", {})
-        posts: list[str] = []
+        self.state.pop("blockers", None)
         inbox = Inbox(WS)
         msgs = inbox.unread(limit=20)
         for m in msgs:
-            resolved_reasons = parse_resolved(m.text)
-            if resolved_reasons:
-                cleared = 0
-                for rec in blockers.values():
-                    if rec.get("status") == "open" and any(rec["reason"].lower()[:80] == r or rec["reason"].lower().startswith(r) for r in resolved_reasons):
-                        rec["status"], rec["cleared_at"], rec["verdict"] = "cleared", self.stamp, "resolved by the Desk Agent"
-                        cleared += 1
-                posts.append(f"Desk Agent unblocked ({cleared} blocker(s) cleared): a GUI step was allowed again")
-                self.counts["blockers cleared"] += cleared
-                continue
-            b = parse_blocker(m.text)
-            if b is None:
-                if claims.is_claim(m.text) and m.sender == self._lead_bot_name():   # Lead Gen reporting a finished work list
-                    self.counts["upkeep replies"] += 1
-                    self._verify_claim(m)
-                self.notes.append(f"inbox from {m.sender}: {m.text[:120]}")
-                self.state.setdefault("inbox_log", []).append({"at": self.stamp, "from": m.sender, "text": m.text[:400]})
-                self.state["inbox_log"] = self.state["inbox_log"][-50:]
-                continue
-            rec = blockers.get(b.key) or {"reason": b.reason, "task": b.task, "fix": b.fix, "sender": m.sender,
-                                          "first_seen": self.stamp, "status": "open", "reports": 0}
-            rec["reports"] = int(rec.get("reports", 0)) + 1
-            rec["last_seen"] = self.stamp
-            v = verify(b)
-            rec.update(verdict=v.status, detail=v.detail, fix_verified=v.fix, last_verified=self.stamp)
-            if v.status == "cleared":
-                rec["status"], rec["cleared_at"] = "cleared", self.stamp
-            blockers[b.key] = rec
-            if not self.args.dry_run:
-                try:
-                    send_message(folder, SENDER, reply_text(b, v), now=self.now)
-                    rec["replied_at"] = self.stamp
-                except OSError as exc:
-                    self.errors.append(f"reply to {bot} failed: {exc}")
-            posts.append(f"Desk Agent blocked on '{b.task[:60] or b.reason[:60]}': {v.status} — {v.detail[:140]}. Fix: {v.fix[:120]}")
-            self.counts["blockers reported"] += 1
+            if claims.is_claim(m.text) and m.sender == self._lead_bot_name():   # Lead Gen reporting a finished work list
+                self.counts["upkeep replies"] += 1
+                self._verify_claim(m)
+            self.notes.append(f"inbox from {m.sender}: {m.text[:120]}")
+            self.state.setdefault("inbox_log", []).append({"at": self.stamp, "from": m.sender, "text": m.text[:400]})
+            self.state["inbox_log"] = self.state["inbox_log"][-50:]
         if not self.args.dry_run:
             inbox.mark_seen(msgs)
             self._close_on_record(inbox)
-        # Re-check what is still open; tell the Desk Agent the moment a cause clears; escalate the old ones.
-        escalate_after = float(self.s.get("blocker_escalate_hours", 2)) * 3600
-        for key, rec in blockers.items():
-            if rec.get("status") != "open":
-                continue
-            b = Blocker(rec["reason"], rec.get("task", ""), rec.get("fix", ""))
-            if rec.get("last_verified") != self.stamp:
-                v = verify(b)
-                rec.update(verdict=v.status, detail=v.detail, fix_verified=v.fix, last_verified=self.stamp)
-                if v.status == "cleared":
-                    rec["status"], rec["cleared_at"] = "cleared", self.stamp
-                    if not self.args.dry_run:
-                        try:
-                            send_message(folder, SENDER, reply_text(b, v), now=self.now)
-                        except OSError as exc:
-                            self.errors.append(f"reply to {bot} failed: {exc}")
-                    posts.append(f"Desk Agent unblocked: '{b.task[:60] or b.reason[:60]}' — {v.detail[:140]}")
-                    continue
-            try:
-                age = (self.now - dt.datetime.fromisoformat(rec["first_seen"])).total_seconds()
-            except (KeyError, ValueError):
-                age = 0
-            self.checked.add(("blocker", key))
-            if age >= escalate_after:
-                flag = self.ck.flag("DA01", "blocker", key, f"Desk Agent blocker \"{b.reason[:60]}\"", "", 
-                                    f"open for {age / 3600:.1f} h: {rec.get('detail', '')[:160]}; fix: {rec.get('fix_verified') or b.fix}",
-                                    bot="owner", when=rec["first_seen"][:10], name=b.task[:80])
-                if flag:
-                    self.current.append(flag)
-                    if not rec.get("escalated_at"):
-                        rec["escalated_at"] = self.stamp
-                        posts.append(f"OWNER: Desk Agent has been blocked {age / 3600:.0f} h on '{b.task[:60] or b.reason[:60]}': {rec.get('detail', '')[:120]}. Fix: {rec.get('fix_verified') or b.fix}")
-        # Owner messages the Desk Agent never answered.
-        for msg in unanswered_owner_messages(folder / "workspace" / "explorer.sqlite3", within_minutes=int(self.s.get("owner_reply_within_minutes", 60)), now=self.now):
-            art = f"chat:{msg['id']}"
-            self.checked.add(("chat", art))
-            flag = self.ck.flag("DA02", "chat", art, f"owner message \"{msg['text'][:60]}\"", "",
-                                f"no reply for {msg['age_minutes']} min", bot=bot, when=str(msg["ts"])[:10], name=msg["text"][:80])
-            if flag:
-                self.current.append(flag)
-        open_now = sum(1 for r in blockers.values() if r.get("status") == "open")
-        if open_now or msgs:
-            self.notes.append(f"blockers: {open_now} open, {len(msgs)} inbox message(s) read")
-        if posts and not self.args.dry_run and self.s["notify"] and not self.args.no_notify:
-            try:
-                from explorer.chatroom import Chatroom
-                room = Chatroom(BOTS / "common-data" / "chatroom.jsonl")
-                for text in posts[:3]:
-                    room.post(SENDER, text[:600], now=self.now)
-            except (ImportError, OSError) as exc:
-                self.errors.append(f"chatroom post failed: {exc}")
+        if msgs:
+            self.notes.append(f"inbox: {len(msgs)} message(s) read")
 
     # ---- optional model pass -------------------------------------------------------------
 
     def _close_on_record(self, inbox: Any) -> None:
         """Close the asks the inbox has taken, on the fleet's requests record (common-data/shared-state/requests.jsonl).
-        The Validator answers only blocker lines, and it answers those in the Desk Agent's inbox; without this every
-        message to it (Lead Gen's upkeep replies, say) stayed "unread" and open on the Requests page until it
+        The Validator does not reply to inbox messages; without this every message to it (Lead Gen's upkeep replies, say) stayed "unread" and open on the Requests page until it
         expired (owner, 2026-09-25). Anything addressed to the Validator that is no longer waiting in its inbox has
         been taken, so it is read and resolved here, including asks taken before this rule existed."""
         try:
@@ -805,8 +717,7 @@ class Run:
             for r in taken:
                 if not r.read_at:
                     log.mark_read([r.id])
-                note = ("blocker checked; the answer went to the Desk Agent's inbox" if parse_blocker(r.text)
-                        else "taken by the Validator; it answers only blocker lines, so there is no reply to wait for")
+                note = "taken by the Validator; it does not reply to inbox messages, so there is no reply to wait for"
                 log.resolve(r.id, note)
         except OSError as exc:
             self.errors.append(f"requests record: {exc}")
@@ -978,12 +889,6 @@ class Run:
                     tag = "warn" if r["severity"] == "warn" else "defect"
                     fresh = " *(new)*" if r["first_seen"] == self.stamp else ""
                     lines.append(f"  - [{r['rule']}] {tag}: {r['detail']}{fresh}")
-        blockers = [r for r in (self.state.get("blockers") or {}).values() if r.get("status") == "open"]
-        if blockers:
-            lines += ["", f"## Desk Agent blockers — {len(blockers)} open"]
-            for r in sorted(blockers, key=lambda r: r.get("first_seen", "")):
-                lines.append(f"- since {r.get('first_seen', '?')[:16]}: \"{r.get('reason', '')[:80]}\" for task \"{r.get('task', '')[:60]}\" — "
-                             f"{r.get('verdict', '?')}: {r.get('detail', '')[:140]}. Fix: {r.get('fix_verified') or r.get('fix', '')}")
         if resolved:
             lines += ["", f"## Resolved this run — {len(resolved)}"]
             for fp in resolved:
@@ -1028,8 +933,7 @@ class Run:
             self.notes.append(f"{legacy} defect(s) on items older than {since} are reported only, not sent to a bot")
         cap = int(self.s["max_messages_per_bot_per_day"])
         per = int(self.s["max_flags_per_message"])
-        silent = set(self.s.get("silent_bots") or [])     # bots that never read an inbox (the Desk Agent): report only
-        silent.add("validator")                            # its own findings go in its report, never its own inbox
+        silent = {"validator"}                             # its own findings go in its report, never its own inbox
         silent |= {b for b in list(pending) + list(self.pending_messages) if (BOTS / b / "workspace" / "STOP").exists()}
         # FM06 holds the Validator too: while its earlier ask to a bot is still open, it does not send another
         # (it sent Scout the same format check at 21:21, 03:28 and 09:40 on 2026-09-25/26).
@@ -1273,7 +1177,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="print the report; write nothing, message nobody")
     ap.add_argument("--no-notify", action="store_true", help="write the report and state but send no messages")
     ap.add_argument("--json", action="store_true", help="print a JSON summary instead of the report")
-    ap.add_argument("--inbox", action="store_true", help="only read the inbox (Desk Agent blockers) and the desk chat; no board sweep, no files")
+    ap.add_argument("--inbox", action="store_true", help="only read the inbox and the requests record; no board sweep, no files")
     args = ap.parse_args(argv)
     LOG.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",

@@ -23,7 +23,7 @@ def test_taken_asks_are_read_and_resolved_waiting_ones_stay_open(tmp_path, monke
     monkeypatch.setattr(validator, "BOTS", tmp_path)
     log = RequestLog(tmp_path / "common-data" / "shared-state" / "requests.jsonl")
     log.record("a.json", "Lead Gen", "Validator", "I'm ready to help with the upkeep. Could you send the rows?")
-    log.record("b.json", "Desk Agent", "Validator", "blocker: accessibility is off | task: click | fix: grant it")
+    log.record("b.json", "Scout", "Validator", "Can you check the two free search APIs in my notes?")
     log.record("c.json", "Lead Gen", "Validator", "still in the inbox")
     log.record("d.json", "Lead Gen", "The CEO", "not ours")
     me = SimpleNamespace(errors=[], counts=Counter())
@@ -35,4 +35,4 @@ def test_taken_asks_are_read_and_resolved_waiting_ones_stay_open(tmp_path, monke
     assert by_id["b.json"].resolved_at
     assert by_id["c.json"].open and by_id["d.json"].open
     assert me.counts["requests closed"] == 2 and not me.errors
-    assert "blocker checked" in (tmp_path / "common-data" / "shared-state" / "requests.jsonl").read_text()
+    assert "taken by the Validator" in (tmp_path / "common-data" / "shared-state" / "requests.jsonl").read_text()
