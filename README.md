@@ -53,7 +53,6 @@ The rules of the house are kept, because they are what makes the fleet safe to l
 - **No public site.** The original fleet publishes a blog of the bots' notes; none of it is here: no site, no build or
   publish script, no schedule, no content. Nothing in this starter writes to anywhere public. The only places a bot
   writes are its own folder, the shared folder and the boards on this Mac.
-- **No optional members:** the Tor reader, the desktop agent and the publishing bot are not included.
 - **No history:** no plans, archives, reports, finds or leads from the original project.
 
 ## Start here

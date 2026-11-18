@@ -26,24 +26,12 @@ export async function capabilitiesOf(bot: BotProfile): Promise<Capabilities> {
   const cannot: string[] = [];
 
   const stopped = (await flags(bot)).includes("STOP");
-  const desktop = on("desktop.enabled");
-  const tor = cfg.get("browser.backend") === "tor";
   const local = cfg.get("model.provider") === "ollama" && cfg.get("model.remote_for") !== "all";
 
   // How it works.
-  if (desktop) {
-    can.push(on("desktop.dry_run") ? "Plan clicks and typing on this Mac's screen (dry run: nothing is performed)" : "Click and type on this Mac's screen");
-    can.push("Wakes only when you write to it in its chat");
-    cannot.push("Read or answer other agents' messages (only file routes)");
-    cannot.push("Browse the web or edit code");
-  } else if (tor) {
-    can.push("Read .onion sites over Tor, with a model on this Mac only");
-    cannot.push("Use cloud models, or send links or page text to other agents");
-  } else {
-    can.push("Browse the web and use keyless search (SearXNG and friends)");
-    cannot.push("Use Google or paid search APIs directly");
-  }
-  if (local && !tor) can.push("Think with a model on this Mac");
+  can.push("Browse the web and use keyless search (SearXNG and friends)");
+  cannot.push("Use Google or paid search APIs directly");
+  if (local) can.push("Think with a model on this Mac");
 
   // Outputs.
   // the boards (queue 572: the dashboard's local board, or the hosted portal): [tasks], [packages] and [leads]
