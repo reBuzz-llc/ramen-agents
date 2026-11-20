@@ -21,6 +21,9 @@ agents run without any Claude Code session at all.
 - **Sites**, if your agents make web pages. Reviews what they make and helps only when a page is too poor.
 
 Write each role into the folder's `CLAUDE.md` in a few lines, so every session reads who does what when it starts.
+A ready template is on the `fleet` branch:
+[docs/claude-team/CLAUDE.team.md](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/docs/claude-team/CLAUDE.team.md).
+Copy it into your folder as `CLAUDE.md`, fill in the placeholders and delete the roles you do not use.
 
 ## How work moves
 
@@ -52,6 +55,8 @@ Each of these comes from something that went wrong once.
   you, not to a different session that might be allowed.
 - **No session creates accounts, spends money or prints a key.** The same fence the agents have. Accounts and keys
   are yours to make; a session asks for each one.
+- **Only you restart an agent you stopped.** A session may restart an agent after a change, but never one you
+  stopped yourself.
 
 ## Good to know
 
