@@ -510,7 +510,8 @@ def cmd_new(cfg: Config, args: argparse.Namespace) -> int:
 def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
     """A few steps in fake mode, printed one line each, then the journal entry (the quickstart, 2026-10-14). Always the
     fake model and the fake web, whatever the config says, so it runs with no key and no network."""
-    import sqlite3
+    import shutil
+    import tempfile
 
     cfg.agent.mode = "fake"
     cfg.model.provider = "fake"
@@ -521,12 +522,37 @@ def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
         shipped = Path(__file__).resolve().parents[2] / "workspace" / "denylist.txt"
         if shipped.exists():
             cfg.policy.denylist_file = str(shipped)
+    # queue 641: every demo runs on its own throwaway workspace, so each run shows the same steps and never reads or
+    # writes the folder's day blocks, database, journal or logs. The inputs (fence lists, fake web, persona) are
+    # pinned to their real place first; only the state moves.
+    for section, name in (("policy", "denylist_file"), ("policy", "allowlist_file"), ("browser", "fake_web_dir"),
+                          ("agent", "persona_file")):
+        holder = getattr(cfg, section)
+        value = getattr(holder, name)
+        if str(value).strip():
+            setattr(holder, name, str(cfg.path(Path(value).expanduser())))
+    if stop_requested(cfg):  # the folder's own STOP still holds, read before the state moves
+        print(f"STOP file present at {cfg.stop_file}. Run 'bot resume' to clear it.", file=sys.stderr)
+        return 2
+    scratch = Path(tempfile.mkdtemp(prefix="demo-"))
+    try:
+        return _demo_in(cfg, args, scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _demo_in(cfg: Config, args: argparse.Namespace, scratch: Path) -> int:
+    import sqlite3
+
+    cfg.paths.workspace = str(scratch)
+    cfg.paths.db = str(scratch / "explorer.sqlite3")
+    cfg.paths.log = str(scratch / "logs" / "explorer.jsonl")
+    cfg.browser.user_data_dir = str(scratch / "browser_profile")
+    cfg.browser.search_pause_file = ""
+    cfg.developer.root = str(scratch / "dev")
     validate(cfg)
     cfg.ensure_dirs()
     logger = setup_logging(cfg.log_path, to_stderr=False)
-    if stop_requested(cfg):
-        print(f"STOP file present at {cfg.stop_file}. Run 'bot resume' to clear it.", file=sys.stderr)
-        return 2
     lock = PidLock(cfg.pid_file)
     if not lock.acquire():
         print(f"another run holds {cfg.pid_file}", file=sys.stderr)
@@ -536,6 +562,9 @@ def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
         build_controller(cfg, logger).run(max_cycles=args.steps)
     finally:
         lock.release()
+        for handler in list(logger.handlers):  # the log lives in the throwaway folder: let it go with it
+            handler.close()
+            logger.removeHandler(handler)
 
     con = sqlite3.connect(f"file:{cfg.db_path}?mode=ro", uri=True)
     try:
@@ -555,7 +584,7 @@ def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
         print(" ".join(f"step {i}: {kind} {str(what)[:70]} -> {outcome}{detail}".split()))
     journal = cfg.workspace / "journal" / f"{dt.date.today().isoformat()}.md"
     if journal.exists():
-        print(f"\njournal ({journal}):\n")
+        print(f"\njournal ({journal.name}, a throwaway copy):\n")
         print(journal.read_text(encoding="utf-8").strip()[-2000:])
     return 0
 

@@ -28,9 +28,7 @@ def test_demo_runs_a_session_end_to_end(tmp_path: Path, capsys):
     steps = [line for line in out.splitlines() if line.startswith("step ")]
     assert len([s for s in steps if s.endswith("allowed") or "-> allowed" in s]) >= 3
     assert any("summarize -> allowed" in s for s in steps)  # one whole session
-    assert "journal (" in out
-    journals = list((tmp_path / "my-explorer" / "workspace" / "journal").glob("*.md"))
-    assert journals and "Episode 1" in journals[0].read_text()
+    assert "journal (" in out and "Episode 1" in out
 
 
 def test_demo_ignores_a_real_model_in_the_config(tmp_path: Path, capsys):
@@ -41,6 +39,30 @@ def test_demo_ignores_a_real_model_in_the_config(tmp_path: Path, capsys):
     capsys.readouterr()
     assert main(["--config", str(config), "demo", "--steps", "3"]) == 0
     assert capsys.readouterr().out.count("step ") == 3
+
+
+def _tree(folder: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(folder)): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+
+
+def test_demo_runs_on_throwaway_state_every_time(tmp_path: Path, capsys):
+    """Queue 641: the demo wrote the folder's day blocks and database, so a second run the same day showed other
+    steps. Now each run gets its own throwaway workspace: two runs print the same steps, and the folder's own files
+    (config, persona, workspace) are byte-for-byte what they were."""
+    main(["new", "My Explorer", "--fake", "--dir", str(tmp_path)])
+    capsys.readouterr()
+    folder = tmp_path / "my-explorer"
+    config = folder / "config.toml"
+    (folder / "workspace").mkdir(exist_ok=True)
+    (folder / "workspace" / "day-blocks.json").write_text('{"date": "2000-01-01", "blocks": {"open:*": "kept"}}')
+    before = _tree(folder)
+
+    runs = []
+    for _ in range(2):
+        assert main(["--config", str(config), "demo"]) == 0
+        runs.append([line for line in capsys.readouterr().out.splitlines() if line.startswith("step ")])
+    assert runs[0] and runs[0] == runs[1]
+    assert _tree(folder) == before
 
 
 def test_label_prefix_comes_from_env_then_file_then_default(tmp_path, monkeypatch):
