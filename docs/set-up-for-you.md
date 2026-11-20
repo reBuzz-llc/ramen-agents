@@ -1,6 +1,6 @@
 ---
 title: "Can someone set up ramen-agents for me?"
-description: "Yes: the company that built ramen-agents installs it on your Mac, sets the agents up for your business and starts the first day with you."
+description: "Yes: the company that built ramen-agents installs it on your Mac, sets the agents up for your business and starts the first run with you."
 permalink: /set-up-for-you.html
 ---
 
@@ -21,22 +21,22 @@ rather spend the setup hour on the business.
 - **Your free model key added with you.** You create the key yourself and we show you where: nobody, person or agent,
   makes an account in your name.
 - **The dashboard explained:** who is running, today's leads, and what the fence refused.
-- **The first day started with you,** so you see the first results come in.
+- **The first run started with you,** so you see the agents at work.
 
-The software stays free and open source (Apache-2.0). You pay only for the setup.
+The software stays free and open source (Apache-2.0). The setup is a paid service: ask for a quote.
 
 ## How it goes
 
 1. **Message us.** Tell us about your business in a few lines.
 2. **We agree a time and set it up with you.** In New York we can do it in person.
-3. **Your agents start.** You watch the first day on your dashboard, and your team sends the emails the agents
+3. **Your agents start.** You watch the first run on your dashboard, and your team sends the emails the agents
    prepare.
 
 ## Good to know
 
 - The agents never send an email, sign up for anything or spend money. That fence is in the code:
   [what no agent may do](fence.html).
-- It runs on free model tiers and keyless search, so there is no monthly bill from us for running it.
+- It runs on free model tiers and keyless search, so running it costs nothing.
 - Prefer to do it yourself? It is three commands: [how do I set it up?](faq.html#how-do-i-set-it-up), or
   [try it first without a key](try-without-a-key.html).
 

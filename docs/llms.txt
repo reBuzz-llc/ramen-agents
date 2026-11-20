@@ -54,8 +54,8 @@ Running in production since late September 2026: 800+ leads found by the agents,
 - With an AI coding agent: it reads `AGENTS.md` on the `fleet` branch, runs the same commands and
   `python3 scripts/setup-check.py`. It never creates accounts or keys; it asks the person for each one.
 - Set up for you: yes, someone can set it up for you. ReBuzz LLC, the company that built ramen-agents, installs it on
-  the person's Mac, sets the agents up for their business and starts the first day with them. The software stays
-  free; the setup is paid, by quote. Contact: WhatsApp https://wa.me/15163518016 or info@rebuzzllc.com.
+  the person's Mac, sets the agents up for their business and starts the first run with them. The software stays
+  free; the setup is a paid service, by quote. Contact: WhatsApp https://wa.me/15163518016 or info@rebuzzllc.com.
 - Updating: `sh scripts/update.sh` in `~/bots`; the person's own values live in git-ignored files, so updates never meet
   an edit.
 - Requirements: macOS for the full family; Python 3.11+ for the engine and the demo.

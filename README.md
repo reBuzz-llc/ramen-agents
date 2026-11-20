@@ -14,7 +14,7 @@ money, or collect personal data: that fence is in the code, not in a prompt.
 [Try it in 10 minutes](#try-it-in-10-minutes-no-key) · [Run it for real](#run-it-for-real) · [Set up with your AI agent](#set-up-with-your-ai-agent) · [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html) · [The fence](FENCE.md) · [FAQ](#faq) · [The brochure (PDF)](docs/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
 > **Want it set up for you?** We install ramen-agents on your Mac, set the agents up for your business and start the
-> first day with you. The software stays free; you pay only for the setup.
+> first run with you. The software stays free; the setup is a paid service.
 > [Message us on WhatsApp](https://wa.me/15163518016) or email info@rebuzzllc.com and ask for a quote:
 > [how it goes](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html).
 
@@ -193,8 +193,8 @@ with the link.
 ### Can someone set it up for me?
 
 Yes: ReBuzz LLC, the company that built ramen-agents and runs it every day, sets it up for you. We install it on your
-Mac, set the agents up for your business and start the first day with you. The software stays free and open source;
-you pay only for the setup. Message us on WhatsApp (https://wa.me/15163518016) or email info@rebuzzllc.com and ask
+Mac, set the agents up for your business and start the first run with you. The software stays free and open source;
+the setup is a paid service. Message us on WhatsApp (https://wa.me/15163518016) or email info@rebuzzllc.com and ask
 for a quote. See [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html).
 
 ### Does it cost anything?
