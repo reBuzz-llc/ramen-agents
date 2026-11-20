@@ -50,8 +50,8 @@ can do it with you: point it at `AGENTS.md` on the `fleet` branch.
 
 Yes: ReBuzz LLC, the company that built ramen-agents and runs it every day, sets it up for you. We install it on your
 Mac, set the agents up for your business and start the first run with you. The software stays free and open source;
-the setup is a paid service. [Message us on WhatsApp](https://wa.me/15163518016) or email info@rebuzzllc.com and ask
-for a quote. More: [We set it up for you](set-up-for-you.html).
+the setup is a paid service. [Message us on WhatsApp](https://wa.me/15163518016) and ask for a quote. More:
+[We set it up for you](set-up-for-you.html).
 
 ## How do I update it?
 

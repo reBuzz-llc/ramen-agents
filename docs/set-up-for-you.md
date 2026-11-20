@@ -7,7 +7,7 @@ permalink: /set-up-for-you.html
 Yes. ReBuzz LLC built ramen-agents and runs it every day for its own business. We set it up for you, so your agent
 team is working without you opening a terminal.
 
-[Message us on WhatsApp](https://wa.me/15163518016) or email info@rebuzzllc.com and ask for a quote.
+[Message us on WhatsApp](https://wa.me/15163518016) and ask for a quote.
 
 ## Who it is for
 
@@ -40,4 +40,4 @@ The software stays free and open source (Apache-2.0). The setup is a paid servic
 - Prefer to do it yourself? It is three commands: [how do I set it up?](faq.html#how-do-i-set-it-up), or
   [try it first without a key](try-without-a-key.html).
 
-[Message us on WhatsApp](https://wa.me/15163518016) · info@rebuzzllc.com
+[Message us on WhatsApp](https://wa.me/15163518016)
