@@ -49,6 +49,7 @@ first run with you. The software stays free; the setup is a paid service.
 - **What it runs on:** free model tiers and keyless search. [Which free AI models and search engines does it use?](free-tiers.html)
 - **Where your leads go:** one file on your Mac, shown on your dashboard. [Where do my leads go?](leads-board.html)
 - **How it differs from other tools:** [How it compares](how-it-compares.html)
+- **Looking after it with Claude Code:** [How do I run ramen-agents with a team of Claude Code sessions?](claude-code-team.html)
 - **Everything else:** [Questions people ask](faq.html)
 
 The name comes from "ramen profitable": the stretch when a young company lives on ramen while it finds its first
