@@ -3,7 +3,7 @@ message: "If you use ramen-agents, please cite it as below."
 title: "ramen-agents: a family of free-tier web agents with a hard fence"
 type: software
 authors:
-  - name: "reBuzz LLC"
+  - name: "ReBuzz LLC"
 license: Apache-2.0
 repository-code: "https://github.com/reBuzz-llc/ramen-agents"
 keywords:
