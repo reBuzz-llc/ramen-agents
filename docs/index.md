@@ -31,7 +31,8 @@ We built ramen-agents for our own small agency and run it every day.
 
 No agent can create an account, spend money, or collect personal data. That fence is in the code, not in a prompt,
 and every refusal is written down where you can read it.
-[Can an AI agent spend money, sign up or collect personal data?](fence.html)
+[Can an AI agent spend money, sign up or collect personal data?](fence.html) ·
+[What does the Validator check?](validator-rules.html)
 
 ## Two ways to start
 
