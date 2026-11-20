@@ -43,6 +43,7 @@ with a built-in heuristic model and reads a bundled set of eight local pages.
 ```sh
 git clone -b engine https://github.com/reBuzz-llc/ramen-agents ramen-engine
 cd ramen-engine
+python3 -m venv .venv && . .venv/bin/activate   # keeps the install inside this folder
 pip install -e .            # or: uv pip install -e .
 bot new "My Explorer" --fake --dir ./demo-fleet
 bot --config ./demo-fleet/my-explorer/config.toml demo

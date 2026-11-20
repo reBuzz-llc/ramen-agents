@@ -44,7 +44,8 @@ Running in production since late September 2026: 800+ leads found by the agents,
 
 ## How to start
 
-- Ten minutes, no key, no network: `git clone -b engine https://github.com/reBuzz-llc/ramen-agents`, `pip install -e .`,
+- Ten minutes, no key, no network: `git clone -b engine https://github.com/reBuzz-llc/ramen-agents`,
+  `python3 -m venv .venv && . .venv/bin/activate`, `pip install -e .`,
   `bot new "My Explorer" --fake --dir ./demo-fleet`, `bot --config ./demo-fleet/my-explorer/config.toml demo`.
 - The real setup, macOS only: `git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots`, then
   in `~/bots` `sh scripts/install.sh` (checks and installs everything) and `sh scripts/setup.sh` (a few questions, one

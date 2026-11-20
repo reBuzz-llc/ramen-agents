@@ -33,7 +33,8 @@ any of it.
 
 ## 3. Show it to people (one a day, not all at once)
 
-- [ ] **Show HN** (Hacker News). Title: `Show HN: ramen-agents – a free AI agent team for a small business (runs on free API tiers)`.
+- [ ] **Show HN** (Hacker News). Title: `Show HN: Ramen-agents – an AI agent team for small business on free API tiers`
+  (77 characters; Hacker News allows 80).
   The text, the Reddit and LinkedIn drafts are in the copy box at the end of the blog's /ramen-agents-launch post.
   First comment draft: what it is in two lines, the ten-minute no-key quickstart, the fence, and one honest
   limitation (macOS for the always-on setup).
