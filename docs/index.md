@@ -18,6 +18,7 @@ customers. This is the team for that stretch, and it costs nothing to run.
 - **What no agent may do:** [Can an AI agent spend money, sign up or collect personal data?](fence.html)
 - **What it runs on:** [Which free AI models and search engines does it use?](free-tiers.html)
 - **Run it for real:** three commands on a Mac ([How do I set it up?](faq.html#how-do-i-set-it-up)) · [Where do my leads go?](leads-board.html)
+- **Want it set up for you?** [Can someone set up ramen-agents for me?](set-up-for-you.html) Yes: message us and ask for a quote.
 - **Everything else:** [Questions people ask](faq.html) · [How it compares](how-it-compares.html) · [Does it cost anything?](does-it-cost-anything.html)
 
 The code is on GitHub: [reBuzz-llc/ramen-agents](https://github.com/reBuzz-llc/ramen-agents), Apache-2.0.

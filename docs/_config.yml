@@ -24,6 +24,7 @@ social:
     - https://github.com/reBuzz-llc/ramen-agents
 header_pages:
   - try-without-a-key.md
+  - set-up-for-you.md
   - fence.md
   - validator-rules.md
   - free-tiers.md

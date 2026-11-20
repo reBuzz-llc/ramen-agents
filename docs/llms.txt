@@ -53,6 +53,9 @@ Running in production since late September 2026: 800+ leads found by the agents,
   shown on the dashboard. No account anywhere.
 - With an AI coding agent: it reads `AGENTS.md` on the `fleet` branch, runs the same commands and
   `python3 scripts/setup-check.py`. It never creates accounts or keys; it asks the person for each one.
+- Set up for you: yes, someone can set it up for you. ReBuzz LLC, the company that built ramen-agents, installs it on
+  the person's Mac, sets the agents up for their business and starts the first day with them. The software stays
+  free; the setup is paid, by quote. Contact: WhatsApp https://wa.me/15163518016 or info@rebuzzllc.com.
 - Updating: `sh scripts/update.sh` in `~/bots`; the person's own values live in git-ignored files, so updates never meet
   an edit.
 - Requirements: macOS for the full family; Python 3.11+ for the engine and the demo.
@@ -61,6 +64,7 @@ Running in production since late September 2026: 800+ leads found by the agents,
 
 - [Docs site](https://rebuzz-llc.github.io/ramen-agents/): one page per question
 - [Try it without a key](https://rebuzz-llc.github.io/ramen-agents/try-without-a-key.html): the ten-minute demo, step by step
+- [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html): who it is for, what you get, three steps, how to ask
 - [The fence](https://rebuzz-llc.github.io/ramen-agents/fence.html): every rule no agent may break, and the file that enforces it
 - [What the Validator checks](https://rebuzz-llc.github.io/ramen-agents/validator-rules.html): every rule, and whether it refuses or flags
 - [Free tiers](https://rebuzz-llc.github.io/ramen-agents/free-tiers.html): each provider's free limits and where its key goes

@@ -46,6 +46,13 @@ Three commands on a Mac: `git clone -b fleet -o starter https://github.com/reBuz
 setup asks who you are and who you sell to, helps you add one free model key and starts the family. An AI coding agent
 can do it with you: point it at `AGENTS.md` on the `fleet` branch.
 
+## Can someone set it up for me?
+
+Yes: ReBuzz LLC, the company that built ramen-agents and runs it every day, sets it up for you. We install it on your
+Mac, set the agents up for your business and start the first day with you. The software stays free and open source;
+you pay only for the setup. [Message us on WhatsApp](https://wa.me/15163518016) or email info@rebuzzllc.com and ask
+for a quote. More: [We set it up for you](set-up-for-you.html).
+
 ## How do I update it?
 
 To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the

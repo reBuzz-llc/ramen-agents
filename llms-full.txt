@@ -6,34 +6,25 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 
 # ramen-agents
 
+![15 seconds of the dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now, a close-up of whoever acts and a ticker of the day's numbers along the bottom](https://rebuzz-llc.github.io/ramen-agents/assets/world.gif)
+
 **What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
 **Who it is for:** a founder or a small agency with a laptop and big plans: the team works while you build the business.<br>
 **What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.<br>
 **Running in production since late September 2026:** 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.
 
-![15 seconds of the dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now, a close-up of whoever acts and a ticker of the day's numbers along the bottom](https://rebuzz-llc.github.io/ramen-agents/assets/world.gif)
-
 ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
 steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
 money, or collect personal data: that fence is in the code, not in a prompt.
 
-[Try it in 10 minutes](https://github.com/reBuzz-llc/ramen-agents#try-it-in-10-minutes-no-key) · [Run it for real](https://github.com/reBuzz-llc/ramen-agents#run-it-for-real) · [Set up with your AI agent](https://github.com/reBuzz-llc/ramen-agents#set-up-with-your-ai-agent) · [The fence](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/FENCE.md) · [FAQ](https://github.com/reBuzz-llc/ramen-agents#faq) · [The brochure (PDF)](https://rebuzz-llc.github.io/ramen-agents/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
+[Try it in 10 minutes](https://github.com/reBuzz-llc/ramen-agents#try-it-in-10-minutes-no-key) · [Run it for real](https://github.com/reBuzz-llc/ramen-agents#run-it-for-real) · [Set up with your AI agent](https://github.com/reBuzz-llc/ramen-agents#set-up-with-your-ai-agent) · [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html) · [The fence](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/FENCE.md) · [FAQ](https://github.com/reBuzz-llc/ramen-agents#faq) · [The brochure (PDF)](https://rebuzz-llc.github.io/ramen-agents/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
+
+> **Want it set up for you?** We install ramen-agents on your Mac, set the agents up for your business and start the
+> first day with you. The software stays free; you pay only for the setup.
+> [Message us on WhatsApp](https://wa.me/15163518016) or email info@rebuzzllc.com and ask for a quote:
+> [how it goes](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html).
 
 ---
-
-## Why this exists
-
-*(A note from the founder: edit freely.)*
-
-Young people starting out have time, a laptop and the open web. That is enough.
-ramen-agents is built for them: a small team of agents that does the steady, daily work of an early company (finding
-businesses that need you, reading what the market charges, keeping notes with sources, writing the email your team sends), and
-does it on the free tiers that model providers and search engines already give away. The name comes from "ramen
-profitable": living on ramen while the company finds its feet.
-
-We built it for our own small agency and run it every day. It is opinionated about one thing above all: an agent that
-works for you must never sign up for anything, spend anything, or take data that isn't a business's public contact.
-Freedom to explore the web, with a fence you can read.
 
 ## Try it in 10 minutes (no key)
 
@@ -63,6 +54,20 @@ step 15: note 'Search: history of the internet' -> refused (you already saved a 
 
 Every agent action goes through the same check (`src/explorer/policy.py`) before it runs, and the refusal reason is
 written down where you can read it.
+
+## Why this exists
+
+*(A note from the founder: edit freely.)*
+
+Young people starting out have time, a laptop and the open web. That is enough.
+ramen-agents is built for them: a small team of agents that does the steady, daily work of an early company (finding
+businesses that need you, reading what the market charges, keeping notes with sources, writing the email your team sends), and
+does it on the free tiers that model providers and search engines already give away. The name comes from "ramen
+profitable": living on ramen while the company finds its feet.
+
+We built it for our own small agency and run it every day. It is opinionated about one thing above all: an agent that
+works for you must never sign up for anything, spend anything, or take data that isn't a business's public contact.
+Freedom to explore the web, with a fence you can read.
 
 ## The family
 
@@ -190,6 +195,13 @@ Yes: an AI coding agent such as Claude Code, Codex or Cursor can set up ramen-ag
 `fleet` branch, running the three setup commands and asking you the setup questions
 ([Set up with your AI agent](https://github.com/reBuzz-llc/ramen-agents#set-up-with-your-ai-agent)). It never creates accounts or keys: it asks you for each one,
 with the link.
+
+### Can someone set it up for me?
+
+Yes: ReBuzz LLC, the company that built ramen-agents and runs it every day, sets it up for you. We install it on your
+Mac, set the agents up for your business and start the first day with you. The software stays free and open source;
+you pay only for the setup. Message us on WhatsApp (https://wa.me/15163518016) or email info@rebuzzllc.com and ask
+for a quote. See [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html).
 
 ### Does it cost anything?
 
