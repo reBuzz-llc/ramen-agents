@@ -2,7 +2,7 @@
 
 Edited in the dashboard (the Team page) and shared by every bot with the task skill, so it lives in common-data/team.json
 next to the keys, not in one bot's folder. The role and details are the owner's words about who does what, shown to the
-model so it can name the right person in a task's details; the board's assignee is the team's own cell (queue 572).
+model so it can name the right person in a task's details; the board's assignee is the team's own cell.
 
     {"version": 1, "members": [{"id": "...", "name": "Alex", "email": "alex@...",
                                 "role": "Regional representative", "details": "...", "default": true}]}
@@ -45,7 +45,7 @@ class Member:
 
 
 def family_team(path: str | Path) -> list[dict] | None:
-    """The [[team]] rows of the user's own common-data/local/family.toml beside the team file (queue 572: setup.sh and the
+    """The [[team]] rows of the user's own common-data/local/family.toml beside the team file (setup.sh and the
     first-run page write it), or None when it has none."""
     import tomllib
     local = Path(path).expanduser().parent / "local" / "family.toml"

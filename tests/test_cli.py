@@ -46,7 +46,7 @@ def _tree(folder: Path) -> dict[str, bytes]:
 
 
 def test_demo_runs_on_throwaway_state_every_time(tmp_path: Path, capsys):
-    """Queue 641: the demo wrote the folder's day blocks and database, so a second run the same day showed other
+    """the demo wrote the folder's day blocks and database, so a second run the same day showed other
     steps. Now each run gets its own throwaway workspace: two runs print the same steps, and the folder's own files
     (config, persona, workspace) are byte-for-byte what they were."""
     main(["new", "My Explorer", "--fake", "--dir", str(tmp_path)])

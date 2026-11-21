@@ -231,14 +231,14 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "sambanova": {"base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct", "free": "free tier, no card"},
     # A $1 lifetime credit, then pay per token (speka.me, 2026-11-21): never joins by a key file alone.
     "speka": {"base_url": "https://speka.me/v1", "model": "openai/gpt-oss-20b", "free": "$1 lifetime credit, then pay per token (not in the default chain)", "auto": False},
-    # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0, no card. Ollama Cloud's $0 plan is pay per token (2026-11-21).
-    "zai": {"base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.5-flash", "free": "free model ($0 list price), no card"},
+    # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0; its page does not state whether a card is needed. Ollama Cloud's $0 plan is pay per token (2026-11-21).
+    "zai": {"base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.5-flash", "free": "free model ($0 list price); its page does not state whether a card is needed"},
     "ollama-cloud": {"base_url": "https://ollama.com/v1", "model": "gpt-oss:120b", "free": "pay per token (not in the default chain)", "auto": False},
     "together": {"base_url": "https://api.together.xyz/v1", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "free": "trial credit only, then paid", "auto": False},
     "deepseek": {"base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat", "free": "pay-as-you-go, no free tier", "auto": False},
     "openai": {"base_url": "https://api.openai.com/v1", "model": "gpt-4.1-mini", "free": "paid, no free tier", "auto": False},
     "moonshot": {"base_url": "https://api.moonshot.ai/v1", "model": "kimi-k2-0711-preview", "free": "paid, no free tier", "auto": False},
-    "openrouter": {"base_url": "https://openrouter.ai/api/v1", "model": "google/gemma-4-31b-it:free", "free": "free :free models, no card (~50/day without credit)"},
+    "openrouter": {"base_url": "https://openrouter.ai/api/v1", "model": "google/gemma-4-31b-it:free", "free": "free :free models; its page does not state whether a card is needed (~50/day without credit)"},
     "replicate": {"base_url": "https://api.replicate.com/v1", "model": "meta/meta-llama-3-70b-instruct", "free": "PAID per second (trial credit only); kind=replicate", "kind": "replicate", "auto": False},
 }
 
@@ -373,7 +373,7 @@ class TasksConfig:
     """Creating tasks on the team's task board (the CEO persona's output skill). Off by default.
 
     The board is the dashboard's local board, or the hosted portal at the same address ([leads] portal_url and
-    portal_key_file, the one board setting; queue 572: Notion is gone from the starter). A bot's task starts
+    portal_key_file, the one board setting; Notion is gone from the starter). A bot's task starts
     "Not started" and unassigned; status, assignees and the checklist are the team's cells.
     """
 
@@ -471,7 +471,7 @@ class LeadsConfig:
     """The Lead Gen bot's output: one row per potential customer on the team's Leads board. Off by default.
 
     portal_url is the one board address for leads, tasks and packages: the starter dashboard's local board by default,
-    or the hosted portal (queue 572). The agents read and write it with portal_key_file's key."""
+    or the hosted portal. The agents read and write it with portal_key_file's key."""
 
     enabled: bool = False
     portal_url: str = "http://127.0.0.1:3000"
@@ -562,7 +562,7 @@ class LeadsConfig:
     # package_aliases maps a board "How can I help" name to the start of its toggle title on the page.
     package_emails_file: str = ""
     package_aliases: dict[str, str] = field(default_factory=dict)
-    # "" = any stage (queue 572: the board has no Stage field, so "New" left a starter Writer an empty queue)
+    # "" = any stage (the board has no Stage field, so "New" left a starter Writer an empty queue)
     draft_queue_stage: str = ""
     draft_queue_shown: int = 15
     # The exact last lines of every draft. A package email's own sign-off is replaced by these in the work list
@@ -786,7 +786,7 @@ class PathsConfig:
     log: str = "workspace/logs/explorer.jsonl"
 
 
-# queue 603 (the family's 595): sections, keys and action names of removed features, read and ignored so an old config
+# sections, keys and action names of removed features, read and ignored so an old config
 # still loads: the desktop agent's [desktop], the blog-post [publish], messaging.route_only_peers, and the Tor
 # reader's browser.tor_proxy, browser.onion_directory_file, messaging.plain_only and scout.kind.
 RETIRED_SECTIONS = frozenset({"desktop", "publish"})
@@ -947,7 +947,7 @@ def _read_with_extends(cfg_path: Path, seen: tuple[Path, ...] = ()) -> dict[str,
 
 
 def overlay_paths(cfg_path: Path) -> list[Path]:
-    """The untracked local overlays read on top of a member's tracked config (queue 572: a user never edits a tracked
+    """The untracked local overlays read on top of a member's tracked config (a user never edits a tracked
     file, so an update is a plain pull): <fleet>/common-data/configs/local.toml (shared by every member), then the
     member's own <member>/config.local.toml. Any local file beats any tracked one; the member's own beats the shared."""
     real = cfg_path.expanduser().resolve()
@@ -955,7 +955,7 @@ def overlay_paths(cfg_path: Path) -> list[Path]:
 
 
 def check_keys(data: dict[str, Any], where: str) -> None:
-    """Every section and key known, or the bot stops at load naming the file: a leftover [notion] (queue 572) or a
+    """Every section and key known, or the bot stops at load naming the file: a leftover [notion] or a
     typo in an overlay is never silently ignored."""
     unknown = sorted(k for k, v in data.items() if k not in SECTIONS and k not in RETIRED_SECTIONS)
     if unknown:
@@ -1008,7 +1008,7 @@ def load_config(path: str | os.PathLike[str] | None = None, root: Path | None = 
 
 
 def _family_domains(cfg: Config, cfg_path: Path) -> None:
-    """The user's own site domains from common-data/local/family.toml [company] own_domains (queue 572, the first run),
+    """The user's own site domains from common-data/local/family.toml [company] own_domains (the first run),
     added to [handoff] own_domains (a package never cites the seller's own site); with no [agent] contact, the first one
     is the contact the user agent carries."""
     local = cfg_path.expanduser().resolve().parent.parent / "common-data" / "local" / "family.toml"

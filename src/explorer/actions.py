@@ -118,7 +118,7 @@ class UpdateTask(BaseModel):
 
 class MergeTask(BaseModel):
     """Close one of your own board tasks that another of your tasks already covers: it is marked with the board's
-    duplicate status and a line saying where its work went. Off since queue 572: a task's status is the team's cell."""
+    duplicate status and a line saying where its work went. Off: a task's status is the team's cell."""
 
     type: Literal["merge_task"]
     title: str  # the task to close (one you created, not started yet)

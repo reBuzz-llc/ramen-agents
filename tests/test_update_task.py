@@ -77,7 +77,7 @@ def test_the_controller_updates_the_task_and_its_own_record(cfg):
     assert fake.updates == [{"page_id": "00000000-0000-0000-0000-000000000001", "assignee": None, "priority": None,
                              "due": "2026-10-06", "details_append": "### Done when\n- [ ] 50 named founders with a reason each."}]
     task = ctl.memory.find_task("build the springfield target list")
-    assert task["due"] == "2026-10-06"   # queue 572: the assignee is the team's cell; the bot never sets it
+    assert task["due"] == "2026-10-06"   # the assignee is the team's cell; the bot never sets it
 
 
 # ---- a fuller package replaces its toggle -------------------------------------------------------------------
@@ -181,7 +181,7 @@ class MergesTwice:
 
 
 def test_merging_tasks_is_not_offered(cfg):
-    """Queue 572: a task's status is the team's cell on the board, so a bot never closes a task by merging."""
+    """a task's status is the team's cell on the board, so a bot never closes a task by merging."""
     cfg.tasks.enabled = True
     c = make_controller(cfg, board=FakeBoard())
     assert "merge_task" not in c.system

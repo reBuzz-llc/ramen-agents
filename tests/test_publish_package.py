@@ -70,7 +70,7 @@ def test_execute_writes_a_toggle_with_the_packages_own_facts(cfg, tmp_path: Path
     res = c._execute_publish_package(pub())
     assert res.ok and fake.toggles, res.summary
     t = fake.toggles[-1]
-    assert t["name"] == "MVP Launch Starter" and t["title"] == "Ship your SPF MVP in 8 weeks"   # queue 572: a draft by name, no page
+    assert t["name"] == "MVP Launch Starter" and t["title"] == "Ship your SPF MVP in 8 weeks"   # a draft by name, no page
     assert "https://speedmvps.example/pricing" in t["sources"]
     assert ("Company", "SpeedMVPs") in t["company"] and ("Founded", "2019") in t["company"]
     assert t["price"] == "$6,500 fixed" and t["deliverables"][1] == "Web MVP with auth and payments"  # its own section now

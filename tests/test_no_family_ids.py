@@ -1,4 +1,4 @@
-"""The public starter carries nothing of the family's own (queue 572; the Python twin of the dashboard's
+"""The public starter carries nothing of the family's own (the Python twin of the dashboard's
 no-family-ids test): every tracked file of this repository is scanned for a Notion link, a 32-hex id that is not an
 obvious placeholder, a Supabase project ref, a tailnet or device name, and the family's own names. A placeholder reads
 as one: a run of one character, few distinct characters, or an id starting 0123 / 1234 / abcd / dead / 0000."""

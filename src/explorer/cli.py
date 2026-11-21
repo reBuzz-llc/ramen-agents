@@ -42,7 +42,7 @@ from .presence import QuietDetector
 def build_boards(cfg: Config, logger: logging.Logger) -> tuple[Any, Any]:
     """(the Leads board client, the tasks-and-packages board client), each None when its skills are off or no agents'
     key was found. One board for both: [leads] portal_url (the dashboard's local board by default) and portal_key_file
-    (queue 572: the starter has no Notion)."""
+    (the starter has no Notion)."""
     wants_leads = cfg.leads.enabled
     wants_board = cfg.tasks.enabled or cfg.packages.enabled
     url = cfg.leads.portal_url.strip()
@@ -397,7 +397,7 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         report(bool(found), f"chromium: {found[-1] if found else 'not installed (run: playwright install chromium)'}")
     report(not stop_requested(cfg), "STOP flag absent" if not stop_requested(cfg) else "STOP flag present (run 'bot resume')")
     if cfg.leads.enabled or cfg.tasks.enabled or cfg.packages.enabled or args.all:
-        # The board, built exactly as the runner builds it: the address, the agents' key and one read (queue 572).
+        # The board, built exactly as the runner builds it: the address, the agents' key and one read.
         url = cfg.leads.portal_url.strip()
         token = load_api_key("PORTAL_ENGINE_KEY", cfg.leads.portal_key_file)
         if not url:
@@ -522,7 +522,7 @@ def cmd_demo(cfg: Config, args: argparse.Namespace) -> int:
         shipped = Path(__file__).resolve().parents[2] / "workspace" / "denylist.txt"
         if shipped.exists():
             cfg.policy.denylist_file = str(shipped)
-    # queue 641: every demo runs on its own throwaway workspace, so each run shows the same steps and never reads or
+    # every demo runs on its own throwaway workspace, so each run shows the same steps and never reads or
     # writes the folder's day blocks, database, journal or logs. The inputs (fence lists, fake web, persona) are
     # pinned to their real place first; only the state moves.
     for section, name in (("policy", "denylist_file"), ("policy", "allowlist_file"), ("browser", "fake_web_dir"),
@@ -589,12 +589,25 @@ def _demo_in(cfg: Config, args: argparse.Namespace, scratch: Path) -> int:
     return 0
 
 
+def read_only_copy(path: Path) -> Path | None:
+    """The folder holding READ-ONLY-COPY.md above this config, or None: main's fleet/ and engine/ are copies for reading."""
+    for folder in Path(path).resolve().parents:
+        if (folder / "READ-ONLY-COPY.md").is_file():
+            return folder
+    return None
+
+
 def cmd_install(cfg: Config, args: argparse.Namespace) -> int:
     from .fleet import install, label_for
 
     config_path = config_path_for(args)
     if not config_path.exists():
         print(f"no config at {config_path}; pass --config", file=sys.stderr)
+        return 2
+    if (copy := read_only_copy(config_path)) is not None:
+        print(f"STOP: {copy} is a read-only copy of the code, for reading; nothing is installed from it.\n"
+              "Install from the branch, as the README says: git clone -b fleet -o starter "
+              "https://github.com/reBuzz-llc/ramen-agents.git ~/bots", file=sys.stderr)
         return 2
     cfg.ensure_dirs()
     label = label_for(cfg.agent.name)

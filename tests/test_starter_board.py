@@ -1,4 +1,4 @@
-"""Queue 572 (owner, 2026-11-16: "remove notion from all location and repos"): the starter runs a whole family on the
+"""The starter runs a whole family on the
 dashboard's local board with no Notion anywhere. Tasks and package drafts go through portal_store like the leads, the
 user's own values live in untracked overlays, a leftover [notion] stops a bot at load naming the file, and a board that
 is not running is a plain rest, never a crash or a write recorded that never landed."""
@@ -317,3 +317,23 @@ def test_a_writer_added_to_a_starter_gets_a_draft_queue_from_the_board_as_shippe
     c = make_controller(cfg, leads_board=PortalLeadStore("http://127.0.0.1:3000", "k", "Outreach Writer", http=http))
     text = "\n".join(c._draft_queue_lines())
     assert "Corner Bakery" in text and "Done Deli" not in text
+
+
+def test_bot_install_refuses_inside_the_read_only_copy(tmp_path, capsys):
+    import argparse
+
+    from explorer import cli
+    root = tmp_path / "ramen-agents" / "fleet"
+    (root / "the-ceo").mkdir(parents=True)
+    (root / "READ-ONLY-COPY.md").write_text("A copy for reading.\n")
+    config = root / "the-ceo" / "config.toml"
+    config.write_text("")
+    assert cli.read_only_copy(config) == root.resolve()
+    assert cli.read_only_copy(tmp_path / "elsewhere" / "config.toml") is None
+    called = []
+
+    class Cfg:
+        def ensure_dirs(self):
+            called.append("ensure_dirs")
+    assert cli.cmd_install(Cfg(), argparse.Namespace(config=str(config))) == 2
+    assert not called and "read-only copy" in capsys.readouterr().err

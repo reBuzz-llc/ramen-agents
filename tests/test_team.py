@@ -42,7 +42,7 @@ def test_a_broken_or_missing_file_is_an_empty_team(tmp_path):
     (tmp_path / "bad.json").write_text("{not json")
     assert load_team(tmp_path / "bad.json") == []
     (tmp_path / "half.json").write_text(json.dumps({"members": [{"name": ""}, {"name": "No id"}, {"id": "u1", "name": "Ok"}]}))
-    assert [m.name for m in load_team(tmp_path / "half.json")] == ["No id", "Ok"]   # queue 572: the id is optional, a name is not
+    assert [m.name for m in load_team(tmp_path / "half.json")] == ["No id", "Ok"]   # the id is optional, a name is not
 
 
 def test_the_prompt_block_names_everyone_and_the_default():
@@ -96,7 +96,7 @@ def test_tasks_keep_no_assignee_and_the_team_reaches_the_prompt(cfg, tmp_path):
     controller.memory.end_episode(controller.memory.current_episode()["id"], "done")  # one task per episode
     controller = make_controller(cfg, model=TaskModel("alex", "Book the discovery meeting"), board=FakeBoard())
     controller.run(max_cycles=1)
-    assert controller.task_board.tasks[-1]["assignee"] is None  # queue 572: the team assigns on the board
+    assert controller.task_board.tasks[-1]["assignee"] is None  # the team assigns on the board
 
 
 def test_the_team_file_is_reread_when_it_changes(cfg, tmp_path):

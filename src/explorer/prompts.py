@@ -88,7 +88,7 @@ def system_prompt(
     work_plan: str = "",
     plans_enabled: bool = False,
 ) -> str:
-    # queue 603 (the family's 595 c): the blog-post action is gone; the package page line stays for the members that have it
+    # the blog-post action is gone; the package page line stays for the members that have it
     package_line = ("`publish_package` -- the board's Packages list -- is how a package goes up or is republished."
                     if package_page else "")
     developer_block = ""

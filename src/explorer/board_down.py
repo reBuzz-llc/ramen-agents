@@ -1,5 +1,5 @@
 """The board is down: the dashboard is not running (its local board answers at [leads] portal_url, 127.0.0.1:3000 by
-default), or the hosted portal answers 402 or 5xx (queue 572, ported from the family's queue 556).
+default), or the hosted portal answers 402 or 5xx.
 
 One flag for the Mac, common-data/shared-state/board-down.json: the first unreachable, 402 or 5xx answer raises it; while
 it is up every board client on the Mac makes one probe per PROBE_SECONDS and refuses the rest at once, without a request;

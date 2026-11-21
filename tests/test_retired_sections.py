@@ -1,4 +1,4 @@
-"""Queue 603 (the family's 595 a/c): the desktop agent, the blog-post publish action, the interest action and
+"""the desktop agent, the blog-post publish action, the interest action and
 messaging.route_only_peers are gone; an old config naming them still loads, and none of them is offered."""
 from explorer import prompts
 from explorer.actions import ALL_TYPES
@@ -19,7 +19,7 @@ def test_an_old_config_with_the_retired_sections_keys_and_actions_still_loads(tm
 
 
 def test_an_old_tor_readers_keys_are_read_and_ignored(tmp_path):
-    """Queue 603 (the family's 595 b): Tor is gone; an old config's tor_proxy, onion_directory_file, plain_only and
+    """Tor is gone; an old config's tor_proxy, onion_directory_file, plain_only and
     scout.kind still load, and backend "tor" is refused with the choices left."""
     import pytest
     p = tmp_path / "config.toml"

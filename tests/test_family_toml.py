@@ -1,4 +1,4 @@
-"""Queue 572, the first run: the user's own answers live in the untracked common-data/local/family.toml, read on top of
+"""the first run: the user's own answers live in the untracked common-data/local/family.toml, read on top of
 the tracked files, so a card says {company} and a `git pull` never meets an edited file."""
 from __future__ import annotations
 

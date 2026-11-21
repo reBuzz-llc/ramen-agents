@@ -1,4 +1,4 @@
-"""Tasks on the team's board (queue 572: in place of Notion): the policy's task rules and the controller's task skill,
+"""Tasks on the team's board (in place of Notion): the policy's task rules and the controller's task skill,
 against the offline FakeBoard."""
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def test_controller_creates_a_task_records_it_and_refuses_a_second_one(cfg):
 
     result = controller._execute(task(assignee="Jane Park", priority="P1"), ep, None)
     assert result.ok and "/task-1" in result.summary
-    assert board.tasks[0]["assignee"] is None   # queue 572: assignees are the team's cell on the board
+    assert board.tasks[0]["assignee"] is None   # assignees are the team's cell on the board
     rows = controller.memory.recent_tasks(5)
     assert rows[0]["title"] == "Draft the pricing page" and rows[0]["url"].endswith("task-1")
     assert "Draft the pricing page" in controller.memory.journal_path().read_text()

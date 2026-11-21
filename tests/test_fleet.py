@@ -50,7 +50,7 @@ def test_new_bot_makes_a_loadable_config_with_persona_and_denylist(tmp_path: Pat
     assert cfg.quiet.enabled
     assert cfg.path(cfg.policy.denylist_file).exists()
     assert (Path(cfg.browser.fake_web_dir) / "index.html").exists()
-    assert cfg.tasks.enabled is True and cfg.leads.portal_url == "http://127.0.0.1:3000"   # queue 572: the local board by default
+    assert cfg.tasks.enabled is True and cfg.leads.portal_url == "http://127.0.0.1:3000"   # the local board by default
     assert "running a small company" in cfg.agent.seed_interests
     assert cfg.workspace == folder / "workspace"
 

@@ -128,7 +128,7 @@ def test_probes_use_absolute_paths_so_they_work_under_launchd(monkeypatch):
 
 
 def test_no_app_or_process_is_quiet_by_default():
-    """Queue 572: pausing while a game runs was one owner's habit, not a default for a stranger's Mac."""
+    """pausing while a game runs was one owner's habit, not a default for a stranger's Mac."""
     cfg = QuietConfig()
     assert cfg.apps == [] and cfg.processes == []
     assert detector(QuietConfig(when_owner_active=False), front="Steam").check()[0] is False   # a game in front: not quiet

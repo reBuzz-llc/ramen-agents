@@ -6,7 +6,7 @@ trades, areas. Cards, bios and seed interests say `{market}` / `{segment}` / `{t
 and the engine fills them in whenever it builds a prompt, re-reading the file when it changes. Changing the target is
 one edit to that file; nothing in the code names a place.
 
-Queue 572 (the starter's first run): the user's own answers live in the untracked common-data/local/family.toml, read on
+The starter's first run: the user's own answers live in the untracked common-data/local/family.toml, read on
 top of target.toml -- its [target] keys win, and its [company] fills {company}, {sells}, {buyers}, {place}, {owner} and
 {signoff} the same way -- so a tracked card says "{company}" and a `git pull` never meets an edited file."""
 from __future__ import annotations

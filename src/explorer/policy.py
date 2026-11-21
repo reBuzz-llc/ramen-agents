@@ -842,7 +842,7 @@ class Policy:
         changes = [v for v in (action.assignee, action.priority, action.due, action.details_append) if v is not None and str(v).strip()]
         if not changes:
             return Verdict.no("an update needs at least one change: assignee, priority, due, or details_append")
-        # Owner, 2026-09-28: any assignee, or none; the board leaves assignees to the team (queue 572).
+        # Owner, 2026-09-28: any assignee, or none; the board leaves assignees to the team.
         if action.due is not None and action.due.strip() and not valid_date(action.due):
             return Verdict.no("due must be a date like 2026-09-30")
         if action.priority is not None and action.priority.strip() and not valid_priority(action.priority):
@@ -1846,7 +1846,7 @@ class Policy:
                     "characters. Fewer, richer tasks: put the depth here"
                 )
             # Owner, 2026-09-28: "let ceoA assign task to any one or no one" -- the board leaves assignees to the team
-            # (queue 572), with a warning; a family member's name hands the task to that bot.
+            #, with a warning; a family member's name hands the task to that bot.
             if action.assignee and self._is_peer(action.assignee):
                 folder = self.messaging.folder_for(action.assignee.strip())
                 if folder and (Path(folder).expanduser() / "workspace" / "STOP").exists():
@@ -1927,7 +1927,7 @@ class Policy:
             return self._check_provider(action, ctx)
 
         if isinstance(action, MergeTask):
-            if True:   # queue 572: a task's status is the team's cell on the board, so a bot never closes one by merging
+            if True:   # a task's status is the team's cell on the board, so a bot never closes one by merging
                 return Verdict.no("merging tasks is not enabled; that action does not exist", permanent=True)
             src = resolve_task_title(action.title, ctx.recent_task_titles)
             dst = resolve_task_title(action.into, ctx.recent_task_titles)

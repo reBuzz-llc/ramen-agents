@@ -1,5 +1,5 @@
 """The team's board: the starter dashboard's local board ([leads] portal_url, http://127.0.0.1:3000 by default) or the
-hosted portal at the same paths, so a move between them is a URL change (queue 572: the starter has no Notion).
+hosted portal at the same paths, so a move between them is a URL change (the starter has no Notion).
 
 Leads: GET /v1/boards/leads/rows?since=<rev>&limit=500&fields=all for the rows changed since a revision (with an ETag: a
 reader that sends it back as If-None-Match gets 304 and no body), POST /v1/boards/leads/rows to add a row, PATCH
@@ -341,7 +341,7 @@ def _dashed(page_id: str) -> str:
 
 
 class PortalBoard(_Portal):
-    """The CEO's task board and the package drafts, on the same board as the leads (queue 572, in place of Notion).
+    """The CEO's task board and the package drafts, on the same board as the leads (in place of Notion).
 
     A bot's task starts "Not started" and unassigned: status, assignees, the checklist and archiving are the team's
     cells, so an assignee the model names is not written (the task's details may still name who it is for). A package is

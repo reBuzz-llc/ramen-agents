@@ -257,7 +257,7 @@ class Controller:
         self.exit_code: int | None = None  # set by upgrade_submit: run() returns it so the supervisor restarts us
         self.quiet = quiet if cfg.quiet.enabled else None
         self.quiet_since: float | None = None  # when the current quiet spell began, if any
-        # The team's board for tasks and package drafts (portal_store.PortalBoard; queue 572). Each skill is on
+        # The team's board for tasks and package drafts (portal_store.PortalBoard). Each skill is on
         # only when its section is: [tasks] for the task board, [packages] for the draft handover.
         self.task_board = board if cfg.tasks.enabled else None
         self.package_board = board if cfg.packages.enabled else None
@@ -298,7 +298,7 @@ class Controller:
             return False
         path = Path(self.cfg.tasks.team_file).expanduser()
         stamps = []
-        for p in (path, path.parent / "local" / "family.toml"):    # queue 572: family.toml's [[team]] wins when present
+        for p in (path, path.parent / "local" / "family.toml"):    # family.toml's [[team]] wins when present
             try:
                 stamps.append(p.stat().st_mtime)
             except OSError:
@@ -483,7 +483,7 @@ class Controller:
         return True
 
     def _steer_block(self) -> str:
-        """The owner's current direction from the first-run answers (common-data/local/family.toml `steer`, queue 572): the
+        """The owner's current direction from the first-run answers (common-data/local/family.toml `steer`): the
         newest steer, in every member's prompt. "" when unset; common-data/knowledge/steers.md stays the history."""
         steer = (getattr(self.target, "steer", "") or "").strip()
         return f"\n\n## The owner's current direction\n{steer[:600]}\n" if steer else ""
@@ -513,7 +513,7 @@ class Controller:
 
     def _rest_if_board_down(self) -> bool:
         """Rest while the board is down (from the first failure: PAUSE_SECONDS), until the next probe, waking when it is
-        back (queue 572: the dashboard not running). A due probe is made here first, so a resting member notices the board is back."""
+        back (the dashboard not running). A due probe is made here first, so a resting member notices the board is back."""
         from . import board_down
 
         flag = self._board_flag()
@@ -2631,7 +2631,7 @@ class Controller:
         return ExecResult(True, detail, False)
 
     def _execute_merge_task(self, action: MergeTask) -> ExecResult:
-        """Off (queue 572): a task's status is the team's cell on the board, so a bot never closes a task by merging."""
+        """Off: a task's status is the team's cell on the board, so a bot never closes a task by merging."""
         return ExecResult(False, "merging tasks is not enabled; that action does not exist", False)
 
     def _execute_update_task(self, action: UpdateTask, ep: sqlite3.Row) -> ExecResult:

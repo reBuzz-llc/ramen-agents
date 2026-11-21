@@ -1,8 +1,8 @@
 """The team's board, as the engine sees it: the errors, the shared helpers and an offline stand-in.
 
 The board itself is the starter dashboard's local board (127.0.0.1:3000) or the hosted portal at the same address,
-spoken to by portal_store.py: leads, tasks and package drafts. Queue 572 (owner, 2026-11-16: "remove notion from all
-location and repos"): there is no Notion client any more.
+spoken to by portal_store.py: leads, tasks and package drafts. There is no Notion client
+any more.
 """
 from __future__ import annotations
 
