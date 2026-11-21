@@ -30,3 +30,4 @@ header_pages:          # the four a buyer needs; the other pages stay linked fro
 exclude:
   - launch.md
   - launch/
+goatcounter_code: ramen
