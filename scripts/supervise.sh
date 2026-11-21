@@ -13,6 +13,12 @@
 set -u
 # EXPLORER_HOME / EXPLORER_BOT exist so the tests can point this at a throwaway repo and a fake bot.
 HERE="${EXPLORER_HOME:-$(cd "$(dirname "$0")/.." && pwd)}"
+# The copy of the code on the main branch is for reading: nothing runs from it, and a rollback must never reset that checkout.
+# A clean exit, so launchd does not start it again.
+if [ -f "$HERE/READ-ONLY-COPY.md" ]; then
+    echo "$HERE is a read-only copy of the code: the supervisor does not run from it. Install from the engine branch." >&2
+    exit 0
+fi
 BOT="${EXPLORER_BOT:-$HERE/.venv/bin/bot}"
 # One supervisor per bot: the launch agent says which config and workspace this instance is for.
 # Without them (the original single-bot layout) the config and workspace live next to the code.

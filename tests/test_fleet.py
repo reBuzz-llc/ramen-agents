@@ -113,3 +113,15 @@ def test_new_bot_in_the_shared_layout_extends_instead_of_repeating(tmp_path: Pat
     assert cfg.dashboard.port == 8790 and cfg.agent.name == "The CEO"
 
 
+
+
+def test_no_launch_agent_is_written_for_a_read_only_copy(tmp_path: Path, monkeypatch):
+    from explorer import fleet
+    code = tmp_path / "engine"
+    code.mkdir()
+    (code / "READ-ONLY-COPY.md").write_text("A copy for reading.\n")
+    agents = tmp_path / "agents"
+    monkeypatch.setattr(fleet, "agents_dir", lambda: agents)
+    with pytest.raises(RuntimeError, match="read-only copy"):
+        fleet.install("com.example.x", tmp_path / "config.toml", tmp_path / "ws", tmp_path / "logs", code_root=code)
+    assert not agents.exists() and not (tmp_path / "logs").exists()

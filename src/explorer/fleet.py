@@ -252,6 +252,8 @@ def _uid() -> str:
 
 def install(label: str, config_path: Path, workspace: Path, log_dir: Path, code_root: Path = CODE_ROOT) -> Path:
     """Write the launch agent and (re)load it. Retries bootstrap: a just-removed job takes a moment."""
+    if (Path(code_root) / "READ-ONLY-COPY.md").is_file():
+        raise RuntimeError(f"{code_root} is a read-only copy of the code: no launch agent runs from it")
     agents_dir().mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     plist_path = agents_dir() / f"{label}.plist"

@@ -604,7 +604,8 @@ def cmd_install(cfg: Config, args: argparse.Namespace) -> int:
     if not config_path.exists():
         print(f"no config at {config_path}; pass --config", file=sys.stderr)
         return 2
-    if (copy := read_only_copy(config_path)) is not None:
+    # the config can sit anywhere: an editable install from the copy is caught by where this package itself lives
+    if (copy := read_only_copy(config_path) or read_only_copy(Path(__file__))) is not None:
         print(f"STOP: {copy} is a read-only copy of the code, for reading; nothing is installed from it.\n"
               "Install from the branch, as the README says: git clone -b fleet -o starter "
               "https://github.com/reBuzz-llc/ramen-agents.git ~/bots", file=sys.stderr)

@@ -185,3 +185,11 @@ def test_an_operator_commit_is_never_rolled_back(home):
     assert proc.returncode == 1
     assert git(home, "rev-parse", "HEAD") == ours and (home / "v.txt").read_text() == "2\n"
     assert "Rolled back" not in journal_text(home)
+
+
+def test_the_supervisor_refuses_a_read_only_copy(home):
+    (home / "READ-ONLY-COPY.md").write_text("A copy for reading.\n")
+    head = git(home, "rev-parse", "HEAD")
+    proc = run_supervisor(home, [1])
+    assert proc.returncode == 0 and "read-only copy" in proc.stderr
+    assert not (home.parent / "fakebot" / "runs.log").exists() and git(home, "rev-parse", "HEAD") == head
