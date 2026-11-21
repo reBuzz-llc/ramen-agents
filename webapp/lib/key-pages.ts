@@ -3,20 +3,14 @@
 // goes into. A provider whose own key page is not known links to its site; one with no known site gets no link.
 
 const PAGES: Record<string, string> = {
-  // AI models
+  // AI models with a free tier (a paid-only provider gets no link here: this starter runs on free tiers)
   gemini: "https://aistudio.google.com/apikey",
   groq: "https://console.groq.com/keys",
   mistral: "https://console.mistral.ai/api-keys",
   openrouter: "https://openrouter.ai/settings/keys",
   "ollama-cloud": "https://ollama.com/settings/keys",
   zai: "https://z.ai/manage-apikey/apikey-list",
-  openai: "https://platform.openai.com/api-keys",
-  deepseek: "https://platform.deepseek.com/api_keys",
-  together: "https://api.together.ai/settings/api-keys",
-  replicate: "https://replicate.com/account/api-tokens",
-  moonshot: "https://platform.moonshot.ai/console/api-keys",
   sambanova: "https://cloud.sambanova.ai/apis",
-  cerebras: "https://cloud.cerebras.ai/",
   orcarouter: "https://www.orcarouter.ai/",
   freeai: "https://free.ai/api/",
   freetheai: "https://github.com/Free-The-Ai/free-ai",
