@@ -653,7 +653,7 @@ class MessagingConfig:
     max_per_episode: int = 1
     max_per_day: int = 6
     # Chatroom posts: a post that restates one of this bot's own posts from the last `room_repeat_hours` is refused
-    # (the Desk Agent posted 46 "I'm free" offers in one day), and at most `max_room_posts_per_day` genuine posts a
+    # (one member posted 46 "I'm free" offers in one day), and at most `max_room_posts_per_day` genuine posts a
     # day (0 = no cap). Reports and receipts the controller writes are not counted -- they are not the bot talking.
     room_repeat_hours: float = 6.0
     max_room_posts_per_day: int = 4

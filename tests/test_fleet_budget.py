@@ -18,7 +18,7 @@ def test_running_bots_share_by_weight_and_a_stopped_bots_share_flows_to_the_rest
     lead = _bot(tmp_path, "lead-gen", weight=2)
     _bot(tmp_path, "scout", weight=1)
     _bot(tmp_path, "package-designer", weight=1, stop=True)        # the owner stopped it
-    _bot(tmp_path, "onion-reader", weight=1, running=False)        # not running
+    _bot(tmp_path, "news-reader", weight=1, running=False)        # not running
     _bot(tmp_path, "the-ceo", weight=0)                            # never paced, takes no share
     share, members = active_share(lead)
     assert members == ["lead-gen", "scout"] and abs(share - 2 / 3) < 1e-9

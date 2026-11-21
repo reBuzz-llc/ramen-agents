@@ -1,4 +1,4 @@
-"""The Scout <-> Onion Reader research channel: a `message` action drops a note in the peer's inbox,
+"""The Scout <-> News Reader research channel: a `message` action drops a note in the peer's inbox,
 the peer reads it once, and a plain-only (local-only) bot may not carry links or page text out."""
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from conftest import make_controller
 
 
 def msg(**over) -> Message:
-    spec = dict(type="message", to="Onion Reader", text="Which onion news outlets are worth reading?")
+    spec = dict(type="message", to="News Reader", text="Which onion news outlets are worth reading?")
     spec.update(over)
     return Message(**spec)
 
@@ -29,7 +29,7 @@ def ctx(**over) -> PolicyContext:
 
 
 def policy(peers=None, **over) -> Policy:
-    spec = dict(enabled=True, peers=peers or [{"name": "Onion Reader", "folder": "/tmp/onion"}], max_per_day=3)
+    spec = dict(enabled=True, peers=peers or [{"name": "News Reader", "folder": "/tmp/onion"}], max_per_day=3)
     spec.update(over)
     return Policy(PolicyConfig(), Denylist(), messaging=MessagingConfig(**spec))
 
@@ -41,13 +41,13 @@ def test_message_policy_peer_length_and_rarity():
     assert p.check(msg(), ctx()).allowed
     assert not p.check(msg(text=""), ctx()).allowed
     wrong = p.check(msg(to="The CEO"), ctx())
-    assert not wrong.allowed and wrong.permanent and "Onion Reader" in wrong.reason
+    assert not wrong.allowed and wrong.permanent and "News Reader" in wrong.reason
 
     # More than one peer: the bot may message any of them, and only them.
     two = policy(peers=[{"name": "Scout", "folder": "/tmp/scout"}, {"name": "The CEO", "folder": "/tmp/ceo"}])
     assert two.check(msg(to="Scout"), ctx()).allowed
     assert two.check(msg(to="The CEO"), ctx()).allowed
-    assert not two.check(msg(to="Jobless-Bot"), ctx()).allowed
+    assert not two.check(msg(to="Sample-Bot"), ctx()).allowed
     assert "own tools" in p.check(msg(text="how do we get around the rate limit?"), ctx()).reason
     assert "under 600 characters" in p.check(msg(text="x" * 601), ctx()).reason
     assert "this episode" in p.check(msg(), ctx(messages_in_episode=1)).reason
@@ -55,7 +55,7 @@ def test_message_policy_peer_length_and_rarity():
 
 
 def test_send_message_writes_a_note_the_peer_reads_once(tmp_path: Path):
-    onion = tmp_path / "onion-reader"
+    onion = tmp_path / "news-reader"
     msg_file = send_message(str(onion), "Scout", "Which onion news outlets are worth reading?")
     assert msg_file.parent == onion / "workspace" / "inbox"
     body = json.loads(msg_file.read_text())
@@ -85,13 +85,13 @@ class Sender:
         return "summary"
 
 
-def test_scout_messages_the_onion_reader_and_it_sees_it_on_its_next_step(cfg, tmp_path: Path):
-    onion_folder = tmp_path / "onion-reader"
+def test_scout_messages_the_news_reader_and_it_sees_it_on_its_next_step(cfg, tmp_path: Path):
+    onion_folder = tmp_path / "news-reader"
     cfg.agent.name = "Scout"
     cfg.agent.mode = "fake"
-    cfg.messaging = MessagingConfig(enabled=True, peers=[{"name": "Onion Reader", "folder": str(onion_folder)}])
+    cfg.messaging = MessagingConfig(enabled=True, peers=[{"name": "News Reader", "folder": str(onion_folder)}])
     scout = make_controller(cfg, model=Sender())
-    assert "message:" in scout.system and "Onion Reader" in scout.system
+    assert "message:" in scout.system and "News Reader" in scout.system
     scout.run(max_cycles=2)
     rows = scout.memory.db.query("SELECT action_type, verdict FROM actions ORDER BY id")
     assert [(r["action_type"], r["verdict"]) for r in rows] == [("open", "allowed"), ("message", "allowed")]
@@ -102,7 +102,7 @@ def test_scout_messages_the_onion_reader_and_it_sees_it_on_its_next_step(cfg, tm
     onion_cfg = Config(root=onion_folder)
     for key in ("cycle_delay_seconds", "seed_interests"):
         setattr(onion_cfg.agent, key, getattr(cfg.agent, key))
-    onion_cfg.agent.name = "Onion Reader"
+    onion_cfg.agent.name = "News Reader"
     onion_cfg.browser.fake_web_dir = cfg.browser.fake_web_dir
     onion_cfg.policy.denylist_file = cfg.policy.denylist_file
     onion_cfg.watchdog.heartbeat_interval_seconds = 0
@@ -172,7 +172,7 @@ def test_policy_room_post_needs_the_room():
 
 def test_room_reads_as_a_conversation_and_refuses_repeats(cfg, tmp_path: Path):
     """The room shows a rolling transcript and nudges a reply when a colleague posts something new, and
-    the policy refuses a bot repeating its own last post (the observed one-sided 'Desk Agent' behaviour)."""
+    the policy refuses a bot repeating its own last post (the observed one-sided 'Front Desk' behaviour)."""
     from explorer.chatroom import Chatroom
     cfg.agent.name = "The CEO"
     cfg.messaging = MessagingConfig(enabled=True, room=True, room_file=str(tmp_path / "chatroom.jsonl"))
@@ -212,14 +212,14 @@ def test_room_kinds_receipts_and_seen_by(tmp_path):
     room.post("Package Designer", "new rate for SPF MVPs: $12.5k")
     room.post("The CEO", "read 1 message from Package Designer", kind="receipt")
     room.post("Lead Gen", "listed lead \"Acme\" on the Leads board", kind="report")
-    room.post("Desk Agent", "Hey fleet, I'm free and can help")
+    room.post("Front Desk", "Hey fleet, I'm free and can help")
     posts = room.since(-1, exclude_sender="Nobody")
-    assert [p.kind for p in posts] == ["post", "post"] and [p.sender for p in posts] == ["Package Designer", "Desk Agent"]
+    assert [p.kind for p in posts] == ["post", "post"] and [p.sender for p in posts] == ["Package Designer", "Front Desk"]
     assert [p.kind for p in room.recent()] == ["post", "receipt", "report", "post"]
     room.mark_seen("The CEO", 3)
     seen = json.loads(room.seen_path.read_text())
     assert seen["The CEO"]["last_id"] == 3
-    assert room.own_posts("Desk Agent", hours=1) == ["Hey fleet, I'm free and can help"]
+    assert room.own_posts("Front Desk", hours=1) == ["Hey fleet, I'm free and can help"]
     assert room.own_posts("The CEO", today=True) == []  # its receipt is not a post
 
 

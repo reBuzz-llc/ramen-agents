@@ -738,7 +738,7 @@ def settings_from_config(cfg: Any) -> SearchSettings:
 
 
 def api_user_agent(name: str, contact: str) -> str:
-    """`JoblessBotExplorer/0.1 (https://example.com) httpx`: what Wikimedia's policy asks for."""
+    """`SampleBotExplorer/0.1 (https://example.com) httpx`: what Wikimedia's policy asks for."""
     ident = "".join(ch for ch in name if ch.isalnum()) or "explorer"
     detail = contact.strip() or "curiosity agent; no contact configured"
     return f"{ident}Explorer/0.1 ({detail}) httpx/{httpx.__version__}"

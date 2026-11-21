@@ -18,9 +18,9 @@ def _default_label_prefix(monkeypatch):
 
 
 def test_slug_and_label():
-    assert fleet.slug("Jobless-Bot") == "jobless-bot"
+    assert fleet.slug("Sample-Bot") == "sample-bot"
     assert fleet.slug("  The CEO!! ") == "the-ceo"
-    assert fleet.label_for("Jobless-Bot") == "com.ramen-agents.bot.jobless-bot"
+    assert fleet.label_for("Sample-Bot") == "com.ramen-agents.bot.sample-bot"
 
 
 def test_render_plist_fills_every_token_and_is_valid(tmp_path: Path):
@@ -54,7 +54,7 @@ def test_new_bot_makes_a_loadable_config_with_persona_and_denylist(tmp_path: Pat
     assert "running a small company" in cfg.agent.seed_interests
     assert cfg.workspace == folder / "workspace"
 
-    explorer = fleet.new_bot("Jobless-Bot", tmp_path / "bots", persona="explorer", port=8787)
+    explorer = fleet.new_bot("Sample-Bot", tmp_path / "bots", persona="explorer", port=8787)
     cfg2 = load_config(explorer / "config.toml")
     assert "[notion]" not in (explorer / "config.toml").read_text() and "[tasks]" not in (explorer / "config.toml").read_text()
     assert cfg2.agent.cycle_delay_seconds == 20
@@ -68,7 +68,7 @@ def test_new_bot_makes_a_loadable_config_with_persona_and_denylist(tmp_path: Pat
 def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
     agents = tmp_path / "LaunchAgents"
     agents.mkdir()
-    for name, port in (("Jobless-Bot", 8787), ("The CEO", 8788)):
+    for name, port in (("Sample-Bot", 8787), ("The CEO", 8788)):
         label = fleet.label_for(name)
         (agents / f"{label}.plist").write_text(
             fleet.render_plist(label, Path("/code"), tmp_path / name / "config.toml", tmp_path / name / "workspace", tmp_path / "logs")
@@ -76,7 +76,7 @@ def test_installed_bots_reads_the_launch_agents(tmp_path: Path):
     (agents / "com.ramen-agents.ollama.plist").write_text("<plist version='1.0'><dict></dict></plist>")
     (agents / "com.ramen-agents.bot.broken.plist").write_text("not a plist")
     bots = fleet.installed_bots(agents)
-    assert [b["label"] for b in bots] == ["com.ramen-agents.bot.jobless-bot", "com.ramen-agents.bot.the-ceo"]
+    assert [b["label"] for b in bots] == ["com.ramen-agents.bot.sample-bot", "com.ramen-agents.bot.the-ceo"]
     assert bots[1]["config"] == str(tmp_path / "The CEO" / "config.toml")
 
 

@@ -24,7 +24,7 @@ STATUS_OPENERS = re.compile(
     r"the owner dropped a file for you|new lead |done:|blocked|resolved:|responded|replied|answered|reporting|report:|"
     r"here is |here's |update on |summary:|as requested|following up|exploring|i am still working|i'm still working|"
     r"still working on|working on |from [a-z ]{2,30}:)", re.I)  # notices and reports, never asks
-EXPIRE_HOURS = 48  # an ask nobody answered in two days is expired, not open (the Desk Agent never answers bots)
+EXPIRE_HOURS = 48  # an ask nobody answered in two days is expired, not open (a member may never answer bots)
 
 
 OWNER = "Owner"
@@ -275,7 +275,7 @@ class RequestLog:
     def open_for(self, me: str) -> list[Request]:
         """Open requests addressed to `me`, priority ones first, oldest first. Priority is the READER's view: the sender
         recorded the row with its own priority_senders (The CEO's asks to Lead Gen came out priority=false because the
-        CEO's own list names the Desk Agent), so the reader re-judges it against the list this log was built with."""
+        CEO's own list names a member), so the reader re-judges it against the list this log was built with."""
         mine = [r for r in self.all() if r.open and r.to.strip().lower() == me.strip().lower()]
         prio = {p.strip().lower() for p in self.priority_senders} | {OWNER.lower()}  # the owner outranks everyone
         for r in mine:

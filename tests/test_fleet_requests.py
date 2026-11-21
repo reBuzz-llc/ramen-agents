@@ -129,11 +129,11 @@ def test_priority_replies_bypass_the_per_episode_message_cap_and_summarize_stays
     from explorer.config import MessagingConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    m = MessagingConfig(enabled=True, peers=[{"name": "Desk Agent", "folder": "/tmp/x"}, {"name": "Scout", "folder": "/tmp/y"}], max_per_episode=1, priority_request_grace=1)
+    m = MessagingConfig(enabled=True, peers=[{"name": "Front Desk", "folder": "/tmp/x"}, {"name": "Scout", "folder": "/tmp/y"}], max_per_episode=1, priority_request_grace=1)
     policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
-    ask = {"sender": "Desk Agent", "text": "file dropped by the owner: b.csv (.csv, 1 KB). Preview: x", "actions_since_read": 5}
+    ask = {"sender": "Front Desk", "text": "file dropped by the owner: b.csv (.csv, 1 KB). Preview: x", "actions_since_read": 5}
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=3, pages_last_hour=0, open_questions=0, last_visit_by_domain={}, messages_in_episode=1, priority_request=ask)
-    assert policy.check(Message(type="message", to="Desk Agent", text="route b.csv to Lead Gen: prospects"), ctx).allowed
+    assert policy.check(Message(type="message", to="Front Desk", text="route b.csv to Lead Gen: prospects"), ctx).allowed
     assert not policy.check(Message(type="message", to="Scout", text="route b.csv to Lead Gen: prospects"), ctx).allowed  # not the requester: still refused
     assert policy.check(Summarize(type="summarize", text="Routed the owner's files."), ctx).allowed
 
@@ -197,7 +197,7 @@ def test_status_notes_are_never_priority_and_old_asks_expire(tmp_path: Path):
     assert not log.record("n2", "The CEO", "Grok Bot", "Noted the job listings on the Builtin page.").priority
     assert log.record("a1", "The CEO", "Lead Gen", "Please list the franchise brands from the owner's file").priority
     log.now = dt.datetime.now() - dt.timedelta(hours=49)
-    log.record("old", "The CEO", "Desk Agent", "Can you look into the lead bot and give it Notion access?")
+    log.record("old", "The CEO", "Front Desk", "Can you look into the lead bot and give it Notion access?")
     log.now = None
     rows = {r.id: r for r in log.all()}
     assert rows["old"].expired and not rows["old"].open
@@ -225,12 +225,12 @@ def test_a_notice_answers_nothing(tmp_path: Path):
     log.record("ask", "The CEO", "Lead Gen", "Please harvest 30 Springfield biotech founders")
     assert log.answer("The CEO", "Lead Gen", "new lead 'Acme Bakery' on the Leads board: https://notion.example/x") is None
     assert log.answer("The CEO", "Lead Gen", "done: listed 3 founders; could not find: the rest").id == "ask"
-    assert not log.record("n", "Desk Agent", "Lead Gen", "the owner dropped a file for you: list.csv").priority or True  # a notice, whatever the sender
-    assert not log.record("n2", "The CEO", "Desk Agent", "Processed the file as instructed.").priority
+    assert not log.record("n", "Front Desk", "Lead Gen", "the owner dropped a file for you: list.csv").priority or True  # a notice, whatever the sender
+    assert not log.record("n2", "The CEO", "Front Desk", "Processed the file as instructed.").priority
 
 
 def test_a_question_back_is_not_an_answer_and_priority_is_the_readers_view(tmp_path: Path):
-    sender_side = RequestLog(tmp_path / "requests.jsonl", ["Desk Agent"])  # the CEO's own list
+    sender_side = RequestLog(tmp_path / "requests.jsonl", ["Front Desk"])  # the CEO's own list
     sender_side.record("ask", "The CEO", "Lead Gen", "Please harvest 30 Springfield biotech founders")
     reader_side = RequestLog(tmp_path / "requests.jsonl", ["The CEO", "Validator"])  # Lead Gen's list
     assert reader_side.open_for("Lead Gen")[0].priority  # re-judged by the reader
@@ -243,17 +243,17 @@ def test_a_reply_does_not_open_a_new_request_and_stopped_peers_are_not_messaged(
     from explorer.config import MessagingConfig
     from explorer.policy import Denylist, Policy, PolicyContext
 
-    scout = tmp_path.parent / "scout"; desk = tmp_path.parent / "desk-agent"; ceo = tmp_path.parent / "the-ceo"
+    scout = tmp_path.parent / "scout"; desk = tmp_path.parent / "front-desk"; ceo = tmp_path.parent / "the-ceo"
     for f in (scout, desk, ceo):
         (f / "workspace" / "inbox").mkdir(parents=True, exist_ok=True)
     (scout / "workspace" / "STOP").write_text("", encoding="utf-8")
-    m = MessagingConfig(enabled=True, peers=[{"name": "Scout", "folder": str(scout)}, {"name": "Desk Agent", "folder": str(desk)}, {"name": "The CEO", "folder": str(ceo)}])
+    m = MessagingConfig(enabled=True, peers=[{"name": "Scout", "folder": str(scout)}, {"name": "Front Desk", "folder": str(desk)}, {"name": "The CEO", "folder": str(ceo)}])
     policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)), messaging=m)
     ctx = PolicyContext(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={})
     assert "is stopped" in policy.check(Message(type="message", to="Scout", text="Please find a free SPF accelerator list"), ctx).reason
     # the bot is told who is not running before it tries (owner, 2026-10-03), and a task for a stopped member is refused too
-    assert m.peer_states() == {"Scout": "stopped", "Desk Agent": "running", "The CEO": "running"}
-    assert policy.check(Message(type="message", to="Desk Agent", text="route list.csv to Lead Gen: prospects"), ctx).allowed
+    assert m.peer_states() == {"Scout": "stopped", "Front Desk": "running", "The CEO": "running"}
+    assert policy.check(Message(type="message", to="Front Desk", text="route list.csv to Lead Gen: prospects"), ctx).allowed
     (scout / "workspace" / "STOP").unlink()
     assert policy.check(Message(type="message", to="Scout", text="Please find a free SPF accelerator list"), ctx).allowed
 
@@ -408,10 +408,10 @@ def test_a_report_to_the_owner_closes_the_owner_ask_but_a_promise_does_not(cfg, 
 
 
 def test_notices_are_closed_the_moment_they_are_recorded(tmp_path: Path):
-    log = RequestLog(tmp_path / "requests.jsonl", ["Desk Agent"])
-    n = log.record("f1", "Desk Agent", "Lead Gen", "the owner dropped a file for you: leads.csv (routed). It is one of your own files now.")
+    log = RequestLog(tmp_path / "requests.jsonl", ["Front Desk"])
+    n = log.record("f1", "Front Desk", "Lead Gen", "the owner dropped a file for you: leads.csv (routed). It is one of your own files now.")
     r = log.record("r1", "Package Designer", "The CEO", "Responded to the question: Exploring monthly retainer pricing for SPF SMBs, $1,200-$3,500.")
-    ask = log.record("a1", "Desk Agent", "The CEO", "file dropped by the owner: leads.csv (.csv, 4 KB). Preview: ... route leads.csv to <bot name>: <why>")
+    ask = log.record("a1", "Front Desk", "The CEO", "file dropped by the owner: leads.csv (.csv, 4 KB). Preview: ... route leads.csv to <bot name>: <why>")
     assert not n.open and not r.open and ask.open and ask.priority
     assert [x.id for x in log.all() if x.open] == ["a1"]
 
@@ -836,12 +836,12 @@ def test_the_family_block_comes_from_the_roster_with_each_members_state(cfg, tmp
     (fleet / "common-data" / "family-roster.toml").write_text(
         '[[member]]\nname = "The CEO"\nhandle = "ceoA"\nslug = "the-ceo"\nrole = "the rule maker"\n'
         '[[member]]\nname = "Lead Gen"\nhandle = "leaA"\nslug = "lead-gen"\nrole = "leads"\n'
-        '[[member]]\nname = "Jobless-Bot"\nhandle = "jobA"\nslug = "jobless-bot"\nrole = "journal"\nretired = "2026-09-25"\n')
+        '[[member]]\nname = "Sample-Bot"\nhandle = "jobA"\nslug = "sample-bot"\nrole = "journal"\nretired = "2026-09-25"\n')
     (fleet / "lead-gen" / "workspace").mkdir(parents=True, exist_ok=True)
     (fleet / "lead-gen" / "workspace" / "STOP").write_text("")
     cfg.agent.name = "The CEO"
     block = make_controller(cfg)._family_block()
     assert '"You are my family, all of you: ceoA, leaA, jobA."' in block
     assert "You, The CEO, are the provider" in block and "- ceoA = The CEO (you): the rule maker -- running" in block
-    assert "- leaA = Lead Gen: leads -- STOPPED by the owner" in block and "jobA = Jobless-Bot: journal -- retired 2026-09-25" in block
+    assert "- leaA = Lead Gen: leads -- STOPPED by the owner" in block and "jobA = Sample-Bot: journal -- retired 2026-09-25" in block
     (fleet / "lead-gen" / "workspace" / "STOP").unlink(); (fleet / "common-data" / "family-roster.toml").unlink()

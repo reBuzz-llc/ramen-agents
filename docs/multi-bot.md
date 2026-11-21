@@ -1,6 +1,6 @@
 # Running several bots with different personas
 
-Owner's intent (2026-09-14): this bot is now named Jobless-Bot. Later there will be more bots,
+Owner's intent (2026-09-14): this bot is now named Sample-Bot. Later there will be more bots,
 each with its own persona and its own share of the machine, all running the way this one does
 (launchd, supervisor, quiet mode).
 
@@ -8,7 +8,7 @@ each with its own persona and its own share of the machine, all running the way 
 `~/bots/<slug>/` (config, persona.md, workspace); `bot --config ... install` renders
 `launchd/bot.plist.template` to `com.ramen-agents.bot.<slug>`; `bot list` reads the installed agents.
 Personas live in `personas/` and are injected into the system prompt via `agent.persona_file`.
-Jobless-Bot was migrated in place with its memory; The CEO (`personas/ceo.md`, tasks on the board as its
+Sample-Bot was migrated in place with its memory; The CEO (`personas/ceo.md`, tasks on the board as its
 output skill, off until configured) was created second. All four changes listed at the bottom are
 done; item 4 became `search.py`: a machine-wide pause file (default `~/.config/explorer/search_pause.json`)
 plus a chain of keyless engines (marginalia, wikipedia, hn, and `corpus` for the owner's `raw/`
@@ -67,7 +67,7 @@ moment the owner touches the Mac.
 ## What has to change in the code
 
 1. `launchd/` and `scripts/install_launchd.sh` hard-code the label `com.ramen-agents.explorer` and the
-   paths. Turn the plist into a template rendered from `bot install --name jobless-bot`, so each
+   paths. Turn the plist into a template rendered from `bot install --name sample-bot`, so each
    bot gets `com.ramen-agents.<name>` with its own config path, logs, and dashboard port.
    [Done as `bot --config ... install` (`fleet.py`), label `com.ramen-agents.bot.<slug>`; the install
    scripts are deleted.]

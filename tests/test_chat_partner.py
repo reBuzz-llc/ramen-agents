@@ -100,12 +100,12 @@ def test_controller_executes_a_partner_conversation_end_to_end(cfg):
 
 
 def test_partner_prompt_uses_the_agents_configured_name(cfg):
-    cfg.agent.name = "Jobless-Bot"
+    cfg.agent.name = "Sample-Bot"
     cfg.chat_partner.enabled = True
     partner = FakeChatPartner()
     controller = make_controller(cfg, chat_partner=partner)
     controller._execute_say(Say(type="say", text="hello", to="partner"))
-    assert "Jobless-Bot has someone to talk to" in partner.last_system
+    assert "Sample-Bot has someone to talk to" in partner.last_system
     assert "{name}" not in partner.last_system
 
 

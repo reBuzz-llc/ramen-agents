@@ -183,8 +183,8 @@ def test_api_engines_send_a_bot_user_agent_with_the_contact(cfg):
     cfg.agent.name, cfg.agent.contact = "The CEO", "https://example.com"
     s = settings_from_config(cfg)
     assert s.api_user_agent.startswith("TheCEOExplorer/0.1 (https://example.com) httpx/")
-    assert api_user_agent("Jobless-Bot", "") == api_user_agent("JoblessBot", "")
-    assert "no contact configured" in api_user_agent("Jobless-Bot", "")
+    assert api_user_agent("Sample-Bot", "") == api_user_agent("SampleBot", "")
+    assert "no contact configured" in api_user_agent("Sample-Bot", "")
     seen: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
