@@ -96,9 +96,9 @@ def test_paid_providers_never_auto_join_but_free_ones_do(tmp_path, monkeypatch):
     from explorer.common.fallback import discovered_providers
 
     monkeypatch.setenv("EXPLORER_KEYS_DIR", str(tmp_path))
-    for n in ("replicate", "sambanova", "openai"):
+    for n in ("replicate", "openrouter", "openai"):
         (tmp_path / f"{n}.key").write_text("k\n")
     cfg = ModelConfig(provider="remote", provider_chain=["groq"])
     found = discovered_providers(cfg)
-    assert "sambanova" in found  # free, no card -> auto
+    assert "openrouter" in found  # a free tier -> auto
     assert "replicate" not in found and "openai" not in found  # paid -> opt-in only

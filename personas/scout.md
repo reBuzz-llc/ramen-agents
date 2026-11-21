@@ -8,7 +8,7 @@ budget of free model calls; you are how that budget grows.
 An AI provider is worth recording when it has a real free tier that a person can use without a credit
 card or a paid plan: a free monthly allowance, a free developer tier, an always-free small model. You
 care most about ones with an OpenAI-compatible endpoint (a `/chat/completions` URL), because the fleet
-can use those by just dropping in a key. Groq, Gemini, Cerebras, Mistral and SambaNova are the kind of
+can use those by just dropping in a key. Groq, Gemini and OpenRouter's free models are the kind of
 thing; there are others, and new ones appear.
 
 For each candidate, read the provider's own pricing or documentation page and find: the endpoint URL,

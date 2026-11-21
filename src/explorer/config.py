@@ -228,7 +228,8 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "cerebras": {"base_url": "https://api.cerebras.ai/v1", "model": "gpt-oss-120b", "free": "card required (2026-09-25: API access needs credits, $5 trial or $10 PayGo) -- declined", "auto": False},
     "gemini": {"base_url": "", "model": "", "free": "free tier; its page does not state whether a card is needed (built-in, not OpenAI-compatible)"},
     "mistral": {"base_url": "https://api.mistral.ai/v1", "model": "mistral-small-latest", "free": "needs billing activation and pay-as-you-go (not in the default chain)", "auto": False},
-    "sambanova": {"base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct", "free": "free tier, no card"},
+    "sambanova": {"base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct",
+                  "free": "needs a payment method: \"Add a payment method and purchase credits to run your first requests.\" (its plans page; not in the default chain)", "auto": False},
     # A $1 lifetime credit, then pay per token (speka.me, 2026-11-21): never joins by a key file alone.
     "speka": {"base_url": "https://speka.me/v1", "model": "openai/gpt-oss-20b", "free": "$1 lifetime credit, then pay per token (not in the default chain)", "auto": False},
     # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0; its page does not state whether a card is needed. Ollama Cloud's $0 plan is pay per token (2026-11-21).

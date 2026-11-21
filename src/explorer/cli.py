@@ -664,10 +664,11 @@ def cmd_providers(cfg: Config, args: argparse.Namespace) -> int:
         print(f"       today: {used_str}")
     off = [n for n in KNOWN_PROVIDERS if n not in chain and n != "gemini"]
     if off:
-        print("\nKnown providers not in the chain (drop a key at ~/bots/common-data/keys/<name>.key to add):")
+        print("\nKnown providers not in the chain:")
         for name in off:
             info = KNOWN_PROVIDERS[name]
-            print(f"  {name}: {info['free']} ({info['base_url']})")
+            how = f"a key at ~/bots/common-data/keys/{name}.key adds it" if info.get("auto", True) else "needs billing: a key file does not add it"
+            print(f"  {name}: {info['free']} ({info['base_url']}) - {how}")
     return 0
 
 

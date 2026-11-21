@@ -63,7 +63,7 @@ calls_per_day = 0
 # lets the better model write the output instead of the local fallback.
 remote_for = "all"
 # Add a provider automatically when ~/bots/common-data/keys/<name>.key exists for a name the project
-# knows (config.KNOWN_PROVIDERS: groq, cerebras, mistral, sambanova, ...), without editing this file.
+# knows as free (config.KNOWN_PROVIDERS: groq, zai, openrouter), without editing this file. One that needs billing never joins this way.
 # `bot providers` lists the chain, keys and usage. false to only ever use the explicit provider_chain.
 auto_discover_providers = true
 # Spread the day's free remote tokens across the day: when set, a bot lengthens its own cycle while

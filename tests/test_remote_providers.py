@@ -468,22 +468,22 @@ def test_a_dropped_key_file_joins_the_chain_without_a_config_edit(tmp_path, monk
     from explorer.config import ModelConfig
 
     monkeypatch.setenv("EXPLORER_KEYS_DIR", str(tmp_path))
-    for name in ("GROQ_API_KEY", "SAMBANOVA_API_KEY", "CEREBRAS_API_KEY"):
+    for name in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     (tmp_path / "groq.key").write_text("gsk-a\n")
     cfg = ModelConfig(provider="remote", fallback_provider="fake", provider_chain=["groq", "gemini"])
 
     assert discovered_providers(cfg) == []  # groq is already in the chain; nothing else has a key
-    (tmp_path / "sambanova.key").write_text("sk-b\n")
-    assert discovered_providers(cfg) == ["sambanova"]
-    assert effective_chain(cfg) == ["groq", "gemini", "sambanova"]
+    (tmp_path / "openrouter.key").write_text("sk-b\n")
+    assert discovered_providers(cfg) == ["openrouter"]
+    assert effective_chain(cfg) == ["groq", "gemini", "openrouter"]
 
     model = build_model(cfg, ledger_path=tmp_path / "calls.json")
-    assert [p.label for p in model.primaries] == ["api.groq.com/openai/gpt-oss-120b", "api.sambanova.ai/Meta-Llama-3.3-70B-Instruct"]
+    assert [p.label for p in model.primaries] == ["api.groq.com/openai/gpt-oss-120b", "openrouter.ai/google/gemma-4-31b-it:free"]
 
     # An explicit chain stays authoritative and nothing doubles, even with the key present.
-    cfg.provider_chain = ["sambanova", "groq"]
-    assert effective_chain(cfg) == ["sambanova", "groq"]
+    cfg.provider_chain = ["openrouter", "groq"]
+    assert effective_chain(cfg) == ["openrouter", "groq"]
     # The flag turns discovery off.
     cfg.provider_chain = ["groq"]
     cfg.auto_discover_providers = False
@@ -540,3 +540,9 @@ def test_paced_delay_stretches_when_tokens_run_ahead_of_the_clock():
     assert paced_delay(45, 200_000, 200_000, 0.25) == 180  # all tokens a quarter in -> 4x
     assert paced_delay(45, 200_000, 200_000, 0.1, cap=300) == 300  # 10x = 450, capped at 300
     assert paced_delay(60, 200_000, 200_000, 0.1) == 600  # 10x, no cap
+
+
+def test_a_provider_that_needs_a_payment_method_never_joins_by_a_key_file():
+    from explorer.config import KNOWN_PROVIDERS
+    for name in ("sambanova", "mistral", "speka", "ollama-cloud", "cerebras", "together", "deepseek", "openai", "moonshot", "replicate"):
+        assert KNOWN_PROVIDERS[name]["auto"] is False, name

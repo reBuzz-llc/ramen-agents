@@ -229,8 +229,8 @@ class Provider(BaseModel):
     the owner to review. Only with [scout] enabled."""
 
     type: Literal["provider"]
-    name: str  # the provider, e.g. "SambaNova Cloud"
-    base_url: str  # its OpenAI-compatible endpoint, e.g. "https://api.sambanova.ai/v1"
+    name: str  # the provider, e.g. "Example AI"
+    base_url: str  # its OpenAI-compatible endpoint, e.g. "https://api.example.ai/v1"
     free_terms: str  # the free tier in a phrase, e.g. "free, ~30 req/min, no card"
     needs_card: bool = False
     models: list[str] = Field(default_factory=list)
