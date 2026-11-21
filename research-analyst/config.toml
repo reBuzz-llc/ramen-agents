@@ -16,7 +16,7 @@ max_notes_per_day = 12
 disabled_actions = ["ask", "interest"]
 
 [browser]
-search_engines = ["searxng", "duckduckgo-mcp", "freeserp", "langsearch", "parallel", "hn", "corpus"]
+search_engines = ["searxng", "duckduckgo-mcp", "freeserp", "langsearch", "hn", "corpus"]
 corpus_dir = "raw"
 
 [dashboard]

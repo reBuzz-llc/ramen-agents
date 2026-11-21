@@ -65,7 +65,7 @@ cap.
 | SearXNG | runs on your own Mac (127.0.0.1:8888); keyless | the main search; settings in `common-data/configs/searxng-settings.yml` | none (self-hosted) |
 | DuckDuckGo MCP | keyless | a web search, search only | none |
 | LangSearch | free plan; the page does not state whether a card is needed | the first backup, used only when the local search fails or finds nothing; never named by a bot | https://langsearch.com |
-| Parallel | $5 of free credit a month with a card on file (its page); past that it bills per use, so leave it out to stay card-free | the second backup, after LangSearch | https://parallel.ai |
+| Parallel | $5 of free credit a month with a card on file (its page); past that it bills per use, so leave it out to stay card-free | not in the default search path: add `parallel` to a member's `search_engines` by hand to use it, after LangSearch | https://parallel.ai |
 | Tavily | free plan, no card | The CEO only, for special searches; never automatic | https://tavily.com |
 
 Our daily caps for the keyed backups are set in `web-bots.toml`: `langsearch_per_day` (100) and `parallel_per_day`

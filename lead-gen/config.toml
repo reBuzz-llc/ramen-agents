@@ -49,7 +49,7 @@ notify_folder = "~/bots/the-ceo"
 notify_name = "The CEO"
 candidates_glob = "candidates-{market_slug}-*.md"   # the daily list for the current market (scripts/candidates-feed.py)
 candidates_shown = 5
-# Each email is checked before the row is written. Free plans, no card; leave the key files out to skip the check.
+# Each email is checked before the row is written. Free plans (Sniffmail's page says no card; QuickEmailVerification's does not state it); leave the key files out to skip the check.
 email_verify_key_file = "~/bots/common-data/keys/quickemailverification.key"
 email_verify_fallback_key_file = "~/bots/common-data/keys/sniffmail.key"
 
