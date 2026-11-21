@@ -91,13 +91,13 @@ class SearchSettings:
     tavily_per_day: int = 30
     tavily_usage_file: Path = TAVILY_USAGE_FILE
     # The `langsearch` engine (owner's key and word, 2026-10-05: "backup when search fails"): a keyed web search API with a
-    # free plan, no card. Put it right AFTER searxng: it runs only when the local search fails or comes back empty, within
+    # free plan; its page does not state whether a card is needed. Put it right AFTER searxng: it runs only when the local search fails or comes back empty, within
     # the fleet-wide daily budget. The second exception to keyless search; no bot may name it itself.
     langsearch_api_key: str = ""
     langsearch_per_day: int = 100
     langsearch_usage_file: Path = LANGSEARCH_USAGE_FILE
     # The `parallel` engine (owner's key and word, 2026-10-05: "add as a second backup"): Parallel's search API, $5 of free
-    # credit a month, no card. Listed after langsearch, so it runs only when every engine before it came back empty.
+    # credit a month with a card on file (its page), then it bills per use. Listed after langsearch, so it runs only when every engine before it came back empty.
     parallel_api_key: str = ""
     parallel_per_day: int = 30
     parallel_usage_file: Path = PARALLEL_USAGE_FILE

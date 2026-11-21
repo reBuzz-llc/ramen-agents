@@ -224,9 +224,9 @@ PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "
 # the bots never sign up for these, that is always the owner's step (Plan 7). No OpenRouter (owner's
 # rule). Model ids drift; `bot check` verifies each against the provider's catalogue.
 KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
-    "groq": {"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "free": "free tier, no card"},
+    "groq": {"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "free": "free tier; its page does not state whether a card is needed"},
     "cerebras": {"base_url": "https://api.cerebras.ai/v1", "model": "gpt-oss-120b", "free": "card required (2026-09-25: API access needs credits, $5 trial or $10 PayGo) -- declined", "auto": False},
-    "gemini": {"base_url": "", "model": "", "free": "free tier, no card (built-in, not OpenAI-compatible)"},
+    "gemini": {"base_url": "", "model": "", "free": "free tier; its page does not state whether a card is needed (built-in, not OpenAI-compatible)"},
     "mistral": {"base_url": "https://api.mistral.ai/v1", "model": "mistral-small-latest", "free": "needs billing activation and pay-as-you-go (not in the default chain)", "auto": False},
     "sambanova": {"base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct", "free": "free tier, no card"},
     # A $1 lifetime credit, then pay per token (speka.me, 2026-11-21): never joins by a key file alone.
