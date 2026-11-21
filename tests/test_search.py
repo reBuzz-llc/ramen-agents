@@ -465,3 +465,19 @@ def test_places_search_reads_the_local_overture_snapshot(tmp_path):
     assert "website: http://www.cornercafe.com/" in page.text and "status: open" in page.text
     assert "no website listed" in places_search("Harbor Restaurant", db).text and "no social pages listed" in places_search("Harbor Restaurant", db).text
     assert not places_search("x", tmp_path / "missing.sqlite").ok
+
+
+def test_a_daily_budget_of_zero_means_no_call(tmp_path):
+    import httpx
+
+    from explorer.search import _tavily_spend, langsearch_search, parallel_search, tavily_search
+    asked = []
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: asked.append(str(r.url)) or httpx.Response(200, json={})))
+    for engine, call in (("tavily", tavily_search), ("langsearch", langsearch_search), ("parallel", parallel_search)):
+        usage = tmp_path / f"{engine}.json"
+        for budget in (0, -1):
+            page = call(client, "maple diner", "k", per_day=budget, usage_file=usage)
+            assert not page.ok and "not available" in (page.error or ""), (engine, budget)
+        assert not usage.exists()                         # nothing was counted, as nothing was spent
+    assert asked == []
+    assert _tavily_spend(tmp_path / "one.json", 1) is True and _tavily_spend(tmp_path / "one.json", 1) is False

@@ -461,7 +461,8 @@ def searxng_search(client: httpx.Client, query: str, base_url: str = "http://127
 
 
 def _tavily_spend(usage_file: Path, per_day: int) -> bool:
-    """Count one call against the fleet's daily Tavily budget. False when today's budget is used up."""
+    """Count one call against the fleet's daily budget of a keyed search. False when today's budget is used up. A budget of 0
+    is none: this engine makes no call (it once meant no limit, so setting 0 to switch a paid engine off would have uncapped it)."""
     import datetime as _dt
     import json as _json
 
@@ -473,7 +474,7 @@ def _tavily_spend(usage_file: Path, per_day: int) -> bool:
     except (OSError, ValueError):
         data = {}
     used = int(data.get(day, 0))
-    if per_day > 0 and used >= per_day:
+    if per_day <= 0 or used >= per_day:
         return False
     try:
         usage_file.parent.mkdir(parents=True, exist_ok=True)
