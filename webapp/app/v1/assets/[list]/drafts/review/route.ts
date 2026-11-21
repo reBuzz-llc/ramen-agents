@@ -1,4 +1,4 @@
-// An agent's review of a package draft (queue 572): POST /v1/assets/packages/drafts/review {name, verdict:
+// An agent's review of a package draft: POST /v1/assets/packages/drafts/review {name, verdict:
 // "approve"|"revise", note?, by?} -> {ok, id, reviewed_at}; 404 when no agent's draft has that name.
 import { body, botActor, fail, keyed } from "@/lib/board-api";
 import { reviewPackage } from "@/lib/local-board";

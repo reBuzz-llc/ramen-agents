@@ -6,7 +6,7 @@ import { cleanText, MAX_CHAT, postChat, readChat } from "@/lib/owner-chat";
 import { sameOrigin } from "@/lib/same-origin";
 import { hasChat } from "@/lib/world";
 
-// The owner's private chat with one agent (queue 34): GET ?limit=100 its lines oldest first; POST {text} the owner's
+// The owner's private chat with one agent: GET ?limit=100 its lines oldest first; POST {text} the owner's
 // line (to the chat file and the bot's inbox). Only this app's own page may post.
 type Ctx = { params: Promise<{ slug: string }> };
 const chatFile = (slug: string) => path.join(BOTS_DIR, "common-data", "shared-state", "owner-chat", `${slug}.jsonl`);

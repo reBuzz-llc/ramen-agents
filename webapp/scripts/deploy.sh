@@ -10,6 +10,7 @@
 # Any failure before step 4 leaves the live dashboard exactly as it was.
 #
 #   sh ~/bots/webapp/scripts/deploy.sh        (or: npm run deploy)
+. "$(dirname "$0")/../../scripts/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 set -eu
 cd "$(dirname "$0")/.."
 LABEL="gui/$(id -u)/com.ramen-agents.bot-dashboard"

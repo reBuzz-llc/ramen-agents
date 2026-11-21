@@ -1,4 +1,4 @@
-// A CSV of leads into the local board (queue 572): the body is the file's text. Columns are matched by name; the answer
+// A CSV of leads into the local board: the body is the file's text. Columns are matched by name; the answer
 // says how many leads were added and filled and which columns matched nothing. A filled cell is never overwritten.
 import { NextResponse } from "next/server";
 import { csvRows } from "@/lib/csv-import";

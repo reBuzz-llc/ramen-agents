@@ -394,14 +394,16 @@ def test_company_size_takes_locations_and_employees(ck):
     assert ok("~11 locations, 120 staff") == [] and ok("400 locations") == [] and ok("50-200 employees") == []
 
 
-def test_rules_the_owners_hand_fixes_revealed(ck):
+def test_rules_the_owners_hand_fixes_revealed(ck, monkeypatch):
     """2026-09-25: the owner corrected by hand what the Validator had let through."""
     ok = lambda **kw: rules_of(check_lead(ck, lead(**kw), allowed_packages=PACKAGES, duplicate_of=[]))  # noqa: E731
     assert ok(source_pages="address published on the company's site\n") == ["LD12"]
     assert ok(source_pages="https://www.acmebakery.example/contact\nhttps://www.acmebakery.example/about") == []
     assert ok(email="press@acmebakery.example") == ["LD13"] and ok(email="marketing@acmebakery.example") == ["LD13"]
     assert ok(email="hello@acmebakery.example") == []
-    flags = check_lead(ck, lead(website="https://thebfa.org", email="press@thebfa.org", evidence="https://www.thebfa.org/contact-us/"),
+    monkeypatch.setattr(checks, "DIRECTORY_SITES", ("association.example",))
+    flags = check_lead(ck, lead(website="https://association.example", email="press@association.example",
+                                evidence="https://www.association.example/contact-us/"),
                        allowed_packages=PACKAGES, duplicate_of=[])
     assert "LD14" in rules_of(flags) and "association" in next(f for f in flags if f.rule == "LD14").detail
 

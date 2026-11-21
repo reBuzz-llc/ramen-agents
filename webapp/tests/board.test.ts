@@ -72,7 +72,7 @@ test("state: stalled (no progress for 15 min while ticking)", () => {
   assert.deepEqual(word({ hb: hb("14:28", "running", "14:05") }), { word: "stalled", tone: "bad", why: "no progress for 25 min" });
 });
 
-test("state: stalled uses the bot's own stall_minutes from the heartbeat (queue 29: a 30-minute bot like Scout)", () => {
+test("state: stalled uses the bot's own stall_minutes from the heartbeat (a 30-minute bot like Scout)", () => {
   // Scout at its 10-minute pace: 25 min without progress is not a stall for it, 32 min is
   assert.equal(word({ hb: hb("14:28", "running", "14:05", { stall_minutes: 30 }) }).word, "working");
   assert.deepEqual(word({ hb: hb("14:28", "running", "13:58", { stall_minutes: 30 }) }), { word: "stalled", tone: "bad", why: "no progress for 32 min" });
@@ -107,7 +107,7 @@ test("board: reads stall_minutes from the heartbeat row; a database without the 
   assert.deepEqual(o.state, { word: "stalled", tone: "bad", why: "no progress for 25 min" });
 });
 
-test("state: The CEO's 09:29 day_block_rest is not a stall when its next episode starts (queue 30, the live lines of 10-31)", () => {
+test("state: The CEO's 09:29 day_block_rest is not a stall when its next episode starts (the live lines of 10-31)", () => {
   const D = (hms: string) => `2026-10-31T${hms}`;
   const line = (hms: string, kind: string, extra: Record<string, unknown> = {}) => JSON.stringify({ ts: D(hms), level: "INFO", msg: kind, kind, ...extra });
   const jsonl = [
@@ -203,7 +203,7 @@ test("feed: newest 30 across the family from fixture databases, refusals and oth
   assert.equal(a.hours[14], 3);
   assert.deepEqual(a.questions, ["Which shops publish an email?", "Do florists list on Yelp?"]);
   assert.deepEqual(a.interests, ["bakeries", "nyc florists"]);
-  assert.equal(a.model, null, "no trace: no model line (queue 49: the log's switch line is not the last call)");
+  assert.equal(a.model, null, "no trace: no model line (the log's switch line is not the last call)");
   const feed = mergeFeed([a, b]);
   assert.deepEqual(
     feed.map((f: { name: string; ts: string; words: string }) => `${f.ts.slice(11, 16)} ${f.name}: ${f.words}`),
@@ -212,7 +212,7 @@ test("feed: newest 30 across the family from fixture databases, refusals and oth
   assert.equal(mergeFeed([a, b], 1).length, 1);
 });
 
-test("web activity (queue 33): open ok, open refused, search, captcha wording, empty page; today counts from local midnight", async () => {
+test("web activity: open ok, open refused, search, captcha wording, empty page; today counts from local midnight", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "board-web-"));
   const db = path.join(dir, "explorer.sqlite3");
   const rows: [string, string, string, string, string][] = [
@@ -250,7 +250,7 @@ test("web activity (queue 33): open ok, open refused, search, captcha wording, e
   assert.equal(webMark("allowed", "opened https://x.example: 'Home' (4033 chars)"), "ok", "4033 is not a 403");
 });
 
-test("no heartbeat waits two cycles of a slow bot (queue 38: Scout, 600 s a cycle, stall_minutes 30); a fast bot keeps 10 min", () => {
+test("no heartbeat waits two cycles of a slow bot (Scout, 600 s a cycle, stall_minutes 30); a fast bot keeps 10 min", () => {
   const scout = (beat: string) => word({ hb: hb(beat, "running", beat, { stall_minutes: 30 }) });
   assert.equal(scout("14:19").word, "working", "11 min after its last beat: between two normal beats");
   assert.equal(scout("14:09").word, "no heartbeat 21 min", "past two cycles");
@@ -258,7 +258,7 @@ test("no heartbeat waits two cycles of a slow bot (queue 38: Scout, 600 s a cycl
   assert.equal(word({ hb: hb("14:19", "running", "14:19") }).word, "no heartbeat 11 min", "no stall_minutes: 10 min");
 });
 
-test("a read without a URL is on the page the bot last opened (queue 38): the card's screen names that site", async () => {
+test("a read without a URL is on the page the bot last opened: the card's screen names that site", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "board-read-"));
   const ws = path.join(dir, "lead-gen", "workspace");
   await mkdir(path.join(ws, "logs"), { recursive: true });
@@ -288,7 +288,7 @@ test("a rest that outlives a restart (engine 158c746): rest-until.json says rest
   assert.equal(word({ hb: hb("14:29"), rest: { ...rest, until: "2026-10-30T14:10:00" }, jsonl: [ev("14:29", "action")] }).word, "working");
 });
 
-test("floating screens (queue 39): only pages the owner would approve; one per address, the newest wins", () => {
+test("floating screens: only pages the owner would approve; one per address, the newest wins", () => {
   const deny = parseDenylist("# comment\ndomain:accounts.google.com\ndomain:blocked.example\npath:login\n");
   const row = (t: string, url: string, title: string, chars: number, v = "allowed", extra = "") => ({ t, p: JSON.stringify({ url }), v, r: `opened ${url}: '${title}' (${chars} chars, 9 links)${extra}` });
   assert.equal(validPage(row("open", "https://www.florist.example/about", "About us", 1200), deny), "https://www.florist.example/about");
@@ -321,7 +321,7 @@ test("floating screens (queue 39): only pages the owner would approve; one per a
   ]);
 });
 
-test("a refused web row says why in plain words (queue 44)", () => {
+test("a refused web row says why in plain words", () => {
   const table: [string, string][] = [
     ["rejected: you have read this site enough today; write what you have or move on. It stays blocked until tomorrow.", "site read enough today; blocked until tomorrow"],
     ["rejected: you searched that today; the answer did not change. Open a result you have, or search for something different.", "same search as earlier today"],
@@ -361,7 +361,7 @@ test("a refused web row says why in plain words (queue 44)", () => {
   ]);
 });
 
-test("the family's messages: each bot's sent ones and the owner's lines, newest five, text cut to 60 (queue 46)", () => {
+test("the family's messages: each bot's sent ones and the owner's lines, newest five, text cut to 60", () => {
   const rows = [
     { id: 14724, ts: "2026-10-31T12:42:44", p: JSON.stringify({ type: "message", to: "The CEO", text: "Understood, CEO. I am prioritizing focused, direct research queries to maintain high quality." }) },
     { id: 14700, ts: "2026-10-31T11:00:00", p: '{"type": "message", "to": "everyone", "text": "A payload cut at four hundred char' },
@@ -378,7 +378,7 @@ test("the family's messages: each bot's sent ones and the owner's lines, newest 
   assert.deepEqual({ from: all[0].from, to: all[0].to }, { from: "Owner", to: "Scout" });
 });
 
-test("state: one or two failed calls keep a bot working, retrying; three in a row or the outage rule turn it red (queue 49)", () => {
+test("state: one or two failed calls keep a bot working, retrying; three in a row or the outage rule turn it red", () => {
   const one = word({ hb: hb("14:29", "model_failure", "14:29", { model_failures: 1 }), jsonl: [ev("14:29", "action")] });
   assert.deepEqual(one, { word: "working", tone: "good", why: "1 failed call, retrying" });
   assert.equal(word({ hb: hb("14:29", "model_failure", "14:29", { model_failures: 2 }), jsonl: [ev("14:29", "action")] }).why, "2 failed calls, retrying");
@@ -392,7 +392,7 @@ test("state: one or two failed calls keep a bot working, retrying; three in a ro
   assert.equal(withOutage({ state: { word: "resting until 15:00", tone: "muted" as const, why: "" }, failing: 1 }, true).state.word, "resting until 15:00");
 });
 
-test("the model line: provider and time from the newest trace, none without traces (queue 49)", async () => {
+test("the model line: provider and time from the newest trace, none without traces", async () => {
   const ws = await mkdtemp(path.join(tmpdir(), "ws-"));
   assert.equal(await lastModel(ws), null);
   const day = path.join(ws, "traces", "2026-10-31");
@@ -419,7 +419,7 @@ test("a member's item on its world screen comes from the write that names it", (
   assert.equal(subjectOf("update_lead", "not json"), "");
 });
 
-test("activity lines (queue 287): plain words, the page's kind, a lead's name and cell, never an email or a phone", async () => {
+test("activity lines: plain words, the page's kind, a lead's name and cell, never an email or a phone", async () => {
   // @ts-ignore TS5097
   const { activityLine } = await import("../lib/board.ts");
   assert.deepEqual(activityLine("open", JSON.stringify({ url: "https://www.cibao-restaurant.com/menu" }), "2026-11-06T15:31:02"), { ts: "2026-11-06T15:31:02", hhmm: "15:31", words: "opened cibao-restaurant.com · menu page", kind: "web" });

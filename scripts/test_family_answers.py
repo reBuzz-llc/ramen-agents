@@ -1,4 +1,4 @@
-"""The first-run answers file (queue 572): valid TOML with the keys the engine and the Validator read, quotes and
+"""The first-run answers file: valid TOML with the keys the engine and the Validator read, quotes and
 newlines kept, domains cleaned."""
 from __future__ import annotations
 

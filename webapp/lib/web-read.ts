@@ -1,4 +1,4 @@
-// Server-side only: the family's web activity for the world's WEB terminal (queue 33) and its floating screens (queue
+// Server-side only: the family's web activity for the world's WEB terminal and its floating screens (queue
 // 39), polled every 12 s like the board and shared for 5 s. The running bots are the board's cards
 // (lib/board-read.ts); each one's database gives one query (lib/board.ts webSql). Each read also files the bots' fresh
 // screenshots into the pictures' ring (lib/web-shots.ts) and gives each recent page the picture of its visit, if any.

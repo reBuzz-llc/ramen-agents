@@ -1,5 +1,5 @@
 // The office's sounds (owner, 10-31: "there is a constant background noise", "like wind blowing";
-// queue 59: "almost none"): no loop, no drone, no hum. Short, soft one-shots, each under 0.6 s: a click when a message
+// "almost none"): no loop, no drone, no hum. Short, soft one-shots, each under 0.6 s: a click when a message
 // takes off, a chime for a published package or a new CEO proposal, a page-flip when a draft goes to the post box, a
 // pencil tick for a note, a pop for a pinned lead, a low muted thud for a refusal (at most once a minute), a soft rise
 // when a member wakes from a rest, a tiny buzz when a bee lands, and one quiet ambient one-shot every 90-120 s (a bird

@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass, Spinner } from "../../ui";
 
-/** Edit for one of the owner's persona sections (queue 489): the text as it is, Save writes it; the agent reads it on its
+/** Edit for one of the owner's persona sections: the text as it is, Save writes it; the agent reads it on its
  *  next step (no restart). */
 export default function SectionEdit({ bot, section, body }: { bot: string; section: string; body: string }) {
   const router = useRouter();

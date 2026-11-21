@@ -279,7 +279,7 @@ def current_goal() -> str:
 
 
 def newest_steer() -> str:
-    """The owner's current direction: the first-run answers' `steer` (common-data/local/family.toml, queue 572) when set,
+    """The owner's current direction: the first-run answers' `steer` (common-data/local/family.toml) when set,
     else the newest section of common-data/knowledge/steers.md."""
     import checks
     steer = str(checks.family().get("steer") or "").strip()

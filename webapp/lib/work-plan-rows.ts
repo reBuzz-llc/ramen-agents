@@ -96,7 +96,7 @@ export function noPlanHeader(o: { stoppedSince?: string | null; retired?: boolea
 }
 
 /** A past job's identity, stable across refreshes (its bot and when it ran), so an open row stays open on the same job
- *  when newer jobs arrive at the top (queue 80). */
+ *  when newer jobs arrive at the top. */
 export const pastKey = (j: Pick<PastJob, "slug" | "started" | "ended" | "task">) => `${j.slug}|${j.started ?? ""}|${j.ended ?? ""}|${j.task}`;
 
 /** "attempt 2 of 3" for a task the same bot planned more than once (each plan a separate attempt, oldest first); empty

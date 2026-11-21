@@ -1,6 +1,6 @@
 // Where the boards live, Node imports only (the tests load it with Node's own runner): common.toml's `[leads] portal_url`.
 // It points at this dashboard by default ("http://127.0.0.1:3000"): the local board in common-data/local-board.sqlite3
-// (lib/local-board.ts, queue 572), read here straight from the file. Any other address is the hosted portal, read over
+// (lib/local-board.ts), read here straight from the file. Any other address is the hosted portal, read over
 // its API with the dashboard's key (lib/portal.ts); while that portal runs on this Mac (its own local mode, port 3100),
 // the tunnel's address. docs/boards.md.
 import { readFile } from "node:fs/promises";

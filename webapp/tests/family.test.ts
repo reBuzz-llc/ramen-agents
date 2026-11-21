@@ -1,4 +1,4 @@
-// The family's answers (queue 572): common-data/local/family.toml, read and written in the shape
+// The family's answers: common-data/local/family.toml, read and written in the shape
 // scripts/family_answers.py writes, so sh scripts/setup.sh and the first-run page agree.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";

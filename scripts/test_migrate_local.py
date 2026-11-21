@@ -1,4 +1,4 @@
-"""update.sh's one-time lift (queue 572): a user's edits to tracked files move to the git-ignored overlays and family.toml,
+"""update.sh's one-time lift: a user's edits to tracked files move to the git-ignored overlays and family.toml,
 the old Notion settings are moved or dropped by name, and git status is clean after."""
 from __future__ import annotations
 

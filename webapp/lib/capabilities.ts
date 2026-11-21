@@ -34,7 +34,7 @@ export async function capabilitiesOf(bot: BotProfile): Promise<Capabilities> {
   if (local) can.push("Think with a model on this Mac");
 
   // Outputs.
-  // the boards (queue 572: the dashboard's local board, or the hosted portal): [tasks], [packages] and [leads]
+  // the boards (the dashboard's local board, or the hosted portal): [tasks], [packages] and [leads]
   if (on("tasks.enabled")) {
     const cap = num("tasks.max_per_day");
     can.push(`Create tasks on your Tasks board${cap ? ` (up to ${cap} a day)` : ""}; a person moves their status`);

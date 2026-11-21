@@ -59,7 +59,7 @@ api_key_file = "~/bots/common-data/keys/speka.key"
 calls_per_day = 30
 
 [model.providers.zai]
-# The flash model is list-priced $0, no card. Our own cap only stops a runaway; a real 429 benches it.
+# The flash model is list-priced $0; its page does not state whether a card is needed. Our own cap only stops a runaway; a real 429 benches it.
 base_url = "https://api.z.ai/api/paas/v4"
 model = "glm-4.5-flash"
 api_key_file = "~/bots/common-data/keys/zai.key"
@@ -75,7 +75,7 @@ calls_per_day = 60
 cooldown_minutes = 720
 
 [model.providers.openrouter]
-# Only a ":free" model, no card, about 50 calls a day without credit.
+# Only a ":free" model; its page does not state whether a card is needed; about 50 calls a day without credit.
 base_url = "https://openrouter.ai/api/v1"
 model = "google/gemma-4-31b-it:free"
 api_key_file = "~/bots/common-data/keys/openrouter.key"

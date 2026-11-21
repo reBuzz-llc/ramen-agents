@@ -1,4 +1,4 @@
-// Package drafts (queue 572): POST /v1/assets/packages/drafts {name, price, buyer, deliverables, offer?, why?, sources?,
+// Package drafts: POST /v1/assets/packages/drafts {name, price, buyer, deliverables, offer?, why?, sources?,
 // by?} -- an agent hands a package over; the same agent's draft of the same name is updated in place (201 new, 200
 // update), a published package or a person's draft is never touched. GET -> {drafts: [...]} with each one's handover and
 // review (reviewed_by, reviewed_at, review_verdict, review_note).

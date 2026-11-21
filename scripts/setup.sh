@@ -1,5 +1,5 @@
 #!/bin/sh
-# Your family, set up in a few questions (queue 572). Run it after sh scripts/install.sh; run it again any time to
+# Your family, set up in a few questions. Run it after sh scripts/install.sh; run it again any time to
 # change an answer (the current one is the default: press Return to keep it).
 #
 #   sh scripts/setup.sh                       # the questions, then it starts the family and opens the dashboard
@@ -11,12 +11,7 @@
 # It asks for no key itself: if you have no model key yet, it runs sh scripts/add-key.sh for one (one is enough).
 # The members chosen are started by installing their launch agents; the others stay off because nothing starts them.
 set -eu
-# 717: the folder on the main branch is a copy for reading; nothing is installed, started or updated from it
-if [ -f "$(dirname "$0")/../READ-ONLY-COPY.md" ]; then
-  echo "This folder is the read-only copy of the code on the main branch: nothing is installed or run from it." >&2
-  echo "Install from the fleet branch: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots" >&2
-  exit 1
-fi
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)

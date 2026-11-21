@@ -1,4 +1,4 @@
-// Run: npm test. The floating screens' pictures (queue 39): a bot's current screenshot joins the ring only when taken
+// Run: npm test. The floating screens' pictures: a bot's current screenshot joins the ring only when taken
 // within 60 s after its latest valid page; the ring keeps the newest 12; names are the only thing the route serves.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -46,7 +46,7 @@ test("ring: keeps the newest 12; the route's name check refuses anything else", 
   for (const bad of ["../keys/x.png", "lead-gen.png", "a/b-20261031T111300.png", "x-20261031T111300.png.txt"]) assert.equal(isShotName(bad), false, bad);
 });
 
-test("rendered pictures (queue 41): a file named with the address hash attaches to its page first, else the visit's copy", async () => {
+test("rendered pictures: a file named with the address hash attaches to its page first, else the visit's copy", async () => {
   // @ts-ignore TS5097
   const { shotFor, urlHash } = await import("../lib/web-shots.ts");
   const page = { slug: "lead-gen", ts: "2026-10-31T11:50:00", url: "https://florist.example/" };

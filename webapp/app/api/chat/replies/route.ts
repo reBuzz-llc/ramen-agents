@@ -1,7 +1,7 @@
 import { liveBoard } from "@/lib/board-read";
 import { listBots } from "@/lib/bots";
 
-// Each agent's last reply time in the owner's chat with it, and its name (queue 35), for the Notifications page's
+// Each agent's last reply time in the owner's chat with it, and its name, for the Notifications page's
 // "<name> answered you at HH:MM"; from the board's 5 s cache.
 export async function GET() {
   const [board, bots] = await Promise.all([liveBoard(), listBots()]);

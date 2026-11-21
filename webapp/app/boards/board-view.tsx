@@ -1,5 +1,5 @@
 "use client";
-// The local board's pages (queue 572): Leads, Tasks and Packages (with the rate card), the rows the agents and people
+// The local board's pages: Leads, Tasks and Packages (with the rate card), the rows the agents and people
 // share. Every table sorts (SortableTable); a row opens to edit every cell; a person's edit is theirs (an agent's later
 // write to that cell is refused). The Leads page also takes a CSV (the board's columns by name; a filled cell is never
 // overwritten). Nothing here talks to the network: the board is the SQLite file on this Mac (lib/local-board.ts).

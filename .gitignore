@@ -58,7 +58,7 @@ common-data/botBox/*
 /backups/
 
 
-# Yours on this Mac, never in git (queue 572): the first-run answers and what update.sh lifted out of tracked files, the
+# Yours on this Mac, never in git: the first-run answers and what update.sh lifted out of tracked files, the
 # config overlays (a value there wins over the tracked file), the local board's database.
 common-data/local/
 common-data/configs/local.toml

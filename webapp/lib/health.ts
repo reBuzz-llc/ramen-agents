@@ -66,7 +66,7 @@ export function rebootIssue(off: { from: string; to: string; note: string }[], p
   const bad = off.filter((s) => s.note === "no clean shutdown logged");
   if (!bad.length) return null;
   const s = bad[bad.length - 1];
-  // what it was, in one clause, when macOS filed a panic report for those minutes (queue 54); just the times otherwise
+  // what it was, in one clause, when macOS filed a panic report for those minutes; just the times otherwise
   const p = panicFor(panics, s.from, s.to);
   const why = p ? ` (a kernel panic${p.gpu ? " in the GPU memory driver" : ""}; the bots restarted on their own)` : "";
   return { key: "reboot", since: s.from, text: `The Mac went off without a clean shutdown at ${hhmm(s.from)} and came back at ${hhmm(s.to)}${why}.` };

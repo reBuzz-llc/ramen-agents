@@ -5,7 +5,7 @@ import { readTrial } from "@/lib/trial-read";
 import SeenButton from "./seen-button";
 
 /** A red box when something needs a human; nothing when all is well. One line per issue, each with
- *  a Seen button that hides it until its fact changes (queue 54). Streamed in a Suspense boundary by its pages, so the
+ *  a Seen button that hides it until its fact changes. Streamed in a Suspense boundary by its pages, so the
  *  reads never hold the page up. */
 export default async function HealthBanner({
   className = "",
@@ -13,7 +13,7 @@ export default async function HealthBanner({
   className?: string;
 }) {
   const [all, seen, trial] = await Promise.all([health().catch(() => []), readSeen().catch(() => ({})), readTrial().catch(() => null)]);
-  // a planned pause (queue 371): the Validator not running and the bots idle are on purpose, not for a human
+  // a planned pause: the Validator not running and the bots idle are on purpose, not for a human
   const issues = unseen(quietDuringTrial(all, trial), seen);
   if (!issues.length) return null;
   return (

@@ -111,13 +111,13 @@ export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks
   if (!signs.length) return { word: "no heartbeat", tone: "bad", why: "none written yet" };
   const silent = (now - Math.max(...signs)) / 60e3;
   // A bot beats once a cycle: silent for two cycles is "no heartbeat", never under 10 minutes. The engine's stall_minutes
-  // is max(15, 3 x cycle), so for a slow bot it gives the cycle (queue 38: Scout, 600 s a cycle, read "no heartbeat"
+  // is max(15, 3 x cycle), so for a slow bot it gives the cycle (Scout, 600 s a cycle, read "no heartbeat"
   // between two normal beats 10.5 minutes apart).
   const noBeat = Math.max(NO_HEARTBEAT_MIN, ((hb?.stall_minutes ?? 0) * 2) / 3);
   if (silent > noBeat) return { word: `no heartbeat ${minWords(silent)}`, tone: "bad", why: `last sign ${hhmm(Math.max(...signs))}` };
   if (hb?.status === "quiet") return { word: "quiet", tone: "muted", why: one(hb.next_planned) };
   if (hb?.status === "paused") return { word: "paused", tone: "muted", why: "" };
-  // queue 49: one or two failed calls are normal noise the chain retries (14:04-14:07 on 10-31, five screens went red on
+  // one or two failed calls are normal noise the chain retries (14:04-14:07 on 10-31, five screens went red on
   // one empty reply each); the red state takes three in a row, or the provider outage rule (board-read)
   if (hb?.status === "model_failure" && hb.model_failures >= MODEL_FAILURES_RED)
     return { word: "blocked on the model provider", tone: "warn", why: `${hb.model_failures} failed calls in a row` };
@@ -125,7 +125,7 @@ export function stateOf(i: { hb: Hb | null; events: Ev[]; now: number; dayBlocks
   if (hb?.status.startsWith("idle")) return { word: "waiting for a task", tone: "muted", why: "in chat" };
   // A rest or quiet spell is not a stall: count from when the bot went back to work (its first episode, action or
   // resume after the last one), since the heartbeat keeps the progress time from before the rest until its next tick
-  // (queue 30: The CEO read "stalled, 18 min" from 09:44:27, its episode after a 09:29 day_block_rest, to 09:44:42).
+  // (The CEO read "stalled, 18 min" from 09:44:27, its episode after a 09:29 day_block_rest, to 09:44:42).
   const pause = lastOf("resting", "day_block_rest", "quiet");
   const back = pause ? events.find((x) => x.at > pause.at && (x.kind === "action" || x.kind === "episode" || x.kind === "resume")) : undefined;
   const hbProgress = hb?.last_progress_at ? new Date(hb.last_progress_at).getTime() : NaN;
@@ -285,19 +285,19 @@ export type BotCard = {
   hours: number[]; // actions per hour today, 0..23
   questions: string[]; // its open questions, most pursued first (up to 3)
   interests: string[]; // its strongest interests (up to 3)
-  model: { label: string; ts: string } | null; // the provider/model its last call used, from its newest trace (queue 49)
+  model: { label: string; ts: string } | null; // the provider/model its last call used, from its newest trace
   feed: FeedItem[];
-  // queue 287: the screen's activity feed (newest first, ACTIVITY_LINES at most) and its newest refusal, in words with
+  // the screen's activity feed (newest first, ACTIVITY_LINES at most) and its newest refusal, in words with
   // the reason, for a stuck member's first line
   activity: ActivityLine[];
   refusal: { ts: string; words: string; reason: string } | null;
-  // the newest action whatever its verdict (queue 40: the world animates what really happened) and how many refusals
+  // the newest action whatever its verdict (the world animates what really happened) and how many refusals
   // in a row end its log
   act: Act | null;
   refusedRun: number;
-  cycleSec: number | null; // seconds between its steps (queue 52: pranks between steps)
-  failing: number; // failed model calls in a row now (0 unless its heartbeat says model_failure; queue 49)
-  sent: FamilyMessage[]; // its last 5 allowed messages (queue 46); board-read merges them into Board.messages
+  cycleSec: number | null; // seconds between its steps (pranks between steps)
+  failing: number; // failed model calls in a row now (0 unless its heartbeat says model_failure)
+  sent: FamilyMessage[]; // its last 5 allowed messages; board-read merges them into Board.messages
   // the world's screen (the owner's four lines): the row or item it is on (its newest write of the
   // last hour, e.g. "Fiesta Lounge · Draft email"; "" = the screen shows its page or search), its last model call's age,
   // the last 30 minutes' allowed/all actions, and its daily goal when common-data/daily-goals.json names one
@@ -375,7 +375,7 @@ export function activityLine(type: string, payloadJson: string | null, ts: strin
   return { ts, hhmm, words: unpersonal(words), kind };
 }
 
-/** The provider and model of the bot's last call, and when (queue 49: the log's "using <label>" line marks only a
+/** The provider and model of the bot's last call, and when (the log's "using <label>" line marks only a
  *  switch, so it read "last call 10:47" for a bot that drafted all afternoon): the newest decision trace,
  *  <ws>/traces/<YYYY-MM-DD>/<HHMMSS>-<cycle>-<action>.json, which records the model that answered. Null when there is
  *  none (the line is left out). */
@@ -472,8 +472,8 @@ const json = <T>(v: unknown, dflt: T): T => {
   }
 };
 
-// The family's messages (queue 46: the planes in the air): bot-to-bot, to everyone, replies to the Owner, and the
-// owner's chat lines. text60: the text on one line, cut to 60 characters; text120 the same cut to 120 (queue 51: the
+// The family's messages (the planes in the air): bot-to-bot, to everyone, replies to the Owner, and the
+// owner's chat lines. text60: the text on one line, cut to 60 characters; text120 the same cut to 120 (the
 // card shown on a hovered or tapped butterfly or bee).
 export type FamilyMessage = { id: string; ts: string; from: string; to: string; text60: string; text120: string };
 
@@ -515,14 +515,14 @@ function actOf(a: { id: number; ts: string; t: string; p: string | null; v: stri
 }
 
 /** A read or back names no page: it is on the page the bot last opened or followed, so it takes that page's domain and
- *  title (queue 38, as /api/web does for its list). */
+ *  title (as /api/web does for its list). */
 function onPage(sc: Screen, page: { t: string; p: string | null; r: string | null } | null): Screen {
   if (sc.kind !== "web" || sc.domain || !page) return sc;
   const was = screenOf(page.t, page.p, page.r, null);
   return { ...sc, domain: was.domain, title: sc.title || was.title };
 }
 
-// What a member is on, by the write that names it (queue 233). The Lead Gen and anyone not listed show their page or
+// What a member is on, by the write that names it. The Lead Gen and anyone not listed show their page or
 // search; the Analyst its open question.
 const SUBJECT: Record<string, string[]> = {
   "outreach-writer": ["update_lead"],
@@ -744,7 +744,7 @@ export async function shoulder(ws: string, db: string | null, now: number): Prom
   };
 }
 
-// ---- The family's web activity (queue 33): the WEB terminal in the world shows what the bots really browsed ----
+// ---- The family's web activity: the WEB terminal in the world shows what the bots really browsed ----
 // From each running bot's actions table: open, follow, read and back are pages, search a search. A row is marked
 // refused (verdict "rejected…"), captcha (Cloudflare, a 403 or a captcha in the verdict or result), empty (an empty
 // page or 0 chars) or ok, in that order.
@@ -769,7 +769,7 @@ export function parseDenylist(text: string): Deny {
 
 const SEARCH_HOSTS = /(^|\.)(google|bing|duckduckgo|yahoo|yandex|baidu|startpage|ecosia|brave|searx[a-z]*|search)\./;
 
-/** A page the owner would approve on the floating screens (queue 39): an allowed open or follow of an http(s) page with
+/** A page the owner would approve on the floating screens: an allowed open or follow of an http(s) page with
  *  a title and at least 500 characters read, nothing refused, blocked or empty about it, not on the denylist, and not a
  *  search engine or a sign-in page. The page's address, or null when it is out. */
 export function validPage(row: { t: string; p: string | null; v: string; r: string | null }, deny: Deny): string | null {
@@ -815,7 +815,7 @@ export function webMark(verdict: string, result: string | null): WebMark {
   return "ok";
 }
 
-// Why a row was refused, in plain words (queue 44): the engine's standing phrases shortened; anything else is the
+// Why a row was refused, in plain words: the engine's standing phrases shortened; anything else is the
 // verdict's own text cut to about 110 characters at a sentence end.
 const REASONS: [RegExp, string | ((m: RegExpExecArray) => string)][] = [
   [/you have read this site enough today/i, "site read enough today; blocked until tomorrow"],

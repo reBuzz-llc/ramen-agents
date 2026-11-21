@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       return jsonResponse(req, { candidates, results, tests });
     }
     if (part === "checks") {
-      // B8 (queue 377): when this was read, and the Validator's tick line (red when stale)
+      // B8: when this was read, and the Validator's tick line (red when stale)
       const [refusals, changes, ceo, tick] = await Promise.all([refusalStats(bots), readMarkers(14), ceoMeasure(), readTick(BOTS_DIR).catch(() => null)]);
       return jsonResponse(req, { refusals, changes, ceo, tick, at: new Date().toISOString() });
     }

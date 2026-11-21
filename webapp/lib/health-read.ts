@@ -18,7 +18,7 @@ const VALIDATOR_HEALTH = path.join(BOTS_DIR, "common-data", "shared-state", "val
 const MODEL_CALLS = path.join(BOTS_DIR, "common-data", "shared-state", "model_calls.json");
 const REPORTS = ["/Library/Logs/DiagnosticReports", "/Library/Logs/DiagnosticReports/Retired"];
 
-/** macOS's newest kernel panic reports, and whether each was in the GPU memory driver (queue 54). */
+/** macOS's newest kernel panic reports, and whether each was in the GPU memory driver. */
 async function panicReports(): Promise<{ name: string; gpu: boolean }[]> {
   const out: { name: string; gpu: boolean }[] = [];
   for (const dir of REPORTS) {

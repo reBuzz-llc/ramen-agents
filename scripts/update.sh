@@ -1,5 +1,5 @@
 #!/bin/sh
-# Take the starter's newest version on a Mac that is already set up (queue 572). Safe to run again.
+# Take the starter's newest version on a Mac that is already set up. Safe to run again.
 #
 #   sh scripts/update.sh
 #
@@ -14,12 +14,7 @@
 # 3. Reinstalls what changed (sh scripts/install.sh), restarts the dashboard and the members, runs the setup check.
 # 4. Prints what changed.
 set -eu
-# 717: the folder on the main branch is a copy for reading; nothing is installed, started or updated from it
-if [ -f "$(dirname "$0")/../READ-ONLY-COPY.md" ]; then
-  echo "This folder is the read-only copy of the code on the main branch: nothing is installed or run from it." >&2
-  echo "Install from the fleet branch: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots" >&2
-  exit 1
-fi
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 # this folder: where the script lives, or ~/bots when it is read from a pipe (an old checkout's first update)
 if [ -f "$(dirname "$0")/update.sh" ] && [ -d "$(dirname "$0")/../.git" ]; then cd "$(dirname "$0")/.."; else cd "${RAMEN_FLEET:-$HOME/bots}"; fi

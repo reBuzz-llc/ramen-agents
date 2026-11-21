@@ -1,4 +1,4 @@
-// The local board's rows (queue 572), the hosted portal's paths and answers:
+// The local board's rows, the hosted portal's paths and answers:
 //   GET  /v1/boards/leads/rows?since=<rev>&limit=<1..500>&fields=all  -> {leads, next, more}, ETag (304 when unchanged)
 //   GET  /v1/boards/tasks/rows?since&limit&status&archived            -> {tasks, next, more}
 //   POST /v1/boards/leads/rows {actor, fields}                        -> 201 {lead, created, written, refused}; 409 duplicate_row

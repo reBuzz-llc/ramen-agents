@@ -85,7 +85,7 @@ test("a provider table's note shows first, with the dead line after it", () => {
   assert.equal(row!.callsCap, 1);
 });
 
-test("allowance: each provider's calls split between the bots and the Validator's own jobs (queue 286)", async () => {
+test("allowance: each provider's calls split between the bots and the Validator's own jobs", async () => {
   // @ts-ignore TS5097
   const { splitOf } = await import("../lib/allowance.ts");
   assert.deepEqual(splitOf({ "Lead Gen": 300, "The CEO": 100, unnamed: 6, "validator:polish": 40, "validator:pain-refresh": 12 }, 458), { bots: 406, validator: 52 });
@@ -96,7 +96,7 @@ test("allowance: each provider's calls split between the bots and the Validator'
   assert.ok(rows.some((r: { host: string; split: unknown }) => r.host === "api.z.ai" && JSON.stringify(r.split) === JSON.stringify({ bots: 10, validator: 3 })));
 });
 
-test("allowance: the other free tiers pass through, and those at 80% or more warn on the ticker (queue 304)", async () => {
+test("allowance: the other free tiers pass through, and those at 80% or more warn on the ticker", async () => {
   // @ts-ignore TS5097
   const { otherAlerts } = await import("../lib/allowance.ts");
   const rows = [
@@ -112,7 +112,7 @@ test("allowance: the other free tiers pass through, and those at 80% or more war
   assert.deepEqual(run().other, []); // no file yet: nothing, and no alert
 });
 
-test("allowance: Tavily counts The CEO's and the Analyst's files together; LangSearch and Parallel share Lead Gen's searches; ezverify 200 a month (queue 329)", async () => {
+test("allowance: Tavily counts The CEO's and the Analyst's files together; LangSearch and Parallel share Lead Gen's searches; ezverify 200 a month", async () => {
   // @ts-ignore TS5097
   const { mergeDays } = await import("../lib/allowance.ts");
   assert.deepEqual(mergeDays([{ "2026-11-08": 2, "2026-11-07": 1 }, { "2026-11-08": 5 }, {}]), { "2026-11-08": 7, "2026-11-07": 1 });
@@ -129,7 +129,7 @@ test("allowance: Tavily counts The CEO's and the Analyst's files together; LangS
   assert.deepEqual([by("ezverify").today, by("ezverify").cap], [2, "200 a month"]);
 });
 
-test("a spent allowance (engine 2cbe08a): 'spent today' or 'spent this month' with the renew time; an old mark is ignored (queue 449)", () => {
+test("a spent allowance (engine 2cbe08a): 'spent today' or 'spent this month' with the renew time; an old mark is ignored", () => {
   const withSpent = (zai: string, speka: string) =>
     run({ calls: { ...CALLS, health: { ...CALLS.health, "api.z.ai": { ...CALLS.health["api.z.ai"], spent: zai }, "speka.me": { ...CALLS.health["speka.me"], spent: speka } } } });
   const a = withSpent("2026-11-06", "2026-11");

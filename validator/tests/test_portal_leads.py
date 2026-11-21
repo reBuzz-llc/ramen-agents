@@ -74,7 +74,7 @@ def test_portal_url_from_common_toml_and_the_local_overlay(tmp_path):
     f.write_text("[leads]\nportal_url = \"https://portal.example.com/\"\n")
     assert portal_leads.portal_url(f, local) == "https://portal.example.com"
     local.write_text("[leads]\nportal_url = \"https://mine.example.com\"\n")
-    assert portal_leads.portal_url(f, local) == "https://mine.example.com"     # the user's own value wins (queue 572)
+    assert portal_leads.portal_url(f, local) == "https://mine.example.com"     # the user's own value wins
     local.unlink()
     f.write_text("# [leads]\n# portal_url = \"x\"\n")
     assert portal_leads.portal_url(f, local) == "http://127.0.0.1:3000"        # unset: the dashboard's local board

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lift a user's own values out of the tracked files, once, so `git pull` meets no edit (queue 572; update.sh runs it).
+"""Lift a user's own values out of the tracked files, once, so `git pull` meets no edit (update.sh runs it).
 
     python3 scripts/migrate_local.py [--dry-run]      # in ~/bots, before the pull
 

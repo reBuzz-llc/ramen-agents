@@ -1,5 +1,5 @@
 #!/bin/sh
-# Everything ramen-agents needs on this Mac, checked and installed in order (queue 572). Safe to run again: each step
+# Everything ramen-agents needs on this Mac, checked and installed in order. Safe to run again: each step
 # says "ok" when it is already done and changes nothing then. One line per step; a step that needs you stops with the one
 # command to run, and you run this again after it.
 #
@@ -15,12 +15,7 @@
 # It never asks for a key, never signs in to anything, never starts a paid plan and never edits a tracked file.
 # The model keys are yours to add (sh scripts/add-key.sh <provider>); sh scripts/setup.sh asks the rest.
 set -eu
-# 717: the folder on the main branch is a copy for reading; nothing is installed, started or updated from it
-if [ -f "$(dirname "$0")/../READ-ONLY-COPY.md" ]; then
-  echo "This folder is the read-only copy of the code on the main branch: nothing is installed or run from it." >&2
-  echo "Install from the fleet branch: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots" >&2
-  exit 1
-fi
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 
 ok() { printf '  ok       %s\n' "$*"; }
 did() { printf '  done     %s\n' "$*"; }

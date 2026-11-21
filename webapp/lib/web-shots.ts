@@ -1,8 +1,8 @@
-// The floating screens' pictures (queue 39): the engine keeps one screenshot per bot, <ws>/screenshots/current.png,
+// The floating screens' pictures: the engine keeps one screenshot per bot, <ws>/screenshots/current.png,
 // replaced at every page it draws and deleted for a text-only page. On each web poll, when a bot's current.png was
 // written within 60 s after its latest valid page, it is copied into a small ring,
 // common-data/shared-state/web-shots/<slug>-<YYYYMMDDTHHMMSS>.png (git-ignored), named after that page's visit; the
-// ring keeps the newest 12 files. Pages the bots read as text get their picture from scripts/web-shots.py (queue 41),
+// ring keeps the newest 12 files. Pages the bots read as text get their picture from scripts/web-shots.py,
 // which renders them and names the file <slug>-<YYYYMMDDTHHMMSS>-<8 hex of sha1(url)>.png. A page shows a picture
 // when the ring holds one for its address (by that hash) or for its very visit (by the name).
 // Node imports only, so the test runs with Node's own runner.

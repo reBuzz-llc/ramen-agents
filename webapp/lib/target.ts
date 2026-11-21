@@ -1,7 +1,7 @@
 // Server-side only: the family's target market, common-data/knowledge/target.toml (owner, 2026-09-30: "I might change
 // target location in future. It should be said in task and goals, not in code"). The engine fills {market},
 // {market_short}, {segment}, {trades} and {areas} in every bot's card from it, and the candidates feed reads `market`.
-// Your own values live in common-data/local/family.toml [target] (queue 572: git-ignored, so `git pull` never meets an
+// Your own values live in common-data/local/family.toml [target] (git-ignored, so `git pull` never meets an
 // edit); they sit on top of the tracked file, as they do for the engine. The Work plan page shows the five lines and
 // saves them there; the tracked file is never written.
 import { readFile } from "node:fs/promises";

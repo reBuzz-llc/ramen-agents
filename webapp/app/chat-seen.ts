@@ -1,7 +1,7 @@
 "use client";
 import { useSyncExternalStore } from "react";
 
-// Which agents' replies the owner has seen (queue 35): per slug, the time of the last reply read in its Chat tab, kept
+// Which agents' replies the owner has seen: per slug, the time of the last reply read in its Chat tab, kept
 // in this browser. Every view subscribes (the room's dots, the panel's Chat tab, the List cards, Notifications), so
 // opening a tab clears the dot everywhere at once. Without storage (a private window) nothing is remembered and a
 // reply shows as unread until the tab is opened in this visit.

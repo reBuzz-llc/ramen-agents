@@ -55,13 +55,13 @@ test("dialogue: state, working on, questions and interests before the last actio
   ]);
   const bare = dialogue(card("x", { on: "", last: null, output: null, refusedShare: null, questions: [], interests: [], model: null }) as never);
   assert.deepEqual(bare.lines, ["Working", "Last: no accepted action yet", "80 actions today"]);
-  // the world's dialogue (queue 221): the state and the counts sit in its Now block, not in the list
+  // the world's dialogue: the state and the counts sit in its Now block, not in the list
   assert.deepEqual(dialogue(card("x", { on: "", last: null, output: null, refusedShare: null, questions: [], interests: [], model: null }) as never, { now: true }).lines, ["Last: no accepted action yet"]);
   const thinking = dialogue(card("x", { on: "I should open the contact page", onKind: "thought" }) as never);
   assert.equal(thinking.lines[1], "Thinking: I should open the contact page");
 });
 
-test("walks (queue 37): along the shore and the terrace paths, ending on the spot; every place reachable from every slot", () => {
+test("walks: along the shore and the terrace paths, ending on the spot; every place reachable from every slot", () => {
   const spot = slot(1).spot;
   const go = route(spot, TERMINAL);
   assert.deepEqual(go[go.length - 1], TERMINAL);
@@ -106,7 +106,7 @@ test("7 days tab: actions and refused share, outputs by type, crashes, last outp
   assert.deepEqual(week7Lines(undefined), ["The 7-day numbers are still being read."]);
 });
 
-test("downtime line: each span dated, past tense once over, present only while a quiet is open (queue 49)", () => {
+test("downtime line: each span dated, past tense once over, present only while a quiet is open", () => {
   const now = new Date(2026, 9, 31, 14, 5, 0).getTime();
   assert.equal(downtimeLine(null, now), "");
   assert.equal(downtimeLine({ off: [], quiet: [] }, now), "Last 24 h: the Mac was on and nobody was quiet.");
@@ -120,7 +120,7 @@ test("downtime line: each span dated, past tense once over, present only while a
   assert.equal(downtimeLine({ off: [], quiet: [{ from: "2026-10-31T09:00:00", to: "2026-10-31T09:30:00", minutes: 30, note: "the owner asked" }] }, now), "Last 24 h: Today 09:00-09:30 quiet (the owner asked) (30 min).");
 });
 
-test("screen (queue 37): what the big screen shows for a page, a search, a document and resting, from fixture actions", () => {
+test("screen: what the big screen shows for a page, a search, a document and resting, from fixture actions", () => {
   const open = screenOf("open", JSON.stringify({ url: "https://www.tarynbrows.com" }), "opened https://www.tarynbrows.com: 'Taryn Brows | Brooklyn' (1155 chars, 11 links)", null);
   assert.deepEqual(open, { kind: "web", domain: "tarynbrows.com", title: "Taryn Brows | Brooklyn" });
   assert.equal(screenOf("open", "{}", "opened https://eventpros.example: 'Ward events &amp;amp;amp; parties' (9 chars)", null).title, "Ward events & parties");
@@ -160,7 +160,7 @@ test("screen (queue 37): what the big screen shows for a page, a search, a docum
   // under 1024 px: two lines, no footer
   assert.deepEqual(screenFor(card(open) as never, { compact: true }), { mode: "web", name: "Lead Gen", word: "working", tone: "good", lines: ["tarynbrows.com"], foot: "", share: null, four: [], mark: "web" });
   assert.equal(screenFor({ ...card(open), output: null, refusedShare: null } as never).foot, "40 actions");
-  // the counts line (queue 38, words in full since queue 221): the last word of the output's label, "refused" spelled out
+  // the counts line (words in full): the last word of the output's label, "refused" spelled out
   assert.equal(screenFor({ ...card(open), output: { label: "lead update", today: 4 }, refusedShare: 0.3 } as never).foot, "4 updates · 30% refused");
   assert.equal(screenFor({ ...card(open), output: { label: "package or task", today: 1 }, refusedShare: 0 } as never).foot, "1 task · 0% refused");
   // working after a rest (The CEO, 10-31): what it is doing and its plan step, never the rest's own word
@@ -240,7 +240,7 @@ test("idle moves: a working member stretches, sips or glances now and then, neve
   assert.ok(longest <= 14_000, `longest still spell ${longest} ms`);
 });
 
-test("member panel (queue 36): a click picks the tab only when the panel is closed; open, switching agents keeps it", async () => {
+test("member panel: a click picks the tab only when the panel is closed; open, switching agents keeps it", async () => {
   // @ts-ignore TS5097
   const { panelNext } = await import("../lib/world.ts");
   type P = { open: boolean; tab: "info" | "screen" | "feed" | "chat" };
@@ -261,7 +261,7 @@ test("member panel (queue 36): a click picks the tab only when the panel is clos
   assert.deepEqual(p, { open: true, tab: "feed" }, "the strip expands on the tab it had");
 });
 
-test("under the tree (queue 37): five mats down its shade, then along the front edge; no two on one spot", () => {
+test("under the tree: five mats down its shade, then along the front edge; no two on one spot", () => {
   const spots = Array.from({ length: 12 }, (_, i) => bedSpot(i));
   assert.deepEqual(spots.slice(0, 5).map((p) => p.x), [21.75, 21.75, 21.75, 21.75, 21.75]);
   assert.ok(spots.slice(5).every((p) => p.y === 15.5 && p.x < 21.75));
@@ -270,7 +270,7 @@ test("under the tree (queue 37): five mats down its shade, then along the front 
   assert.equal(new Set(spots.map((p) => `${p.x},${p.y}`)).size, 12);
 });
 
-test("the terrace fits the family (queue 38): 8 is 4 + 4 centred, 9 is 5 + 4, 10 is 5 + 5; never an overlap", () => {
+test("the terrace fits the family: 8 is 4 + 4 centred, 9 is 5 + 4, 10 is 5 + 5; never an overlap", () => {
   const rows = (n: number) => {
     const ys = layout(n).map((p: { screen: { y: number } }) => p.screen.y);
     return [...new Set(ys)].map((y) => ys.filter((v: number) => v === y).length);
@@ -294,7 +294,7 @@ test("the terrace fits the family (queue 38): 8 is 4 + 4 centred, 9 is 5 + 4, 10
   }
 });
 
-test("the terrace (queue 37): ten screens without overlap, inside the scene, clear of the tree, the shore objects apart", () => {
+test("the terrace: ten screens without overlap, inside the scene, clear of the tree, the shore objects apart", () => {
   const rect = (x: number, y: number, w: number, h: number) => ({ x0: x, y0: y, x1: x + w, y1: y + h });
   const screens = Array.from({ length: MAX_DESKS }, (_, i) => rect(slot(i).screen.x * TILE, slot(i).screen.y * TILE, SCREEN.w, SCREEN.h));
   const apart = (a: { x0: number; y0: number; x1: number; y1: number }, b: typeof a) => a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0;
@@ -311,7 +311,7 @@ test("restarting: the bot stays at its place, not under the tree", () => {
   assert.equal(animOf({ word: "restarting" }), "idle");
 });
 
-test("WEB terminal badge and hover line (queue 33): pages opened today, 999+ past 999; the three counts in words", async () => {
+test("WEB terminal badge and hover line: pages opened today, 999+ past 999; the three counts in words", async () => {
   // @ts-ignore TS5097
   const { badgeText, webTitle, TERMINAL_BOX, TILE } = await import("../lib/world.ts");
   assert.equal(badgeText(0), "0");
@@ -323,7 +323,7 @@ test("WEB terminal badge and hover line (queue 33): pages opened today, 999+ pas
   assert.ok(TERMINAL_BOX.y <= 4 * TILE + 2 - 8 && TERMINAL_BOX.x <= 22 * TILE + 1);
 });
 
-test("chat tab (queue 34): the owner right, the agent left in its colour; today HH:MM, else MM-DD HH:MM; the empty line", async () => {
+test("chat tab: the owner right, the agent left in its colour; today HH:MM, else MM-DD HH:MM; the empty line", async () => {
   // @ts-ignore TS5097
   const { chatRows, chatEmpty, hasChat, lookOf } = await import("../lib/world.ts");
   assert.equal(hasChat("lead-gen"), true);
@@ -344,7 +344,7 @@ test("chat tab (queue 34): the owner right, the agent left in its colour; today 
   assert.equal(chatEmpty("Lead Gen"), "Nothing yet. Write to Lead Gen; it answers here, usually within seconds.");
 });
 
-test("labels (queue 42): a thought bubble or a stuck tag never covers a screen, for every place of 8 and 10 members", async () => {
+test("labels: a thought bubble or a stuck tag never covers a screen, for every place of 8 and 10 members", async () => {
   // @ts-ignore TS5097
   const { labelRects, layout, SCREEN, TILE, COLS, ROWS } = await import("../lib/world.ts");
   const hit = (a: { x: number; y: number; w: number; h: number }, b: typeof a) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -363,12 +363,12 @@ test("labels (queue 42): a thought bubble or a stuck tag never covers a screen, 
   }
 });
 
-test("resting screen (queue 42): the header says resting, line 2 until when, line 3 why", () => {
+test("resting screen: the header says resting, line 2 until when, line 3 why", () => {
   const s = screenFor({ name: "Package Designer", state: { word: "resting until 12:27", tone: "muted", why: "9 things blocked today" }, last: null, output: null, actionsToday: 0, refusedShare: null } as never);
   assert.deepEqual([s.word, s.mode, s.lines], ["resting", "dark", ["until 12:27", "9 things blocked today"]]);
 });
 
-test("the Web list notes a reason only under refused, captcha and empty rows (queue 44)", () => {
+test("the Web list notes a reason only under refused, captcha and empty rows", () => {
   assert.equal(webNote({ mark: "refused", reason: "same search as earlier today" }), "same search as earlier today");
   assert.equal(webNote({ mark: "captcha", reason: "captcha or access wall" }), "captcha or access wall");
   assert.equal(webNote({ mark: "empty", reason: "empty page" }), "empty page");
@@ -376,7 +376,7 @@ test("the Web list notes a reason only under refused, captcha and empty rows (qu
   assert.equal(webNote({ mark: "refused", reason: "" }), null);
 });
 
-// queue 45: nobody walks through a screen, a wall or a shore object
+// nobody walks through a screen, a wall or a shore object
 const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
 const cellsOf = (from: { x: number; y: number }, path: { x: number; y: number }[]) => {
   const out = [{ ...from }];
@@ -486,7 +486,7 @@ test("leaving its spot for the shore, a member steps sideways into a gap first, 
   }
 });
 
-// queue 46: three planes in the air, first in, first out
+// three planes in the air, first in, first out
 test("planes: the seed is the newest three of the last 24 h, oldest first, with no take-off; fewer messages, fewer planes", async () => {
   // @ts-ignore TS5097
   const { newAir, airPoll, aloft, inTheAir } = await import("../lib/world.ts");
@@ -559,7 +559,7 @@ test("planes: the ribbon says handles only, the hover the whole line; the take-o
   assert.equal(takeoffLeg(1).k, 1);
 });
 
-test("a working bot retrying a failed call says so on line 4 (queue 49)", () => {
+test("a working bot retrying a failed call says so on line 4", () => {
   const c = card("lead-gen", { state: { word: "working", tone: "good", why: "1 failed call, retrying" } });
   const s = screenFor(c as never);
   assert.equal(s.foot, "1 failed call, retrying");
@@ -568,7 +568,7 @@ test("a working bot retrying a failed call says so on line 4 (queue 49)", () => 
   assert.equal(screenFor(c as never, { compact: true }).foot, "");
 });
 
-// queue 47 part 2: one personality per member, carried by a prop and a signature move
+// one personality per member, carried by a prop and a signature move
 test("personalities: each member's props, and the move its real actions play", async () => {
   // @ts-ignore TS5097
   const { gearOf, moveOf, actAnim } = await import("../lib/world.ts");
@@ -609,14 +609,14 @@ test("props persist in every pose and fit the portrait", async () => {
     for (const pose of ["stand", "walk", "sit", "type", "use", "lie"]) assert.ok(personaRects(slug, pose).length > 0, `${slug} ${pose}`);
     // the portrait draws the standing figure with its feet at (11, 25) on a 24 x 26 canvas
     for (const [dx, dy, w, h] of personaRects(slug, "stand")) assert.ok(11 + dx >= 0 && 11 + dx + w <= 24 && 25 + dy >= 0 && 25 + dy + h <= 26, `${slug} off the portrait`);
-    // each held or worn prop is at least 4 px in one direction, so it reads at a glance (queue 52)
+    // each held or worn prop is at least 4 px in one direction, so it reads at a glance
     for (const g of gearOf(slug)) if (g !== "watch" && g !== "glasses") assert.ok(gearRects(g, "stand").some(([, , w, h]) => Math.max(w, h) >= 4), `${slug} ${g} too small`);
   }
   assert.deepEqual(gearRects("binoculars", "stand", { held: false }), gearRects("binoculars", "stand"), "worn on a strap, not in the hand");
   assert.deepEqual(gearRects("magnifier", "stand", { held: false }), [], "a move raises what is in the hand");
 });
 
-// queue 47 part 5: made for video
+// made for video
 test("director: whoever acted gets the inset for 3 s, then the next; nobody acting pans; gone members are skipped", async () => {
   // @ts-ignore TS5097
   const { newDirector, directorStep, insetSource, panAt, DIRECTOR_HOLD_MS } = await import("../lib/world.ts");
@@ -676,7 +676,7 @@ test("record 60 s: start, stop at 60 s, the Chrome note where WebM recording is 
   assert.equal(lapseHour(14, 0, 360_000), 15);
 });
 
-test("the video strip covers nothing: no screen, figure or label under the inset or the ticker (queue 50)", async () => {
+test("the video strip covers nothing: no screen, figure or label under the inset or the ticker", async () => {
   // @ts-ignore TS5097
   const { videoLayout, labelRects, tickerText } = await import("../lib/world.ts");
   const meets = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -763,7 +763,7 @@ test("free flight: waypoints inside the scene, planes a tile apart, never stoppi
   assert.ok(Math.hypot(s1.x - s2.x, s1.y - s2.y) >= AIR_GAP);
 });
 
-test("bees and butterflies: a bee for the owner's lines and replies to the owner, a butterfly in the family's colour otherwise (queue 51)", async () => {
+test("bees and butterflies: a bee for the owner's lines and replies to the owner, a butterfly in the family's colour otherwise", async () => {
   // @ts-ignore TS5097
   const { flyerOf, wingColor, beeBob, insectPose, lookOf } = await import("../lib/world.ts");
   assert.equal(flyerOf({ from: "Owner", to: "Scout" }), "bee");
@@ -782,7 +782,7 @@ test("bees and butterflies: a bee for the owner's lines and replies to the owner
   for (let a = -Math.PI; a <= Math.PI; a += 0.1) assert.ok(Math.abs(insectPose(a).tilt) <= (15 * Math.PI) / 180 + 1e-9);
 });
 
-test("a butterfly's or bee's card: names, time, the first 120 characters, inside the scene by the insect; a 16 px box finds it (queue 51)", async () => {
+test("a butterfly's or bee's card: names, time, the first 120 characters, inside the scene by the insect; a 16 px box finds it", async () => {
   // @ts-ignore TS5097
   const { insectCard, cardRect, insectAt, CARD_W } = await import("../lib/world.ts");
   const long = "Understood, CEO. I am prioritizing focused, direct research queries to maintain high quality and minimize blocked items.";
@@ -801,7 +801,7 @@ test("a butterfly's or bee's card: names, time, the first 120 characters, inside
   assert.equal(insectAt(shown, 92, 42)?.id, "a", "a generous box: 8 px each way");
 });
 
-test("the Info card's first line names the gear (queue 52)", async () => {
+test("the Info card's first line names the gear", async () => {
   // @ts-ignore TS5097
   const { gearWords } = await import("../lib/world.ts");
   assert.equal(gearWords("lead-gen"), "binoculars");
@@ -810,7 +810,7 @@ test("the Info card's first line names the gear (queue 52)", async () => {
   assert.equal(dialogue(card("lead-gen") as never).title, "Lead Gen leaA · binoculars");
 });
 
-// queue 53: busy between steps
+// busy between steps
 test("busy between steps: only while working, from the last action and the member's own prop; any other state stops it", async () => {
   // @ts-ignore TS5097
   const { busyOf, busyKindOf } = await import("../lib/world.ts");
@@ -851,7 +851,7 @@ test("busy between steps: only while working, from the last action and the membe
   assert.ok(lives.length >= 6 && gaps.every((g) => g >= 10_000 && g <= 20_000), `life at ${lives.join(", ")}`);
 });
 
-test("the butterfly: mirror-symmetric open wings with a notch, outlined, antennae with tips, a 3-frame flap, the marker clear of the head (queue 58)", async () => {
+test("the butterfly: mirror-symmetric open wings with a notch, outlined, antennae with tips, a 3-frame flap, the marker clear of the head", async () => {
   // @ts-ignore TS5097
   const { butterflyPixels, flapFrame, butterflyHop } = await import("../lib/world.ts");
   const open = butterflyPixels("open", true);
@@ -890,7 +890,7 @@ test("the butterfly: mirror-symmetric open wings with a notch, outlined, antenna
   assert.ok(flat >= 4 && flat <= 30, `${flat} glides in 40 slots`);
 });
 
-test("chat: typing until the reply or 20 s, then still thinking, then nothing (queue 73)", async () => {
+test("chat: typing until the reply or 20 s, then still thinking, then nothing", async () => {
   // @ts-ignore TS5097
   const { chatWait } = await import("../lib/world.ts");
   const at = (s: string) => new Date(s).getTime();
@@ -903,14 +903,14 @@ test("chat: typing until the reply or 20 s, then still thinking, then nothing (q
   assert.equal(chatWait([owner, { ts: "2026-11-02T22:10:04", from: "Lead Gen" }], at("2026-11-02T22:10:05")), null);
 });
 
-test("a member's HTML screen box by its width (queue 258): full from 120 px, compact from 80 px, tiny below", () => {
+test("a member's HTML screen box by its width: full from 120 px, compact from 80 px, tiny below", () => {
   assert.deepEqual(screenForm(138, 98), { form: "full", lines: 4 });
   assert.deepEqual(screenForm(95, 68), { form: "compact", lines: 3 });
   assert.deepEqual(screenForm(57, 43), { form: "tiny", lines: 2 });
   assert.deepEqual(screenForm(70, 30), { form: "tiny", lines: 1 });
 });
 
-test("ticker: the portal in local mode leads the line with the team's address (queue 294)", async () => {
+test("ticker: the portal in local mode leads the line with the team's address", async () => {
   // @ts-ignore TS5097
   const { tickerText } = await import("../lib/world.ts");
   assert.match(tickerText([], null, 0, [], { url: "https://brave-otter.trycloudflare.com" }), /^Portal \(local mode\): https:\/\/brave-otter\.trycloudflare\.com   ·   Leads today 0/);
@@ -918,7 +918,7 @@ test("ticker: the portal in local mode leads the line with the team's address (q
   assert.doesNotMatch(tickerText([], null, 0, [], null), /Portal/);
 });
 
-test("screen feed (queue 287): the header, a resting or stuck first line, then the activity newest first", async () => {
+test("screen feed: the header, a resting or stuck first line, then the activity newest first", async () => {
   // @ts-ignore TS5097
   const { screenFeed } = await import("../lib/world.ts");
   const base = { name: "Lead Enricher", slug: "lead-enricher", state: { word: "working", tone: "good", why: "" }, last: null, output: { label: "lead update", today: 11 }, actionsToday: 40, refusedShare: 0.3, goal: 12, window: { allowed: 6, total: 12 }, item: "", modelAgo: "1 min ago", model: { label: "api.z.ai/glm", ts: "" } };

@@ -33,7 +33,7 @@ export default async function Home() {
   return (
     <PageShell identity={identity}>
       {missing.length ? (
-        // queue 572: the first run. Until the family's answers are in, every card reads "the company" and "its area"
+        // the first run. Until the family's answers are in, every card reads "the company" and "its area"
         <p className="mx-auto mb-3 max-w-3xl rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink">
           The agents do not know who you are yet ({missing.join(", ")}).{" "}
           <Link href="/setup" className="font-semibold text-accent hover:underline">
@@ -41,19 +41,19 @@ export default async function Home() {
           </Link>
         </p>
       ) : null}
-      {/* queue 55 (owner, 15:50-15:52): no visible heading; the world starts right under the top bar, and the health
+      {/* (owner, 15:50-15:52): no visible heading; the world starts right under the top bar, and the health
           banner, the decisions and the CEO proposals sit below it (or below the List view), at the scene's width */}
       <h1 className="sr-only">Family</h1>
       <FamilyBoard
         initial={initial}
         below={
           // a key on this block: it crosses into the client World as one child among World's own, where React asks for
-          // one (queue 405: "Each child in a list should have a unique key ... passed a child from Home")
+          // one ("Each child in a list should have a unique key ... passed a child from Home")
           <div key="below" className="mt-3 space-y-2">
             <Suspense fallback={null}>
               <TrialLine />
             </Suspense>
-            {/* queue 381: the newest "This week in the family" post, under the world and the list view */}
+            {/* the newest "This week in the family" post, under the world and the list view */}
             <Suspense fallback={null}>
               <FamilyWeekCard />
             </Suspense>

@@ -201,7 +201,7 @@ export function allowanceOf(
     }
     const callShare = callsCap ? calls / callsCap : null;
     const h = input.calls.health?.[host] ?? {};
-    // engine 2cbe08a (queue 447/449): health[host].spent is the day ("2026-11-11") or the month ("2026-11") the allowance
+    // health[host].spent is the day ("2026-11-11") or the month ("2026-11") the allowance
     // ran out; it holds only while that day or month lasts, and an answer clears it
     const spent = h.spent === day ? "day" : h.spent === month ? "month" : "";
     const health: Health = { lastOk: h.last_ok ?? null, lastFail: h.last_fail ?? null, firstFail: h.first_fail ?? null, reason: h.last_reason ?? "", spent };
@@ -286,7 +286,7 @@ export async function readAllowance(bots: string, now = new Date()): Promise<All
   ]);
   // the Validator's last tick, for the stale line above the allowance
   const tickAt = await readJson<{ at?: unknown }>(path.join(shared, "tick-report.json"), {}).then((d) => (typeof d.at === "string" ? d.at : null));
-  // a planned pause (queue 371): the old tick is expected, the line says why
+  // a planned pause: the old tick is expected, the line says why
   // (loaded here, not at the top: the test runner loads this file without the server-side readers)
   const paused = (await import("./trial-read").then((m) => m.readTrial(bots)).catch(() => null))?.line ?? null;
   const keys = [...new Set(keyFiles.filter((f) => f.endsWith(".key")).map((f) => f.replace(/\.key$/, "")))];

@@ -191,7 +191,7 @@ test("replay: a recorded half hour of the live board keeps the room's rules at e
   replay(snaps);
 });
 
-// ---- The WEB terminal follows real browsing (queue 33) ----
+// ---- The WEB terminal follows real browsing ----
 const webOf = (lastTs: Record<string, string>) => Object.fromEntries(Object.entries(lastTs).map(([slug, ts]) => [slug, { lastTs: ts, domain: `www.${slug}-directory.example` }]));
 
 test("terminal: a bot walks there only when its latest web action is new, once, and the screen shows its domain", () => {
@@ -227,7 +227,7 @@ test("terminal: the recorded board with one web change has exactly one visit", (
   assert.deepEqual(visits.map((v) => [v.slug, v.poll]), [[who, 20]]);
 });
 
-// ---- The floating screens' carousel (queue 39) ----
+// ---- The floating screens' carousel ----
 test("carousel: a step every 8 s with a slide; hover and quiet pause it, a slide under way finishes; reduced motion swaps", async () => {
   // @ts-ignore TS5097
   const { carouselStep, carouselFrames, newCarousel, CAROUSEL, CAROUSEL_EVERY, pageCard, lookOf } = await import("../lib/world.ts");
@@ -266,7 +266,7 @@ test("carousel: a step every 8 s with a slide; hover and quiet pause it, a slide
   });
 });
 
-// ---- What really happened, animated (queue 40) ----
+// ---- What really happened, animated ----
 test("actions: each kind its animation, a refusal a puff; nothing for an unknown kind", async () => {
   // @ts-ignore TS5097
   const { actAnim } = await import("../lib/world.ts");
@@ -342,7 +342,7 @@ test("outputs walk: the Writer's draft to the post box and back, a proposal to t
   for (const m of sim.members.values()) assert.ok(m.trip === "none", `${m.slug} is back at its place`);
 });
 
-// queue 47 part 4: pranks as filler; queue 57: eligibility per member, no family-wide quiet window
+// pranks as filler; eligibility per member, no family-wide quiet window
 test("pranks: resting, idle or between-steps members, one at a time, one every 2 minutes in the room, a member once in 5 minutes", async () => {
   // @ts-ignore TS5097
   const { newPranks, prankStep, PRANK_EVERY_MS, PRANK_REST_MS, PRANK_SETTLE_MS } = await import("../lib/world.ts");
@@ -418,7 +418,7 @@ test("pranks: a seeded choice (the same seed, the same gags)", async () => {
   assert.equal(gagFigure(ball, "the-ceo", 3000).dx, 0);
 });
 
-test("pranks in the replay: members acting every 60-90 s, a gag every 2-4 minutes, the same gags on a second run (queue 57)", async () => {
+test("pranks in the replay: members acting every 60-90 s, a gag every 2-4 minutes, the same gags on a second run", async () => {
   // @ts-ignore TS5097
   const { newSim, simPoll, simStep, newPranks, prankStep, betweenSteps } = await import("../lib/world.ts");
   // five members working on 60-90 s cycles (a normal afternoon) and the CEO resting; a real action every cycle each
@@ -500,7 +500,7 @@ test("pranks between steps: a working member whose last action is 30 s old and n
   assert.equal(prankStep(newPranks(1, 0), PRANK_SETTLE_MS, [{ ...two[0] }], o, bed), null, "only a resting member pokes a sleeper");
 });
 
-// The range stays visible (after queue 77): asleep, one small pane in the clear sky right of the third peak; awake,
+// The range stays visible: asleep, one small pane in the clear sky right of the third peak; awake,
 // three panes as before.
 test("floating screens: idle layout clears the peaks, hover restores three", async () => {
   // @ts-ignore TS5097

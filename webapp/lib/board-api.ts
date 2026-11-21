@@ -1,4 +1,4 @@
-// The local board's API helpers (queue 572): the key check, the JSON answers and the errors, in the hosted portal's
+// The local board's API helpers: the key check, the JSON answers and the errors, in the hosted portal's
 // shapes, so the engine's portal_store and the Validator's portal readers cannot tell the two apart. Every answer is
 // application/json, errors included ({error: {code, message}}): a 4xx without a JSON body counts as "board down" to them.
 import { createHash } from "node:crypto";

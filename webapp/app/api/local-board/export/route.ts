@@ -1,4 +1,4 @@
-// A board as CSV (queue 572), for a spreadsheet or for moving to the hosted portal: GET ?board=leads|tasks|packages.
+// A board as CSV, for a spreadsheet or for moving to the hosted portal: GET ?board=leads|tasks|packages.
 // The header is each column's label, which the Leads page's Import CSV reads back. A cell that a spreadsheet would run
 // as a formula (it starts with = + - @) gets a leading ' so it opens as text: the cells hold text from web pages.
 import { csvCell } from "@/lib/csv-import";

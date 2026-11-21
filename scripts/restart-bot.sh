@@ -13,6 +13,7 @@
 #   sh ~/bots/scripts/restart-bot.sh --dry-run lead-gen     (says what it would do; touches nothing)
 # RESTART_BOTS_DIR, RESTART_WAIT, RESTART_TERM_WAIT and RESTART_LAUNCHCTL exist so scripts/test-restart-bot.sh can
 # run this against a fake bot.
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 set -u
 uid="$(id -u)"
 bots="${RESTART_BOTS_DIR:-$HOME/bots}"

@@ -3,6 +3,7 @@
 # file, so the run loop starts and exits at once until someone runs restart-bot.sh: that stays the one way to run a
 # bot (and the owner's word comes first for a bot the owner stopped).
 #   sh scripts/enable-bot.sh my-bot
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 set -u
 uid="$(id -u)"
 [ $# -gt 0 ] || { echo "usage: enable-bot.sh <slug>..." >&2; exit 2; }

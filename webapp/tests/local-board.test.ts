@@ -1,4 +1,4 @@
-// The local board (queue 572): the hosted portal's rules on one SQLite file, so the engine and the Validator read and
+// The local board: the hosted portal's rules on one SQLite file, so the engine and the Validator read and
 // write it as they would the portal.
 import assert from "node:assert/strict";
 import { test } from "node:test";

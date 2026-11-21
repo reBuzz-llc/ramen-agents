@@ -1,4 +1,4 @@
-// Pixel drawing for the lakeside world (queue 37; the office of queue 17 before it): everything is drawn here with
+// Pixel drawing for the lakeside world (the office before it): everything is drawn here with
 // rectangles, no image assets,
 // so there is no licence to keep. Coordinates are logical pixels (16 per tile); the caller scales the context so a
 // logical pixel is a whole number of device pixels, and text is drawn as vector text at that scale, so it stays sharp.
@@ -8,7 +8,7 @@ export const W = COLS * TILE;
 export const H = ROWS * TILE;
 const BRAND = "#ff6600";
 const INK = "#1a0d00";
-/** The dashboard's plain face, for words the reader parses (queue 221): names and states keep the pixel face. */
+/** The dashboard's plain face, for words the reader parses: names and states keep the pixel face. */
 const SANS = "system-ui, -apple-system, BlinkMacSystemFont, \"Helvetica Neue\", Arial, sans-serif";
 const BRAND_DARK = "#c44e00";
 
@@ -76,7 +76,7 @@ function line(c: Ctx, s: string, x: number, y: number, w: number, t: number, o: 
 }
 
 
-// ---- The lakeside (queue 37): sky, a mountain range, the lake, the shore and the terrace ----
+// ---- The lakeside: sky, a mountain range, the lake, the shore and the terrace ----
 const LAKE_TOP = 56;
 const SHORE = 82; // px: the lake's edge; the stone path below it
 const TERRACE = 104;
@@ -89,7 +89,7 @@ const PALETTES: Record<DayPhase["phase"], Palette> = {
   night: { sky: "#1d2547", glow: "#3b4a8a", rock: "#3a4466", rockDark: "#2c3452", snow: "#aab4cf", hill: "#2c4a3a", hillDark: "#223b2e", water: "#1c2d52", waterLight: "#3b5486", grass: "#3f6a4a", grassDark: "#34593e", stone: "#7c7f8c", stoneDark: "#666975" },
 };
 
-// ---- The upper band (queue 77, owner 2026-11-02: "a mountain range"): the mountain range
+// ---- The upper band (owner 2026-11-02: "a mountain range"): the mountain range
 // over a lake as seen from its shore, drawn from a reference photo (kept out of the repo) and
 // redrawn in the world's pixel style. Left to right: the broad left massif as the broad snow mass,
 // the twin-peaked summit left of centre and tallest, the third peak, two more peaks, the last peak on the
@@ -317,7 +317,7 @@ export function drawScene(
   r(c, PIER.x, PIER.y, PIER.w, PIER.h, "#8a6544");
   for (let y = PIER.y + 2; y < PIER.y + PIER.h; y += 4) r(c, PIER.x, y, PIER.w, 1, "#6e4f34");
   const bob = Math.floor(o.t / 900) % 2;
-  const boatX = 270 - (o.boat?.out ?? 0); // a boat trip (queue 47 pranks) rows it out and back
+  const boatX = 270 - (o.boat?.out ?? 0); // a boat trip (pranks) rows it out and back
   r(c, boatX, 68 + bob, 18, 5, "#c0392b");
   r(c, boatX + 2, 73 + bob, 14, 2, "#8e2a20");
   r(c, boatX + 8, 62 + bob, 1, 6, "#5b4330");
@@ -416,10 +416,10 @@ export function drawShh(c: Ctx) {
   text(c, "shh", W / 2, LAKE_TOP + 14, { size: 6 });
 }
 
-/** A member's big screen on two posts (queue 37; queue 221 and the owner's 11-06 look): its name on a tab above, inside
+/** A member's big screen on two posts (and the owner's 11-06 look): its name on a tab above, inside
  *  its state as a badge, what it is doing and today's counts. Hovered, a long line scrolls; working, a light sweeps the
  *  top edge. */
-/** The face inside the screens and on their name tabs: JetBrains Mono once the page has loaded it (queue 232). */
+/** The face inside the screens and on their name tabs: JetBrains Mono once the page has loaded it. */
 let screenFace = "ui-monospace, Menlo, monospace";
 export function setScreenFace(family: string) {
   if (family.trim()) screenFace = `${family.trim()}, ui-monospace, Menlo, monospace`;
@@ -544,7 +544,7 @@ export function drawBigScreen(
     r(c, ix + 1, iy + ih - 2, iw - 2, 1, dark ? "#3a4258" : "#e2dccf");
     r(c, ix + 1, iy + ih - 2, Math.max(1, Math.round((iw - 2) * Math.min(1, m.share ?? 0))), 1, BRAND);
   }
-  // a new Validator flag: one red line for 10 s (queue 40)
+  // a new Validator flag: one red line for 10 s
   if (o.strip) {
     r(c, ix, iy + ih - Math.ceil(lh) - 1, iw, Math.ceil(lh) + 1, "#d63b3b");
     text(o.strip, ix + 1, iy + ih - 2, iw - 2, "#ffffff", true, t);
@@ -574,7 +574,7 @@ export function drawWall(c: Ctx, x: number, y: number) {
 }
 
 
-/** One floating screen over the lake (queue 39): translucent, a thin light frame, a soft glow at night; the page's
+/** One floating screen over the lake: translucent, a thin light frame, a soft glow at night; the page's
  *  picture scaled to cover it when the ring has one, else its card (the domain large, the title under it, the bot's
  *  colour strip); the caption under it. */
 export function drawFloating(
@@ -613,7 +613,7 @@ export function drawFloating(
     line(c, a, x + 6, y + big + 6 + small * 1.6, w - 9, -1, { size: small, bold: false, color: "#3b3b3b" });
     line(c, b, x + 6, y + big + 6 + small * 3, w - 9, -1, { size: small, bold: false, color: "#3b3b3b" });
   }
-  // the caption under it, light on the water; none while the pane is small (asleep over the sky, queue 77)
+  // the caption under it, light on the water; none while the pane is small (asleep over the sky)
   if (w < 60) {
     c.restore();
     return;
@@ -627,7 +627,7 @@ export function drawFloating(
 }
 
 /** A bed mat in the sleeping corner; a retired bot's is grey, with a little "R" tag. */
-/** A short line under a sleeper's mat (queue 238: "owner 12:32: <reason>"), cut to `w` room px with an ellipsis. */
+/** A short line under a sleeper's mat ("owner 12:32: <reason>"), cut to `w` room px with an ellipsis. */
 export function drawMatNote(c: Ctx, s: string, cx: number, y: number, w: number) {
   c.font = "3.5px ui-monospace, SFMono-Regular, Menlo, monospace";
   const t = fit(c, s, w);
@@ -722,7 +722,7 @@ export function drawPerson(c: Ctx, x: number, y: number, look: Look, pose: Pose,
   drawGear(c, x, y, gear);
 }
 
-/** A member's props (queue 47: its personality), as lib/world's gearRects lays them out from its feet. */
+/** A member's props (its personality), as lib/world's gearRects lays them out from its feet. */
 function drawGear(c: Ctx, x: number, y: number, gear: GearRect[]) {
   for (const [dx, dy, w, h, color] of gear) r(c, x + dx, y + dy, w, h, color);
 }
@@ -827,7 +827,7 @@ export function drawClock(c: Ctx, x: number, y: number, until: string) {
   text(c, until, x + 2.5, y, { size: 5 });
 }
 
-/** A thought over a member after its action (queue 40), on the path below it (queue 42). */
+/** A thought over a member after its action, on the path below it. */
 export function drawBubble(c: Ctx, feet: { x: number; y: number }, s: string) {
   c.font = "bold 5px ui-monospace, SFMono-Regular, Menlo, monospace";
   let t = s;
@@ -840,7 +840,7 @@ export function drawBubble(c: Ctx, feet: { x: number; y: number }, s: string) {
   text(c, t, b.x + b.w / 2, b.y + 7, { size: 5 });
 }
 
-/** A butterfly's or bee's card (queue 51), in the thought bubbles' style: who to whom, the time, and the message
+/** A butterfly's or bee's card, in the thought bubbles' style: who to whom, the time, and the message
  *  wrapped in up to three lines. Returns nothing; `place` gives the rect for a height. */
 export function drawInsectCard(c: Ctx, lines: string[], place: (h: number) => { x: number; y: number; w: number; h: number }, at: { x: number; y: number }) {
   c.font = "5px ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -883,7 +883,7 @@ export function drawMarker(c: Ctx, x: number, y: number, t: number) {
 export function drawPortrait(canvas: HTMLCanvasElement, look: Look, grey = false, gear: GearRect[] = []) {
   const c = canvas.getContext("2d");
   if (!c) return;
-  const k = canvas.width / 24; // 24 x 26: room for the props either side (queue 52)
+  const k = canvas.width / 24; // 24 x 26: room for the props either side
   c.setTransform(k, 0, 0, k, 0, 0);
   c.imageSmoothingEnabled = false;
   c.clearRect(0, 0, 24, 26);
@@ -916,7 +916,7 @@ export function drawReplyDot(c: Ctx, x: number, y: number) {
   r(c, x + 3, y - 6, 3, 3, BRAND);
 }
 
-// ---- What really happened, animated (queue 40) ----
+// ---- What really happened, animated ----
 const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 2;
 
 /** The prop of a member's newest action at its hands, for 2-3 s (k: 0..1 through it); the screen's top-left for the
@@ -966,7 +966,7 @@ export function drawProp(c: Ctx, kind: string, x: number, head: number, k: numbe
       r(c, x + 4, hand - 3, 3, 1, "#c4c4c4");
       if (Math.floor(t / 200) % 2) r(c, x + 4, hand + 1, 3, 1, "#3b3b3b");
       break;
-    // the signature moves (queue 47 part 2): each member acts with its own prop
+    // the signature moves: each member acts with its own prop
     case "watch": // the CEO lifts its wrist and checks the time, clipboard under the arm
       r(c, x - 7, hand - 6, 3, 2, "#e8b58f");
       r(c, x - 7, hand - 7, 2, 1, "#f2c94c");
@@ -1029,7 +1029,7 @@ export function drawProp(c: Ctx, kind: string, x: number, head: number, k: numbe
       r(c, x + 5, hand - 2, 1, 1, "#3b3b3b");
       break;
     }
-    case "sketch": { // the pad held up in front, a pencil moving over it (queue 53)
+    case "sketch": { // the pad held up in front, a pencil moving over it
       r(c, x + 2, hand - 6, 8, 8, "#1b1b1b");
       r(c, x + 3, hand - 5, 6, 6, "#ffffff");
       r(c, x + 3, hand - 6, 6, 1, "#8a5cc7");
@@ -1039,7 +1039,7 @@ export function drawProp(c: Ctx, kind: string, x: number, head: number, k: numbe
       r(c, px + 1, py - 3, 1, 3, "#f2c94c"); // the pencil
       break;
     }
-    case "page": { // the book open in both hands, a page turning every 3 s (queue 53)
+    case "page": { // the book open in both hands, a page turning every 3 s
       r(c, x - 5, hand - 4, 11, 6, "#1b1b1b");
       r(c, x - 4, hand - 3, 4, 4, "#fffaf0");
       r(c, x + 1, hand - 3, 4, 4, "#fffaf0");
@@ -1059,7 +1059,7 @@ export function drawProp(c: Ctx, kind: string, x: number, head: number, k: numbe
   }
 }
 
-/** A prank between members (queue 47 part 4), drawn over the scene from the actors' feet; `k` 0..1 through it. */
+/** A prank between members, drawn over the scene from the actors' feet; `k` 0..1 through it. */
 export function drawGag(c: Ctx, kind: string, a: { x: number; y: number }, b: { x: number; y: number } | null, k: number, t: number, skips: number) {
   const headB = b ? { x: b.x, y: b.y - 20 } : null;
   const arc = (p: { x: number; y: number }, q: { x: number; y: number }, e: number, lift: number) => ({ x: p.x + (q.x - p.x) * e, y: p.y + (q.y - p.y) * e - Math.sin(Math.PI * e) * lift });
@@ -1126,7 +1126,7 @@ export function drawGag(c: Ctx, kind: string, a: { x: number; y: number }, b: { 
   }
 }
 
-/** The ticker along the bottom edge (queue 47 part 5): a dark strip, the line scrolling left, repeated to fill it.
+/** The ticker along the bottom edge: a dark strip, the line scrolling left, repeated to fill it.
  *  Returns the width of one pass, so the scroll can wrap. */
 export function drawTicker(c: Ctx, line: string, scroll: number, at: { x: number; y: number; w: number; h: number }): number {
   r(c, at.x, at.y, at.w, at.h, "#141821");
@@ -1137,7 +1137,7 @@ export function drawTicker(c: Ctx, line: string, scroll: number, at: { x: number
   return pass;
 }
 
-/** The strip under the scene (queue 50) and, beside the director's inset, who it shows and what it just did. */
+/** The strip under the scene and, beside the director's inset, who it shows and what it just did. */
 export function drawStrip(c: Ctx, from: number, height: number, caption: { x: number; y: number; w: number; h: number } | null, lines: string[]) {
   r(c, 0, from, W, height - from, "#1d2433");
   if (!caption) return;
@@ -1162,7 +1162,7 @@ export function drawInsetFrame(c: Ctx, rect: { x: number; y: number; w: number; 
   }
 }
 
-/** The Writer's bin by its wall (queue 47): a wire basket that fills from the bottom, one crumpled ball per accepted
+/** The Writer's bin by its wall: a wire basket that fills from the bottom, one crumpled ball per accepted
  *  draft today (12 fill it to the rim). */
 export function drawBin(c: Ctx, x: number, y: number, count: number) {
   r(c, x, y, 7, 8, "#4b5563");
@@ -1177,7 +1177,7 @@ export function drawBin(c: Ctx, x: number, y: number, count: number) {
   r(c, x, y + 7, 7, 1, "#374151");
 }
 
-/** A bee carrying a line from the owner or a reply to the owner (queue 51; owner, 15:36: "the bee doesn't look like a
+/** A bee carrying a line from the owner or a reply to the owner (owner, 15:36: "the bee doesn't look like a
  *  bee"): about 12 px, side view: an oval yellow body with three black stripes, a dark round head with a white eye,
  *  two light-blue outlined wings over its back flapping between two frames at 8 Hz. It flips with its way and leans at
  *  most 15 degrees (insectPose), never spinning; a soft glow at night; the orange dot when it lands next. `t` null
@@ -1236,13 +1236,13 @@ export function drawBee(c: Ctx, p: { x: number; y: number }, o: { face: 1 | -1; 
   c.restore();
 }
 
-/** A butterfly carrying a message (queue 51; owner, 10-31 15:20: "instead of paper planes make it butterflies"; redrawn
- *  in queue 58): 13 px across, mirror-symmetric, two lobes a side with a notch, wings in the sender's shirt colour
+/** A butterfly carrying a message (owner, 10-31 15:20: "instead of paper planes make it butterflies"; redrawn
+ *): 13 px across, mirror-symmetric, two lobes a side with a notch, wings in the sender's shirt colour
  *  with a 1 px dark outline and light spots, a dark body, antennae with tips; it flaps open, half, up at about 5 Hz,
  *  flies in small hops and glides (wings held open), and flips and leans like the bee; a soft glow at night. The oldest
  *  of three has an orange ring under its body: it lands next. `t` null (reduced motion): wings open and still. */
 export function drawButterfly(c: Ctx, p: { x: number; y: number; angle: number }, o: { color: string; next: boolean; night: boolean; t: number | null; seed?: number }) {
-  // hops and glides (queue 58), not a sine bob
+  // hops and glides, not a sine bob
   const hop = o.t === null ? { dy: 0, glide: true } : butterflyHop(o.seed ?? 0, o.t);
   const x = Math.round(p.x);
   const y = Math.round(p.y + hop.dy);
@@ -1273,7 +1273,7 @@ export function drawButterfly(c: Ctx, p: { x: number; y: number; angle: number }
   c.restore();
 }
 
-/** A screen's frame flashing as a plane touches it (queue 46). */
+/** A screen's frame flashing as a plane touches it. */
 export function drawFlash(c: Ctx, sb: { x: number; y: number; w: number; h: number }) {
   c.strokeStyle = BRAND;
   c.lineWidth = 1.5;

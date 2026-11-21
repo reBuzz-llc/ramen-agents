@@ -1,4 +1,4 @@
-"""Queue 572 (owner, 2026-11-16: "remove notion from all location and repos"): the starter's Validator reads leads, tasks
+"""The starter's Validator reads leads, tasks
 and packages from the dashboard's local board with no Notion key; its own values sit in an untracked overlay; setup-check
 asks for the board's keys, never a Notion one."""
 from __future__ import annotations

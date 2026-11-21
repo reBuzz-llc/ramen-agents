@@ -15,10 +15,10 @@ import RosterProposalActions from "./roster-proposal-actions";
 /** "Decisions waiting for you", from the maintainers' shared-state/owner-decisions.json: each open item with its date, its
  *  link, one button per option, Done, Later and a note. Answered items leave the list; "Show
  *  decided" lists the last 30 days. Hidden when nothing is open or decided. `compact` (the home board) folds it to its
- *  title line. Under a thin rule, the owner's open items from shared-state/owner-items.json (queue 401): title, "how"
- *  in small text, Done. Then "CEO changes" (queue 411): The CEO's own applied changes, newest first, each with Undo for
- *  its seven days; the newest five show, the rest fold under "Older". Persona changes (queue 440) show their section.
- *  First under the decisions, "Roster proposals" (queue 440): the CEO's start / stop / rename / create / retire, each with
+ *  title line. Under a thin rule, the owner's open items from shared-state/owner-items.json: title, "how"
+ *  in small text, Done. Then "CEO changes": The CEO's own applied changes, newest first, each with Undo for
+ *  its seven days; the newest five show, the rest fold under "Older". Persona changes show their section.
+ *  First under the decisions, "Roster proposals": the CEO's start / stop / rename / create / retire, each with
  *  its reason, the goal it serves, the engine's resource sheet as a small table, Approve and Decline with a note (a create
  *  shows its persona draft, its name, goal and persona text editable); decided ones under "Decided in the last 7 days". */
 export default async function OwnerDecisions({ className = "", compact = false }: { className?: string; compact?: boolean }) {
@@ -29,7 +29,7 @@ export default async function OwnerDecisions({ className = "", compact = false }
     listBots().catch(() => []),
     readRoster().catch(() => ({ open: [] as RosterProposal[], decided: [] as RosterProposal[] })),
   ]);
-  // the Forge (queue 478): members' wishes for a resource or a feature they lack
+  // the Forge: members' wishes for a resource or a feature they lack
   const forge = forgeBoard(await readForge(path.join(BOTS_DIR, "common-data", "shared-state", "forge.jsonl")));
   const forgeAny = forge.open.length + forge.building.length + forge.later.length + forge.built.length + forge.declined.length > 0;
   if (!open.length && !decided.length && !items.length && !changes.length && !roster.open.length && !roster.decided.length && !forgeAny) return null;

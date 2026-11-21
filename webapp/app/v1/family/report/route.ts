@@ -1,4 +1,4 @@
-// The Validator's Family report (queue 572): POST /v1/family/report {kind, ...} -> {ok, id, at}, kept newest 50 of each
+// The Validator's Family report: POST /v1/family/report {kind, ...} -> {ok, id, at}, kept newest 50 of each
 // kind and shown on the dashboard; GET -> the newest of each kind.
 import { body, fail, keyed } from "@/lib/board-api";
 import { latestReports, saveReport } from "@/lib/local-board";

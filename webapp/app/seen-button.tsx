@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** "Seen" at the end of a health banner line (queue 54): hides the line until its fact changes. A 32 px tap target
+/** "Seen" at the end of a health banner line: hides the line until its fact changes. A 32 px tap target
  *  under 1024 px. */
 export default function SeenButton({ id, text }: { id: string; text: string }) {
   const router = useRouter();

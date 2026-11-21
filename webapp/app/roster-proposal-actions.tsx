@@ -5,7 +5,7 @@ import { buttonClass, Spinner } from "./ui";
 
 type Draft = { name: string; goal: string; persona: [string, string][] };
 
-/** Approve / Decline for one roster proposal (queue 440), with a one-line note. A create shows its name, goal and persona
+/** Approve / Decline for one roster proposal, with a one-line note. A create shows its name, goal and persona
  *  text as fields the owner may edit before approving; only what changed is sent. A start or stop takes up to two
  *  minutes (the owner's own start path restarts the member). */
 export default function RosterProposalActions({ id, action, draft }: { id: string; action: string; draft?: Draft | null }) {

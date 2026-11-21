@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass, Spinner } from "./ui";
 
-/** Done for one of the owner's items (queue 401): the item leaves the Decisions box once saved. A persona item (queue
+/** Done for one of the owner's items: the item leaves the Decisions box once saved. A persona item (queue
  *  440) reads Keep and Revert: Revert writes the section's earlier text back into the persona first. */
 export default function OwnerItemDone({ id, revert = false }: { id: string; revert?: boolean }) {
   const router = useRouter();

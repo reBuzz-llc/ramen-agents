@@ -5,6 +5,7 @@
 # (com.ramen-agents.bot.<slug>), its data server (com.ramen-agents.data.<slug>) and its app (com.ramen-agents.<slug>-app)
 # where present, and marks each disabled so a login or reboot does not load it again. The plists stay in ~/Library/LaunchAgents; enable-bot.sh undoes this.
 #   sh scripts/disable-bot.sh my-bot other-bot
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: stop here
 set -u
 uid="$(id -u)"
 [ $# -gt 0 ] || { echo "usage: disable-bot.sh <slug>..." >&2; exit 2; }

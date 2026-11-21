@@ -2,7 +2,7 @@ import { sameOrigin } from "@/lib/same-origin";
 import { isFactId, markSeen } from "@/lib/health-seen";
 
 // Mark one health banner line seen: POST {id, text}. Writes shared-state/health-seen.json; the line stays hidden until
-// its fact changes (queue 54). Only this app's own page may call it.
+// its fact changes. Only this app's own page may call it.
 export async function POST(req: Request) {
   if (!(await sameOrigin(req))) return Response.json({ error: "forbidden" }, { status: 403 });
   let body: { id?: unknown; text?: unknown };

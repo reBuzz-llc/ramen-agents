@@ -1,4 +1,4 @@
-// The Leads CSV import (queue 572): columns matched by name, unmatched ones reported, quoted cells kept whole, and the
+// The Leads CSV import: columns matched by name, unmatched ones reported, quoted cells kept whole, and the
 // board's rule that an import never overwrites a filled cell.
 import assert from "node:assert/strict";
 import { test } from "node:test";

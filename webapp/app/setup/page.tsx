@@ -5,7 +5,7 @@ import SetupForm from "./setup-form";
 export const metadata = { title: "Your family · Bot Dashboard" };
 export const dynamic = "force-dynamic";
 
-// The first-run page (queue 572): the questions sh scripts/setup.sh asks, saved to the same git-ignored file,
+// The first-run page: the questions sh scripts/setup.sh asks, saved to the same git-ignored file,
 // common-data/local/family.toml. The agents read it on their next cycle; starting them stays with sh scripts/setup.sh.
 export default async function SetupPage() {
   const f = await readFamily();

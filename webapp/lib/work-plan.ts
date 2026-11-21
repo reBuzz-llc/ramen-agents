@@ -80,7 +80,7 @@ export type WorkCard = {
   score: Score;
   stopped: boolean; // the owner's STOP file is there: the page folds these away
   stoppedSince: string | null; // the STOP file's date (YYYY-MM-DD)
-  lastPlan: EndedPlan | null; // the newest ended plan (plan-history.jsonl), shown greyed when no plan is in hand (queue 56)
+  lastPlan: EndedPlan | null; // the newest ended plan (plan-history.jsonl), shown greyed when no plan is in hand
 };
 
 type PlanDoc = { version: 1; updatedAt: string | null; bots: Record<string, OwnerPlan> };
@@ -103,7 +103,7 @@ function cleanOwner(raw: unknown, previous?: OwnerPlan): OwnerPlan {
     let id = typeof x === "object" && x && /^[rc]\d{1,4}$/.test(String((x as Rule).id)) ? String((x as Rule).id) : "";
     if (!id || used.has(id)) id = `r${++next}`;
     used.add(id);
-    // A CEO rule keeps its mark while its text is The CEO's: one the owner rewords on the page becomes the owner's (queue 411).
+    // A CEO rule keeps its mark while its text is The CEO's: one the owner rewords on the page becomes the owner's.
     const ceo = typeof x === "object" && x && String((x as Rule).by ?? "").toLowerCase() === "ceo";
     const prior = was.get(id);
     const keep = ceo && (!previous || (prior?.by === "ceo" && prior.text === text));
@@ -405,7 +405,7 @@ export type PastJob = {
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
 
 /** Finished jobs from every agent's workspace/plan-history.jsonl (the engine appends one line when a plan ends; the
- * file is append-only and survives fresh starts), newest first. All of them (queue 80: a cap of 200 hid every job
+ * file is append-only and survives fresh starts), newest first. All of them (a cap of 200 hid every job
  * older than the 200th, 103 of 303 on 2026-11-02, while "More" claimed to reach them). */
 export async function pastJobs(bots: BotProfile[], limit = 5000): Promise<PastJob[]> {
   const all: PastJob[] = [];

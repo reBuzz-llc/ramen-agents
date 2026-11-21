@@ -43,7 +43,7 @@ class Instructions:
 
 
 TARGET = Path.home() / "bots" / "common-data" / "knowledge" / "target.toml"
-LOCAL = Path.home() / "bots" / "common-data" / "local" / "family.toml"     # the user's own first-run answers (queue 572)
+LOCAL = Path.home() / "bots" / "common-data" / "local" / "family.toml"     # the user's own first-run answers
 COMPANY_KEYS = {"name": "company", "sells": "sells", "buyers": "buyers", "place": "place", "owner": "owner", "signoff": "signoff"}
 
 

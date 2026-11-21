@@ -135,7 +135,7 @@ test("approving a step-one proposal keeps The CEO's rules (c ids, by ceo) and nu
   assert.deepEqual(plan.bots["lead-gen"].rules, [{ id: "r1", text: "one" }, { id: "c7", text: "ceo rule", by: "ceo" }, { id: "r2", text: "Skip chains" }]);
 });
 
-test("an expired proposal (queue 425) lists as decided at its expired_at with its note, never as open or a change", async () => {
+test("an expired proposal lists as decided at its expired_at with its note, never as open or a change", async () => {
   const text = JSON.stringify({ proposals: [{ id: "p-x", ts: "2026-11-10T06:29:35", bot: "lead-gen", change: { kind: "add_rule", text: "Skip chains" }, status: "expired", expired_at: "2026-11-11T09:00:00", expired_note: "superseded by self-steering step two (11-10)" }] });
   const list = parseProposals(text);
   assert.equal(list[0].status, "expired");

@@ -70,14 +70,14 @@ export function lastReplyTs(lines: ChatLine[]): string | null {
   return last && last.from !== "Owner" ? last.ts : null;
 }
 
-/** Each agent's last reply time, from shared-state/owner-chat/<slug>.jsonl (queue 35: the unread marker). */
+/** Each agent's last reply time, from shared-state/owner-chat/<slug>.jsonl (the unread marker). */
 export async function latestReplies(dir: string, slugs: string[]): Promise<Record<string, string | null>> {
   const out: Record<string, string | null> = {};
   await Promise.all(slugs.map(async (s) => (out[s] = lastReplyTs(await readChat(path.join(dir, `${s}.jsonl`), 500)))));
   return out;
 }
 
-/** Each chat's last line from the owner and from the agent (queue 40: a paper plane down to the agent when the owner
+/** Each chat's last line from the owner and from the agent (a paper plane down to the agent when the owner
  *  writes, up out of the scene when it answers). */
 export async function chatTimes(dir: string, slugs: string[]): Promise<Record<string, { owner: string | null; agent: string | null }>> {
   const out: Record<string, { owner: string | null; agent: string | null }> = {};

@@ -155,13 +155,13 @@ import {
   type Pose,
 } from "./world-draw";
 
-// The lakeside world (queue 37; the office of queue 17 before it): the running members at their big screens on the
+// The lakeside world (the office before it): the running members at their big screens on the
 // terrace, the owner-stopped ones asleep under the tree, all driven by /api/board (the poll in family-board.tsx). The
 // canvas animates between polls; a click, a tap or the arrow keys pick a member and the panel says what it is doing.
 
 const STORM_MS = 60_000;
 const NOISE_MS = 4000; // the screen shows static for the first seconds of a model failure
-const MAX_CSS = 2400; // the world fits the window's width (queue 258): a wide window gives bigger screens
+const MAX_CSS = 2400; // the world fits the window's width: a wide window gives bigger screens
 
 type Hit = { kind: "member" | "sleeper"; slug: string; x: number; y: number };
 type Window = { kind: "member" | "sleeper"; slug: string } | { kind: "bulletin" } | { kind: "mailbox" } | { kind: "web" };
@@ -178,10 +178,10 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   const canvas = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState({ k: 2, dpr: 1, css: 640 });
-  // where each member's screen is, in room px (from the animation loop, only when it changes): its HTML box (queue 258)
+  // where each member's screen is, in room px (from the animation loop, only when it changes): its HTML box
   const [slots, setSlots] = useState<Record<string, { x: number; y: number; flag?: string }>>({});
   const slotsKey = useRef("");
-  // the screens' face (queue 232): JetBrains Mono, loaded by the layout as --font-screen; the canvas draws with it once
+  // the screens' face: JetBrains Mono, loaded by the layout as --font-screen; the canvas draws with it once
   // the browser has it (until then the monospace fallback)
   useEffect(() => {
     const family = getComputedStyle(document.documentElement).getPropertyValue("--font-screen");
@@ -193,7 +193,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   // The member panel (queues 24, 25): right of the room on desktop, under it on a phone; tabs Info, Screen, Feed.
   const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
   const [panel, setPanel] = useState<Panel>({ open: true, tab: "info" });
-  // the last tab comes back after a reload (queue 36), read after mount like the sound setting
+  // the last tab comes back after a reload, read after mount like the sound setting
   const restored = useRef(false); // save only after the remembered tab is back, never the first render's "info"
   useEffect(() => {
     const t = setTimeout(() => {
@@ -214,14 +214,14 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   }, [sound]);
   useEffect(() => {
     const t = setTimeout(() => setSound(soundWanted()), 0);
-    // a restored "on" starts audio on the first click or key anywhere (queue 59: it stayed silent until toggled)
+    // a restored "on" starts audio on the first click or key anywhere (it stayed silent until toggled)
     const disarm = armUnlock(window, soundWanted(), unlockSound);
     return () => {
       clearTimeout(t);
       disarm();
     };
   }, []);
-  // which sound when (queue 59): one cue a poll, a refusal's thud once a minute, an ambient one-shot every 90-120 s
+  // which sound when: one cue a poll, a refusal's thud once a minute, an ambient one-shot every 90-120 s
   const soundPlan = useRef(newSoundPlan(5959, 0));
   const states = useRef(new Map<string, string>());
   useEffect(() => {
@@ -236,7 +236,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
     }, 5000);
     return () => clearInterval(t);
   }, []);
-  // queue 47 part 5: made for video. All off by default and remembered per browser.
+  // made for video. All off by default and remembered per browser.
   const [video, setVideo] = useState<VideoOpts>({ director: false, ticker: false, lapse: false });
   const videoRef = useRef(video);
   useEffect(() => {
@@ -300,13 +300,13 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   // for checks from the browser: nothing plays between events
   useEffect(() => {
     (window as unknown as { __worldSound?: () => string }).__worldSound = soundState;
-    // and that the WEB terminal shows a visitor's domain (queue 33)
+    // and that the WEB terminal shows a visitor's domain
     (window as unknown as { __worldTerminal?: () => string | null }).__worldTerminal = () => terminalShows(sim.current);
-    // and to record a walk (queue 45): send a member to the post box or the notice board, as an output would
+    // and to record a walk: send a member to the post box or the notice board, as an output would
     (window as unknown as { __worldErrand?: (slug: string, to: "post" | "notice") => void }).__worldErrand = (slug, to) => simErrand(sim.current, slug, to);
-    // and where the butterflies and bees are (queue 51: to hover one in a check)
+    // and where the butterflies and bees are (to hover one in a check)
     (window as unknown as { __worldInsects?: () => { x: number; y: number; id: string }[] }).__worldInsects = () => butterfliesShown.current;
-    // and a gag (queue 47): the spacing and the 5-minute rests cleared, the seeded scheduler picks the next one as it would
+    // and a gag: the spacing and the 5-minute rests cleared, the seeded scheduler picks the next one as it would
     (window as unknown as { __worldPrank?: () => void }).__worldPrank = () => Object.assign(pranks.current, { lastGag: -Infinity, gag: null, recent: {} });
     (window as unknown as { __worldGag?: () => unknown }).__worldGag = () => pranks.current.gag; // the gag playing, for a check
   }, []);
@@ -316,7 +316,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   const stormStart = useRef(new Map<string, number>());
   const hits = useRef<Hit[]>([]);
   const hoverSlot = useRef<string | null>(null); // the member whose screen is under the pointer: its long lines scroll
-  // the floating screens over the lake (queue 39): the carousel's state, whether the pointer pauses it, the pictures
+  // the floating screens over the lake: the carousel's state, whether the pointer pauses it, the pictures
   const carousel = useRef(newCarousel());
   const hoverFloat = useRef(false);
   // The panes wake while the pointer is over the sky and lake band and for WAKE_HOLD_MS after; a tap wakes them too.
@@ -324,31 +324,31 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   const wake = useRef(0); // 0 asleep (one small pane) .. 1 awake (three panes), eased
   const shots = useRef(new Map<string, HTMLImageElement>());
   const floats = useRef<{ rect: { x: number; y: number; w: number; h: number }; url: string }[]>([]);
-  // queue 40: the newest action seen per bot, the animation playing at each, birds in flight, and who turned to the camera
-  // for the owner's message; queue 46 and 51: the butterflies and bees carrying the family's messages
+  // the newest action seen per bot, the animation playing at each, birds in flight, and who turned to the camera
+  // for the owner's message; the butterflies and bees carrying the family's messages
   const seenActs = useRef(new Map<string, number>());
   const air = useRef(newAir());
   const seenFlags = useRef(new Map<string, string>());
   const fx = useRef(new Map<string, { kind: ActAnim; start: number; until: number }>());
   const birds = useRef<{ slug: string; text: string; start: number }[]>([]);
   const butterfliesShown = useRef<{ x: number; y: number; id: string }[]>([]);
-  // queue 51: the card of the butterfly or bee under the pointer, or tapped (under 1024 px, for 4 s)
+  // the card of the butterfly or bee under the pointer, or tapped (under 1024 px, for 4 s)
   const hoverInsect = useRef<string | null>(null);
   const tapInsect = useRef<{ id: string; until: number } | null>(null);
-  // queue 47 part 4: the filler gags, seeded so a replay plays the same ones; a real action ends one at once
+  // the filler gags, seeded so a replay plays the same ones; a real action ends one at once
   const pranks = useRef(newPranks(4747, 0));
   const realPlayed = useRef<string[]>([]); // who acted since the last frame: a gag with one of them as an actor ends
   const alerted = useRef(new Map<string, number>());
   const flashUntil = useRef(0); // the bulletin board's CEO note flashes when a proposal arrives
   const prevProposals = useRef<number | null>(null);
-  // The family's web activity (queue 33): who opened or searched what, for the WEB terminal; same 12 s as the board.
+  // The family's web activity: who opened or searched what, for the WEB terminal; same 12 s as the board.
   const web = usePoll<WebData>("web", 12000).data;
-  // agents whose reply to the owner is not read yet (queue 35): a speech-bubble dot over them, a dot on the Chat tab
+  // agents whose reply to the owner is not read yet: a speech-bubble dot over them, a dot on the Chat tab
   const seen = useChatSeen();
   const unread = useMemo(() => new Set(unreadReplies(data.replies, seen)), [data.replies, seen]);
   const live = useRef({ data, win, web, unread, wide });
   useEffect(() => {
-    // why no gag starts now, per member and for the room (queue 57)
+    // why no gag starts now, per member and for the room
     (window as unknown as { __worldGagWhy?: () => unknown }).__worldGagWhy = () => {
       const d = live.current.data;
       if (!d) return null;
@@ -384,7 +384,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       const kind = actAnim(act);
       if (kind) {
         fx.current.set(slug, { kind, start: now, until: now + (kind === "puff" ? 2000 : 2600) });
-        realPlayed.current.push(slug); // a real action by an actor stops its gag at once (queue 57: only the actors)
+        realPlayed.current.push(slug); // a real action by an actor stops its gag at once (only the actors)
         acted.current.push(slug); // and the director cuts to it
       }
       if (act.verdict === "allowed" && act.thought) bubbles.current = [...bubbles.current.filter((b) => b.slug !== slug), { slug, text: act.thought.slice(0, 60), until: now + 3000 }];
@@ -400,7 +400,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       const c = data.cards.find((x) => x.slug === slug);
       if (c && act.verdict === "allowed") setLatest({ name: c.name, text: act.thought || c.last?.words || act.type });
     }
-    // a new message takes off (queue 46); reduced motion and quiet skip the flight
+    // a new message takes off; reduced motion and quiet skip the flight
     const quietNow = [...sim.current.members.values()].some((m) => m.anim === "quiet");
     const instant = window.matchMedia("(prefers-reduced-motion: reduce)").matches || quietNow;
     const landingBefore = new Set(air.current.flights.filter((f) => f.phase === "landing").map((f) => f.msg.id));
@@ -489,7 +489,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       const day = typeof hourSet === "number" ? dayPhase(hourSet) : lh !== null ? dayPhase(Math.floor(lh), Math.floor((lh % 1) * 60)) : dayPhase(clock.getHours(), clock.getMinutes());
       c.setTransform(scale.k, 0, 0, scale.k, 0, 0);
       c.imageSmoothingEnabled = false;
-      const L = videoLayout(v); // queue 50: the video parts get a strip under the scene, never over it
+      const L = videoLayout(v); // the video parts get a strip under the scene, never over it
       c.clearRect(0, 0, W, L.height);
       drawScene(c, { day, flash: flashUntil.current > t, decisions: d.counts?.decisions ?? 0, proposals: d.counts?.proposals ?? 0, requests: d.counts?.requests ?? 0, drafts: d.week?.drafts ?? d.team?.unsent ?? null, web: wb ? { opens: wb.today.opens, shows: terminalShows(sim.current) } : null, t, boat: { out: boatOut(pranks.current.gag, t), rower: pranks.current.gag?.kind === "boat" && gagFigure(pranks.current.gag, pranks.current.gag.actors[0], t).hide ? lookOf(pranks.current.gag.actors[0]) : null } });
       // night falls on the scene only: the screens and the people stay readable
@@ -540,7 +540,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       );
       realPlayed.current = [];
       const card = (slug: string) => d.cards.find((m) => m.slug === slug);
-      // the big screens: one per member that holds a slot, on posts over its low wall; the screen is an HTML box (queue 258)
+      // the big screens: one per member that holds a slot, on posts over its low wall; the screen is an HTML box
       const slotsNow: Record<string, { x: number; y: number; flag?: string }> = {};
       for (const m of S.members.values()) {
         const c0 = card(m.slug);
@@ -557,12 +557,12 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         const drawn = placeDrawn(sc);
         // a new Validator flag's red line, for 10 s once the bird has landed
         const bird = birds.current.find((bd) => bd.slug === m.slug && t - bd.start >= 1600 && t - bd.start < 11_600);
-        // depth (queue 45): the screen goes over a figure whose feet are above its bottom edge, the wall under every
+        // depth: the screen goes over a figure whose feet are above its bottom edge, the wall under every
         // figure standing at or below it
         items.push({ key: screenKey(sc), draw: () => drawBigScreen(c, px, py, big, t, { hover, working, compact, strip: bird ? `flag: ${bird.text}` : undefined, cssPerRoom: scale.css / W, k: scale.k, postsOnly: true }) });
         slotsNow[m.slug] = { x: px, y: py, ...(bird ? { flag: bird.text } : {}) };
         items.push({ key: wallKey(sc), draw: () => drawWall(c, px, drawn.wall.y) });
-        // the Writer's bin by its wall: a ball per accepted draft today (queue 47)
+        // the Writer's bin by its wall: a ball per accepted draft today
         if (m.slug === "outreach-writer") items.push({ key: wallKey(sc) + 0.5, draw: () => drawBin(c, px + 56, drawn.wall.y - 4, binCount(c0)) });
       }
       const slotKey = JSON.stringify(slotsNow);
@@ -576,19 +576,19 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         const anim = m.anim;
         const walking = g.pose === "walk";
         const fp = feet(g.pos);
-        // a small bob as it walks; the CEO paces at its screen while it works (queue 47)
+        // a small bob as it walks; the CEO paces at its screen while it works
         const pace = !walking && !still && !quietNow && g.where === "spot" ? paceOffset(g.slug, t, anim === "working") : 0;
         const gf = gagFigure(gag, g.slug, t);
         if (gf.hide) continue; // out in the boat
         const p = { x: fp.x + pace + gf.dx, y: fp.y - (walking && Math.floor(t / 160) % 2 ? 1 : 0) };
         const look = lookOf(g.slug);
         const grey = anim === "lost";
-        // what really happened (queue 40): a prop for its newest action; three refusals in a row sit it on its wall,
+        // what really happened: a prop for its newest action; three refusals in a row sit it on its wall,
         // stuck; stalled sleeps standing; the owner's message turns it to the camera
         const stuck = !walking && g.where === "spot" && !!c0 && isStuck(c0);
         const effect = fx.current.get(g.slug);
         const playing = !walking && !quietNow && effect && effect.until > t ? effect : null;
-        // between its real actions a working member keeps at it with its own prop (queue 53); any real action, gag or
+        // between its real actions a working member keeps at it with its own prop; any real action, gag or
         // other state wins
         const receiver = c0?.act?.type === "message" ? d.cards.find((x) => x.name === c0.act?.to) : undefined;
         const rm = receiver ? S.members.get(receiver.slug) : undefined;
@@ -599,7 +599,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         if (busy?.dx) p.x += busy.dx;
         const facing = (alerted.current.get(g.slug) ?? 0) > t ? 1 : (busy?.facing ?? g.facing);
         const pose: Pose = stuck ? "sit" : anim === "lost" && !walking ? "stand" : playing?.kind === "puff" ? "glance" : busy ? (busy.pose as Pose) : (g.pose as Pose);
-        // the Writer types fast (queue 47); every member carries its props, in the hand unless a signature move has them
+        // the Writer types fast; every member carries its props, in the hand unless a signature move has them
         const fr = Math.floor(t / (pose === "type" || pose === "use" ? (g.slug === "outreach-writer" ? 90 : 220) : 160));
         const move = playing ? moveOf(g.slug, playing.kind) : null;
         const gear = personaRects(g.slug, pose, { held: !move && !busy?.prop });
@@ -620,7 +620,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         }
         if (!walking && c0?.state.word === "paused") overlays.push(() => drawSign(c, p.x, head, "II"));
         if (anim === "lost") overlays.push(() => drawZzz(c, p.x + 3, head - 1, t)); // stalled: asleep on its feet
-        // "stuck" (three refusals in a row) is a grey badge on the member's HTML screen tab now (queue 261), not a label
+        // "stuck" (three refusals in a row) is a grey badge on the member's HTML screen tab now, not a label
         // floating beside its seat
         if (busy?.prop) {
           const sc = placeOf(S, g.slug).screen;
@@ -638,13 +638,13 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         const bub = bubbles.current.find((b) => b.slug === g.slug && b.until > t);
         if (bub) overlays.push(() => drawBubble(c, p, bub.text));
         if (w && w.kind === "member" && w.slug === g.slug) overlays.push(() => drawMarker(c, p.x, head - 2, t));
-        // an unread reply: the dot rides on the member's HTML screen box (queue 258)
+        // an unread reply: the dot rides on the member's HTML screen box
       }
-      // the gag between its actors (queue 47 part 4)
+      // the gag between its actors
       if (gag && gag.kind !== "boat") {
         const ma = S.members.get(gag.actors[0]);
         const mb = gag.actors[1] ? S.members.get(gag.actors[1]) : undefined;
-        // the one dozing may be asleep on its mat under the tree (queue 52)
+        // the one dozing may be asleep on its mat under the tree
         const bed = gag.actors[1] && !mb && S.beds.includes(gag.actors[1]) ? bedOf(S, gag.actors[1]) : null;
         if (ma) {
           const k = (t - gag.start) / (gag.until - gag.start);
@@ -667,14 +667,14 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
             drawMat(c, x, y, !!s0.retired);
             drawPerson(c, x, y, lookOf(slug), "lie", 0, false, personaRects(slug, "lie"));
             // a retired one's grey mat carries an "R"; a script's STOP with a reason (a migration's) puts its first word by
-            // the name ("Desk: migration"); the owner's Stop (queue 238) a second line under it: "owner 12:32: <reason>"
+            // the name ("Desk: migration"); the owner's Stop a second line under it: "owner 12:32: <reason>"
             const tag = s0.reason && s0.by !== "owner" ? s0.reason.split(/[:,;]/)[0].trim().slice(0, 12) : "";
             text(c, `${s0.name.split(/[\s-]/)[0]}${tag ? `: ${tag}` : ""}`, x, y - 7, { size: 4, color: "#5b4f6b" });
             if (s0.by === "owner") drawMatNote(c, `owner ${s0.at ?? ""}: ${s0.reason ?? ""}`, x, y + 11, 44);
           },
         });
         const i = S.beds.indexOf(slug);
-        const woke = gagFigure(gag, slug, t).sign; // poked awake (queue 52)
+        const woke = gagFigure(gag, slug, t).sign; // poked awake
         overlays.push(() => (woke ? drawSign(c, x, y - 12, woke) : drawZzz(c, x + 6, y - 9, t + i * 500)));
         hitList.push({ kind: "sleeper", slug, x, y: y + 4 });
         if (w && w.kind === "sleeper" && w.slug === slug) overlays.push(() => drawMarker(c, x, y - 12, t));
@@ -686,7 +686,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
         c.fillRect(0, 0, W, H);
         drawShh(c);
       }
-      // the messages in the air (queue 46, 51: bees and butterflies): up to three wander the scene, the oldest with a
+      // the messages in the air (bees and butterflies): up to three wander the scene, the oldest with a
       // small orange dot (lands next); a new one flies from its sender to its receiver, touches it (the screen's frame
       // flashes) and lifts into free flight; the oldest glides down to its own receiver and is gone
       airStep(air.current, t);
@@ -741,7 +741,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
           } else p = lerpPt(end.pt, wanderAt(f.wander, t, still), leg.k);
         }
         const next = f.phase === "loop" && rank === 0 && up.length >= AIR_MAX;
-        // a bee for the owner's lines and replies to the owner, a butterfly for the family's own messages (queue 51)
+        // a bee for the owner's lines and replies to the owner, a butterfly for the family's own messages
         if (flyerOf(f.msg) === "bee") {
           const pose = insectPose(p.angle);
           p = { ...p, y: p.y + (still ? 0 : beeBob(f.wander.seed, t)) };
@@ -774,7 +774,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       }
       if (weatherOf(d) === "rain") drawRain(c, t);
       overlays.forEach((o) => o());
-      // made for video (queue 47 part 5, queue 50): the strip under the scene, the director's 2x inset on its left with
+      // made for video: the strip under the scene, the director's 2x inset on its left with
       // who it shows and what that member just did beside it, the ticker along the bottom
       if (L.height > H) {
         const focus = director.current.focus ? d.cards.find((x) => x.slug === director.current.focus) : undefined;
@@ -819,7 +819,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
     const r = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * W;
     const y = ((e.clientY - r.top) / r.height) * videoLayout(video).height;
-    // the ticker, while it names a provider out of allowance: the Allowance list (queue 230)
+    // the ticker, while it names a provider out of allowance: the Allowance list
     const tk = videoLayout(video).ticker;
     if (tk && y >= tk.y && data.allowance?.length) {
       window.location.hash = "allowance";
@@ -895,7 +895,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
       }
     }
   };
-  // "/#mailbox" and "/#bulletin" open that panel (queue 31: a decision's link lands on the mailbox)
+  // "/#mailbox" and "/#bulletin" open that panel (a decision's link lands on the mailbox)
   useEffect(() => {
     const open = () => {
       const h = window.location.hash;
@@ -922,7 +922,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
   const memberSlug = win && win.kind === "member" ? win.slug : null;
   // an agent asleep in the corner has Info and Chat (it reads the owner's message when started)
   const sleeperSlug = win && win.kind === "sleeper" ? win.slug : null;
-  // the public world (READ_ONLY, queue 376): Info and Feed only; no chat, and no Screen (a lead's own web page)
+  // the public world (READ_ONLY): Info and Feed only; no chat, and no Screen (a lead's own web page)
   const chatSlug = READ_ONLY ? null : ([memberSlug, sleeperSlug].find((s): s is string => !!s && hasChat(s)) ?? null);
   const tabs: PanelTab[] = memberSlug ? (READ_ONLY ? ["info", "feed"] : ["info", "screen", "feed", ...(chatSlug ? (["chat"] as const) : [])]) : chatSlug ? ["info", "chat"] : [];
   const tab = tabs.includes(panel.tab) ? panel.tab : "info";
@@ -1033,7 +1033,7 @@ export default function World({ data, below }: { data: Board; below?: React.Reac
           />
           </div>
           {wide ? null : tabbed}
-          {below /* the health banner, decisions and proposals, under the scene at its width (queue 55) */}
+          {below /* the health banner, decisions and proposals, under the scene at its width */}
         </div>
       </div>
       {wide ? (
@@ -1110,10 +1110,10 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
     const c = data.cards.find((x) => x.slug === win.slug);
     if (c) {
       const d = dialogue(c, { now: true });
-      // what the member's screen said before queue 221, at normal size: its state, what it is doing, today's counts
+      // what the member's screen said, at normal size: its state, what it is doing, today's counts
       const sc = screenFor(c);
       const doing = [...sc.lines, c.state.why].filter((x, i, all) => x && all.indexOf(x) === i);
-      // queue 287: the 30-minute pace and the last model call left the screen for here
+      // the 30-minute pace and the last model call left the screen for here
       now = { word: sc.word, doing: doing.join(" · "), counts: screenFoot(c), refused: c.refusedShare, pace: [sc.four[2], sc.four[3]].filter(Boolean).join(" · ") };
       title = d.title;
       lines = span === "today" ? d.lines : week7Lines(data.week7?.[c.slug]);
@@ -1182,7 +1182,7 @@ function TextBox({ data, win, latest, onClose }: { data: Board; win: Window | nu
                 stopped={win.kind === "sleeper"}
                 retired={!!data.stopped.find((s) => s.slug === target)?.retired}
                 stopReason={win.kind === "sleeper" ? (() => {
-                  // the owner's own Stop reads plain "Start"; a script's STOP with a reason reads "Start anyway" (queue 238)
+                  // the owner's own Stop reads plain "Start"; a script's STOP with a reason reads "Start anyway"
                   const st = data.stopped.find((s) => s.slug === target);
                   return st?.by === "owner" ? undefined : st?.reason;
                 })() : undefined}
@@ -1345,7 +1345,7 @@ function Controls(p: {
 
 /** The bulletin board as a prompt: each open CEO proposal in turn with Yes / No and a note,
  *  answered with the same POST as the proposals box; then each open decision with its options, Done and Later, answered
- *  with the same POST as the decisions box (queue 32). */
+ *  with the same POST as the decisions box. */
 function BulletinPrompt({ data, onClose }: { data: Board; onClose: () => void }) {
   const [answered, setAnswered] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
@@ -1450,7 +1450,7 @@ function BoxButton({ onClick, children, disabled = false }: { onClick: () => voi
   );
 }
 
-/** The member's state, what it is doing and today's counts, in the plain sans at normal size (queue 221: these left the
+/** The member's state, what it is doing and today's counts, in the plain sans at normal size (these left the
  *  screen on the terrace). The counts read on their own line, the refused share's meter on the row under them. */
 function NowBlock({ now }: { now: { word: string; doing: string; counts: string; refused: number | null; pace?: string } }) {
   const pct = now.refused === null ? null : Math.round(now.refused * 100);
@@ -1558,7 +1558,7 @@ function ScreenLayer({ slots, cards, f, unread, onOpen }: { slots: Record<string
                 </>
               )}
             </span>
-            {/* a new Validator flag: one red line across the box for its 10 seconds (queue 261) */}
+            {/* a new Validator flag: one red line across the box for its 10 seconds */}
             {at.flag ? (
               <span role="status" className="absolute inset-x-0 bottom-0 z-10 truncate border-2 border-t-0 border-[#26282e] bg-[#d63b3b] px-1.5 font-bold text-white" style={{ fontSize: 13, lineHeight: 1.4 }}>
                 flag: {at.flag}

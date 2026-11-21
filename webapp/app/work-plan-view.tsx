@@ -78,7 +78,7 @@ function PlanTab() {
   const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null }>("work-plan?part=plan", 15000);
   const fleet = usePoll<BotSummary[]>("bots", 15000);
   const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
-  // What each agent is doing now, for the header of a card with no plan in hand (queue 56): the board's state word,
+  // What each agent is doing now, for the header of a card with no plan in hand: the board's state word,
   // its last action in words, and whether a stopped one is retired.
   const board = usePoll<Board>("board", 15000);
   const nowOf = useMemo(() => {
@@ -209,7 +209,7 @@ function CardSlot({ card, tone, now, target, onDirty }: { card: WorkCard; tone?:
   );
 }
 
-/** Past jobs, one line each, newest first, 50 at a time under a heading per day (owner, 2026-10-30; queue 80): bot,
+/** Past jobs, one line each, newest first, 50 at a time under a heading per day (owner, 2026-10-30): bot,
  *  task (with "attempt n of m" when the bot planned it more than once), when it ran, how it ended (and why it was
  *  stuck), active minutes. Tap a line for its steps; an open line stays on its job when newer jobs arrive. */
 function PastList({ jobs }: { jobs: PastJob[] }) {
@@ -354,7 +354,7 @@ function TargetPanel() {
         </p>
       ) : (
         // Trades and Areas grow to four lines and wrap; the short three stay one line. Under 1100 px the five take two
-        // rows, Market, Short name and Segment over Trades and Areas, so nothing is clipped (queue 60; owner, 19:45).
+        // rows, Market, Short name and Segment over Trades and Areas, so nothing is clipped (owner, 19:45).
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6 min-[68.75rem]:grid-cols-[1fr_0.7fr_1fr_1.6fr_1.6fr]">
           {TARGET_FIELDS.map((f) => {
             const long = f.key === "trades" || f.key === "areas";
@@ -754,7 +754,7 @@ function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
   );
 }
 
-// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts (queue 377)
+// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts
 const pctOf = (d: RefusalDay) => rateOf(d);
 const BRAND = "#ff6600";
 
@@ -1087,7 +1087,7 @@ function AgentCard({ card, tone, nowLine, onDirty }: { card: WorkCard; tone?: Re
           ) : null}
         </h3>
         {!plan || plan.status !== "active" ? (
-          // No plan in hand (queue 56; owner, 18:50: "Enricher, Analyst and Scout show no checklist"): what the agent
+          // No plan in hand (owner, 18:50: "Enricher, Analyst and Scout show no checklist"): what the agent
           // is doing now, from the board, and its last ended plan greyed under it. Never an empty box.
           <>
             <p className="text-sm break-words text-muted">
@@ -1210,7 +1210,7 @@ function AgentCard({ card, tone, nowLine, onDirty }: { card: WorkCard; tone?: Re
                 onKeyDown={(e) => e.key === "Enter" && void save()}
               />
               {r.by === "ceo" ? (
-                // queue 411: a rule The CEO wrote itself; rewording it here makes it the owner's
+                // a rule The CEO wrote itself; rewording it here makes it the owner's
                 <span className="shrink-0 text-xs text-muted" title="The CEO added or edited this rule itself; reword it to make it yours">
                   (CEO)
                 </span>

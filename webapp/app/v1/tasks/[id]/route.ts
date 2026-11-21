@@ -1,4 +1,4 @@
-// One task (queue 572): GET /v1/tasks/{id} -> {task}; PATCH {actor, fields, details_append?} -> {task, created, written,
+// One task: GET /v1/tasks/{id} -> {task}; PATCH {actor, fields, details_append?} -> {task, created, written,
 // refused}. A task's status, assignees and checklist are the team's: an agent's write to them is refused (human_only), so
 // a merge only appends "Merged into ..." to the details (details_append) and a person moves the status.
 import { answer, body, botActor, fail, keyed } from "@/lib/board-api";

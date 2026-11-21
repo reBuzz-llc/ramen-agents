@@ -87,7 +87,7 @@ PROVIDER_KEYS = {"name", "base_url", "model", "key_file"}
 def load_settings() -> dict[str, Any]:
     data = tomllib.loads((HERE / "config.toml").read_text(encoding="utf-8"))
     v = data.get("validator") or {}
-    local = HERE / "config.local.toml"      # the user's own values, untracked (queue 572); key by key over the tracked file
+    local = HERE / "config.local.toml"      # the user's own values, untracked; key by key over the tracked file
     if local.is_file():
         mine = tomllib.loads(local.read_text(encoding="utf-8")).get("validator") or {}
         v = {**v, **{k: ({**v[k], **val} if isinstance(val, dict) and isinstance(v.get(k), dict) else val) for k, val in mine.items()}}
@@ -189,7 +189,7 @@ class Run:
     def gather(self) -> None:
         company = checks.family().get("company") if isinstance(checks.family().get("company"), dict) else {}
         own = list(dict.fromkeys([*self.s["own_domains"], *[str(d).strip().lower() for d in company.get("own_domains") or [] if str(d).strip()]]))
-        # the sign-offs may say {owner} / {company} / {signoff} (queue 572: the first-run answers in family.toml)
+        # the sign-offs may say {owner} / {company} / {signoff} (the first-run answers in family.toml)
         signed = lambda xs: [line for x in xs or [] for line in checks.fill(str(x)).split("\n") if line.strip()]  # noqa: E731
         checks.SIGNOFF = signed(self.s.get("package_signoff"))
         checks.DRAFT_SIGNOFF = signed(self.s.get("draft_signoff"))
@@ -296,7 +296,7 @@ class Run:
             self._lead_upkeep(leads)
 
     def _gather_board(self, own: list[str]) -> None:
-        """Tasks, packages and leads from the team's board (queue 572: in place of Notion)."""
+        """Tasks, packages and leads from the team's board (in place of Notion)."""
         try:
             reader = portal_leads.PortalLeads(self.state, portal_leads.portal_url())
         except Exception as exc:  # noqa: BLE001 - reported, the file checks still run
@@ -675,8 +675,7 @@ class Run:
 
     def _process_inbox(self) -> None:
         """Read this bot's inbox: the members' messages are noted (Lead Gen's report of a finished work list is checked
-        as a claim), marked seen, and closed on the fleet's requests record. (A removed member's blocker loop went with it,
-        queue 578, as in the family's 596.)"""
+        as a claim), marked seen, and closed on the fleet's requests record. (A removed member's blocker loop went with it.)"""
         try:
             from explorer.handoff import Inbox
         except ImportError as exc:

@@ -1,6 +1,6 @@
 // The owner's open items in the Decisions box (2026-11-10): common-data/shared-state/owner-items.json
 // = {items: [{id, ts, title, how, status}]}, kept by the maintainers. An item the Validator writes for a persona section changed
-// outside a CEO change also carries {bot, section, before} (queue 440): the box adds Revert, which writes before back. The box lists each open item (title, then "how" in small
+// outside a CEO change also carries {bot, section, before}: the box adds Revert, which writes before back. The box lists each open item (title, then "how" in small
 // text) under the decisions; Done sets status "done" and done_ts under the same mkdir lock as the decisions file
 // ("owner-items.json.lock"), and a done item never shows again. Unknown fields are kept. Node imports only, so the test
 // runs with Node's own runner.
@@ -8,7 +8,7 @@ import { mkdir, readFile, rename, rmdir, stat, writeFile } from "node:fs/promise
 import path from "node:path";
 
 export type OwnerItem = { id: string; ts: string; title: string; how: string; persona?: PersonaRevert };
-/** A persona section the Validator found changed outside a CEO change (queue 440): Revert writes `before` back. */
+/** A persona section the Validator found changed outside a CEO change: Revert writes `before` back. */
 export type PersonaRevert = { bot: string; section: string; before: string };
 
 const FILE = path.join(process.env.BOTS_DIR ?? path.join(process.env.HOME ?? "", "bots"), "common-data", "shared-state", "owner-items.json");

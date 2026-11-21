@@ -1,4 +1,4 @@
-// The local board (queue 572, owner 2026-11-16: the starter is local-first, no Notion, no account): the Leads, Tasks and
+// The local board (owner 2026-11-16: the starter is local-first, no Notion, no account): the Leads, Tasks and
 // Packages boards in one SQLite file on this Mac, common-data/local-board.sqlite3 (git-ignored), served by this dashboard
 // with the same paths and answers as the hosted portal's board API (app/v1/...). The agents (the engine's
 // portal_store), the Validator and these pages read and write the same rows, so a later move to the hosted portal is a

@@ -125,7 +125,7 @@ const MARK: Record<string, { label: string; color: string }> = {
   empty: { label: "empty", color: "#6b6b6b" },
 };
 
-/** Web (queue 33): the family's last 20 web actions, newest first, from /api/web (the world polls it every 12 s): who,
+/** Web: the family's last 20 web actions, newest first, from /api/web (the world polls it every 12 s): who,
  *  when, the domain or "search:", the page title or the query, and a chip for refused, captcha and empty. A row with a
  *  domain opens that site in a new tab. Today's three counts on top. */
 export function WebTab({ web }: { web: WebData | null }) {
@@ -177,8 +177,8 @@ export function WebTab({ web }: { web: WebData | null }) {
   );
 }
 
-/** Chat (queue 34): the owner's private conversation with this one agent, nothing else. The owner's lines on the right,
- *  the agent's on the left in its colour; polled every 2 s while the tab is open (queue 73: the engine's quick reply
+/** Chat: the owner's private conversation with this one agent, nothing else. The owner's lines on the right,
+ *  the agent's on the left in its colour; polled every 2 s while the tab is open (the engine's quick reply
  *  answers in seconds, so the tab must not be the wait). After a post, "<name> is typing…" shows until the reply lands
  *  or 20 s pass, then "still thinking, the reply comes here"; a new reply is scrolled into view. Enter posts,
  *  Shift+Enter is a new line (stored as a space). The post also lands in the bot's inbox. */
@@ -215,7 +215,7 @@ export function ChatTab({ slug, name }: { slug: string; name: string }) {
     if (chat.lines.length > count.current && count.current > 0) toBottom.current = true;
     count.current = chat.lines.length;
   }, [chat, slug]);
-  // the agent's replies count as seen once the tab shows the bottom of the chat (queue 35: clears the unread dots)
+  // the agent's replies count as seen once the tab shows the bottom of the chat (clears the unread dots)
   const seeBottom = useCallback(() => {
     const el = list.current;
     const last = chat?.slug === slug ? [...chat.lines].reverse().find((l) => l.from !== "Owner") : undefined;

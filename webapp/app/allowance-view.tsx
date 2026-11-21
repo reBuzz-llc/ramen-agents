@@ -89,7 +89,7 @@ export default function AllowanceView() {
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {r.calls.toLocaleString()}
                       {r.callsCap ? <span className="text-muted"> of {r.callsCap.toLocaleString()}</span> : null}
-                      {/* who drained it (queue 286): the bots and the Validator's own jobs share these keys */}
+                      {/* who drained it: the bots and the Validator's own jobs share these keys */}
                       {r.calls ? (
                         <span className="block text-[11px] whitespace-nowrap text-muted">
                           {r.split ? `bots ${r.split.bots.toLocaleString()} · Validator jobs ${r.split.validator.toLocaleString()}` : "no split yet"}
@@ -145,7 +145,7 @@ export default function AllowanceView() {
           <p className="mt-2 text-xs text-muted">&ldquo;—&rdquo;: no use recorded today, or no allowance on file (Tavily: the CEO&rsquo;s special searches, no daily number).</p>
         </Panel>
       ) : null}
-      {/* queue 304: every other free limit the family can hit; "not measurable" with the reason, never a guess */}
+      {/* every other free limit the family can hit; "not measurable" with the reason, never a guess */}
       <Panel
         title="Other free tiers"
         hint={`Hosting, the databases, file storage and training. Checked hourly by scripts/free-tiers.py${a?.otherAt ? `, last ${a.otherAt.slice(11, 16)}` : " (not run yet)"}; the dashboard holds no key. The ticker warns from 80%.`}

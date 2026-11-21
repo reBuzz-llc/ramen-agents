@@ -7,7 +7,7 @@ import type { BotCard, Screen, WebEvent } from "./board";
 
 export const TILE = 16;
 export const COLS = 24; // five screens a row
-export const ROWS = 16; // the lakeside (queue 37): mountains and the lake at the back, two rows of five screens on the terrace
+export const ROWS = 16; // the lakeside: mountains and the lake at the back, two rows of five screens on the terrace
 
 /** What a character does for a state word. */
 type Anim = "working" | "idle" | "resting" | "quiet" | "blocked" | "lost";
@@ -44,7 +44,7 @@ const TERRACE_W = 21; // tiles left of the tree that the screens share
 const SLOT_ROWS = [6.75, 11.5]; // the two rows' screen tops, tiles
 const quarter = (x: number) => Math.round(x * 4) / 4;
 
-/** Where n members' screens stand (queue 38: the grid fits the family, 8 is 4 + 4, 9 is 5 + 4, 10 is 5 + 5): rows of
+/** Where n members' screens stand (the grid fits the family, 8 is 4 + 4, 9 is 5 + 4, 10 is 5 + 5): rows of
  *  ceil(n / 2) (one row up to three), each centred left of the tree and spread out when it is short. Place k: its
  *  screen's top-left tile and the spot its member stands on, centred under the screen in front of the low wall. */
 export function layout(n: number): { screen: Pt; spot: Pt }[] {
@@ -75,9 +75,9 @@ export const wallOf = (i: number, n: number = MAX_DESKS) => {
 
 // The WEB signboard stands by the pier on the shore; its visitor stands one tile left of it, on the shore path.
 export const TERMINAL: Pt = { x: 17.75, y: 5.5 };
-/** Where a member stands to drop a letter in the post box, and to pin a note on the notice board (queue 40). */
+/** Where a member stands to drop a letter in the post box, and to pin a note on the notice board. */
 export const POST_SPOT: Pt = { x: 1.25, y: 5.5 };
-export const NOTICE_SPOT: Pt = { x: 14.5, y: 5.5 }; // queue 45: on the shore path in front of the board, clear of the screens
+export const NOTICE_SPOT: Pt = { x: 14.5, y: 5.5 }; // on the shore path in front of the board, clear of the screens
 /** A count on a badge (the mailbox's drafts, the terminal's pages opened today): 999+ past 999. */
 export const badgeText = (n: number) => (n > 999 ? "999+" : String(n));
 /** The terminal's hover line: today's three web counts across the family. */
@@ -101,7 +101,7 @@ export const TREE_TRUNK = { x0: 22.4, y0: 6.0, x1: 23.6, y1: 7.4 };
 export const SIGNBOARD = { x: 18 * TILE + 4, y: 3.5 * TILE };
 export const PIER = { x: 318, y: 58, w: 16, h: 24 };
 
-// What stands on the ground (queue 45; owner, 10-31: "characters are passing through objects like screens, looks
+// What stands on the ground (owner, 10-31: "characters are passing through objects like screens, looks
 // buggy"). Each object as it is drawn, in room px, and its footprint: the walker positions (tiles, the figure's top-left;
 // its feet are one tile lower, its body about 12 px wide around x + 8 px) at which the figure would overlap the object
 // with its feet inside the object's height. Those are blocked for walking, so a figure is never drawn through an
@@ -190,7 +190,7 @@ function walkable(from: Pt, to: Pt, beds: Pt[], n: number): (i: number, j: numbe
   return (i, j) => {
     if (i < 0 || j < 0 || i >= GX || j >= GY) return false;
     const p = ptOf(i, j);
-    // feet stay inside the scene (queue 50: nothing spills into the video strip under it), save the last steps into a
+    // feet stay inside the scene (nothing spills into the video strip under it), save the last steps into a
     // mat on the front edge
     if (p.y > ROWS - 1 + 1e-9 && !ownMat(p)) return false;
     for (const b of bs) {
@@ -349,7 +349,7 @@ export function lookOf(slug: string): Look {
 /** The dialogue box for a member: its lines, top to bottom. Questions and interests come before the last action (owner,
  *  10-30, as on the bot page); the model line names the provider its last call used, never the configured fallback. */
 export function dialogue(c: BotCard, o: { now?: boolean } = {}): { title: string; lines: string[]; href: string } {
-  // `now`: the world's dialogue shows the state, what it is doing and today's counts in its own block above (queue 221),
+  // `now`: the world's dialogue shows the state, what it is doing and today's counts in its own block above,
   // so the list leaves those two lines out
   const lines: string[] = [];
   if (!o.now) lines.push(c.state.why ? `${capital(c.state.word)} · ${c.state.why}` : capital(c.state.word));
@@ -360,13 +360,13 @@ export function dialogue(c: BotCard, o: { now?: boolean } = {}): { title: string
   const out = c.output ? `${c.output.today} ${c.output.label}${c.output.today === 1 ? "" : "s"} today` : `${c.actionsToday} actions today`;
   if (!o.now) lines.push(c.refusedShare === null ? out : `${out} · refused ${Math.round(c.refusedShare * 100)}%`);
   if (c.model) lines.push(`Model: ${c.model.label} (last call ${c.model.ts.slice(11, 16)})`);
-  const gear = gearWords(c.slug); // what it carries (queue 52): "Lead Gen leaA · binoculars"
+  const gear = gearWords(c.slug); // what it carries: "Lead Gen leaA · binoculars"
   return { title: `${c.name} ${c.handle}`.trim() + (gear ? ` · ${gear}` : ""), lines, href: `/work-plan#${c.slug}` };
 }
 
 const capital = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-/** A thought over a member for 3 s after its action (queue 40; the speech bubble of its last words before). */
+/** A thought over a member for 3 s after its action (the speech bubble of its last words before). */
 export type Bubble = { slug: string; text: string; until: number };
 
 /** The "7 days" tab of a member's text box (the Family review's numbers): actions and refused share,
@@ -399,7 +399,7 @@ export function week7Lines(w: Week7Like | undefined): string[] {
 export function downtimeLine(d: { off: Span[]; quiet: Span[] } | null, now: number): string {
   if (!d) return "";
   if (!d.off.length && !d.quiet.length) return "Last 24 h: the Mac was on and nobody was quiet.";
-  // queue 49: each span dated and in the past tense once it is over ("Yesterday 15:20-22:12 quiet while Steam ran (6 h
+  // each span dated and in the past tense once it is over ("Yesterday 15:20-22:12 quiet while Steam ran (6 h
   // 51 min)"); the present tense only for a quiet still open now. Every bot logs the same quiet: one line per span.
   const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
   const today = localDay(now);
@@ -440,7 +440,7 @@ function quietWhy(reason: string, open: boolean): string {
   return open ? ` while ${app} is in front` : ` while ${app} was in front`;
 }
 
-/** What a member's big screen on the terrace shows (queue 37; was the desk monitor of queue 21): line 1 its name and
+/** What a member's big screen on the terrace shows (was the desk monitor): line 1 its name and
  *  state word in the state's tone; lines 2-3 what it is doing now, from its last accepted action (the domain and the
  *  page's title, "search: <query>", or the document it wrote); line 4, small, today's output and refused share. Resting
  *  or quiet: dimmed, the state word says until when. Blocked: a red screen with why; a model failure's first seconds:
@@ -451,7 +451,7 @@ export type BigScreen = {
   name: string;
   word: string;
   tone: string;
-  /** What it is doing: one or two lines (queue 37). */
+  /** What it is doing: one or two lines. */
   lines: string[];
   foot: string;
   share: number | null;
@@ -462,11 +462,11 @@ export type BigScreen = {
   mark: "web" | "search" | "";
 };
 
-// What a working member is doing when its last action is neither a page, a search nor a document (queue 38: The CEO
+// What a working member is doing when its last action is neither a page, a search nor a document (The CEO
 // read "working" over "rested", the words of its last rest).
 const DOING: Record<string, string> = { plan: "updating its plan", update_plan: "updating its plan", journal: "writing its journal", ask: "asking a question", wait: "waiting a moment" };
 
-/** Today's output and refused share, in full words: "4 updates · 30% refused" (queue 221: no "ref."; it reads in the
+/** Today's output and refused share, in full words: "4 updates · 30% refused" (no "ref."; it reads in the
  *  member's dialogue, at normal size, over its own meter). */
 export function screenFoot(c: Pick<BotCard, "output" | "actionsToday" | "refusedShare">): string {
   const n = c.output ? c.output.today : c.actionsToday;
@@ -487,12 +487,12 @@ export const providerOf = (label: string) => (label.split("/")[0] ?? "").replace
 export function screenFor(c: ScreenCard, o: { compact?: boolean; noise?: boolean } = {}): BigScreen {
   const anim = animOf(c.state);
   const base = { name: c.name, word: c.state.word, tone: c.state.tone, share: o.compact ? null : c.refusedShare };
-  // a working bot retrying a failed call says so on line 4, small and muted (queue 49)
+  // a working bot retrying a failed call says so on line 4, small and muted
   const foot = o.compact ? "" : c.state.word === "working" && c.state.why ? c.state.why : screenFoot(c);
   const cut = (lines: string[]) => (o.compact ? lines.filter(Boolean).slice(0, 1) : lines.filter(Boolean).slice(0, 2));
   const pick = (): Omit<BigScreen, "four" | "mark"> => {
     if (o.noise) return { ...base, mode: "static", lines: [], foot };
-    // resting (queue 42: "resting un…" was cut): the header says "resting", line 2 until when, line 3 why
+    // resting ("resting un…" was cut): the header says "resting", line 2 until when, line 3 why
     if (anim === "resting") return { ...base, word: "resting", mode: "dark", lines: cut([restUntil(c.state) ? `until ${restUntil(c.state)}` : "", c.state.why]), foot };
     if (anim === "quiet") return { ...base, mode: "dark", lines: cut([c.state.why]), foot };
     if (anim === "blocked") return { ...base, mode: "alert", lines: cut([c.state.why]), foot };
@@ -506,10 +506,10 @@ export function screenFor(c: ScreenCard, o: { compact?: boolean; noise?: boolean
     return { ...base, mode: "doc", lines: cut([DOING[type] ?? "thinking…", c.on ?? ""]), foot };
   };
   const out = pick();
-  // the owner's four lines (queue 233), one each, data-true: nothing shown that the card does not carry
+  // the owner's four lines, one each, data-true: nothing shown that the card does not carry
   const n = c.output ? c.output.today : c.actionsToday;
   const noun = c.output ? (c.output.label.split(" ").pop() ?? c.output.label) : "action";
-  // the screens' short wording (queue 243: 13-17 characters fit a line): "11 updates today", a plain count (the owner,
+  // the screens' short wording (13-17 characters fit a line): "11 updates today", a plain count (the owner,
   // 11-11: the limits are lifted, so no "/goal"); "z.ai · 4h"; "9/13 ok · 30m"
   const made = madeToday(n, noun);
   const working = out.mode === "web" || out.mode === "search" || out.mode === "doc";
@@ -577,7 +577,7 @@ type BoardPrompts = {
 };
 
 /** The bulletin board's prompts, one at a time: each open CEO proposal (Yes = approve, No = decline), then each open
- *  owner's decision with its own options, Done and Later (queue 32), each until answered in this visit; "done" when
+ *  owner's decision with its own options, Done and Later, each until answered in this visit; "done" when
  *  nothing is pinned. */
 export function nextPrompt(b: BoardPrompts, answered: ReadonlySet<string>): Prompt {
   const p = b.proposals.find((x) => !answered.has(x.id));
@@ -717,7 +717,7 @@ export function newSim(): Sim {
 const eq = (a: Pt, b: Pt) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
 /** How many places the terrace has now: one per member holding a slot. */
 const placesOf = (sim: Sim) => sim.slots.filter((s) => s !== null).length;
-/** A member's place on the terrace: its slot's rank among the held slots, in the layout for that many (queue 38: the
+/** A member's place on the terrace: its slot's rank among the held slots, in the layout for that many (the
  *  grid fits the family; when the count changes, members walk to their new places). */
 export function placeOf(sim: Sim, slug: string): { screen: Pt; spot: Pt } {
   const held = sim.slots.map((s, i) => (s === null ? -1 : i)).filter((i) => i >= 0);
@@ -820,7 +820,7 @@ function release(sim: Sim, m: Member) {
   for (const [k, slug] of sim.held) if (slug === m.slug) sim.held.delete(k);
 }
 
-/** A new accepted output walks somewhere (queue 40): the post box or the notice board. Dropped, like a web visit, when
+/** A new accepted output walks somewhere: the post box or the notice board. Dropped, like a web visit, when
  *  the member is busy, quiet holds or the place is taken; nothing queues. */
 export function simErrand(sim: Sim, slug: string, to: "post" | "notice") {
   const m = sim.members.get(slug);
@@ -956,7 +956,7 @@ export function figures(sim: Sim, t: number, o: { quiet: boolean; still: boolean
   return out;
 }
 
-// ---- The owner's private chat with one agent (queue 34) ----
+// ---- The owner's private chat with one agent ----
 /** Who has no chat: the Validator never answers one (its inbox only turns into a report note). */
 export const hasChat = (slug: string) => slug !== "validator";
 /** "14:05" today, "10-30 14:05" before; from the bots' local "YYYY-MM-DDTHH:MM:SS". */
@@ -975,7 +975,7 @@ export function chatRows(lines: { ts: string; from: string; text: string }[], sl
 
 export const chatEmpty = (name: string) => `Nothing yet. Write to ${name}; it answers here, usually within seconds.`;
 
-/** While the owner waits for a reply (queue 73): "typing" from their post until the agent's reply lands or 20 s pass,
+/** While the owner waits for a reply: "typing" from their post until the agent's reply lands or 20 s pass,
  *  then "slow" (still thinking, the reply comes here) for up to 10 minutes; null once the agent has answered. Chat
  *  times are local ISO without a zone, as owner-chat.ts writes them. */
 export const TYPING_MS = 20_000;
@@ -988,7 +988,7 @@ export function chatWait(lines: { ts: string; from: string }[], now: number): "t
   return waited < 10 * 60_000 ? "slow" : null;
 }
 
-/** The agents with a reply the owner has not seen: a reply newer than the last one seen in its Chat tab (queue 35).
+/** The agents with a reply the owner has not seen: a reply newer than the last one seen in its Chat tab.
  *  `seen` is what this browser remembers; with nothing remembered, any reply is unread. */
 export function unreadReplies(replies: Record<string, string | null> | undefined, seen: Record<string, string>): string[] {
   return Object.entries(replies ?? {})
@@ -996,7 +996,7 @@ export function unreadReplies(replies: Record<string, string | null> | undefined
     .map(([slug]) => slug);
 }
 
-// ---- The floating screens over the lake (queue 39) ----
+// ---- The floating screens over the lake ----
 // The family's last valid pages (/api/web recent_pages) on three translucent screens in the sky-and-lake band, in
 // perspective: the centre one largest, two smaller behind it at the sides. Every 8 s the pages move one step left with
 // a short slide (reduced motion: a plain swap); hovering a screen or the family's quiet pauses it; under 1024 px a
@@ -1077,7 +1077,7 @@ export function pageCard(p: { slug: string; name: string; domain: string; title:
   return { domain, title: p.title, color: lookOf(p.slug).shirt, caption: `${p.name} · ${domain} · ${p.ago}` };
 }
 
-// ---- What really happened, animated (queue 40; owner, 10-31: "agents look very passive, just standing and waving") ----
+// ---- What really happened, animated (owner, 10-31: "agents look very passive, just standing and waving") ----
 // Every animation comes from a bot's real newest action (the card's act) or a board event; nothing plays that did not
 // happen. One animation per bot per poll: a backlog never queues more than one.
 export type ActAnim = "binoculars" | "tablet" | "laptop" | "pin" | "flag" | "clipboard" | "propose" | "plane" | "puff";
@@ -1147,7 +1147,7 @@ export function errandOf(slug: string, act: { type: string; verdict: string }): 
 /** The sky over the lake: grey with light rain while the main model provider is out (the health banner's rule). */
 export const weatherOf = (b: { outage?: boolean }): "rain" | "clear" => (b.outage ? "rain" : "clear");
 
-/** Where a member's thought bubble and "stuck" tag go (queue 42: nothing drawn for a character covers a screen's text):
+/** Where a member's thought bubble and "stuck" tag go (nothing drawn for a character covers a screen's text):
  *  the bubble on the path just below its feet, the tag beside it at its wall's height (both below every screen's
  *  bottom edge in its row), clamped to the scene. Pixels; `feet` is the bottom-centre of the figure. */
 export function labelRects(feet: { x: number; y: number }, bubbleW: number) {
@@ -1159,11 +1159,11 @@ export function labelRects(feet: { x: number; y: number }, bubbleW: number) {
   return { bubble, tag };
 }
 
-/** The one-line note the Web list shows under a row's title (queue 44): the reason, only on refused, captcha and empty
+/** The one-line note the Web list shows under a row's title: the reason, only on refused, captcha and empty
  *  rows. */
 export const webNote = (e: Pick<WebEvent, "mark" | "reason">): string | null => (e.mark !== "ok" && e.reason ? e.reason : null);
 
-// ---- In the air (queue 46; owner, 10-31: "keep 3 planes flying across the world and only land one when the 4th takes
+// ---- In the air (owner, 10-31: "keep 3 planes flying across the world and only land one when the 4th takes
 // off, so there is always a plane; and show me which plane lands or takes off next") ----
 // Each of the family's newest messages is a paper plane. At most three are in the air, wandering the whole world on
 // slow smooth paths (owner, 10-31 14:50: "free flight"); the oldest carries a tiny orange dot at its nose, it lands
@@ -1344,9 +1344,9 @@ export function takeoffLeg(k: number): { leg: "out" | "touch" | "up"; k: number 
   return { leg: "up", k: Math.min(1, (k - touch) / (1 - touch)) };
 }
 
-// ---- Personalities (queue 47 part 2; owner, 10-31: "individual personality") ----
+// ---- Personalities (owner, 10-31: "individual personality") ----
 // One look per member that reads from across the room: a prop it carries in every pose (standing, sitting, walking,
-// asleep on its mat and in the List view's portrait), and a signature move played on its real actions (queue 40's
+// asleep on its mat and in the List view's portrait), and a signature move played on its real actions (the earlier
 // animations, with its own prop). The CEO paces with a clipboard and checks its watch; Lead Gen sweeps the horizon with
 // binoculars; the Enricher peers through a magnifying glass; the Writer types fast and tosses crumpled paper into a
 // bin by its wall (one ball per accepted draft today, empty again at midnight); the Package Designer sketches on a pad
@@ -1367,7 +1367,7 @@ export const gearOf = (slug: string): Gear[] => PERSONAS[slug]?.gear ?? [];
 /** The gear in words, for the Info card's first line ("Lead Gen · binoculars"). */
 const GEAR_WORDS: Record<Gear, string> = { clipboard: "clipboard", watch: "watch", binoculars: "binoculars", magnifier: "magnifying glass", pencil: "pencil", sketchpad: "sketch pad", book: "book", glasses: "glasses", backpack: "backpack", compass: "compass" };
 export const gearWords = (slug: string) => gearOf(slug).map((g) => GEAR_WORDS[g]).join(" & ");
-/** The signature move a real action plays for this member (its own prop), or null: the queue 40 animation then. */
+/** The signature move a real action plays for this member (its own prop), or null: the plain animation then. */
 export const moveOf = (slug: string, kind: ActAnim): Move | null => PERSONAS[slug]?.moves[kind] ?? null;
 
 export const BIN_MAX = 12;
@@ -1398,7 +1398,7 @@ export function gearRects(g: Gear, pose: string, o: { held?: boolean } = {}): Ge
   }
   const sit = pose === "sit";
   const hy = sit ? -7 : -6; // the right hand's height
-  const O = "#1b1b1b"; // the outline every prop gets, so it reads at a glance (queue 52)
+  const O = "#1b1b1b"; // the outline every prop gets, so it reads at a glance
   switch (g) {
     case "clipboard": // a white sheet on a brown board with a red clip
       return held ? [[4, hy - 6, 6, 8, O], [5, hy - 5, 4, 6, "#ffffff"], [6, hy - 7, 2, 2, "#d63b3b"], [5, hy - 3, 3, 1, "#9a9a9a"], [5, hy - 1, 3, 1, "#9a9a9a"]] : [];
@@ -1427,8 +1427,8 @@ export const personaRects = (slug: string, pose: string, o: { held?: boolean } =
 /** The CEO paces at its screen while it works: a small sway left and right (draw-only, room px). */
 export const paceOffset = (slug: string, t: number, working: boolean) => (slug === "the-ceo" && working ? Math.round(Math.sin(t / 1600) * 3) : 0);
 
-// ---- Pranks as filler (queue 47 part 4; owner, 10-31: the world is watched as a video) ----
-// Eligibility is per member, not per family (queue 57; owner, 19:20: "I do not see any mischief"; six bots acting every
+// ---- Pranks as filler (owner, 10-31: the world is watched as a video) ----
+// Eligibility is per member, not per family (owner, 19:20: "I do not see any mischief"; six bots acting every
 // 1-3 minutes never left the family-wide 90 s of silence the old rule asked for): a member that is resting or idle, or
 // working but between steps (its last action 30 s or more ago, its next step at least 25 s away, so a 90 s cycle
 // qualifies), and was in no gag in the last 5 minutes, may play. Two of them within 7 tiles (one for the solo gags)
@@ -1445,13 +1445,13 @@ export const PRANK_REST_MS = 300_000; // a member is in at most one gag every 5 
 export const PRANK_SETTLE_MS = 20_000; // the first gag no sooner than 20 s after the page opens: everyone walks in first
 export const BETWEEN_SINCE_MS = 30_000;
 export const BETWEEN_LEFT_MS = 25_000;
-/** Working but between steps: its last action 30 s or more ago and its next step at least 25 s away (queue 57). */
+/** Working but between steps: its last action 30 s or more ago and its next step at least 25 s away. */
 export function betweenSteps(lastTs: string | null | undefined, cycleSec: number | null | undefined, now: number): boolean {
   if (!lastTs || !cycleSec) return false;
   const since = now - new Date(lastTs).getTime();
   return since >= BETWEEN_SINCE_MS && cycleSec * 1000 - since >= BETWEEN_LEFT_MS;
 }
-/** Why a working member is not between steps, in words, or null when it is (queue 57: window.__worldGagWhy). */
+/** Why a working member is not between steps, in words, or null when it is (window.__worldGagWhy). */
 export function betweenWhy(lastTs: string | null | undefined, cycleSec: number | null | undefined, now: number, since0 = BETWEEN_SINCE_MS, left0 = BETWEEN_LEFT_MS): string | null {
   if (!lastTs) return "working, no action yet";
   if (!cycleSec) return "working, its cycle is unknown";
@@ -1462,7 +1462,7 @@ export function betweenWhy(lastTs: string | null | undefined, cycleSec: number |
   return null;
 }
 
-/** Why no gag starts now, for a check (queue 57): the room's reason (null when the room allows one) and each member's
+/** Why no gag starts now, for a check: the room's reason (null when the room allows one) and each member's
  *  (null when it may take part). `between` is betweenWhy's answer for a working member. */
 export function gagWhy(
   pr: Pranks,
@@ -1566,7 +1566,7 @@ export function gagFigure(g: Gag | null, slug: string, now: number): { dx: numbe
 /** The boat's way out and back during a boat trip (px left of its mooring), 0 otherwise. */
 export const boatOut = (g: Gag | null, now: number) => (g?.kind === "boat" && now < g.until ? Math.round(Math.sin(Math.PI * Math.min(1, (now - g.start) / (g.until - g.start))) * 70) : 0);
 
-// ---- Made for video (queue 47 part 5; owner, 10-31: the world will be watched and sold) ----
+// ---- Made for video (owner, 10-31: the world will be watched and sold) ----
 // All off by default and remembered per browser: a director's picture-in-picture inset, a ticker of live numbers along
 // the bottom, a 10x time-lapse of day and night in director mode (visual only), and "Record 60 s" (the canvas, inset and
 // ticker included, to a WebM download; nothing is uploaded).
@@ -1608,14 +1608,14 @@ export function tickerText(cards: { output: { label: string; today: number } | n
   const acts = cards.reduce((n, c) => n + c.actionsToday, 0);
   const refused = cards.reduce((n, c) => n + (c.refusedShare ?? 0) * c.actionsToday, 0);
   const parts = [`Leads today ${sum("lead")}`, `Drafts today ${sum("draft")}`, `Pages opened ${opens ?? "-"}`, `Refused ${acts ? Math.round((100 * refused) / acts) : 0}% of actions`, `In the air ${inAir}`];
-  // queue 230: a provider dead or above 90% leads the line; a click on the ticker opens the Allowance list
+  // a provider dead or above 90% leads the line; a click on the ticker opens the Allowance list
   if (allowance.length) parts.unshift(`Allowance: ${allowance.join(", ")} (click for the list)`);
-  // queue 294: the team portal running on this Mac leads the line, with the address the team uses
+  // the team portal running on this Mac leads the line, with the address the team uses
   if (portalLocal) parts.unshift(`Portal (local mode): ${portalLocal.url || "the tunnel is not up yet"}`);
   return parts.join("   ·   ");
 }
 export const TICKER_H = 9;
-/** Where the video parts go (queue 50: they never cover the scene): a strip under the scene, the director's inset on
+/** Where the video parts go (they never cover the scene): a strip under the scene, the director's inset on
  *  the left with a caption beside it, the ticker along the whole width under them. Room px; `height` is the canvas's. */
 export function videoLayout(v: { director: boolean; ticker: boolean }): { height: number; inset: Rect | null; caption: Rect | null; ticker: Rect | null } {
   const W = COLS * TILE;
@@ -1662,7 +1662,7 @@ export function saveVideo(v: VideoOpts) {
   }
 }
 
-/** A butterfly's wing colour (queue 51; owner, 10-31 15:20: "instead of paper planes make it butterflies"): the
+/** A butterfly's wing colour (owner, 10-31 15:20: "instead of paper planes make it butterflies"): the
  *  sender's shirt, orange for the owner's lines, grey for a sender not on the terrace. */
 export function wingColor(from: string, cards: { slug: string; name: string }[]): string {
   if (/^owner$/i.test(from)) return "#ff6600";
@@ -1670,7 +1670,7 @@ export function wingColor(from: string, cards: { slug: string; name: string }[])
   return c ? lookOf(c.slug).shirt : "#8a8a8a";
 }
 
-/** What carries a message (queue 51; owner, 15:22: "or even a bee, or both"): a bee for a line from the owner or a
+/** What carries a message (owner, 15:22: "or even a bee, or both"): a bee for a line from the owner or a
  *  reply to the owner, a butterfly for a message between members or to everyone. */
 export const flyerOf = (m: { from: string; to: string }): "bee" | "butterfly" => (/^owner$/i.test(m.from) || /^owner$/i.test(m.to) ? "bee" : "butterfly");
 /** A bee's flight on its path (owner, 15:36: "it looks like it's spinning"): no zigzag, a small 1 px bob. */
@@ -1746,7 +1746,7 @@ export function insectPose(angle: number): { face: 1 | -1; tilt: number } {
   const max = (15 * Math.PI) / 180;
   return { face, tilt: Math.max(-max, Math.min(max, lean)) };
 }
-/** The card a hovered (or, under 1024 px, tapped) butterfly or bee shows (queue 51): "<from> → <to>" in full names,
+/** The card a hovered (or, under 1024 px, tapped) butterfly or bee shows: "<from> → <to>" in full names,
  *  the time, then the message's first 120 characters. */
 export const insectCard = (m: AirMsg): string[] => [`${m.from} → ${m.to}`, m.ts.slice(11, 16), m.text120 || m.text60];
 export const CARD_W = 128;
@@ -1765,7 +1765,7 @@ export function insectAt<T extends { x: number; y: number }>(shown: T[], x: numb
   return shown.filter((b) => Math.abs(b.x - x) <= INSECT_HIT && Math.abs(b.y - y) <= INSECT_HIT).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0] ?? null;
 }
 
-// ---- Busy between steps (queue 53; owner, 10-31 15:33: "while working they seem to be not doing anything") ----
+// ---- Busy between steps (owner, 10-31 15:33: "while working they seem to be not doing anything") ----
 // A working member at its place never stands still between its real actions: it keeps at what its last action was,
 // with its own prop. After a search it scans the horizon (binoculars, or Scout's compass); after a page it reads its
 // tablet and flicks it every 2 s; after a write it types at its screen in bursts; after a message it looks toward the

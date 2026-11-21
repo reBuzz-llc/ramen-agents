@@ -23,7 +23,7 @@ import { describe, readBoard as readProposals } from "./ceo-proposals";
 // retired: the owner retired it (RETIRED.md in its folder, no launch agents): drawn on its own mat, "Bring back".
 /** `reason`: the first line of the STOP file, when a script wrote one (restart-bot.sh for a migration, e.g. "migration:
  *  tasks move, maintainer, back in ~20 min"); the owner's own Stop writes an empty file. */
-// by: whose STOP it is (the owner's from the dashboard starts "Owner: ", queue 238; anything else is a script's), at: the
+// by: whose STOP it is (the owner's from the dashboard starts "Owner: "; anything else is a script's), at: the
 // STOP file's time (HH:MM), reason: its first line without the "Owner: "
 export type Stopped = { slug: string; name: string; since: string; retired?: boolean; reason?: string; by?: "owner" | "script"; at?: string };
 
@@ -52,21 +52,21 @@ export type Board = {
   week: Week;
   counts: { decisions: number; proposals: number; requests: number };
   // The bulletin board's prompts: the open CEO proposals, answered there with Yes / No, and the
-  // owner's open decisions, answered there with their options, Done or Later (queue 32).
+  // owner's open decisions, answered there with their options, Done or Later.
   proposals: { id: string; bot: string; change: string; reason: string; metric: string; expected: string; validator: string }[];
   decisions: BoardDecision[];
   week7: Record<string, Week7>;
   down: Downtime | null; // the last 24 h: Mac off and quiet spans
-  replies: Record<string, string | null>; // each agent's last reply in the owner's chat with it (queue 35: unread dots)
-  // queue 40, what the world animates: each chat's last owner and agent lines, each bot's open Validator flags (the
+  replies: Record<string, string | null>; // each agent's last reply in the owner's chat with it (unread dots)
+  // what the world animates: each chat's last owner and agent lines, each bot's open Validator flags (the
   // newest one's time and words), and whether the main model provider is out (the health banner's rule)
   chat: Record<string, { owner: string | null; agent: string | null }>;
-  messages: FamilyMessage[]; // queue 46: the family's 5 newest messages, newest first (the planes in the air)
+  messages: FamilyMessage[]; // the family's 5 newest messages, newest first (the planes in the air)
   flags: Record<string, { open: number; newest: string; text: string }>;
   outage: boolean;
-  // queue 230: providers dead or above 90% of today's allowance, for the ticker's link to the Allowance list
+  // providers dead or above 90% of today's allowance, for the ticker's link to the Allowance list
   allowance: string[];
-  // queue 294: the team portal in local mode, the team's address over the tunnel ("" until the tunnel is up); null in cloud mode
+  // the team portal in local mode, the team's address over the tunnel ("" until the tunnel is up); null in cloud mode
   portalLocal?: { url: string; since: string } | null;
 };
 

@@ -67,7 +67,7 @@ function parseOne(raw: unknown): Proposal | null {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   if (!r || typeof r.id !== "string" || !r.id || typeof r.bot !== "string" || !r.bot) return null;
   // The CEO's own changes (status applied, undone, reverted: lib/ceo-changes.ts) share the file and are not proposals.
-  // "expired" (queue 425): an open proposal step two superseded, with expired_at and expired_note; listed as decided.
+  // "expired": an open proposal step two superseded, with expired_at and expired_note; listed as decided.
   // Roster proposals have their own list: lib/roster-proposals.ts.
   if (r.change && typeof r.change === "object" && (r.change as Record<string, unknown>).kind === "roster") return null;
   if (r.status !== undefined && r.status !== "open" && r.status !== "approved" && r.status !== "declined" && r.status !== "expired") return null;

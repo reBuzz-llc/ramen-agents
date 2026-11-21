@@ -15,7 +15,7 @@ const ITEMS: Item[] = [
   { href: "/", label: "Home", icon: "house", full: true }, // a full load, as the wordmark: always gets home
   { href: TAB_PATH.plan, label: "Work plan", icon: "checklist" },
   { href: TAB_PATH.past, label: "Past jobs", icon: "clock" },
-  // the local board's Leads, Tasks and Packages (queue 572); the leads' results stay on the Work plan's Leads page
+  // the local board's Leads, Tasks and Packages; the leads' results stay on the Work plan's Leads page
   { href: "/boards", label: "Boards", icon: "person-2" },
   { href: TAB_PATH.checks, label: "Checks", icon: "chart" },
 ];

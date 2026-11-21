@@ -3,7 +3,7 @@ import { sameOrigin } from "@/lib/same-origin";
 
 const NO_STORE = { "cache-control": "no-store" };
 
-// Your family's answers (common-data/local/family.toml, git-ignored; queue 572): GET them, PUT the first-run page's
+// Your family's answers (common-data/local/family.toml, git-ignored): GET them, PUT the first-run page's
 // form to save them. Only this app's own page may write. The same file sh scripts/setup.sh writes.
 export async function GET() {
   const f = await readFamily();

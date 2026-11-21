@@ -197,7 +197,7 @@ export default function NotificationsView() {
   );
 }
 
-/** "<name> answered you at HH:MM" for each agent whose reply in the owner's chat is not read yet (queue 35); computed
+/** "<name> answered you at HH:MM" for each agent whose reply in the owner's chat is not read yet; computed
  *  from the agents' last reply times and what this browser has seen, so no alert is written. Opening the agent's Chat
  *  tab on the home page clears it. */
 function ChatReplies() {

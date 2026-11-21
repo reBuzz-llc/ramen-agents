@@ -34,7 +34,7 @@ OPTIONAL_KEYS = [
     ("quickemailverification", "QuickEmailVerification (Lead Gen checks an email before listing it)", "https://quickemailverification.com"),
     ("sniffmail", "Sniffmail (the backup email check)", "https://sniffmail.io"),
 ]
-# The board's keys, one per reader (queue 572: the dashboard's local board; setup writes them, or for the hosted portal
+# The board's keys, one per reader (the dashboard's local board; setup writes them, or for the hosted portal
 # they are minted in its checkout with node --env-file=.env.local scripts/api-key.mjs <name> <scopes>)
 PORTAL_KEYS = [
     ("portal-engine", "engine board:read board:write", "the agents read and write leads"),
@@ -76,7 +76,7 @@ def portal_url() -> str:
 
 
 def family_missing() -> list[str]:
-    """What the first-run answers still lack (queue 572): common-data/local/family.toml needs [company] name, sells and
+    """What the first-run answers still lack: common-data/local/family.toml needs [company] name, sells and
     buyers and [target] market. Written by sh scripts/setup.sh (step 2) or the dashboard's first-run page."""
     import tomllib
     f = ROOT / "common-data" / "local" / "family.toml"

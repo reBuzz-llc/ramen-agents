@@ -124,7 +124,7 @@ test("a retired bot: Start refused, Bring back recreates its launch agents from 
   assert.equal(await has(path.join(root, "ran-restart-bot.sh")), true);
 });
 
-test("the owner's Stop says so in the STOP file and the log, with or without a reason; a failed Start puts the same line back (queue 238)", async () => {
+test("the owner's Stop says so in the STOP file and the log, with or without a reason; a failed Start puts the same line back", async () => {
   const { ws, ctx } = await fixture();
   await control(ctx, "stop", { reason: "  too many repeats today " });
   assert.equal(await readFile(path.join(ws, "STOP"), "utf8"), "Owner: too many repeats today\n");

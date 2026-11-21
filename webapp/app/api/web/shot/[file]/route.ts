@@ -3,7 +3,7 @@ import path from "node:path";
 import { isShotName } from "@/lib/web-shots";
 import { SHOTS_DIR } from "@/lib/web-read";
 
-// One picture from the floating screens' ring (queue 39): a ring file name only, never a path.
+// One picture from the floating screens' ring: a ring file name only, never a path.
 export async function GET(_req: Request, ctx: { params: Promise<{ file: string }> }) {
   const { file } = await ctx.params;
   if (!isShotName(file) || path.basename(file) !== file) return new Response("not found", { status: 404 });

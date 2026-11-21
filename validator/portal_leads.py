@@ -1,5 +1,5 @@
 """The team's board for the Validator: the starter dashboard's local board, or the hosted portal at the same paths
-(common.toml [leads] portal_url, http://127.0.0.1:3000 by default; queue 572: the starter has no Notion).
+(common.toml [leads] portal_url, http://127.0.0.1:3000 by default; the starter has no Notion).
 
 The Validator reads the leads from the Mac's one copy of the board -- common-data/shared-state/portal-leads-cache.json,
 shared with the agents' lead stores (the engine's portal_store.py) under the same lock: one full pull a day for the whole
@@ -25,7 +25,7 @@ from sources import LeadRow, PackageToggle, TaskRow
 
 BOTS = Path.home() / "bots"
 COMMON = BOTS / "common-data" / "configs" / "common.toml"
-LOCAL = BOTS / "common-data" / "configs" / "local.toml"     # the user's own values, untracked (queue 572)
+LOCAL = BOTS / "common-data" / "configs" / "local.toml"     # the user's own values, untracked
 DEFAULT_URL = "http://127.0.0.1:3000"
 KEY = BOTS / "common-data" / "keys" / "portal-validator.key"
 CACHE = BOTS / "common-data" / "shared-state" / "portal-leads-cache.json"
@@ -177,7 +177,7 @@ class PortalLeads:
         differs = [k for k in written if k in lead and _text(lead.get(k)).strip() != _text(sent.get(k)).strip()]
         return {"written": written, "refused": list(data.get("refused") or []), "differs": differs}
 
-    # ---- tasks and packages (queue 572: in place of the Notion task board and packages page) ----------------------
+    # ---- tasks and packages (in place of the Notion task board and packages page) ----------------------
     def _pages(self, path: str, key: str, **params: Any) -> list[dict]:
         out: list[dict] = []
         since = 0

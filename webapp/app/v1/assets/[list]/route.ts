@@ -1,4 +1,4 @@
-// The asset lists (queue 572), the hosted portal's paths: GET /v1/assets/packages(?status=published|draft) ->
+// The asset lists, the hosted portal's paths: GET /v1/assets/packages(?status=published|draft) ->
 // {packages: [...], updated_at}; GET /v1/assets/rates -> {rates: [...], updated_at}. People edit both on the dashboard's
 // Packages page; an agent hands a package over as a draft (./drafts) and never publishes.
 import { fail, keyed } from "@/lib/board-api";

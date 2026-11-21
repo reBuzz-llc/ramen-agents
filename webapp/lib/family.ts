@@ -1,4 +1,4 @@
-// Server-side only: the family's own answers, common-data/local/family.toml (queue 572). The file is git-ignored, so
+// Server-side only: the family's own answers, common-data/local/family.toml. The file is git-ignored, so
 // `git pull` and sh scripts/update.sh never meet it. sh scripts/setup.sh writes it (scripts/family_answers.py), and so
 // does the dashboard's first-run page (/setup); the engine and the Validator read it on top of the tracked files:
 // [company] fills {company} {sells} {buyers} {place} {owner} {signoff} in the cards, [target] sits on top of

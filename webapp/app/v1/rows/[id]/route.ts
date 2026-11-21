@@ -1,4 +1,4 @@
-// One lead (queue 572): GET /v1/rows/{id} -> {lead} (404 when not on the board); PATCH {actor, fields, fill_only?} ->
+// One lead: GET /v1/rows/{id} -> {lead} (404 when not on the board); PATCH {actor, fields, fill_only?} ->
 // {lead, created, written, refused}, by the portal's rules (lib/local-board.ts).
 import { answer, body, botActor, fail, keyed } from "@/lib/board-api";
 import { getRow, writeRow } from "@/lib/local-board";

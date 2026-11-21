@@ -1,4 +1,4 @@
-// Run: npm test. The owner's private chat with one agent (queue 34, 2026-10-31): the chat file read with a torn last
+// Run: npm test. The owner's private chat with one agent (2026-10-31): the chat file read with a torn last
 // line, the owner's post (one jsonl line and an inbox file in the bots' message shape), and the text rules.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -50,7 +50,7 @@ test("chat: the text rules: trimmed, newlines become spaces, empty or past 500 c
   assert.equal(cleanText("x".repeat(501)), null);
 });
 
-test("unread replies (queue 35): the agent's last line is unread until seen; seen clears it; none when the owner wrote last", async () => {
+test("unread replies: the agent's last line is unread until seen; seen clears it; none when the owner wrote last", async () => {
   // @ts-ignore TS5097
   const { unreadReplies } = await import("../lib/world.ts");
   // @ts-ignore TS5097

@@ -1,4 +1,4 @@
-// A Leads board from a CSV file (queue 572; the owner: Notion goes, and whoever kept leads there exports them as CSV): the
+// A Leads board from a CSV file (the owner: Notion goes, and whoever kept leads there exports them as CSV): the
 // file's columns are matched to the board's cells by name -- the board's own labels and keys, and the column names an
 // older Leads board used -- and a column that matches nothing is reported, never guessed. Pure, so the tests read it.
 // The import itself (app/api/local-board/import) writes as the person and never overwrites a filled cell.

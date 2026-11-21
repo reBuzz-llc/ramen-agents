@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass, Spinner } from "./ui";
 
-/** Undo for one of The CEO's own changes (queue 411): the line shows "Undone" once saved, or why it could not be. */
+/** Undo for one of The CEO's own changes: the line shows "Undone" once saved, or why it could not be. */
 export default function CeoChangeUndo({ id }: { id: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

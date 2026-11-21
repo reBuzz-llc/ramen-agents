@@ -26,7 +26,7 @@ export function useDecisionAnswer(onSaved: () => void) {
   return { answer, busy, error };
 }
 
-/** A long option wraps inside the box on a narrow screen (queue 405): its text breaks onto more lines and the button
+/** A long option wraps inside the box on a narrow screen: its text breaks onto more lines and the button
  *  takes at most the row's width, so the buttons stack under the item's text instead of running past the edge. */
 const OPTION_FIT = "h-auto! min-h-7 max-w-full py-1 text-left whitespace-normal! pointer-coarse:min-h-9";
 

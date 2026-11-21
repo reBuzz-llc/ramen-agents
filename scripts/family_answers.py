@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write common-data/local/family.toml from the first-run answers (queue 572; sh scripts/setup.sh calls it).
+"""Write common-data/local/family.toml from the first-run answers (sh scripts/setup.sh calls it).
 
     NAME=... SELLS=... BUYERS=... PLACE=... [SEGMENT TRADES OWNER DOMAINS TEAMMATE STEER] python3 family_answers.py <file>
 

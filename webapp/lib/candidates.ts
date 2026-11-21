@@ -1,6 +1,6 @@
 // Server-side only: what Lead Gen's daily candidate lists achieve, per source (owner, 2026-10-05: are the NYC city
 // list and FreeSerp worth it?). Reads the files scripts/candidates-feed.py writes (common-data/botBox/routed/lead-gen/
-// candidates-<market>-DATE.md, and a midday batch candidates-<market>-DATET12.md since queue 444; a "## From ..." section
+// candidates-<market>-DATE.md, and a midday batch candidates-<market>-DATET12.md; a "## From ..." section
 // per source) and Lead Gen's own database: a candidate is
 // "visited" when Lead Gen opened a page on its site after the list came out, and a "lead" when an accepted lead or
 // lead fix names that site. Read-only.

@@ -38,7 +38,7 @@ test("past job line: bot, task, when, how it ended, active minutes", () => {
   assert.equal(l.task, "(untitled job)");
 });
 
-// queue 56: a card with no plan in hand shows its last ended plan under a header, never an empty box.
+// a card with no plan in hand shows its last ended plan under a header, never an empty box.
 test("no plan: a fixture bot without plan.json shows its last ended plan from plan-history.jsonl", async () => {
   const { readFile, stat } = await import("node:fs/promises");
   // the bot's workspace/plan-history.jsonl, kept as plan-history.fixture (a workspace path and *.jsonl stay out of git)
@@ -76,7 +76,7 @@ test("sections are pages: each tab has its own path, and a path names its tab", 
   assert.equal(tabOfPath("/settings"), null);
 });
 
-// queue 80: the Past jobs page names repeated attempts, groups by day and keeps an open row on its job.
+// the Past jobs page names repeated attempts, groups by day and keeps an open row on its job.
 test("past jobs: attempts of the same task, day headings, a stable key", () => {
   const j = (slug: string, task: string, started: string) => ({ slug, task, started, ended: started.replace("T0", "T1") });
   const jobs = [j("lead-gen", "Find NYC leads", "2026-11-02T09:00:00"), j("lead-gen", "find nyc leads ", "2026-11-01T09:00:00"), j("scout", "Find NYC leads", "2026-11-02T08:00:00"), j("lead-gen", "Other", "2026-11-02T07:00:00")];

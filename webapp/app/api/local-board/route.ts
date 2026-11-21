@@ -1,4 +1,4 @@
-// A person's writes on the local board (queue 572), from the dashboard's Leads, Tasks and Packages pages: no key -- the
+// A person's writes on the local board, from the dashboard's Leads, Tasks and Packages pages: no key -- the
 // dashboard only answers this Mac and the allowed people (proxy.ts, lib/access.ts) -- and the writer is the person, so the
 // cell is theirs (an agent's later write to it is refused: person_wins).
 //   POST {board, id?, fields, create?, archive?} -> {row, written, refused} | {error}

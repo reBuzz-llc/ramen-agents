@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ board: st
   return { title: `${NAMES[(await params).board] ?? "Boards"} · Boards · Bot Dashboard` };
 }
 
-// The local board's pages (queue 572): the rows the agents and people share, read straight from the board's file.
+// The local board's pages: the rows the agents and people share, read straight from the board's file.
 export default async function BoardPage({ params }: { params: Promise<{ board: string }> }) {
   const board = (await params).board;
   if (!(board in NAMES)) notFound();

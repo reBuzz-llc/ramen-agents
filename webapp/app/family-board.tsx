@@ -43,7 +43,7 @@ export default function FamilyBoard({ initial, below }: { initial: Board | null;
     }, 0);
     return () => clearTimeout(t);
   }, []);
-  // "#allowance" (the world's ticker while a provider is out of allowance, queue 230): the List view at the Allowance
+  // "#allowance" (the world's ticker while a provider is out of allowance): the List view at the Allowance
   useEffect(() => {
     const go = () => {
       if (window.location.hash !== "#allowance") return;
@@ -214,7 +214,7 @@ function Spark({ hours, hour }: { hours: number[]; hour: number }) {
   );
 }
 
-/** The List view's "In the air" (queue 46): the same planes the world flies, oldest first; the oldest of three lands next. */
+/** The List view's "In the air": the same planes the world flies, oldest first; the oldest of three lands next. */
 function InTheAir({ messages, at, cards }: { messages: Board["messages"]; at: string; cards: BotCard[] }) {
   const handleOf = (name: string) => cards.find((c) => c.name === name)?.handle || name.split(/[\s-]/)[0];
   const up = inTheAir(messages, Date.parse(at)); // the board's own read time, so server and browser render the same

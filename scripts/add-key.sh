@@ -1,5 +1,5 @@
 #!/bin/sh
-# Add one key, safely (queue 572): it says where to get the free key, reads it without showing it, saves it as one line
+# Add one key, safely: it says where to get the free key, reads it without showing it, saves it as one line
 # in common-data/keys/<provider>.key (only you can read it), then tests it with one read-only call. Never prints a key.
 #
 #   sh scripts/add-key.sh gemini        # or: groq, zai, openrouter,

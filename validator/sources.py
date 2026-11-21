@@ -342,7 +342,7 @@ def team_members(path: Path) -> dict[str, str]:
     """The owner's team list as the task checks match an assignee: the person's id and lower-cased name and email (as
     the board names an assignee) -> display name."""
     import tomllib
-    try:       # queue 572: the first-run answers' [[team]] (common-data/local/family.toml) win when present
+    try:       # the first-run answers' [[team]] (common-data/local/family.toml) win when present
         rows = tomllib.loads((path.parent / "local" / "family.toml").read_text(encoding="utf-8")).get("team")
     except (OSError, ValueError):
         rows = None
