@@ -17,7 +17,7 @@ Fast hosted open models, such as gpt-oss-120b and Qwen, behind an OpenAI-compati
 
 - **Free:** a Free plan with limits set per model. For gpt-oss-120b: 30 requests a minute, 1,000 requests a day,
   8,000 tokens a minute and 200,000 tokens a day.
-- **Card:** not needed for the Free plan; a payment method is asked for only when you upgrade.
+- **Card:** not stated for the Free plan. Groq asks for a payment method to upgrade from it.
 - **Last tested:** 21 November 2026, answered our agents' calls.
 - **The catch:** on a busy day you hit the token limits long before the request limits. Groq calls its table a
   summary; your own limits are on the console's Limits page.
@@ -30,7 +30,8 @@ Google's Gemini models: the Flash and Flash-Lite models are free of charge on th
 
 - **Free:** "Free of charge" on the Free tier for the Flash and Flash-Lite models. Their per-model limits: not
   published; Google shows them only inside AI Studio.
-- **Card:** not needed. The Free tier needs a Google account and a project, and some projects need verification.
+- **Card:** not stated for the Free tier, which needs a Google account and a project; some projects need
+  verification. A billing account is for the paid tiers.
 - **Last tested:** 20 November 2026, answered our agents' calls until the free daily quota ran out.
 - **The catch:** on the Free tier, Google says content is "used to improve our products", so keep private data out.
   Limits "are not guaranteed".
@@ -55,7 +56,7 @@ One API in front of many providers. Models whose name ends in `:free` cost nothi
 
 - **Free:** 20 requests a minute. 50 requests a day across the free models, or 1,000 a day once you have bought at
   least 10 credits in total.
-- **Card:** not needed for the free models.
+- **Card:** not published.
 - **Last tested:** 21 November 2026, answered our agents' calls.
 - **The catch:** the free pool is shared and busy, and OpenRouter says free models "are usually not suitable for
   production use". Logging and training follow each upstream provider's policy, with a separate setting for free
