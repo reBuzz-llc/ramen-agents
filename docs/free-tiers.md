@@ -39,8 +39,8 @@ provider's. Everything else is "not measured".
 | Provider | Free tier | What we measured | Our cap | Sign up |
 |---|---|---|---|---|
 | Z.ai (`zai`, glm-4.5-flash) | the flash models are listed at $0; the page does not state whether a card is needed; limits not published | about 1,575 calls and 9.4M tokens in one day (2026-10-14) with no limit hit | 3,000 calls/day | https://z.ai |
-| Gemini (`gemini`) | free tier with an AI Studio key, no card | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
-| Groq (`groq`, gpt-oss-120b) | free tier, no card | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
+| Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
+| Groq (`groq`, gpt-oss-120b) | free tier; the page does not state whether a card is needed | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only; the page does not state whether a card is needed | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
 | free.ai (`freeai`) | 30,000 tokens a day, as published | a family call is about 5,500 tokens | 5 calls/day | https://free.ai |
 | Local Ollama | runs on your own Mac, no key | always available; slower and weaker than the remote models | none | https://ollama.com/download |
@@ -64,8 +64,8 @@ cap.
 | FreeSerp | keyless | a keyless web search | none |
 | SearXNG | runs on your own Mac (127.0.0.1:8888); keyless | the main search; settings in `common-data/configs/searxng-settings.yml` | none (self-hosted) |
 | DuckDuckGo MCP | keyless | a web search, search only | none |
-| LangSearch | free plan, no card | the first backup, used only when the local search fails or finds nothing; never named by a bot | https://langsearch.com |
-| Parallel | $5 of free credit a month, no card | the second backup, after LangSearch | https://parallel.ai |
+| LangSearch | free plan; the page does not state whether a card is needed | the first backup, used only when the local search fails or finds nothing; never named by a bot | https://langsearch.com |
+| Parallel | $5 of free credit a month with a card on file (its page); past that it bills per use, so leave it out to stay card-free | the second backup, after LangSearch | https://parallel.ai |
 | Tavily | free plan, no card | The CEO only, for special searches; never automatic | https://tavily.com |
 
 Our daily caps for the keyed backups are set in `web-bots.toml`: `langsearch_per_day` (100) and `parallel_per_day`

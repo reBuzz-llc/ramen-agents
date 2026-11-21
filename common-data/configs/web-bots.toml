@@ -44,7 +44,7 @@ search_stats_epoch = "start"
 search_pause_file = "~/bots/common-data/search_pause.json"
 
 [model.providers.groq]
-# Free tier, no card. Small: about 8,000 tokens a request and 200,000 a day; fine for short calls.
+# Free tier; its page does not state whether a card is needed. Small: about 8,000 tokens a request and 200,000 a day; fine for short calls.
 base_url = "https://api.groq.com/openai/v1"
 model = "openai/gpt-oss-120b"
 api_key_file = "~/bots/common-data/keys/groq.key"

@@ -11,8 +11,8 @@ cd "$(dirname "$0")/.."
 name="${1:-}"
 free="free "
 case "$name" in
-  gemini) where="https://aistudio.google.com/apikey (Google AI Studio: Create API key; free, no card)" ;;
-  groq) where="https://console.groq.com/keys (free, no card)" ;;
+  gemini) where="https://aistudio.google.com/apikey (Google AI Studio: Create API key; free; its page does not state whether a card is needed)" ;;
+  groq) where="https://console.groq.com/keys (free; its page does not state whether a card is needed)" ;;
   zai) where="https://z.ai (API keys in your account; the free models)" ;;
   mistral) free=""; where="https://console.mistral.ai (only if you pay for it: its API needs billing; the key does nothing until you add mistral to provider_chain in common-data/configs/local.toml)" ;;
   openrouter) where="https://openrouter.ai/keys (only the free models are used)" ;;
