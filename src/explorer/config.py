@@ -227,14 +227,13 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "groq": {"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "free": "free tier, no card"},
     "cerebras": {"base_url": "https://api.cerebras.ai/v1", "model": "gpt-oss-120b", "free": "card required (2026-09-25: API access needs credits, $5 trial or $10 PayGo) -- declined", "auto": False},
     "gemini": {"base_url": "", "model": "", "free": "free tier, no card (built-in, not OpenAI-compatible)"},
-    "mistral": {"base_url": "https://api.mistral.ai/v1", "model": "mistral-small-latest", "free": "free tier (activate La Plateforme free plan)"},
+    "mistral": {"base_url": "https://api.mistral.ai/v1", "model": "mistral-small-latest", "free": "needs billing activation and pay-as-you-go (not in the default chain)", "auto": False},
     "sambanova": {"base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct", "free": "free tier, no card"},
-    # $1 of usage included every month, no card (owner's key 2026-09-22). gpt-oss-20b at $0.07/$0.30 per 1M tokens
-    # makes that ~30 writing calls a day; cap it in the provider table so the month's allowance lasts.
-    "speka": {"base_url": "https://speka.me/v1", "model": "openai/gpt-oss-20b", "free": "$1/month included, no card"},
-    # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0; Ollama Cloud has a free plan. Both no card.
+    # A $1 lifetime credit, then pay per token (speka.me, 2026-11-21): never joins by a key file alone.
+    "speka": {"base_url": "https://speka.me/v1", "model": "openai/gpt-oss-20b", "free": "$1 lifetime credit, then pay per token (not in the default chain)", "auto": False},
+    # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0, no card. Ollama Cloud's $0 plan is pay per token (2026-11-21).
     "zai": {"base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.5-flash", "free": "free model ($0 list price), no card"},
-    "ollama-cloud": {"base_url": "https://ollama.com/v1", "model": "gpt-oss:120b", "free": "free plan, no card"},
+    "ollama-cloud": {"base_url": "https://ollama.com/v1", "model": "gpt-oss:120b", "free": "pay per token (not in the default chain)", "auto": False},
     "together": {"base_url": "https://api.together.xyz/v1", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "free": "trial credit only, then paid", "auto": False},
     "deepseek": {"base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat", "free": "pay-as-you-go, no free tier", "auto": False},
     "openai": {"base_url": "https://api.openai.com/v1", "model": "gpt-4.1-mini", "free": "paid, no free tier", "auto": False},
