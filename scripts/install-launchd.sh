@@ -6,6 +6,12 @@
 # Safe to run again: an agent that is already loaded is replaced. Bots' run loops are installed separately with
 #   ~/Projects/bot/.venv/bin/bot --config ~/bots/<bot>/config.toml install
 set -eu
+# 717: the folder on the main branch is a copy for reading; nothing is installed, started or updated from it
+if [ -f "$(dirname "$0")/../READ-ONLY-COPY.md" ]; then
+  echo "This folder is the read-only copy of the code on the main branch: nothing is installed or run from it." >&2
+  echo "Install from the fleet branch: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots" >&2
+  exit 1
+fi
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
 DEST="$HOME/Library/LaunchAgents"

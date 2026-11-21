@@ -15,6 +15,12 @@
 # It never asks for a key, never signs in to anything, never starts a paid plan and never edits a tracked file.
 # The model keys are yours to add (sh scripts/add-key.sh <provider>); sh scripts/setup.sh asks the rest.
 set -eu
+# 717: the folder on the main branch is a copy for reading; nothing is installed, started or updated from it
+if [ -f "$(dirname "$0")/../READ-ONLY-COPY.md" ]; then
+  echo "This folder is the read-only copy of the code on the main branch: nothing is installed or run from it." >&2
+  echo "Install from the fleet branch: git clone -b fleet -o starter https://github.com/reBuzz-llc/ramen-agents ~/bots" >&2
+  exit 1
+fi
 
 ok() { printf '  ok       %s\n' "$*"; }
 did() { printf '  done     %s\n' "$*"; }
