@@ -2,29 +2,30 @@
 # Add one key, safely (queue 572): it says where to get the free key, reads it without showing it, saves it as one line
 # in common-data/keys/<provider>.key (only you can read it), then tests it with one read-only call. Never prints a key.
 #
-#   sh scripts/add-key.sh gemini        # or: groq, zai, mistral, openrouter, ollama-cloud, speka,
+#   sh scripts/add-key.sh gemini        # or: groq, zai, openrouter,
 #                                       #     quickemailverification, sniffmail
 # One model key is enough to start; more mean more fallbacks. The dashboard's Key providers page does the same.
 set -eu
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 cd "$(dirname "$0")/.."
 name="${1:-}"
+free="free "
 case "$name" in
   gemini) where="https://aistudio.google.com/apikey (Google AI Studio: Create API key; free, no card)" ;;
   groq) where="https://console.groq.com/keys (free, no card)" ;;
   zai) where="https://z.ai (API keys in your account; the free models)" ;;
-  mistral) where="https://console.mistral.ai (switch on the free Experiment plan first, then API keys)" ;;
+  mistral) free=""; where="https://console.mistral.ai (only if you pay for it: its API needs billing; the key does nothing until you add mistral to provider_chain in common-data/configs/local.toml)" ;;
   openrouter) where="https://openrouter.ai/keys (only the free models are used)" ;;
-  ollama-cloud) where="https://ollama.com/settings/keys" ;;
-  speka) where="https://speka.me" ;;
+  ollama-cloud) free=""; where="https://ollama.com/settings/keys (only if you pay for it: pay per token; the key does nothing until you add ollama-cloud to provider_chain in common-data/configs/local.toml)" ;;
+  speka) free=""; where="https://speka.me (only if you pay for it: a $1 lifetime credit, then pay per token; the key does nothing until you add speka to provider_chain in common-data/configs/local.toml)" ;;
   quickemailverification) where="https://quickemailverification.com (optional: Lead Gen checks an email before listing it)" ;;
   sniffmail) where="https://sniffmail.io (optional: the backup email check)" ;;
-  "") echo "Which provider? sh scripts/add-key.sh gemini   (or groq, zai, mistral, openrouter, ollama-cloud, speka, quickemailverification, sniffmail)"; exit 2 ;;
-  *) echo "unknown provider: $name (gemini, groq, zai, mistral, openrouter, ollama-cloud, speka, quickemailverification, sniffmail)"; exit 2 ;;
+  "") echo "Which provider? sh scripts/add-key.sh gemini   (or groq, zai, openrouter, quickemailverification, sniffmail)"; exit 2 ;;
+  *) echo "unknown provider: $name (gemini, groq, zai, openrouter, quickemailverification, sniffmail)"; exit 2 ;;
 esac
 mkdir -p common-data/keys && chmod 700 common-data/keys
 f="common-data/keys/$name.key"
-echo "Get a free $name key here: $where"
+echo "Get a ${free}$name key here: $where"
 [ -s "$f" ] && echo "(a $name key is already on file; a new one replaces it)"
 if [ -t 0 ]; then
   printf "Paste the key (it is not shown) and press Return: "

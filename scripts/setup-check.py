@@ -28,10 +28,7 @@ MODEL_KEYS = [
     ("zai", "Z.ai", "https://z.ai"),
     ("gemini", "Google AI Studio", "https://aistudio.google.com/apikey"),
     ("groq", "Groq", "https://console.groq.com/keys"),
-    ("mistral", "Mistral (activate the free plan in the console first)", "https://console.mistral.ai"),
     ("openrouter", "OpenRouter (free models only)", "https://openrouter.ai/keys"),
-    ("ollama-cloud", "Ollama Cloud", "https://ollama.com/settings/keys"),
-    ("speka", "Speka", "https://speka.me"),
 ]
 OPTIONAL_KEYS = [
     ("quickemailverification", "QuickEmailVerification (Lead Gen checks an email before listing it)", "https://quickemailverification.com"),

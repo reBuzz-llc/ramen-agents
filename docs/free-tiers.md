@@ -41,12 +41,21 @@ provider's. Everything else is "not measured".
 | Z.ai (`zai`, glm-4.5-flash) | the flash models are listed at $0, no card; limits not published | about 1,575 calls and 9.4M tokens in one day (2026-10-14) with no limit hit | 3,000 calls/day | https://z.ai |
 | Gemini (`gemini`) | free tier with an AI Studio key, no card | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
 | Groq (`groq`, gpt-oss-120b) | free tier, no card | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
-| Speka (`speka`, gpt-oss-20b) | $1 of usage included each month, no card | not measured | 30 calls/day | https://speka.me |
-| Mistral (`mistral`) | free plan, which must be activated in the console before the key has any quota | a key without the plan activated got 0 requests per minute | none | https://console.mistral.ai |
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only, no card | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
 | free.ai (`freeai`) | 30,000 tokens a day, as published | a family call is about 5,500 tokens | 5 calls/day | https://free.ai |
-| Ollama Cloud (`ollama-cloud`) | free plan with a monthly allowance, 1 request at a time; limits not published | the monthly limit was reached once (2026-10-02); after that it answers 429 until the month resets | 60 calls/day, 12-hour cooldown | https://ollama.com/settings/keys |
 | Local Ollama | runs on your own Mac, no key | always available; slower and weaker than the remote models | none | https://ollama.com/download |
+
+**Not in the default chain** (checked 2026-11-21). These can charge, or stop at a credit, so a key file alone never switches
+them on and cannot spend money by accident:
+
+- **Mistral:** its docs say Free mode "doesn't include API access" and that "creating API keys and using the API require
+  billing activation and pay-as-you-go" ([usage limits](https://docs.mistral.ai/admin/billing-usage/usage-limits)).
+- **Ollama Cloud:** its $0 plan is "Pay per token for every cloud model" ([pricing](https://ollama.com/pricing)). The local
+  Ollama model is separate and stays the last resort.
+- **Speka:** a "$1 lifetime credit on every account", then pay per token ([speka.me](https://speka.me/)).
+
+If you pay for one and want it, add its name to `provider_chain` in `common-data/configs/local.toml`, with a `calls_per_day`
+cap.
 
 ## Search engines
 

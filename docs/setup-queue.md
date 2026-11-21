@@ -34,10 +34,7 @@ showing it and tests it. Any subset works; more keys mean more fallbacks. Limits
 - [ ] `gemini`: Google AI Studio, https://aistudio.google.com/apikey
 - [ ] `groq`: Groq, https://console.groq.com/keys
 - [ ] `zai`: Z.ai, https://z.ai (the flash models are free)
-- [ ] `mistral`: Mistral, https://console.mistral.ai (activate the free plan in the console first)
 - [ ] `openrouter`: OpenRouter, https://openrouter.ai/keys (free models only)
-- [ ] `ollama-cloud`: Ollama Cloud, https://ollama.com/settings/keys
-- [ ] `speka`: Speka, https://speka.me
 - [ ] Optional: `quickemailverification` (https://quickemailverification.com) and `sniffmail` (https://sniffmail.io),
       so Lead Gen checks an email before listing it.
 

@@ -53,7 +53,7 @@ to get it.
 
 ## Optional
 
-- **More model keys:** `sh scripts/add-key.sh groq` (or `zai`, `mistral`, `openrouter`, `ollama-cloud`, `speka`). More
+- **More model keys:** `sh scripts/add-key.sh groq` (or `zai`, `openrouter`). More
   keys mean more fallbacks when one provider is busy. Limits and what was measured: [docs/free-tiers.md](docs/free-tiers.md).
 - **Email checks before a lead is listed:** `sh scripts/add-key.sh quickemailverification` (and `sniffmail`).
 - **A local model as the last resort:** install [Ollama](https://ollama.com/download), then `ollama pull qwen2.5:7b`.

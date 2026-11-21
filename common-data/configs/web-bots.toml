@@ -20,7 +20,7 @@ provider = "remote"
 # benched and the next one answers; the local Ollama model is the last resort. A provider whose key file is missing
 # is skipped, so leave the list as it is and add keys as you get them (common-data/keys/<name>.key).
 # Free tiers only: a provider that needs a payment method stays out of the chain unless the owner decides otherwise.
-provider_chain = ["zai", "gemini", "groq", "speka", "mistral", "openrouter", "ollama-cloud"]
+provider_chain = ["zai", "gemini", "groq", "openrouter"]
 gemini_model = "gemini-3.6-flash"
 gemini_fallback_models = ["gemini-flash-lite-latest"]
 gemini_api_key_file = "~/bots/common-data/keys/gemini.key"
@@ -51,7 +51,8 @@ api_key_file = "~/bots/common-data/keys/groq.key"
 calls_per_day = 900
 
 [model.providers.speka]
-# $1 of usage included every month with no card; the daily cap spreads it over the month.
+# Not in the default chain: a $1 lifetime credit, then pay per token (speka.me, 2026-11-21). A key file alone never adds it.
+# If you pay for it, add "speka" to provider_chain in common-data/configs/local.toml.
 base_url = "https://speka.me/v1"
 model = "openai/gpt-oss-20b"
 api_key_file = "~/bots/common-data/keys/speka.key"
@@ -65,7 +66,8 @@ api_key_file = "~/bots/common-data/keys/zai.key"
 calls_per_day = 3000
 
 [model.providers.ollama-cloud]
-# Free plan, no card, capped per MONTH: a 429 here is not worth a retry every 15 minutes.
+# Not in the default chain: its $0 plan is pay per token (ollama.com/pricing, 2026-11-21). A key file alone never adds it.
+# If you pay for it, add "ollama-cloud" to provider_chain in common-data/configs/local.toml. The local Ollama model is separate.
 base_url = "https://ollama.com/v1"
 model = "gpt-oss:120b"
 api_key_file = "~/bots/common-data/keys/ollama-cloud.key"
@@ -81,7 +83,8 @@ calls_per_day = 50
 cooldown_minutes = 60
 
 [model.providers.mistral]
-# Free plan must be activated in the provider's console before the key answers.
+# Not in the default chain: Mistral's API now needs billing activation and pay-as-you-go (its docs, 2026-11-21).
+# A key file alone never adds it. If you pay for it, add "mistral" to provider_chain in common-data/configs/local.toml.
 base_url = "https://api.mistral.ai/v1"
 model = "mistral-small-latest"
 api_key_file = "~/bots/common-data/keys/mistral.key"

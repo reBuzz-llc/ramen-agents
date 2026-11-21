@@ -19,10 +19,10 @@ else
 fi
 
 say "== Keys (common-data/keys/<name>.key); a model provider without a key is skipped"
-for k in zai gemini groq speka mistral openrouter ollama-cloud quickemailverification sniffmail portal-engine portal-validator portal-dashboard; do
+for k in zai gemini groq openrouter quickemailverification sniffmail portal-engine portal-validator portal-dashboard; do
   if [ -s "common-data/keys/$k.key" ]; then say "  ok       $k"; else say "  missing  $k"; fi
 done
-have=0; for k in zai gemini groq speka mistral openrouter ollama-cloud; do [ -s "common-data/keys/$k.key" ] && have=1; done
+have=0; for k in zai gemini groq openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
 [ "$have" = 1 ] || { say "  -> no model provider key yet: the bots would run on the local model only"; todo=1; }
 [ -s common-data/keys/portal-engine.key ] || { say "  -> no board key: tasks, packages and leads cannot be written (sh scripts/install.sh writes it, step 1)"; todo=1; }
 

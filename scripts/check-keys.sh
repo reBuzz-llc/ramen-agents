@@ -14,8 +14,6 @@ call() { # name url header [json body]
 }
 chat='{"model":"%s","messages":[{"role":"user","content":"hi"}],"max_tokens":1}'
 call zai          https://api.z.ai/api/paas/v4/chat/completions "Authorization: Bearer $(<$K/zai.key)" "$(printf $chat glm-4.5-flash)"
-# /v1/models answers 200 to ANY key on Ollama Cloud and Speka; only a chat call proves the key
-call ollama-cloud https://ollama.com/v1/chat/completions   "Authorization: Bearer $(<$K/ollama-cloud.key)" "$(printf $chat gpt-oss:120b)"
-call speka        https://speka.me/v1/chat/completions    "Authorization: Bearer $(<$K/speka.key)" "$(printf $chat openai/gpt-oss-20b)"
+# Ollama Cloud and Speka are not called here: only a chat call proves their keys, and that spends paid usage
 call groq         https://api.groq.com/openai/v1/models    "Authorization: Bearer $(<$K/groq.key)"
 printf '%-14s %s  %s\n' board "$(curl -s -o /dev/null -w '%{http_code}' -m 10 -H "Authorization: Bearer $(<$K/portal-engine.key)" 'http://127.0.0.1:3000/v1/boards/leads/rows?since=0&limit=1')" "(200 = ok; 000 = the dashboard is not running)"
