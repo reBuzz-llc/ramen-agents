@@ -68,6 +68,7 @@ Running in production since late September 2026: 800+ leads found by the agents,
 - [The fence](https://rebuzz-llc.github.io/ramen-agents/fence.html): every rule no agent may break, and the file that enforces it
 - [What the Validator checks](https://rebuzz-llc.github.io/ramen-agents/validator-rules.html): every rule, and whether it refuses or flags
 - [Free tiers](https://rebuzz-llc.github.io/ramen-agents/free-tiers.html): each provider's free limits and where its key goes
+- [Free AI APIs that actually work](https://rebuzz-llc.github.io/ramen-agents/free-ai-apis.html): free AI model APIs that answered our check this week, each allowance from the provider's own page
 - [The Leads board](https://rebuzz-llc.github.io/ramen-agents/leads-board.html): its columns, and who writes each one
 - [Questions people ask](https://rebuzz-llc.github.io/ramen-agents/faq.html)
 - [README (Markdown)](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/README.md): what it is, the quickstart, the FAQ
