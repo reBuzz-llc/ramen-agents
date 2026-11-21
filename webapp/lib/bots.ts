@@ -83,7 +83,7 @@ export async function readConfig(configPath: string, seen: string[] = []): Promi
   return merged;
 }
 
-/** slug -> handle and earlier names from the family's one roster (common-data/family-roster.toml, creatorCC
+/** slug -> handle and earlier names from the family's one roster (common-data/family-roster.toml,
  *  2026-10-10), so the dashboard shows the handle the bots themselves are told. A member not on it falls back to
  *  handleFor(name). `aliases` (queue 440): the names a rename left behind (roster_apply.py keeps them), so a member
  *  still running under its old name until its restart, and its ledgers keyed by that name, stay its own. */

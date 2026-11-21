@@ -14,7 +14,7 @@ import PageShell from "./page-shell";
 
 export const metadata = { title: "Family · Bot Dashboard" };
 
-// The home page is the live family board (owner, 2026-10-30, creatorCC queue 16): who is working on what, now. The
+// The home page is the live family board: who is working on what, now. The
 // board polls /api/board; the boxes above it are server-rendered.
 export default async function Home() {
   const [bots, identity] = await Promise.all([listBots(), currentIdentity()]);

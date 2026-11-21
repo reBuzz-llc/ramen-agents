@@ -1,5 +1,5 @@
 // Run: npm test. The home board's state words, words for actions, the plan line and the feed, on fixtures
-// (creatorCC queue 16, 2026-10-30).
+// (2026-10-30).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
@@ -406,11 +406,11 @@ test("the model line: provider and time from the newest trace, none without trac
 test("a STOP file's reason: its first non-empty line, trimmed, cut at 160; an owner's empty STOP has none", () => {
   assert.equal(stopReason(""), "");
   assert.equal(stopReason(null), "");
-  assert.equal(stopReason("\n  migration: tasks move, creatorCC, back in ~20 min  \nmore\n"), "migration: tasks move, creatorCC, back in ~20 min");
+  assert.equal(stopReason("\n  migration: tasks move, maintainer, back in ~20 min  \nmore\n"), "migration: tasks move, maintainer, back in ~20 min");
   assert.equal(stopReason("x".repeat(200)).length, 160);
 });
 
-test("a member's item on its world screen comes from the write that names it (creatorCC queue 233)", () => {
+test("a member's item on its world screen comes from the write that names it", () => {
   const lead = JSON.stringify({ type: "update_lead", name: "Fiesta Lounge", draft_email: "Hi…", pain_point: null, email: "", sources: ["https://x.example"] });
   assert.equal(subjectOf("update_lead", lead), "Fiesta Lounge · Draft email");
   assert.equal(subjectOf("update_lead", JSON.stringify({ name: "Corner Cafe", location: "Astoria", size: "3 locations", industry: "Cafe" })), "Corner Cafe · Location, Industry");

@@ -8,7 +8,7 @@ import { control } from "@/lib/owner-controls";
 import { decideRoster, type Edits } from "@/lib/roster-proposals";
 import { sameOrigin } from "@/lib/same-origin";
 
-// The owner's Approve / Decline on a roster proposal (creatorCC queue 440): POST {id, approve, note?, edits?}. Same-origin
+// The owner's Approve / Decline on a roster proposal: POST {id, approve, note?, edits?}. Same-origin
 // only. An approved start or stop runs the owner's own start/stop path (as the world's Start and Stop do); rename,
 // create and retire run scripts/roster_apply.py <id> with the engine's Python.
 export const maxDuration = 200;

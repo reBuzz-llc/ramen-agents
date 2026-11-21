@@ -1,4 +1,4 @@
-// The home page's live family board (creatorCC queue 16, 2026-10-30, owner: "first change the home page to a live board
+// The home page's live family board (2026-10-30, owner: "first change the home page to a live board
 // where I can see all family working on what"). Read-only, per running bot:
 //   - its state word, from the newest heartbeat row (explorer.sqlite3), the tail of logs/explorer.jsonl (resting,
 //     day_block_rest, quiet, quiet_over, action), day-blocks.json, the owner's PAUSE file and The CEO's HOLD;
@@ -298,7 +298,7 @@ export type BotCard = {
   cycleSec: number | null; // seconds between its steps (queue 52: pranks between steps)
   failing: number; // failed model calls in a row now (0 unless its heartbeat says model_failure; queue 49)
   sent: FamilyMessage[]; // its last 5 allowed messages (queue 46); board-read merges them into Board.messages
-  // the world's screen (creatorCC queue 233, the owner's four lines): the row or item it is on (its newest write of the
+  // the world's screen (the owner's four lines): the row or item it is on (its newest write of the
   // last hour, e.g. "Fiesta Lounge · Draft email"; "" = the screen shows its page or search), its last model call's age,
   // the last 30 minutes' allowed/all actions, and its daily goal when common-data/daily-goals.json names one
   item: string;
@@ -317,7 +317,7 @@ export function withOutage<C extends { state: State; failing: number }>(card: C,
 
 export type Act = { id: number; ts: string; type: string; verdict: "allowed" | "refused" | "failed"; to: string; thought: string };
 
-/** The screen's activity feed (creatorCC queue 287, the owner: the screen about the work, not the guards): a member's
+/** The screen's activity feed (the owner: the screen about the work, not the guards): a member's
  *  newest allowed actions, newest first, each in plain words with its time; "web" and "search" lines get the orange
  *  square. Never an email address or a phone number (masked), never a draft's text. */
 export type ActivityLine = { ts: string; hhmm: string; words: string; kind: "web" | "search" | "other" };
@@ -671,7 +671,7 @@ export function mergeFeed(cards: { feed: FeedItem[] }[], n = 30): FeedItem[] {
     .slice(0, n);
 }
 
-// ---- Over the shoulder (creatorCC queue 22): a large view of one bot, opened from its desk ----
+// ---- Over the shoulder: a large view of one bot, opened from its desk ----
 
 const SHOT_FRESH_MS = 10 * 60_000;
 export type TracePage = { url: string; domain: string; title: string; text: string };

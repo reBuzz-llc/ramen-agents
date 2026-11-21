@@ -466,7 +466,7 @@ def first_names_only(text: str) -> bool:
     return bool(parts) and len(parts) <= 4 and all(
         re.fullmatch(r"[A-Z][a-z'’-]{1,20}", x) and x.lower() not in _NOT_A_NAME for x in parts)
 COUNTRY_WORDS = {"usa", "us", "u.s.", "u.s.a.", "united states", "united states of america", "uk", "u.k.",
-                 "united kingdom", "canada", "ca", "australia", "india", "nepal", "ireland", "germany", "france"}
+                 "united kingdom", "canada", "ca", "australia", "india", "ireland", "germany", "france"}
 _STREET = re.compile(r"^\d|\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|suite|ste|floor|fl)\b\.?$", re.I)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 

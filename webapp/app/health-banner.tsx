@@ -4,7 +4,7 @@ import { quietDuringTrial } from "@/lib/trial";
 import { readTrial } from "@/lib/trial-read";
 import SeenButton from "./seen-button";
 
-/** A red box when something needs a human (creatorCC queue 5); nothing when all is well. One line per issue, each with
+/** A red box when something needs a human; nothing when all is well. One line per issue, each with
  *  a Seen button that hides it until its fact changes (queue 54). Streamed in a Suspense boundary by its pages, so the
  *  reads never hold the page up. */
 export default async function HealthBanner({

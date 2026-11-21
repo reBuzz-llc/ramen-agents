@@ -3,7 +3,7 @@ import { useState } from "react";
 import { filterGlossary, type GlossarySection } from "@/lib/glossary";
 import { Panel } from "../../ui";
 
-/** The glossary's sections with a search across all of them (creatorCC queue 488). */
+/** The glossary's sections with a search across all of them. */
 export default function GlossaryView({ sections }: { sections: GlossarySection[] }) {
   const [q, setQ] = useState("");
   const shown = filterGlossary(sections, q);

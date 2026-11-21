@@ -1,4 +1,4 @@
-// The public starter carries nothing of the family's own (queue 572; creatorCC 11-16: a link to one of the family's
+// The public starter carries nothing of the family's own (a link to one of the family's
 // Notion pages shipped in work-plan-view.tsx): every tracked file of this repository is scanned for a Notion link or page
 // id, a 32-hex id that is not an obvious placeholder, a Supabase project ref, a tailnet or device name, and the family's
 // own addresses and repo names, and a timestamp with a local UTC offset. A placeholder reads as one: "<project-ref>", "<mac>.<tailnet>.ts.net", a run of one
@@ -18,7 +18,7 @@ const PATTERNS: [string, RegExp][] = [
   ["a Notion link", /\b(?:www\.)?notion\.(?:so|site)\/|app\.notion\.com\//i],
   ["a Supabase project ref", /\b(?!<)[a-z]{20}\.supabase\.(?:co|com)\b/],
   ["a tailnet name", /\btail[0-9a-f]{6}\.ts\.net\b/i],
-  // a date-time with a UTC offset other than Z / +00:00 dates a file to a place (creatorCC 11-16)
+  // a date-time with a UTC offset other than Z / +00:00 dates a file to a place
   ["a timestamp with a local offset", /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?[+-](?!00:?00\b)\d{2}:?\d{2}\b/],
   ["the family's own name", new RegExp(OWN.map((s) => s.replace(/[-.]/g, "\\$&")).join("|"), "i")],
 ];
@@ -47,7 +47,7 @@ test("no id, link or name of the family's own in any tracked file", () => {
   assert.deepEqual(found, []);
 });
 
-// creatorCC 11-17: the docs may not credit a member the starter does not ship. The family's own members are never
+// The docs may not credit a member the starter does not ship. The family's own members are never
 // named in the prose; a member you can add (Lead Enricher, Outreach Writer) is named only in a paragraph or table row
 // that says so. Prompts and rule files (validator/instructions/, */persona.md) are rules for the member, not claims.
 const FAMILY_ONLY = new RegExp([["Jobless", "Bot"].join("-"), ["Onion", "Reader"].join(" "), ["Desk", "Agent"].join(" ")].join("|"), "i");
@@ -83,7 +83,7 @@ test("the docs credit no member the starter does not ship", () => {
   assert.deepEqual(found, []);
 });
 
-// creatorCC queue 578 (the last step): with their code gone, the three members only the family had are named in no
+// With their code gone, the three members only the family had are named in no
 // tracked file at all, by name or by slug (code, tests, fixtures, configs and docs alike).
 const FAMILY_SLUGS = new RegExp(["jobless", "onion-reader", "desk-agent"].map((s, i) => (i ? s : `${s}-bot`)).join("|"), "i");
 

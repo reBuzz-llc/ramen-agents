@@ -1,5 +1,5 @@
-// Lead Gen's candidate list files (scripts/candidates-feed.py): candidates-<market>-YYYY-MM-DD.md, and since valiCC
-// deeae3c a second, midday batch candidates-<market>-YYYY-MM-DDT12.md (creatorCC queue 444). Self-contained, so the
+// Lead Gen's candidate list files (scripts/candidates-feed.py): candidates-<market>-YYYY-MM-DD.md, and since
+// a second, midday batch candidates-<market>-YYYY-MM-DDT12.md. Self-contained, so the
 // test runs with Node's own runner.
 
 export type CandidateFile = { file: string; market: string; date: string; midday: boolean };

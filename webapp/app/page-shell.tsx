@@ -9,7 +9,7 @@ const PAGE_WIDTH = "max-w-[1400px]";
 const NAV_TITLES = new Set(["Work plan"]);
 
 /**
- * The frame of every page (creatorCC queue 19): a glass toolbar with the wordmark (home) and `left` beside it, the
+ * The frame of every page: a glass toolbar with the wordmark (home) and `left` beside it, the
  * nav in the middle on wide screens (a tab bar along the bottom on phones), the profile menu on the right; then the page in a main of PAGE_WIDTH.
  * No hooks, so server pages and client views both render it.
  */

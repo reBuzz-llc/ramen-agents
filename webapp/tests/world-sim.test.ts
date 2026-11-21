@@ -1,4 +1,4 @@
-// Run: npm test. The room's replay harness (creatorCC queue 27, 2026-10-31): board snapshots go through the world's
+// Run: npm test. The room's replay harness (2026-10-31): board snapshots go through the world's
 // simulation as the page runs it (a poll every 12 s, a frame every 1/30 s) and the room's rules are checked at every
 // frame. Two days: a synthetic one that forces every transition (flickers, quiet, rest, a stop and a start, more
 // members than usual), and a recording of the live board (tests/fixtures/board-replay.json, 30 minutes, 12 s apart).

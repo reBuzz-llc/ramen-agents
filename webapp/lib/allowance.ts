@@ -1,4 +1,4 @@
-// The free allowance, provider by provider (creatorCC queue 230, the owner's standing goal "drain every free token"):
+// The free allowance, provider by provider (the owner's standing goal "drain every free token"):
 // how much of each free tier the family has used today and how much is left, so nothing free goes unspent and nothing
 // dead stays unnoticed. Read-only, from files on this Mac; no key is ever read, only the key files' names.
 //
@@ -25,14 +25,14 @@ export type ChainRow = {
   health: Health;
   status: "ok" | "near" | "dead" | "spent" | "idle";
   note: string;
-  /** Who made today's calls (creatorCC queue 286): the bots, and the Validator's own jobs (polish, second opinion,
+  /** Who made today's calls: the bots, and the Validator's own jobs (polish, second opinion,
    *  pain refresh), from the ledger's by_caller; null until the ledger carries a split for this host (the bots write
    *  it after their restart on engine d9575ff; a host with only the Validator's entries while its count is larger is
    *  not split yet either). */
   split: { bots: number; validator: number } | null;
 };
 export type IdleRow = { name: string; kind: "search" | "verifier" | "model" | "other"; lastUse: string | null; today: number | null; cap: string; note: string };
-/** A free limit beyond the models (creatorCC queue 304): hosting, the databases, file storage, training. Written hourly
+/** A free limit beyond the models: hosting, the databases, file storage, training. Written hourly
  *  by scripts/free-tiers.py (which alone calls the providers); "unknown" with the reason when the free plan gives no
  *  number. */
 export type OtherTier = { name: string; what: string; used: number | null; limit: number | null; unit: string; resets: string; status: "ok" | "near" | "over" | "unknown"; how: string };
@@ -42,7 +42,7 @@ export type Allowance = { at: string; day: string; chain: ChainRow[]; idle: Idle
 export const otherAlerts = (rows: OtherTier[]) =>
   rows.filter((r) => (r.status === "near" || r.status === "over") && r.used !== null && r.limit).map((r) => `${r.name} ${r.what} at ${Math.round(((r.used ?? 0) / (r.limit ?? 1)) * 100)}%`);
 
-// Token-bound tiers the config does not state yet (valiCC's queue 226 adds tokens_per_day / tokens_per_month to the
+// Token-bound tiers the config does not state yet (a later change adds tokens_per_day / tokens_per_month to the
 // provider tables; a value there wins). Groq: gpt-oss-120b's 200k tokens a day (its rate-limit headers). Gonka Broker:
 // about 1M tokens a month (freellm.net, the owner's key note). Ollama Cloud: a monthly cap whose size is not published.
 const TOKEN_TIERS: Record<string, { per: "day" | "month"; limit: number | null; note?: string }> = {
@@ -60,7 +60,7 @@ const KNOWN_HOSTS: Record<string, string> = {
 };
 // Key files that are not providers of free work, or not this page's business.
 const NOT_PROVIDERS = /^(portal-|peek-|cloudflare-r2$)/;
-// The keyed search engines (creatorCC queue 329, after valiCC's 274: engine 8720b69, fleet 8ffa3ff). Each engine's day
+// The keyed search engines. Each engine's day
 // counts are the sum of its usage files: Tavily's are The CEO's by hand and the Research Analyst's own daily share.
 const SEARCH: Record<string, { files: string[]; capKey: string; cap: number; capText?: string; note: string }> = {
   tavily: {
@@ -217,7 +217,7 @@ export function allowanceOf(
         ? `not answering since ${(health.firstFail ?? health.lastFail ?? "").slice(5, 16).replace("T", " ")}${health.reason ? ` (${health.reason})` : ""}`
         : `has never answered${health.reason ? ` (${health.reason})` : ""}`
       : "";
-    // a provider table's own `note` comes first (creatorCC queue 257: Mistral "1 a day until activated")
+    // a provider table's own `note` comes first (Mistral "1 a day until activated")
     const note = [p.note ?? "", deadNote || (p.note ? "" : (TOKEN_TIERS[name]?.note ?? ""))].filter(Boolean).join(" · ");
     return { name, host, calls, callsCap, tokens, tokenLimit, left: { calls: callsCap ? Math.max(0, callsCap - calls) : null, tokens: tokensLeft }, used, health, status, note, split: splitOf(input.calls.by_caller?.[host], calls) };
   });
@@ -284,7 +284,7 @@ export async function readAllowance(bots: string, now = new Date()): Promise<All
     readJson<{ at?: string; rows?: OtherTier[] }>(path.join(shared, "free-tiers.json"), {}),
     ...Object.values(SEARCH).map((s) => Promise.all(s.files.map((file) => readJson<Record<string, number>>(path.join(shared, file), {}))).then(mergeDays)),
   ]);
-  // the Validator's last tick, for the stale line above the allowance (creatorCC queue 315)
+  // the Validator's last tick, for the stale line above the allowance
   const tickAt = await readJson<{ at?: unknown }>(path.join(shared, "tick-report.json"), {}).then((d) => (typeof d.at === "string" ? d.at : null));
   // a planned pause (queue 371): the old tick is expected, the line says why
   // (loaded here, not at the top: the test runner loads this file without the server-side readers)

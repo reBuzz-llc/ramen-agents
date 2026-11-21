@@ -78,7 +78,7 @@ def test_task_missing_fields(ck):
 
 
 def test_task_assignee_not_on_team_and_past_deadline(ck):
-    t = task(assignee_ids=["f" * 32], assignee_names=["someone@x.com"], due="2026-09-01")
+    t = task(assignee_ids=["f" * 32], assignee_names=["someone@x.example"], due="2026-09-01")
     flags = check_task(ck, t, team=TEAM, min_details=300, duplicate_of=[], bot="the-ceo")
     assert rules_of(flags) == ["T11"]   # T03 retired 2026-09-28: any assignee or none
 
@@ -258,12 +258,12 @@ PACKAGES = ["Starter Standard", "Starter Plus", "Growth Plan"]
 
 
 def lead(**kw) -> LeadRow:
-    base = dict(page_id="c" * 32, url="http://127.0.0.1:3000/l", business="Acme Bakery", website="https://www.acmebakery.com",
-                email="hello@acmebakery.com", location="Northside, NY", industry="Food", company_size="10-20 staff",
+    base = dict(page_id="c" * 32, url="http://127.0.0.1:3000/l", business="Acme Bakery", website="https://www.acmebakery.example",
+                email="hello@acmebakery.example", location="Northside, NY", industry="Food", company_size="10-20 staff",
                 pain_point="Pain point: On their site: the online ordering page 404s; hiring a web developer per their careers page.\n"
                            "They can try: point the Order button at their online store until the page is fixed.\n"
                            "We propose: Growth Plan, priced after a short call.",
-                how_we_help="Growth Plan", evidence="https://www.acmebakery.com/careers", stage="New",
+                how_we_help="Growth Plan", evidence="https://www.acmebakery.example/careers", stage="New",
                 found_on="2026-09-22", source_pages="", found_by="Lead Gen", founded_by="Ada Okafor", created="2026-09-22T10:00:00.000Z", edited="")
     base.update(kw)
     return LeadRow(**base)
@@ -272,18 +272,18 @@ def lead(**kw) -> LeadRow:
 def test_good_lead_passes(ck):
     assert check_lead(ck, lead(), allowed_packages=PACKAGES, duplicate_of=[]) == []
     assert check_lead(ck, lead(evidence="https://boards.greenhouse.io/acmebakery/jobs/1"), allowed_packages=PACKAGES, duplicate_of=[]) == []
-    assert check_lead(ck, lead(email="ops@shop.acmebakery.com"), allowed_packages=PACKAGES, duplicate_of=[]) == []
+    assert check_lead(ck, lead(email="ops@shop.acmebakery.example"), allowed_packages=PACKAGES, duplicate_of=[]) == []
 
 
 def test_lead_defects(ck):
     assert check_lead(ck, lead(email="acmebakery@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[]) == []   # the business's own free-mail (owner, 2026-10-10)
     flags = check_lead(ck, lead(email="ada.okafor1990@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[])
     assert rules_of(flags) == ["LD01"] and "person's own mailbox" in flags[0].detail
-    flags = check_lead(ck, lead(email="hello@othersite.com", evidence="https://yelp.com/biz/acme", how_we_help="Consulting",
+    flags = check_lead(ck, lead(email="hello@othersite.example", evidence="https://yelp.com/biz/acme", how_we_help="Consulting",
                                 pain_point=""), allowed_packages=PACKAGES, duplicate_of=["Acme Bakery (old)"])
     assert rules_of(flags) == ["LD02", "LD03", "LD04", "LD21"]   # an empty Pain point is the Enricher's (2026-10-10); another domain is no longer LD01 (owner, 2026-09-30); LD09 checks it is on the site
     assert all(f.bot == "lead-gen" for f in flags)
-    flags = check_lead(ck, lead(pain_point="Pain point: Call the owner on +1 (212) 555-0100 or jane@acmebakery.com\nThey can try: list the menu.\nWe propose: Acme POS & Ordering."), allowed_packages=PACKAGES, duplicate_of=[])
+    flags = check_lead(ck, lead(pain_point="Pain point: Call the owner on +1 (212) 555-0100 or jane@acmebakery.example\nThey can try: list the menu.\nWe propose: Acme POS & Ordering."), allowed_packages=PACKAGES, duplicate_of=[])
     assert rules_of(flags) == ["LD05"] and flags[0].severity == "warn" and "phone" in flags[0].detail and "second email" in flags[0].detail
 
 
@@ -398,9 +398,9 @@ def test_rules_the_owners_hand_fixes_revealed(ck):
     """2026-09-25: the owner corrected by hand what the Validator had let through."""
     ok = lambda **kw: rules_of(check_lead(ck, lead(**kw), allowed_packages=PACKAGES, duplicate_of=[]))  # noqa: E731
     assert ok(source_pages="address published on the company's site\n") == ["LD12"]
-    assert ok(source_pages="https://www.acmebakery.com/contact\nhttps://www.acmebakery.com/about") == []
-    assert ok(email="press@acmebakery.com") == ["LD13"] and ok(email="marketing@acmebakery.com") == ["LD13"]
-    assert ok(email="hello@acmebakery.com") == []
+    assert ok(source_pages="https://www.acmebakery.example/contact\nhttps://www.acmebakery.example/about") == []
+    assert ok(email="press@acmebakery.example") == ["LD13"] and ok(email="marketing@acmebakery.example") == ["LD13"]
+    assert ok(email="hello@acmebakery.example") == []
     flags = check_lead(ck, lead(website="https://thebfa.org", email="press@thebfa.org", evidence="https://www.thebfa.org/contact-us/"),
                        allowed_packages=PACKAGES, duplicate_of=[])
     assert "LD14" in rules_of(flags) and "association" in next(f for f in flags if f.rule == "LD14").detail
@@ -618,7 +618,7 @@ def test_a_business_with_no_website_is_a_lead(ck):
     assert free_mail_issue("jordan.smith1987@gmail.com", "Joe's Pizza")
     assert free_mail_issue("michael.chen@gmail.com", "Joe's Pizza")          # "hi" inside a name is not a business word
     assert lead_key({"website": "", "business": "Joe's Pizza", "city": "Queens"}) == "name:joespizza|queens"
-    assert lead_key({"website": "https://www.joes.com/menu", "business": "Joe's Pizza"}) == "joes.com"
+    assert lead_key({"website": "https://www.joes.example/menu", "business": "Joe's Pizza"}) == "joes.example"
 
 
 def test_a_whatsapp_draft_and_a_map_link(monkeypatch):
@@ -681,7 +681,7 @@ def test_a_contact_role():
 
 def test_a_draft_flag_follows_the_roster(ck, monkeypatch):
     """A flag on a Draft email goes to the Outreach Writer only when the roster has one; the starter ships none, so a
-    person's draft is flagged to the team ("owner"), never to a member that is not in the roster (creatorCC, 11-17)."""
+    person's draft is flagged to the team ("owner"), never to a member that is not in the roster (11-17)."""
     import family
     row = lead(draft_email="Hi Bob,\n\nA short note about your ordering page.\n\nRegards,\n-- Acme LLC")
     monkeypatch.setattr(family, "FAMILY", dict(family._FALLBACK))

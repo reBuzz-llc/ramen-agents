@@ -13,7 +13,7 @@ import SectionEdit from "./section-edit";
 export const metadata = { title: "Personas · Settings" };
 export const dynamic = "force-dynamic";
 
-// Settings -> Personas (owner via creatorCC, queue 489: "where do I see the persona?"): pick a member (running first), read
+// Settings -> Personas: pick a member (running first), read
 // its persona.md by section, each marked as the owner's or as one the CEO may edit (common-data/persona-sections.toml),
 // the CEO's persona changes of the last 7 days with Undo, and Edit on the owner's own sections.
 /** A week ago, local time as the change records write it (outside render: the purity rule). */

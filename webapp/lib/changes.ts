@@ -46,8 +46,8 @@ export async function readChanges(days = 14): Promise<Change[]> {
 const ENGINE = process.env.BOT_CODE_ROOT ?? path.join(homedir(), "Projects", "bot");
 const TICK = path.join(BOTS_DIR, "common-data", "shared-state", "tick-report.json");
 
-/** The change markers under the Checks bars (creatorCC queue 377): the engine's commits, each bot's last restart (the
- *  tick report), and the shared change log's notes (valiCC appends its fixes there again), newest first. */
+/** The change markers under the Checks bars: the engine's commits, each bot's last restart (the
+ *  tick report), and the shared change log's notes, newest first. */
 export async function readMarkers(days = 14): Promise<Marker[]> {
   const [notes, engine, tick] = await Promise.all([
     readChanges(days),

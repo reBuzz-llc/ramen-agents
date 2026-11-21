@@ -1,5 +1,5 @@
 // The Validator's tick report (common-data/shared-state/tick-report.json, written every few minutes) as a heartbeat for
-// the provider pages (creatorCC queue 315: on 11-06 it stopped for an hour and nobody saw). Its "at" is local time
+// the provider pages (on 11-06 it stopped for an hour and nobody saw). Its "at" is local time
 // without a zone, as the Validator writes it. Pure (no imports), so client components and Node's test runner can load it;
 // lib/tick-read.ts reads the file.
 /** Older than this, the line turns red. */

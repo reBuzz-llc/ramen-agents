@@ -7,7 +7,7 @@ import path from "node:path";
 import { filterGlossary, parseGlossary } from "../lib/glossary.ts";
 
 const RAW = {
-  _note: "kept by creatorCC", updated: "2026-11-12",
+  _note: "kept by the maintainers", updated: "2026-11-12",
   sections: [
     { title: "The engine", items: [{ term: "Ramen", what: "the engine every agent runs on (was Explorer)", since: "2026-11-12" }, { term: "", what: "no term" }] },
     { title: "Rhythms", items: [{ term: "the tick", what: "the Validator's report every 10 to 30 minutes" }, { term: "Café hour", what: "a made-up entry with an accent" }] },

@@ -1,4 +1,4 @@
-// Which of the world's sounds plays when (creatorCC queue 59; owner: "almost none"). The pure rules, for the tests: an
+// Which of the world's sounds plays when. The pure rules, for the tests: an
 // event's cue, the caps (a refusal's thud at most once a minute), the ambient one-shot every 90-120 s (a bird call or a
 // water lap, never the same twice in a row), and arming the audio on the first click or key after a reload. The sounds
 // themselves are in app/world-sound.ts, which keeps the 0.7 s gap and suspends the context between them.

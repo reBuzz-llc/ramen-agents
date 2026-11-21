@@ -1,4 +1,4 @@
-// A planned pause of the family (creatorCC queue 371): one calm line, and the red lines it explains stay quiet.
+// A planned pause of the family: one calm line, and the red lines it explains stay quiet.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 // @ts-ignore TS5097
@@ -12,10 +12,10 @@ test("the Validator's pause file gives the window", () => {
 });
 
 test("a STOP line alone is enough, its 'back by' time the end; other STOPs are not a trial", () => {
-  assert.equal(trialOf(null, ["", "valiCC: judge trial, back by 03:15"], { now: new Date(2026, 10, 10, 2, 30).getTime() })?.line, "Judge trial running until 03:15: the family and the Validator are paused on purpose");
+  assert.equal(trialOf(null, ["", "maintainer: judge trial, back by 03:15"], { now: new Date(2026, 10, 10, 2, 30).getTime() })?.line, "Judge trial running until 03:15: the family and the Validator are paused on purpose");
   assert.equal(trialOf(null, ["owner stopped it 11-06", ""]), null);
   assert.equal(trialOf(null, []), null);
-  assert.ok(TRIAL_PREFIX.startsWith("valiCC"));
+  assert.ok(TRIAL_PREFIX.startsWith("maintainer"));
 });
 
 test("an unreadable pause file still counts: the file is there", () => {
@@ -45,7 +45,7 @@ test("after the end plus 30 minutes the pause explains nothing: a crashed trial 
   assert.ok(trialOf(file, [], { now: t(3, 40) }));
   assert.equal(trialOf(file, [], { now: t(3, 46) }), null);
   // a bare "back by 03:15" is the first 03:15 after the STOP was written (22:50 the evening before)
-  const stops = ["valiCC: judge trial, back by 03:15"];
+  const stops = ["maintainer: judge trial, back by 03:15"];
   const written = new Date(2026, 10, 9, 22, 50).getTime();
   assert.ok(trialOf(null, stops, { now: new Date(2026, 10, 9, 23, 30).getTime(), stopAt: [written] }));
   assert.ok(trialOf(null, stops, { now: t(3, 44), stopAt: [written] }));

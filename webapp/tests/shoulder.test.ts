@@ -1,4 +1,4 @@
-// Run: npm test. Over the shoulder (creatorCC queue 22, 2026-10-31): the screenshot only while fresh, the page from the
+// Run: npm test. Over the shoulder (2026-10-31): the screenshot only while fresh, the page from the
 // newest trace, the last 20 actions with their verdicts, on fixtures.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,11 +18,11 @@ const PROMPT = [
   "Title: Meet Our Members",
   "Already noted: no.",
   "Text:",
-  "4223 1st Avenue, Brooklyn",
+  "100 Sample Street, Brooklyn",
   "",
   "",
   "",
-  "Phone: 718-965-3100",
+  "Phone: 718-555-0130",
   "",
   "## Your move",
   "Reply with JSON.",
@@ -33,7 +33,7 @@ test("trace page: URL, domain, title and the text the bot read; none without a p
     url: "https://www.sbidc.org/meet-our-members",
     domain: "sbidc.org",
     title: "Meet Our Members",
-    text: "4223 1st Avenue, Brooklyn\n\nPhone: 718-965-3100",
+    text: "100 Sample Street, Brooklyn\n\nPhone: 718-555-0130",
   });
   assert.equal(tracePage("## Your state\n## Current page\nURL: (none)\n## Your move"), null);
   assert.equal(tracePage("no page at all"), null);

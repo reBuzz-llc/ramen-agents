@@ -1,4 +1,4 @@
-// The family's names (creatorCC queue 488): every made-up name, "what is called what and who is who", kept by creatorCC in
+// The family's names: every made-up name, "what is called what and who is who", kept by the maintainers in
 // common-data/glossary.json ({_note, updated, sections: [{title, items: [{term, what, since?}]}]}); Settings -> Glossary
 // shows it read-only with a search across the sections. Pure (the browser's search uses it); the page reads the file.
 // Self-contained for the node tests.

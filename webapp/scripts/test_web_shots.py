@@ -1,4 +1,4 @@
-"""Tests for scripts/web-shots.py's rules (creatorCC queue 41): the ring name with the address hash, one attempt per
+"""Tests for scripts/web-shots.py's rules: the ring name with the address hash, one attempt per
 address a day, and pages that land on a login, consent or captcha page discarded.
     ~/Projects/bot/.venv/bin/python -m unittest scripts/test_web_shots.py   (npm run test:web-shots)"""
 import importlib.util

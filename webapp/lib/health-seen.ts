@@ -1,4 +1,4 @@
-// "Seen" on the health banner (creatorCC queue 54; owner, 10-31: "cannot interact with this, cannot clear it as a
+// "Seen" on the health banner (owner, 10-31: "cannot interact with this, cannot clear it as a
 // user"): each line gets a Seen button; Seen writes {id, text, seen_at} to shared-state/health-seen.json, and the line
 // stays hidden until its fact changes. The id is a hash of the fact (the issue's key and since: a new reboot time, a new
 // outage start, another idle bot or a later Validator failure is a new fact), never its words. Two tabs may write at

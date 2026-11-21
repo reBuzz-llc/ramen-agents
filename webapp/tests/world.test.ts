@@ -1,4 +1,4 @@
-// Run: npm test. The office world's pure parts on a fixture board (creatorCC queue 17, 2026-10-30): what each state
+// Run: npm test. The office world's pure parts on a fixture board (2026-10-30): what each state
 // looks like, the dialogue box, the speech bubble a new action brings, the walks between spots and each member's look.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -144,7 +144,7 @@ test("screen (queue 37): what the big screen shows for a page, a search, a docum
   assert.deepEqual(screenFor(card(open) as never), { mode: "web", name: "Lead Gen", word: "working", tone: "good", lines: ["tarynbrows.com", "Taryn Brows | Brooklyn"], foot: "3 leads · 25% refused", share: 0.25, four: [], mark: "web" });
   assert.deepEqual(screenFor(card(search, "searched 'nyc florists'") as never).lines, ["search: nyc florists"]);
   assert.deepEqual(screenFor(card({ kind: "doc", domain: "", title: "Pricing in Brooklyn" }, "wrote note 'Pricing in Brooklyn'") as never).lines, ["wrote note 'Pricing in Brooklyn'"]);
-  // the owner's four lines (creatorCC queue 233): output and goal, the item it is on, provider and freshness, the window
+  // the owner's four lines: output and goal, the item it is on, provider and freshness, the window
   const facts = { item: "Fiesta Lounge · Draft email", modelAgo: "2 min ago", model: { label: "api.z.ai/glm-4.5-flash", ts: "" }, window: { allowed: 9, total: 15 }, goal: 10, output: { label: "draft", today: 7 } };
   const writer = screenFor({ ...card(open), ...facts } as never);
   assert.deepEqual([writer.four, writer.mark], [["7 drafts today", "Fiesta Lounge · Draft email", "z.ai · 2m", "9/15 ok · 30m"], ""]);

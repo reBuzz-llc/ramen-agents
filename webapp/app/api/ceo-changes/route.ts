@@ -2,7 +2,7 @@ import { undo } from "@/lib/ceo-changes";
 import { currentIdentity } from "@/lib/identity";
 import { sameOrigin } from "@/lib/same-origin";
 
-// Undo one of The CEO's own changes: POST {id} (valiCC queue 411). Writes `before` back to work-plan.json or
+// Undo one of The CEO's own changes: POST {id}. Writes `before` back to work-plan.json or
 // daily-goals.json when the live value is still the change's `after`, then marks the record undone (undone_at,
 // undone_by = who is signed in). 409 with "changed since: undo it by hand" when it is not. Only this app's own page.
 export async function POST(req: Request) {

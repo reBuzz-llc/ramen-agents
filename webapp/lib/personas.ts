@@ -1,4 +1,4 @@
-// Settings -> Personas (owner via creatorCC, queue 489: "where do I see the persona?"): a member's persona.md by section,
+// Settings -> Personas: a member's persona.md by section,
 // each heading marked as the owner's or as one the CEO may edit (common-data/persona-sections.toml, an allow list; the
 // CEO's own persona and the Validator's are all the owner's). The owner edits an owner section here: the section is
 // written under persona.md.lock (tmp + rename, lib/ceo-changes.ts writeSection) and the Validator's record of the

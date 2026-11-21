@@ -1,10 +1,10 @@
-// A planned pause of the whole family (creatorCC queue 371, 2026-11-09: tonight's judge trial): valiCC pauses the bots
-// with STOP lines "valiCC: judge trial, back by 03:15" and the Validator with validator/workspace/PAUSE, and writes
+// A planned pause of the whole family (a judge trial): the maintainers pause the bots
+// with STOP lines "maintainer: judge trial, back by 03:15" and the Validator with validator/workspace/PAUSE, and writes
 // common-data/shared-state/validator-paused.json {from, to, reason}. While that file exists, or any bot's STOP starts
-// with "valiCC: judge trial", the world and the list view show one calm line, and the red "stale tick", "Validator has
+// with "maintainer: judge trial", the world and the list view show one calm line, and the red "stale tick", "Validator has
 // not run" and "no accepted action" lines stay quiet: the pause is on purpose. Pure (no imports), for the tests.
-export const TRIAL_PREFIX = "valiCC: judge trial";
-/** After the trial's end ("to", or "back by") plus this, the pause no longer explains anything (creatorCC queue 372): the
+export const TRIAL_PREFIX = "maintainer: judge trial";
+/** After the trial's end ("to", or "back by") plus this, the pause no longer explains anything: the
  *  calm line goes and the red lines come back, even if the file or a STOP was left behind by a crashed trial. */
 export const TRIAL_GRACE_MIN = 30;
 /** A pause with no end time at all counts for this long after it was written. */

@@ -1,5 +1,5 @@
-// Run: npm test. The Work plan's stopped toggle split, the #fragment and the past-job line (creatorCC
-// queue 20, 2026-10-30).
+// Run: npm test. The Work plan's stopped toggle split, the #fragment and the past-job line
+// (2026-10-30).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

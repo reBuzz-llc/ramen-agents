@@ -1,4 +1,4 @@
-// Run: npm test. "Seen" on the health banner (creatorCC queue 54): a seen line stays hidden until its fact changes;
+// Run: npm test. "Seen" on the health banner: a seen line stays hidden until its fact changes;
 // the reboot line says what it was when a panic report exists.
 import { test } from "node:test";
 import assert from "node:assert/strict";

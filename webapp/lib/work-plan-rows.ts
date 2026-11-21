@@ -1,4 +1,4 @@
-// The Work plan's compact rows (creatorCC queue 20, 2026-10-30, owner: "the Work plan page is too long"): cards for the
+// The Work plan's compact rows (2026-10-30, owner: "the Work plan page is too long"): cards for the
 // running bots; stopped bots behind a toggle; past jobs one line each on their own tab. The pure parts, for the
 // tests. Type imports only.
 import type { PastJob } from "./work-plan";
@@ -39,7 +39,7 @@ export function pastLine(j: Pick<PastJob, "name" | "task" | "started" | "ended" 
   return { bot: j.name, task: j.task || "(untitled job)", when, ended: ending(j.status), active };
 }
 
-// A card with no plan in hand (creatorCC queue 56; owner, 18:50: "Enricher, Analyst and Scout show no checklist"): the
+// A card with no plan in hand: the
 // last ended plan, greyed, under a one-line header from the board. Never an empty box.
 export type EndedPlan = { task: string; status: string; ended: string | null; note: string; steps: { text: string; done: boolean }[] };
 

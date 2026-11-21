@@ -8,8 +8,8 @@ import GlossaryView from "./glossary-view";
 export const metadata = { title: "Glossary · Settings" };
 export const dynamic = "force-dynamic";
 
-// Settings -> Glossary (owner via creatorCC, queue 488): what is called what and who is who in the family, read-only from
-// creatorCC's common-data/glossary.json.
+// Settings -> Glossary: what is called what and who is who in the family, read-only from
+// The maintainers' common-data/glossary.json.
 export default async function GlossaryPage() {
   const g = await readFile(/*turbopackIgnore: true*/ path.join(BOTS_DIR, "common-data", "glossary.json"), "utf8")
     .then((t) => parseGlossary(JSON.parse(t)))

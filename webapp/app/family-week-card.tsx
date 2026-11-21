@@ -1,7 +1,7 @@
 import { BOTS_DIR } from "@/lib/bots";
 import { readFamilyWeek } from "@/lib/family-week";
 
-/** "This week in the family" (creatorCC queue 381): the newest Sunday post, under the world and the list view. */
+/** "This week in the family": the newest Sunday post, under the world and the list view. */
 export default async function FamilyWeekCard() {
   const w = await readFamilyWeek(BOTS_DIR);
   return (

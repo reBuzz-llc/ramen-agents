@@ -1,4 +1,4 @@
-// The owner's open items in the Decisions box (creatorCC queue 401): the read and the Done write.
+// The owner's open items in the Decisions box: the read and the Done write.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, stat, writeFile, mkdir } from "node:fs/promises";

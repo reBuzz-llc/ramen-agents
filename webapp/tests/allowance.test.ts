@@ -1,4 +1,4 @@
-// Run: npm test. The Allowance list (creatorCC queue 230): the chain's use against each free tier, and the keys out of it.
+// Run: npm test. The Allowance list: the chain's use against each free tier, and the keys out of it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097
@@ -74,7 +74,7 @@ test("keys out of the chain: searches and verifiers with their counts, models wi
   assert.equal(by("openai").cap, "paid key, in no chain");
 });
 
-test("a provider table's note shows first, with the dead line after it (creatorCC queue 257)", () => {
+test("a provider table's note shows first, with the dead line after it", () => {
   const config = CONFIG.replace('provider_chain = ["zai",', 'provider_chain = ["mistral", "zai",') +
     `[model.providers.mistral]\nbase_url = "https://api.mistral.ai/v1"\ncalls_per_day = 1\nnote = "1 a day until activated"\n`;
   const calls = { ...CALLS, counts: { ...CALLS.counts, "api.mistral.ai": 1 },

@@ -69,7 +69,7 @@ test("periods: days for a month, weeks from Monday for 3 months and a quarter, m
 test("a report adds up the period's days and names how many were recorded", () => {
   const day = (tokens: number, calls: number) => ({ hosts: { gemini: { calls, tokens } }, bots: { Scout: tokens }, searches: { tavily: 1 }, recordedAt: "" });
   const h: UsageHistory = { version: 1, since: "2026-10-30", days: { "2026-10-30": day(500, 5), "2026-11-02": day(100, 1), "2026-11-05": day(50, 2) } };
-  const checks = { "a@x.com": { at: "2026-11-03T10:00:00" }, "b@x.com": { at: "2026-10-01T10:00:00" }, "c@x.com": { at: "2026-11-04T10:00:00", by: "sniffmail" } };
+  const checks = { "a@x.example": { at: "2026-11-03T10:00:00" }, "b@x.example": { at: "2026-10-01T10:00:00" }, "c@x.example": { at: "2026-11-04T10:00:00", by: "sniffmail" } };
   const r = usageReport(h, checks, "month", "2026-11-05");
   assert.deepEqual(r.totals, { calls: 3, tokens: 150, searches: { tavily: 2 }, emailChecks: 1 });
   assert.deepEqual([r.daysRecorded, r.daysInPeriod, r.since], [2, 5, "2026-10-30"]);

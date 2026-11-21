@@ -99,7 +99,7 @@ def test_fleet_notices_are_not_asks(tmp_path):
     held three 30-hour-old 'the owner dropped a file for you' notices to Lead Gen)."""
     p = record(tmp_path, [
         ask(1, "Package Designer", "Lead Gen", "the owner dropped a file for you: leads.csv (CSV, 32 KB)", 30),
-        ask(2, "Lead Gen", "The CEO", "new lead \"Main Street Hardware\" (https://mainstreethardwarespf.com): old site", 30),
+        ask(2, "Lead Gen", "The CEO", "new lead \"Main Street Hardware\" (https://mainstreethardware.example): old site", 30),
         ask(3, "Lead Gen", "Validator", "done: Main Street Hardware: Founded by; could not find: Location", 30),
         ask(4, "The CEO", "Package Designer", "Processed the file as instructed. Drafted cold emails.", 30, priority=False),
     ])

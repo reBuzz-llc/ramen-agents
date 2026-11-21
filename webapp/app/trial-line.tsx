@@ -1,6 +1,6 @@
 import { readTrial } from "@/lib/trial-read";
 
-/** One calm line while a planned pause runs (creatorCC queue 371): under the world and the list view. */
+/** One calm line while a planned pause runs: under the world and the list view. */
 export default async function TrialLine({ className = "" }: { className?: string }) {
   const trial = await readTrial().catch(() => null);
   if (!trial) return null;

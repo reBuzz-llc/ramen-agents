@@ -758,7 +758,7 @@ function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
 const pctOf = (d: RefusalDay) => rateOf(d);
 const BRAND = "#ff6600";
 
-/** Refused / all actions per agent (creatorCC queue 377): today and seven days against the 20 % target; one 100 % bar per
+/** Refused / all actions per agent: today and seven days against the 20 % target; one 100 % bar per
  * day stacked by kind (refused red at the bottom, failed outlined, held grey, closed hatched, fence light, accepted
  * green); a day under 30 actions dimmed and hatched with its count; an empty outline for a day without actions; the
  * top reasons in plain words, a tap opening their last three cases; a source that cannot be read or is stale says so. */

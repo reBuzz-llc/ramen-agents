@@ -1,4 +1,4 @@
-// The CEO's own changes in the Decisions box (valiCC queue 411): the read, the line, and Undo for each kind, with the
+// The CEO's own changes in the Decisions box: the read, the line, and Undo for each kind, with the
 // "changed since" refusal, the seven days, the indents, the lock and the record's undone fields.
 import { test } from "node:test";
 import assert from "node:assert/strict";

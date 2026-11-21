@@ -1,11 +1,11 @@
-// Decisions waiting for the owner (creatorCC queue 32, 2026-10-31; was a read-only owner-decisions.md since queue 9):
+// Decisions waiting for the owner (2026-10-31; was a read-only owner-decisions.md since queue 9):
 //   common-data/shared-state/owner-decisions.json = {version, items: [{id, since, text, options: [...], link?: {label,
-//   href}, status: open | done | later | decided, choice?, note?, decided_at?, wake?}]}; creatorCC's items may instead
+//   href}, status: open | done | later | decided, choice?, note?, decided_at?, wake?}]}; the maintainers' items may instead
 //   carry {ts, from, title, status: open | answered, answer?, answered_at?} (read as since, text, decided, choice).
-// creatorCC adds items; the owner answers on the dashboard, one click per item: one of its options (status "decided",
+// The maintainers add items; the owner answers on the dashboard, one click per item: one of its options (status "decided",
 // choice), Done, or Later (status "later", wake = three days on; the item shows again from then). Each answer sets
 // status, choice, note and decided_at in the file and appends the record to shared-state/owner-decisions-log.jsonl,
-// which creatorCC reads on every loop tick. Two writers share the file, so every read-modify-write holds the lock
+// which the maintainers read on every loop tick. Two writers share the file, so every read-modify-write holds the lock
 // directory "owner-decisions.json.lock", as the CEO proposals do (a lock older than 30 s is broken). Unknown fields
 // are kept. Node imports only, so the test runs with Node's own runner.
 import { appendFile, mkdir, readFile, rename, rmdir, stat, writeFile } from "node:fs/promises";
@@ -41,7 +41,7 @@ function localIso(ms: number): string {
 }
 
 /** One item, in either shape the file holds: the dashboard's {since, text, status decided, choice, decided_at} or
- *  creatorCC's {ts, from, title, status answered, answer, answered_at} (queue 284: its open items had no "text" and were
+ *  the maintainers' {ts, from, title, status answered, answer, answered_at} (its open items had no "text" and were
  *  left out). An answered item reads as decided, with its answer as the choice. */
 function parseOne(raw: unknown): Decision | null {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;

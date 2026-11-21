@@ -15,7 +15,7 @@ export const STATE_MAX_AGE_MS = 15_000;
 
 // ---- masking ------------------------------------------------------------------------------------------------------------
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
-// any host name: words joined by dots ending in two or more letters ("cobot.com", "blckalpaca.at"), except file names
+// any host name: words joined by dots ending in two or more letters ("cobot.example", "blckalpaca.at"), except file names
 const URL_RE = /\bhttps?:\/\/\S+|\bwww\.\S+|\b(?:[a-z0-9-]+\.)+(?!(?:json|jsonl|md|py|ts|tsx|js|mjs|txt|csv|toml|png|jpe?g|pdf|html?|log|db|sqlite)\b)[a-z]{2,}\b(?:\/\S*)?/gi;
 const MODEL = /\bapi\.(?:[a-z0-9-]+\.)+[a-z]{2,}\/([\w.:-]+)/gi;
 const PHONE = /\+?\d[\d ()./-]{7,}\d/g;

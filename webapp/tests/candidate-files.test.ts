@@ -1,4 +1,4 @@
-// Lead Gen's candidate lists with the midday batch (creatorCC queue 444): both batches of a day are read and a day counts once.
+// Lead Gen's candidate lists with the midday batch: both batches of a day are read and a day counts once.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-expect-error TS5097

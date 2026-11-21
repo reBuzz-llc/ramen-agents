@@ -1,4 +1,4 @@
-// The owner's private chat with one agent (creatorCC queue 34; owner, 10-31: "old chat was too busy; create a new one
+// The owner's private chat with one agent (owner, 10-31: "old chat was too busy; create a new one
 // with minimal msgs"): only what the owner wrote to this agent and what it wrote back.
 //   common-data/shared-state/owner-chat/<slug>.jsonl, one line per message {ts, from: "Owner" | "<bot name>", text}.
 //   This app appends the owner's lines; the engine appends the bot's replies (its `message` action to "Owner").

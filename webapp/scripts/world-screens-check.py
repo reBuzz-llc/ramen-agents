@@ -1,6 +1,6 @@
-"""The world's HTML screens in a real browser (creatorCC queue 258): at 1280, 1024 and 390 px wide, every member has a
+"""The world's HTML screens in a real browser: at 1280, 1024 and 390 px wide, every member has a
 screen box, no screen text is under 13 px, the page never scrolls sideways, and a click on a box opens the member's
-dialogue. The full form (creatorCC queue 287) shows the header line over an activity feed that scrolls inside the box
+dialogue. The full form shows the header line over an activity feed that scrolls inside the box
 (the box keeps its height), and no screen carries the guards any more (no "% refused", no "ok · 30m"). Against a
 running dashboard:
 

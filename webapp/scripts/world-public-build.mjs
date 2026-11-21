@@ -1,4 +1,4 @@
-// Builds the public world (creatorCC queue 376) into one self-contained page, dist/world-public/index.html: the
+// Builds the public world into one self-contained page, dist/world-public/index.html: the
 // dashboard's world code bundled by esbuild with a few modules swapped for the read-only ones in world-public/, and the
 // dashboard's Tailwind CSS, both inlined. scripts/world-public.ts serves it at GET /; nothing else is served.
 //   node scripts/world-public-build.mjs

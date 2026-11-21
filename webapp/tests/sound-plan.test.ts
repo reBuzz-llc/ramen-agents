@@ -1,4 +1,4 @@
-// Run: npm test. Which of the world's sounds plays when (creatorCC queue 59).
+// Run: npm test. Which of the world's sounds plays when.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore TS5097

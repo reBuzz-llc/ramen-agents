@@ -1,4 +1,4 @@
-// Server-side only: the live family board's data (creatorCC queue 16), polled by the home page every 12 s. Each refresh
+// Server-side only: the live family board's data, polled by the home page every 12 s. Each refresh
 // reads every running bot's own files (lib/board.ts: one sqlite3 spawn, a 256 KB log tail and three small files per
 // bot); the result is shared for 5 s so several open tabs cost one read. The team line comes from the Leads board,
 // which is slow cold: its last value is served at once and refreshed in the background.
@@ -22,7 +22,7 @@ import { describe, readBoard as readProposals } from "./ceo-proposals";
 
 // retired: the owner retired it (RETIRED.md in its folder, no launch agents): drawn on its own mat, "Bring back".
 /** `reason`: the first line of the STOP file, when a script wrote one (restart-bot.sh for a migration, e.g. "migration:
- *  tasks move, creatorCC, back in ~20 min"); the owner's own Stop writes an empty file. */
+ *  tasks move, maintainer, back in ~20 min"); the owner's own Stop writes an empty file. */
 // by: whose STOP it is (the owner's from the dashboard starts "Owner: ", queue 238; anything else is a script's), at: the
 // STOP file's time (HH:MM), reason: its first line without the "Owner: "
 export type Stopped = { slug: string; name: string; since: string; retired?: boolean; reason?: string; by?: "owner" | "script"; at?: string };
@@ -30,7 +30,7 @@ export type Stopped = { slug: string; name: string; since: string; retired?: boo
 // week: the Validator's shared-state/team-numbers.json (drafts waiting, Email Sent and replies this week), for the
 // world's mailbox; counts: the decisions and open CEO proposals, for its bulletin board.
 export type Week = { drafts: number; sent: number; replies: number; at: string } | null;
-// The character's "7 days" tab (creatorCC queue 18: the Family review's numbers, moved into the world): accepted
+// The character's "7 days" tab (the Family review's numbers, moved into the world): accepted
 // outputs by type, actions, refused share, crashes and the last output of its own kind. From familyReview() (60 s cache).
 export type Week7 = {
   actions: number;
@@ -51,7 +51,7 @@ export type Board = {
   okr: Okr | null;
   week: Week;
   counts: { decisions: number; proposals: number; requests: number };
-  // The bulletin board's prompts (creatorCC queue 22): the open CEO proposals, answered there with Yes / No, and the
+  // The bulletin board's prompts: the open CEO proposals, answered there with Yes / No, and the
   // owner's open decisions, answered there with their options, Done or Later (queue 32).
   proposals: { id: string; bot: string; change: string; reason: string; metric: string; expected: string; validator: string }[];
   decisions: BoardDecision[];

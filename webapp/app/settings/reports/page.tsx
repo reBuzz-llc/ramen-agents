@@ -12,7 +12,7 @@ import SortableTable from "../../sortable-table";
 export const metadata = { title: "Reports · Settings" };
 export const dynamic = "force-dynamic";
 
-// Read-only (creatorCC queue 18): the team's numbers with this week's key results, then the Validator's refusal report
+// Read-only: the team's numbers with this week's key results, then the Validator's refusal report
 // and its near-duplicate packages (queue 31: off the home page), then the clean-up inventory (#cleanup, the target of
 // the owner's clean-up decision), as their files have them. The Family review page that used to show them is gone.
 const SHARED = path.join(BOTS_DIR, "common-data", "shared-state");

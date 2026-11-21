@@ -1,4 +1,4 @@
-// "This week in the family" on the dashboard's home (owner, 2026-11-09, creatorCC queue 381): the newest entry of
+// "This week in the family" on the dashboard's home: the newest entry of
 // blog/content/family-weeks.json (written on Sundays) with its link to the public post, the same card the portal's Family page
 // shows. weekOf is pure, for the tests; readFamilyWeek reads the file.
 import { readFile } from "node:fs/promises";

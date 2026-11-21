@@ -1,4 +1,4 @@
-"""Pictures for the floating screens (creatorCC queue 41): render the family's recent valid pages on this Mac.
+"""Pictures for the floating screens: render the family's recent valid pages on this Mac.
 
 The bots read pages with the light browser (plain HTTP to text), so they almost never leave a screenshot. This renders
 each page in /api/web's recent_pages (already the validity-filtered list: allowed, titled, 500+ characters, not

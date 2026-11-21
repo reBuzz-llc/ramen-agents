@@ -1,4 +1,4 @@
-// The home page's office world (creatorCC queue 17, 2026-10-30, owner: "a 2D world, the agents as pixel characters,
+// The home page's office world (2026-10-30, owner: "a 2D world, the agents as pixel characters,
 // with a window that shows what each one is working on"). The pure parts, kept apart from the canvas so the tests run
 // with Node's own runner: what each state looks like, where everything stands in the room, the paths between, the
 // dialogue box's lines, the speech bubbles a poll brings, and each member's look (the same everywhere it is drawn).
@@ -369,7 +369,7 @@ const capital = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 /** A thought over a member for 3 s after its action (queue 40; the speech bubble of its last words before). */
 export type Bubble = { slug: string; text: string; until: number };
 
-/** The "7 days" tab of a member's text box (creatorCC queue 18: the Family review's numbers): actions and refused share,
+/** The "7 days" tab of a member's text box (the Family review's numbers): actions and refused share,
  *  accepted outputs by type, crashes, and how long since its last output of its own kind ("late" when overdue). */
 type Week7Like = {
   actions: number;
@@ -455,7 +455,7 @@ export type BigScreen = {
   lines: string[];
   foot: string;
   share: number | null;
-  /** The owner's four lines (creatorCC queue 233): output against the goal, the item it is on, the provider and its
+  /** The owner's four lines: output against the goal, the item it is on, the provider and its
    *  freshness, the last 30 minutes' allowed actions. Empty for a card without those facts (tests, older data). */
   four: string[];
   /** The orange square before line 2: it names a page ("web") or a search. */
@@ -529,7 +529,7 @@ export function screenFor(c: ScreenCard, o: { compact?: boolean; noise?: boolean
 /** Today's output as a plain count: "148 drafts today", "1 action today" (no "/goal" since the owner lifted the limits). */
 const madeToday = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"} today`;
 
-/** The member's screen (creatorCC queue 287, the owner: "about the work, not the guards"): the header line (today's
+/** The member's screen (the owner: "about the work, not the guards"): the header line (today's
  *  output against the goal, as line 1 was), then a feed of what it is doing, newest first: a first line "resting until
  *  HH:MM · why" (any state other than working) or "stuck: <the last refusal's reason>" (three refusals in a row), then
  *  its newest allowed actions with their times; page and search lines carry the orange square. The refused share, the
@@ -551,7 +551,7 @@ export function screenFeed(
   return { head, lines };
 }
 
-// ---- Polish (creatorCC queue 22, commit 2) ----
+// ---- Polish (commit 2) ----
 
 export type DayPhase = { phase: "night" | "dawn" | "day" | "dusk"; sky: string; glow: string; dark: number; lamps: boolean };
 
@@ -620,7 +620,7 @@ export function idleOf(slug: string, t: number): Idle {
   return IDLES[Math.floor((t + (h % period)) / period + h) % IDLES.length];
 }
 
-// ---- The owner's controls (creatorCC queue 23): what the text box asks before it acts ----
+// ---- The owner's controls: what the text box asks before it acts ----
 export type Action = "pause" | "resume" | "stop" | "start" | "bringback";
 export type PauseFor = "30m" | "2h" | "tomorrow";
 
@@ -634,7 +634,7 @@ export function confirmText(action: Action, name: string, choice?: PauseFor): st
 }
 
 
-// ---- The member panel (creatorCC queues 24, 25): on desktop right of the room, on a phone under it; no pop-ups ----
+// ---- The member panel (25): on desktop right of the room, on a phone under it; no pop-ups ----
 export type PanelTab = "info" | "screen" | "feed" | "chat";
 export type Panel = { open: boolean; tab: PanelTab };
 type PanelEvent = "member" | "screen" | "terminal" | "next" | "close" | "expand";
@@ -670,7 +670,7 @@ export function saveTab(t: PanelTab) {
   }
 }
 
-// ---- The room's simulation (creatorCC queue 27, 2026-10-31 overnight) ----
+// ---- The room's simulation (2026-10-31 overnight) ----
 // The characters' state machine as it runs, kept apart from the canvas so a recorded day can be replayed through it:
 //   poll (every 12 s, simPoll): each bot is "run" (a card) or "stop" (asleep under the tree). A change counts only when
 //     two polls in a row agree, so one flicker in the data never flips the scene. Its animation (animOf of its state
@@ -1007,7 +1007,7 @@ export const CAROUSEL: { left: Rect; centre: Rect; right: Rect } = {
   centre: { x: 92, y: 3, w: 100, h: 56 },
   right: { x: 200, y: 12, w: 62, h: 36 },
 };
-/** The range must stay visible (owner via creatorCC, 2026-11-02, after the mountain band): while nobody hovers the sky,
+/** The range must stay visible: while nobody hovers the sky,
  *  only the centre page shows, a third of its width at 40 %, in the clear sky right of the third peak (x 205-239; the
  *  range there tops at y 22), clear of the twin-peaked summit (x 150-167); hovering the band (or a tap) brings all three back,
  *  for as long as the pointer stays and 3 s more. The pages keep rotating in the small pane. */
@@ -1675,7 +1675,7 @@ export function wingColor(from: string, cards: { slug: string; name: string }[])
 export const flyerOf = (m: { from: string; to: string }): "bee" | "butterfly" => (/^owner$/i.test(m.from) || /^owner$/i.test(m.to) ? "bee" : "butterfly");
 /** A bee's flight on its path (owner, 15:36: "it looks like it's spinning"): no zigzag, a small 1 px bob. */
 export const beeBob = (seed: number, t: number) => Math.sin(t / 160 + (seed % 97)) * 1;
-// ---- The butterfly (queue 58, from valiCC's review: 12-13 px, mirror-symmetric, two lobes a side with a notch, an
+// ---- The butterfly (12-13 px, mirror-symmetric, two lobes a side with a notch, an
 // outline so a navy shirt colour still reads over water and sky, antennae with tips, a 3-frame flap, hops and glides) ----
 export type BflyFrame = "open" | "half" | "up";
 type Px = [number, number];
@@ -1831,7 +1831,7 @@ export function busyOf(o: { slug: string; anim: Anim; actType: string | null | u
   }
 }
 
-/** A member's HTML screen box by its CSS width (creatorCC queue 258): "full" (the four lines and the footer, 14 px)
+/** A member's HTML screen box by its CSS width: "full" (the four lines and the footer, 14 px)
  *  from 120 px, "compact" (the tab and the item over up to three 13 px lines) from 80 px, "tiny" under that (phone
  *  width: the box keeps its size in the room and the item takes the 13 px lines that fit). */
 export function screenForm(width: number, height: number): { form: "full" | "compact" | "tiny"; lines: number } {

@@ -30,7 +30,7 @@ from typing import Any
 ROOT = Path(os.environ.get("RAMEN_ROOT") or Path(__file__).resolve().parent.parent)  # RAMEN_ROOT: run from a copy (update.sh on an old checkout)
 BASE = os.environ.get("RAMEN_BASE") or "HEAD"  # the starter's commit to compare with
 SHARED = {"common-data/configs/common.toml", "common-data/configs/web-bots.toml"}
-# valiCC's list (queue 572): the [notion] keys that moved, and where
+# The [notion] keys that moved, and where
 MOVED = {
     "max_tasks_per_episode": ("tasks", "max_per_episode"),
     "max_tasks_per_day": ("tasks", "max_per_day"),

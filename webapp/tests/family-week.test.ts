@@ -1,4 +1,4 @@
-// "This week in the family" on the dashboard (creatorCC queue 381): the newest week, its public link, nothing on junk.
+// "This week in the family" on the dashboard: the newest week, its public link, nothing on junk.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 // @ts-expect-error TS5097

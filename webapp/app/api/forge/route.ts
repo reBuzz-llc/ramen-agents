@@ -3,9 +3,9 @@ import { BOTS_DIR, listBots } from "@/lib/bots";
 import { appendLine, decisionLines, readForge } from "@/lib/forge";
 import { sameOrigin } from "@/lib/same-origin";
 
-// POST {id, status: "build" | "later" | "no", note} (creatorCC queue 478): the owner's decision on a member's wish in the
+// POST {id, status: "build" | "later" | "no", note}: the owner's decision on a member's wish in the
 // Forge. One decision line appended to common-data/shared-state/forge.jsonl; Build also appends the wish to
-// forge-queue.md for creatorCC. The Validator tells the member on its next run.
+// forge-queue.md for the maintainers. The Validator tells the member on its next run.
 const STATE = () => path.join(/*turbopackIgnore: true*/ BOTS_DIR, "common-data", "shared-state");
 
 export async function POST(req: Request) {

@@ -9,7 +9,7 @@ import { useVisibleInterval } from "./hooks";
 
 const BRAND = "#ff6600";
 
-// The member panel's Screen and Feed tabs (creatorCC queue 25, 2026-10-31: no pop-up anywhere): what the bot sees now
+// The member panel's Screen and Feed tabs (2026-10-31: no pop-up anywhere): what the bot sees now
 // and its last 20 actions, both from /api/shoulder, refreshed with every board poll while the tab is open.
 
 /** /api/shoulder for one bot, again whenever `tick` changes (the board's read time, every 12 s). */

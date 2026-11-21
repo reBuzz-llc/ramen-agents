@@ -7,10 +7,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import gate  # noqa: E402
 
-GOOD_LEAD = {"type": "lead", "name": "Sunny Deli", "website": "https://sunnydeli-example.com", "email": "hello@sunnydeli-example.com",
+GOOD_LEAD = {"type": "lead", "name": "Sunny Deli", "website": "https://sunnydeli.example", "email": "hello@sunnydeli.example",
              "pain_point": "No online ordering; the menu is a PDF.", "how_we_help": "Site and App Care",
-             "evidence": "https://sunnydeli-example.com/menu", "location": "Detroit, Michigan, USA", "industry": "restaurant",
-             "size": "3 locations", "sources": ["https://sunnydeli-example.com/contact"]}
+             "evidence": "https://sunnydeli.example/menu", "location": "Detroit, Michigan, USA", "industry": "restaurant",
+             "size": "3 locations", "sources": ["https://sunnydeli.example/contact"]}
 
 
 def test_a_grounded_lead_passes():
@@ -70,7 +70,7 @@ def test_gate3_questions_are_owner_text_with_short_context():
 
 
 def test_an_update_is_not_refused_for_fields_it_leaves_out():
-    assert gate.check("update_lead", {"type": "update_lead", "name": "Sunny Deli", "evidence": "https://sunnydeli-example.com/locations",
+    assert gate.check("update_lead", {"type": "update_lead", "name": "Sunny Deli", "evidence": "https://sunnydeli.example/locations",
                                       "location": "Greenville, SC, USA"}) == []
     # a field it does write is still judged
     assert gate.check("update_lead", {"type": "update_lead", "name": "Sunny Deli", "evidence": "not a url"})[0].startswith("LD02")
@@ -89,15 +89,15 @@ def test_the_ceo_picking_a_package_is_judged_by_name_not_by_page(monkeypatch):
 
 
 def test_mg03_judges_only_page_facts_not_the_email():
-    lead = {"type": "lead", "name": "Oven Corner", "website": "https://ovencorner-example.com", "email": "support@ovencorner-example.com",
-            "evidence": "https://ovencorner-example.com/contact", "pain_point": "old site", "how_we_help": "Website Care Basic"}
+    lead = {"type": "lead", "name": "Oven Corner", "website": "https://ovencorner.example", "email": "support@ovencorner.example",
+            "evidence": "https://ovencorner.example/contact", "pain_point": "old site", "how_we_help": "Website Care Basic"}
     assert gate.questions("lead", lead, page_text="...") == []                 # no page fact written: no MG03 call
     q = gate.questions("lead", dict(lead, location="Northside, NY, USA"), page_text="123 Bedford Ave, Northside, NY 11211")
     assert [x["id"] for x in q] == ["MG03"] and "support@" not in q[0]["context"] and "Northside, NY, USA" in q[0]["context"]
 
 
 def test_mg03_never_sees_industry_or_absent_fields():
-    lead = {"type": "lead", "name": "Kitchen Bronx", "website": "https://k.com", "email": "hi@k.com", "industry": "Caterers"}
+    lead = {"type": "lead", "name": "Kitchen Bronx", "website": "https://k.example", "email": "hi@k.example", "industry": "Caterers"}
     assert gate.questions("lead", lead, page_text="...") == []               # industry alone: no question
     q = gate.questions("lead", dict(lead, location="Bronx, NY, USA"), page_text="...")
     ctx = q[0]["context"]

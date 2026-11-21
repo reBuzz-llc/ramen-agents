@@ -1272,7 +1272,7 @@ function Frame({ onClose, children }: { onClose: () => void; children: React.Rea
   );
 }
 
-/** The owner's hand on a bot (creatorCC queue 23): Pause (30 min, 2 h, until tomorrow) or Resume, and Stop, for a member
+/** The owner's hand on a bot: Pause (30 min, 2 h, until tomorrow) or Resume, and Stop, for a member
  *  at work; Start for one asleep in the corner. Each asks first, Yes / No, with a one-line reason for the log; the
  *  result line is what the fleet script printed. */
 function Controls(p: {
@@ -1343,7 +1343,7 @@ function Controls(p: {
   );
 }
 
-/** The bulletin board as a prompt (creatorCC queue 22): each open CEO proposal in turn with Yes / No and a note,
+/** The bulletin board as a prompt: each open CEO proposal in turn with Yes / No and a note,
  *  answered with the same POST as the proposals box; then each open decision with its options, Done and Later, answered
  *  with the same POST as the decisions box (queue 32). */
 function BulletinPrompt({ data, onClose }: { data: Board; onClose: () => void }) {
@@ -1473,7 +1473,7 @@ function NowBlock({ now }: { now: { word: string; doing: string; counts: string;
   );
 }
 
-/** The members' screens as HTML over the canvas (creatorCC queue 258, owner: "still not readable": canvas text came out at
+/** The members' screens as HTML over the canvas (owner: "still not readable": canvas text came out at
  *  about 7 px and blurred). Each box sits on its slot's room coordinates times the canvas's CSS scale, with the name
  *  tab on top (a state other than working as an orange badge), the four lines and the refused share over a meter, in
  *  JetBrains Mono at 14 px (13 px in the compact form, never smaller). A box under 120 px wide is compact: the tab and

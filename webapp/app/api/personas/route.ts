@@ -4,7 +4,7 @@ import { writeSection } from "@/lib/ceo-changes";
 import { ownerEdit } from "@/lib/personas";
 import { sameOrigin } from "@/lib/same-origin";
 
-// POST {bot, section, before, text} (creatorCC queue 489): the owner's edit of one of their own persona sections, written
+// POST {bot, section, before, text}: the owner's edit of one of their own persona sections, written
 // under persona.md.lock and recorded for the Validator's owner-section check; a CEO character section is refused.
 export async function POST(req: Request) {
   if (!(await sameOrigin(req))) return Response.json({ error: "forbidden" }, { status: 403 });

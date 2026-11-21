@@ -1,4 +1,4 @@
-// The CEO's roster proposals (creatorCC queue 440 on valiCC's 439 design, owner 11-11: the CEO is the family's alpha,
+// The CEO's roster proposals (owner 11-11: the CEO is the family's alpha,
 // every roster change goes through the owner). The engine records them open in
 // common-data/shared-state/ceo-proposals.json: {id, ts, bot, change: {kind: "roster", action: start | stop | rename |
 // create | retire, new_name (rename), slug, name, role, template, persona {heading: text}, goal, rules, expected_calls_day
@@ -10,7 +10,7 @@
 // Decisions box, proposal <id>") and the record gets status applied or failed, applied_at and apply_result; rename,
 // create and retire run `scripts/roster_apply.py <id>`, which writes those itself. At approval of a create the owner may
 // edit the name, the goal and the persona text (owner_edited lists which; an edited goal is the owner's); role,
-// template, slug and rules are not editable (a change there is a Decline with a note). valiCC may expire an open one
+// template, slug and rules are not editable (a change there is a Decline with a note). The maintainers may expire an open one
 // after 7 days (status expired, expired_at, expired_note).
 // Node imports only, so the test runs with Node's own runner.
 import { mkdir, readFile, rename, rmdir, stat, writeFile } from "node:fs/promises";

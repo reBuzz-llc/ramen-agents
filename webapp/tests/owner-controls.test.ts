@@ -1,4 +1,4 @@
-// Run: npm test. The owner's Pause / Resume / Stop / Start (creatorCC queue 23, 2026-10-31) on a fixture workspace with
+// Run: npm test. The owner's Pause / Resume / Stop / Start (2026-10-31) on a fixture workspace with
 // a fake scripts folder (each script prints a line and leaves a marker; nothing touches launchd), and the confirm text.
 import { test } from "node:test";
 import assert from "node:assert/strict";

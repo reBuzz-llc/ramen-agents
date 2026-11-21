@@ -12,8 +12,8 @@ import DecisionActions from "./decision-actions";
 import OwnerItemDone from "./owner-item-done";
 import RosterProposalActions from "./roster-proposal-actions";
 
-/** "Decisions waiting for you", from creatorCC's shared-state/owner-decisions.json: each open item with its date, its
- *  link, one button per option, Done, Later and a note (creatorCC queue 32). Answered items leave the list; "Show
+/** "Decisions waiting for you", from the maintainers' shared-state/owner-decisions.json: each open item with its date, its
+ *  link, one button per option, Done, Later and a note. Answered items leave the list; "Show
  *  decided" lists the last 30 days. Hidden when nothing is open or decided. `compact` (the home board) folds it to its
  *  title line. Under a thin rule, the owner's open items from shared-state/owner-items.json (queue 401): title, "how"
  *  in small text, Done. Then "CEO changes" (queue 411): The CEO's own applied changes, newest first, each with Undo for

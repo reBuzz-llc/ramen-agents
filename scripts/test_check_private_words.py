@@ -24,7 +24,7 @@ def test_the_template_has_placeholders_and_the_rules():
 
 def test_the_built_in_checks_catch_private_things():
     bad = ("see /Users/someone/bots", "write to jane.doe@company.com", "call (973) 555-0199",
-           "Date: Fri Nov 20 12:00 2026 +0545")
+           "Date: Fri Nov 20 12:00 2026 +0900")
     for line in bad:
         assert cpw.hits(line, []), line
     assert cpw.hits("ok: someone@users.noreply.github.com, hello@example.com, +0000, port 8443, 2026-11-20", []) == []

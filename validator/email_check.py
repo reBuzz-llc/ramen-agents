@@ -3,8 +3,8 @@
 The Leads board's rows come from two places: Lead Gen, whose policy makes it read the address off a page of the
 business's own site before it may list one, and the owner's imported list, which has no such grounding. On
 2026-09-24 the owner said the imported rows looked hallucinated, and they were: of fourteen checked, ten claimed
-addresses that appear nowhere on the company's site. Tasty Tacos publishes info@eattastytacos-example.com; the row
-claimed franchise@tastytacos-example.com at "high" confidence. Others were sourced from a rate-limited PDF or a
+addresses that appear nowhere on the company's site. Tasty Tacos publishes info@eattastytacos.example; the row
+claimed franchise@tastytacos.example at "high" confidence. Others were sourced from a rate-limited PDF or a
 login-walled LinkedIn page, so nobody had read them either.
 
 This module fetches the pages the row itself points at (its website, evidence and source pages, plus the usual

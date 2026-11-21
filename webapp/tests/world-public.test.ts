@@ -28,7 +28,7 @@ test("lead names become first word and initial; contacts and teammates their fir
 });
 
 test("no email address, phone number or web address survives; dates and times do", () => {
-  const out = mask("wrote hi@cobot.example and +1 (718) 555-1000, read https://cobot.com/about and www.x.org and pamhvac.com on 2026-11-09 at 18:25");
+  const out = mask("wrote hi@cobot.example and +1 (718) 555-0100, read https://cobot.example/about and www.x.org and pamhvac.com on 2026-11-09 at 18:25");
   assert.equal(out, "wrote [email] and [phone], read [link] and [link] and [link] on 2026-11-09 at 18:25");
   assert.equal(leaks(out), false);
   assert.equal(mask("last call api.z.ai/glm-4.5-flash · 28s"), "last call glm-4.5-flash · 28s");
@@ -46,8 +46,8 @@ test("address keys are emptied, times kept, the Board's private parts dropped, F
   const st = publicState(
     {
       board: { at: "2026-11-09T10:00:00", cards: [{ slug: "ow", on: "writing for Cobot Partners LLC" }], decisions: [{ id: "d1", text: "x" }], proposals: [{ id: "p" }], chat: { ow: { owner: "secret" } }, replies: { ow: "hi" }, portalLocal: { url: "https://t.example" } },
-      web: { recent_pages: [{ url: "https://cobot.com", title: "Cobot Partners LLC", shot: "/api/x" }] },
-      feeds: { ow: { thought: "mail jane@cobot.com", feed: Array.from({ length: 30 }, (_, i) => ({ ts: "2026-11-09T10:00:00", words: `step ${i}`, verdict: "allowed", reason: null, page: "x" })) as never }, gone: null },
+      web: { recent_pages: [{ url: "https://cobot.example", title: "Cobot Partners LLC", shot: "/api/x" }] },
+      feeds: { ow: { thought: "mail jane@cobot.example", feed: Array.from({ length: 30 }, (_, i) => ({ ts: "2026-11-09T10:00:00", words: `step ${i}`, verdict: "allowed", reason: null, page: "x" })) as never }, gone: null },
       trial: null,
       tick: { text: "Last tick 10:00 (3 min ago)", stale: false },
     },
@@ -80,7 +80,7 @@ test("a signed link: round trip, expiry, tampering, too long", () => {
   assert.equal(verifyToken("s3cret-s3cret-s3cret-s3cret-s3cret!", signToken("s3cret-s3cret-s3cret-s3cret-s3cret!", "A", now + 86400), now), null); // a day: too long
   assert.equal(verifyToken("s3cret-s3cret-s3cret-s3cret-s3cret!", "", now), null);
   // the vector the portal's lib/world-share.ts test checks too: both sides sign alike
-  assert.equal(signToken("k", "Anna", 1800000000), "MTgwMDAwMDAwMC5Bbm5h.T0QtCt8HFuAQW_8i0CXQt0j0eiJjME-V6OpJ1ec-Ctw");
+  assert.equal(signToken("k", "Alex", 1800000000), "MTgwMDAwMDAwMC5BbGV4.YP9qU0VS1HwExzj97-LT6NDzpadm3yqe9p8jLuMWOP0");
 });
 
 test("60 a minute per address, then refused until the window passes", () => {

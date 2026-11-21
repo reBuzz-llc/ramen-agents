@@ -1,4 +1,4 @@
-// Run: npm test. The owner's decisions (creatorCC queue 32, 2026-10-31): shared-state/owner-decisions.json answered from
+// Run: npm test. The owner's decisions (2026-10-31): shared-state/owner-decisions.json answered from
 // the dashboard: the lists the box renders, choose, done, later with its wake time, the note, and the log line.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -78,13 +78,13 @@ test("decisions: Done; Later hides it for three days with a wake time, then it i
   assert.deepEqual([after.status, after.wake], ["decided", undefined]);
 });
 
-test("decisions: creatorCC's shape (ts, from, title; open or answered) shows like the dashboard's (queue 284)", () => {
+test("decisions: the maintainers' shape (ts, from, title; open or answered) shows like the dashboard's", () => {
   const text = JSON.stringify({
     version: 1,
     items: [
-      { id: "d-blog-contact-card", ts: "2026-11-05T14:51:04", from: "creatorCC", title: "The blog's Contact page?", options: ["Keep the card", "Remove it"], status: "open" },
-      { id: "d-judge-trial-night", ts: "2026-10-30T13:43:59", from: "creatorCC", title: "14B judge trial night?", options: ["Yes"], status: "open" },
-      { id: "d-answered", ts: "2026-10-30T07:48:24", from: "creatorCC", title: "Which row to keep?", options: ["Keep A", "Keep B"], status: "answered", answer: "Keep A", answered_at: "2026-10-30T14:41:16" },
+      { id: "d-blog-contact-card", ts: "2026-11-05T14:51:04", from: "maintainers", title: "The blog's Contact page?", options: ["Keep the card", "Remove it"], status: "open" },
+      { id: "d-judge-trial-night", ts: "2026-10-30T13:43:59", from: "maintainers", title: "14B judge trial night?", options: ["Yes"], status: "open" },
+      { id: "d-answered", ts: "2026-10-30T07:48:24", from: "maintainers", title: "Which row to keep?", options: ["Keep A", "Keep B"], status: "answered", answer: "Keep A", answered_at: "2026-10-30T14:41:16" },
       { id: "d-no-words", ts: "2026-10-30T07:48:24", status: "open" },
     ],
   });

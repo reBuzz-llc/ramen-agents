@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass, Spinner } from "./ui";
 
-/** Build / Later / No on a member's wish (creatorCC queue 478), with a note the member reads (No needs one). */
+/** Build / Later / No on a member's wish, with a note the member reads (No needs one). */
 export default function ForgeActions({ id }: { id: string }) {
   const router = useRouter();
   const [note, setNote] = useState("");

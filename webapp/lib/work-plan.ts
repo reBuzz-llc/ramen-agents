@@ -451,7 +451,7 @@ export async function pastJobs(bots: BotProfile[], limit = 5000): Promise<PastJo
   return all.sort((a, b) => ((a.ended ?? "") < (b.ended ?? "") ? 1 : -1)).slice(0, limit);
 }
 
-// The rate is refused / (allowed + refused). Counted apart and never against the 20 % target (creatorCC queue 377):
+// The rate is refused / (allowed + refused). Counted apart and never against the 20 % target:
 // the fence (the safety rules working: a personal mailbox, an email not on the business's own site, an invented value,
 // a site that asks bots not to read it), "held" (waiting for someone), "failed" (ran and did not work, e.g. a row already
 // drafted) and "closed" (a site closed for the day). lib/checks.ts kindOf decides.

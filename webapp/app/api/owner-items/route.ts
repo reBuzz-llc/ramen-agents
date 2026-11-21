@@ -5,7 +5,7 @@ import { sameOrigin } from "@/lib/same-origin";
 import { markItemDone, ownerItems } from "@/lib/owner-items";
 
 // Mark one of the owner's items done: POST {id}. Sets status "done" and done_ts in shared-state/owner-items.json
-// (creatorCC queue 401). POST {id, revert: true} on a persona item (queue 440) first writes the section's `before` back
+// POST {id, revert: true} on a persona item (queue 440) first writes the section's `before` back
 // into <slug>/persona.md under persona.md.lock, then marks it done. Only this app's own page may call it.
 export async function POST(req: Request) {
   if (!(await sameOrigin(req))) return Response.json({ error: "forbidden" }, { status: 403 });

@@ -1,4 +1,4 @@
-// The CEO's proposals (creatorCC queue 14, 2026-10-30, step one of the CEO steering plan): The CEO proposes a change to
+// The CEO's proposals (2026-10-30, step one of the CEO steering plan): The CEO proposes a change to
 // one bot's line in the owner's work plan (its goal, or a rule added or dropped); the owner approves or declines it on
 // the dashboard. Nothing is applied without the owner.
 //   common-data/shared-state/ceo-proposals.json = {version: 1, proposals: [...]}, oldest first. The engine only appends
@@ -23,7 +23,7 @@ export type Proposal = {
   status: "open" | "approved" | "declined" | "expired";
   validator_note: string;
   owner_note: string;
-  decided_at: string; // for an expired one (creatorCC queue 425): its expired_at, so it sorts and ages as a decision
+  decided_at: string; // for an expired one: its expired_at, so it sorts and ages as a decision
   expired_note: string;
 };
 type Rule = { id: string; text: string; by?: "ceo" };
@@ -68,7 +68,7 @@ function parseOne(raw: unknown): Proposal | null {
   if (!r || typeof r.id !== "string" || !r.id || typeof r.bot !== "string" || !r.bot) return null;
   // The CEO's own changes (status applied, undone, reverted: lib/ceo-changes.ts) share the file and are not proposals.
   // "expired" (queue 425): an open proposal step two superseded, with expired_at and expired_note; listed as decided.
-  // Roster proposals (creatorCC queue 440) have their own list: lib/roster-proposals.ts.
+  // Roster proposals have their own list: lib/roster-proposals.ts.
   if (r.change && typeof r.change === "object" && (r.change as Record<string, unknown>).kind === "roster") return null;
   if (r.status !== undefined && r.status !== "open" && r.status !== "approved" && r.status !== "declined" && r.status !== "expired") return null;
   const status = r.status === "approved" || r.status === "declined" || r.status === "expired" ? r.status : "open";

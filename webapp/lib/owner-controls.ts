@@ -1,4 +1,4 @@
-// The owner's hand on each bot, from the world's text box (creatorCC queue 23, 2026-10-31): pause for a while, stop
+// The owner's hand on each bot, from the world's text box (2026-10-31): pause for a while, stop
 // (send it home), start again. Every action is asked first in the box and logged to
 // common-data/shared-state/owner-controls.jsonl {who, bot, action, reason, ts, result}.
 //   pause:  workspace/PAUSE holds the local time it ends, bare ("2026-10-31T09:30"): the engine (889a604) pauses until
@@ -102,7 +102,7 @@ async function recreateAgents(ctx: Ctx): Promise<string> {
   return made.length ? `recreated ${made.join(", ")} from ${src}'s` : "launch agents already there";
 }
 
-/** The STOP file's first line for the owner's Stop (creatorCC queue 238, 2026-11-06: an empty reason left a 0-byte
+/** The STOP file's first line for the owner's Stop (2026-11-06: an empty reason left a 0-byte
  *  STOP that read as a stray file, and the bot was restarted twice): "Owner: <reason>", or "Owner: stopped from the
  *  dashboard HH:MM" without one. owner-controls.jsonl records the same text. */
 export function ownerStopLine(reason: string, now: number): string {

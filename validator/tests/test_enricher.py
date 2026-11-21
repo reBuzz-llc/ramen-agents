@@ -41,17 +41,17 @@ def test_a_fill_is_fact_checked_against_the_pages():
     import enricher_check
     page = "<html><body><h1>About us</h1><p>Founded in 2012 by Joe Russo in Astoria, Queens. 12 staff.</p></body></html>"
     get = lambda url: (200, page)  # noqa: E731
-    ok = {"payload": {"founded_by": "Joe Russo", "location": "Queens, NY, USA", "size": "12 staff", "sources": ["https://joes.com/about"]}}
-    assert enricher_check.check_fill(ok, "https://joes.com", get=get) == []
-    bad = {"payload": {"founded_by": "Maria Russo", "location": "Brooklyn, NY, USA", "sources": ["https://joes.com/about"]}}
-    assert {f for f, _ in enricher_check.check_fill(bad, "https://joes.com", get=get)} == {"founded_by", "location"}
-    assert enricher_check.check_fill(bad, "https://joes.com", get=lambda u: (404, "")) == []     # unreadable: not wrong
+    ok = {"payload": {"founded_by": "Joe Russo", "location": "Queens, NY, USA", "size": "12 staff", "sources": ["https://joes.example/about"]}}
+    assert enricher_check.check_fill(ok, "https://joes.example", get=get) == []
+    bad = {"payload": {"founded_by": "Maria Russo", "location": "Brooklyn, NY, USA", "sources": ["https://joes.example/about"]}}
+    assert {f for f, _ in enricher_check.check_fill(bad, "https://joes.example", get=get)} == {"founded_by", "location"}
+    assert enricher_check.check_fill(bad, "https://joes.example", get=lambda u: (404, "")) == []     # unreadable: not wrong
 
 
 def test_a_linkedin_from_the_own_site_must_be_linked_there():
     import enricher_check
     page = '<p>Founded by Joe Russo <a href="https://www.linkedin.com/in/joe-russo-123/">LinkedIn</a></p>'
-    fill = {"payload": {"founded_by": "Joe Russo", "founder_linkedin": "https://www.linkedin.com/in/joe-russo-123", "linkedin_via": "1 Own site", "sources": ["https://joes.com/about"]}}
-    assert enricher_check.check_fill(fill, "https://joes.com", get=lambda u: (200, page)) == []
+    fill = {"payload": {"founded_by": "Joe Russo", "founder_linkedin": "https://www.linkedin.com/in/joe-russo-123", "linkedin_via": "1 Own site", "sources": ["https://joes.example/about"]}}
+    assert enricher_check.check_fill(fill, "https://joes.example", get=lambda u: (200, page)) == []
     other = dict(fill, payload=dict(fill["payload"], founder_linkedin="https://www.linkedin.com/in/someone-else"))
-    assert [f for f, _ in enricher_check.check_fill(other, "https://joes.com", get=lambda u: (200, page))] == ["founder_linkedin"]
+    assert [f for f, _ in enricher_check.check_fill(other, "https://joes.example", get=lambda u: (200, page))] == ["founder_linkedin"]

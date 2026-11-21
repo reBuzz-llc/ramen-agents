@@ -434,14 +434,14 @@ export function drawBigScreen(
   o: { hover?: boolean; working?: boolean; compact?: boolean; strip?: string; cssPerRoom?: number; k?: number; postsOnly?: boolean } = {},
 ) {
   if (o.postsOnly) {
-    // the screen itself is an HTML box over the canvas (creatorCC queue 258); the canvas keeps the posts down to the wall
+    // the screen itself is an HTML box over the canvas; the canvas keeps the posts down to the wall
     const px = Math.round(x);
     const py = Math.round(y);
     r(c, px + 6, py + SCREEN.h, 2, 8, "#4a4f57");
     r(c, px + SCREEN.w - 8, py + SCREEN.h, 2, 8, "#4a4f57");
     return;
   }
-  // The owner, 2026-11-06 (a26d13f, then creatorCC queue 232): the name on a tab above the frame; inside, what the member
+  // The owner, 2026-11-06: the name on a tab above the frame; inside, what the member
   // is doing, today's counts over a thin meter, and a badge only when it is not working (working is the default). Every
   // word inside the frame and on the tab in JetBrains Mono at 14 CSS px with normal line spacing: the size in room pixels
   // comes from the canvas's scale, rounded to whole backing pixels, and capped where a phone's screen cannot hold 14 px.
@@ -516,7 +516,7 @@ export function drawBigScreen(
   const soft = dark ? "#aab3cc" : "#4d4d4d";
   let row = iy + 1 + lh * 0.8; // the first baseline
   if (m.four.length) {
-    // the owner's four lines (creatorCC queue 233): output and goal, the item it is on (the square marks a page or a
+    // the owner's four lines: output and goal, the item it is on (the square marks a page or a
     // search), the provider and how fresh, the last 30 minutes' allowed actions
     m.four.forEach((ln, i) => {
       const marked = i === 1 && m.mark;

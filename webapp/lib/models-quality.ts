@@ -1,4 +1,4 @@
-// Which model does our work best (owner, 2026-11-12, option 3 of the quality lanes; creatorCC queue 492): the Validator's
+// Which model does our work best: the Validator's
 // daily common-data/shared-state/models-quality.json -- per model and lane over 7 days, what it wrote, the share refused,
 // the judge's yes and no, second-opinion disagreements and the redo rate (null until their sources log the model) -- and
 // today's lane counts from model_calls.json "lanes". Pure, for the Reports page and its test.

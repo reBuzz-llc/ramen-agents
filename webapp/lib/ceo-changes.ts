@@ -1,4 +1,4 @@
-// The CEO's own changes (CEO self-steering step two; valiCC queue 411 from creatorCC's go, owner 11-10 17:35): since
+// The CEO's own changes: since
 // engine a5d7a66 The CEO applies a change inside its fence at once and records it in
 // common-data/shared-state/ceo-proposals.json with status "applied": {id, ts, bot, change, field, before, after, reason,
 // metric, expected, applied_at, undo_until}. The Validator may set status "reverted" (reverted_at, validator_note).
@@ -8,7 +8,7 @@
 // "<file>.lock" (mkdir; broken after 30 s), tmp + rename, each file keeping its own indent (1 and 2); then the record
 // gets status "undone", undone_at and undone_by under "ceo-proposals.json.lock", which this undo holds throughout so a
 // second click cannot undo twice. Members re-read work-plan.json on its mtime, so an Undo is live on their next cycle.
-// Persona changes (creatorCC queue 440, engine b710883): field "persona:<section>", before and after the section's body
+// Persona changes (engine b710883): field "persona:<section>", before and after the section's body
 // (from its "## " heading line to the next "## " or "# " line, "### " kept inside) in ~/bots/<slug>/persona.md; Undo writes
 // before back under "persona.md.lock" while the section still reads as after. Personas reload on mtime.
 // Node imports only, so the test runs with Node's own runner.

@@ -1,4 +1,4 @@
-// The Validator's last tick on the provider pages (creatorCC queue 315): its age, red past 30 minutes or with no report.
+// The Validator's last tick on the provider pages: its age, red past 30 minutes or with no report.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 // @ts-ignore TS5097

@@ -1,5 +1,5 @@
 "use client";
-// The Allowance list (creatorCC queue 230, the owner's standing goal "drain every free token"): each provider in the
+// The Allowance list (the owner's standing goal "drain every free token"): each provider in the
 // family's chain with today's calls and tokens against its cap, a thin meter, what is left today, and its last good and
 // failed answer; monthly tiers show today's paced share (what is left this month / days left). Then the keyed providers
 // that are not in the chain, with their last use. Names only, never a key. The world's ticker links here (#allowance)

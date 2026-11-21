@@ -1,9 +1,9 @@
-// The Forge (creatorCC queues 477/478, valiCC's design): a member asks for a resource or a feature it lacks with the
+// The Forge: a member asks for a resource or a feature it lacks with the
 // engine's `wish` action, one line in common-data/shared-state/forge.jsonl; the owner decides in the Decisions box (Build /
-// Later / No with a note), which appends a decision line; Build also appends a line to forge-queue.md for creatorCC;
-// creatorCC marks "done" by hand when it lands. The file is append-only and read by folding the lines by id, newest last.
+// Later / No with a note), which appends a decision line; Build also appends a line to forge-queue.md for the maintainers;
+// The maintainers mark "done" by hand when it lands. The file is append-only and read by folding the lines by id, newest last.
 // Each write here is one line in one O_APPEND write (under 4 KB), atomic against the Python writers without a lock (agreed
-// with valiCC; their fcntl lock file forge.jsonl.lock is left alone). Self-contained for the node tests.
+// with the maintainers; their fcntl lock file forge.jsonl.lock is left alone). Self-contained for the node tests.
 import { appendFile, readFile } from "node:fs/promises";
 
 export type WishStatus = "open" | "build" | "later" | "no" | "done";

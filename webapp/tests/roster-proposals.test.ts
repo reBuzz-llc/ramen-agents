@@ -1,4 +1,4 @@
-// The CEO's roster proposals in the Decisions box (creatorCC queue 440 on valiCC's 439 design): the read, the decided
+// The CEO's roster proposals in the Decisions box: the read, the decided
 // list, Approve and Decline under the lock, the owner's start/stop path for start and stop, the roster applier for the
 // rest, a create's edits; and the persona changes in the CEO changes list with their Undo.
 import { test } from "node:test";
