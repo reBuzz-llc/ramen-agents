@@ -3,6 +3,7 @@
 # Run once, after installing Tailscale on this Mac and signing in:  sh ~/bots/webapp/scripts/remote-access.sh
 # Undo:  tailscale serve reset
 set -eu
+. "$(dirname "$0")/../../scripts/read-only-guard.sh"     # the copy on the main branch is for reading: nothing is served from it
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 TS=""
 for c in /Applications/Tailscale.app/Contents/MacOS/Tailscale /opt/homebrew/bin/tailscale /usr/local/bin/tailscale; do

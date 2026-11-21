@@ -11,7 +11,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 SCRIPTS = ("install.sh", "setup.sh", "update.sh", "install-launchd.sh", "enable-bot.sh", "disable-bot.sh", "restart-bot.sh", "sync-launchd.sh",
-           "webapp/scripts/deploy.sh")
+           "portal-local-setup.sh", "webapp/scripts/deploy.sh", "webapp/scripts/remote-access.sh")
 
 
 @pytest.mark.parametrize("name", SCRIPTS)

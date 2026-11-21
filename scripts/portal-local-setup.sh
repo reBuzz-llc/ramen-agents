@@ -13,6 +13,7 @@
 #   sh ~/bots/scripts/portal-local-setup.sh --dry-run  # say what it would do
 # The portal's checkout: PORTAL_DIR (default ~/Projects/portal, a clone of the `portal` branch). docs/portal-database.md
 set -eu
+. "$(dirname "$0")/read-only-guard.sh"     # the copy on the main branch is for reading: nothing is set up from it
 
 BOTS="${BOTS_DIR:-$HOME/bots}"
 PORTAL="${PORTAL_DIR:-$HOME/Projects/portal}"
