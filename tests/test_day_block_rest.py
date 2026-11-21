@@ -1,4 +1,4 @@
-"""[agent] day_block_rest: three day-blocked refusals end the episode and the bot rests (creatorCC queue 9, 2026-10-28)."""
+"""[agent] day_block_rest: three day-blocked refusals end the episode and the bot rests (2026-10-28)."""
 from __future__ import annotations
 
 from explorer.actions import Decision, Search

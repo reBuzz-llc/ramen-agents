@@ -93,7 +93,7 @@ class CallLedger:
         return data["counts"][key]
 
     def note_health(self, key: str, ok: bool, reason: str = "") -> None:
-        """A provider's last success, last failure and why, for the dashboard (creatorCC queue 16, 2026-10-29)."""
+        """A provider's last success, last failure and why, for the dashboard (2026-10-29)."""
         data = self._load_all()
         row = data["health"].setdefault(key, {})
         now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.clock()))

@@ -1,4 +1,4 @@
-"""A run loop that dies logs one timed "run_loop_crashed" event before re-raising (creatorCC queue 11, 2026-10-28)."""
+"""A run loop that dies logs one timed "run_loop_crashed" event before re-raising (2026-10-28)."""
 from __future__ import annotations
 
 import logging

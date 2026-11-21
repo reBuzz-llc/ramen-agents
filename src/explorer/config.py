@@ -64,14 +64,14 @@ class AgentConfig:
     # ticks steps as writes land, ends it done or stuck; workspace/plan.json, shown in every prompt. The owner's own
     # goal and rules per bot come from common-data/work-plan.json (the webapp's Work plan page).
     plans: bool = True
-    # Rest instead of a model call when there is nothing to do (creatorCC queue 6, 2026-10-28): a bot with a work list
+    # Rest instead of a model call when there is nothing to do (2026-10-28): a bot with a work list
     # ([leads] decide_glob or draft_queue_column) rests when the list is empty or its daily update cap is reached; any
     # other bot when every daily cap it has (tasks, messages) is reached. Never while an inbox message or an owner
     # message is unread. Logged as a "resting" event; it looks again after idle_minutes.
     idle_when_empty: bool = False
     idle_minutes: float = 30.0
     # Three day-blocked refusals in one episode end it (summarized as usual) and the bot rests idle_minutes before the
-    # next, waking for a message (creatorCC queue 9, 2026-10-28: a bot kept repeating a day-blocked search or open
+    # next, waking for a message (2026-10-28: a bot kept repeating a day-blocked search or open
     # long after the block).
     day_block_rest: bool = False
     # A plan with no step ticked for this many hours ends "stuck" by itself (Package Designer sat 45 hours and 2,192 actions on

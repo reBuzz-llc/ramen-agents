@@ -608,7 +608,7 @@ def test_leads_no_task_names_yet_are_listed_for_one_outreach_task(cfg, tmp_path:
     con = sqlite3.connect(leadgen / "workspace" / "explorer.sqlite3")
     con.execute("CREATE TABLE leads (id INTEGER PRIMARY KEY, name TEXT, email TEXT, how_we_help TEXT, url TEXT, created_at TEXT)")
     con.executemany("INSERT INTO leads (name, email, how_we_help, url, created_at) VALUES (?,?,?,?,?)", [
-        ("Noodle Bar One", "hello@noodlebarone.com", "Acme POS for Franchise Chains", "https://notion.example/noodlebarone", __import__("datetime").datetime.now().isoformat(timespec="seconds")),
+        ("Noodle Bar One", "hello@noodlebarone.example", "Acme POS for Franchise Chains", "https://notion.example/noodlebarone", __import__("datetime").datetime.now().isoformat(timespec="seconds")),
         ("Harbor Restaurant", "info@harbor.example", "Website Care Basic", "https://notion.example/harbor", __import__("datetime").datetime.now().isoformat(timespec="seconds"))])
     con.commit(); con.close()
     cfg.agent.name = "The CEO"
@@ -620,10 +620,10 @@ def test_leads_no_task_names_yet_are_listed_for_one_outreach_task(cfg, tmp_path:
     cfg.leads.outreach_max_wait_hours = 0  # ...until the oldest has waited long enough
     ceo = make_controller(cfg)
     lines, total = ceo._outreach_leads()
-    assert total == 2 and lines[0].startswith("Noodle Bar One | hello@noodlebarone.com | Acme POS")
+    assert total == 2 and lines[0].startswith("Noodle Bar One | hello@noodlebarone.example | Acme POS")
     ep = ceo.memory.db.query("SELECT id FROM episodes ORDER BY id DESC LIMIT 1")
     ceo.memory.db.execute("INSERT INTO actions (ts, cycle, episode_id, action_type, payload, thought, verdict, result, progress) VALUES (?,?,?,?,?,?,?,?,?)",
-                          ("2026-10-03T01:00:00", 1, ep[0]["id"] if ep else 1, "task", '{"type":"task","title":"Outreach: Noodle Bar One and 0 more","details":"Noodle Bar One hello@noodlebarone.com"}', "", "allowed", "", 1))
+                          ("2026-10-03T01:00:00", 1, ep[0]["id"] if ep else 1, "task", '{"type":"task","title":"Outreach: Noodle Bar One and 0 more","details":"Noodle Bar One hello@noodlebarone.example"}', "", "allowed", "", 1))
     lines, total = ceo._outreach_leads()
     assert total == 1 and lines[0].startswith("Harbor Restaurant")
 

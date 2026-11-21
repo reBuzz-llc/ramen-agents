@@ -1,4 +1,4 @@
-"""Provider health in the call ledger, and a timed-out host benched long (creatorCC queue 16, 2026-10-29)."""
+"""Provider health in the call ledger, and a timed-out host benched long (2026-10-29)."""
 from __future__ import annotations
 
 import json

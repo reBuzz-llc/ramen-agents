@@ -133,15 +133,15 @@ def test_a_plan_on_a_capped_site_ends_stuck_and_cannot_be_rebuilt(cfg):
     from explorer.policy import Verdict
 
     plan = WorkPlan.new("Update leads board: fill missing cells for Sunny Deli and Willow Salon", "cells filled",
-                        ["open sunnydeli-example.com pages", "update_lead Sunny Deli", "update_lead Willow Salon"], "priority")
-    assert plan.names_domain("sunnydeli-example.com") and plan.names_domain("willowsaloncompany.com") and not plan.names_domain("junipercafe.com")
+                        ["open sunnydeli.example pages", "update_lead Sunny Deli", "update_lead Willow Salon"], "priority")
+    assert plan.names_domain("sunnydeli.example") and plan.names_domain("willowsaloncompany.com") and not plan.names_domain("junipercafe.com")
     cfg.policy.domain_no_progress_cap = 5
     c = make_controller(cfg)
     c.plan = plan
-    c._plan_stuck_on_domain("https://sunnydeli-example.com/locations/", "move on: 5 pages ...")
-    assert c.plan.status == "stuck" and "sunnydeli-example.com does not state" in c.plan.note and "Tell whoever asked" in (c.feedback or "")
+    c._plan_stuck_on_domain("https://sunnydeli.example/locations/", "move on: 5 pages ...")
+    assert c.plan.status == "stuck" and "sunnydeli.example does not state" in c.plan.note and "Tell whoever asked" in (c.feedback or "")
     policy = Policy(PolicyConfig(domain_no_progress_cap=5), Denylist.load(DENYLIST))
-    ctx = _ctx(); ctx.domain_visits_no_progress = {"sunnydeli-example.com": 7}
+    ctx = _ctx(); ctx.domain_visits_no_progress = {"sunnydeli.example": 7}
     again = Plan(type="plan", task="Fill the Sunny Deli cells", done_when="filled", steps=["open the site", "update_lead Sunny Deli"])
     v = policy.check(again, ctx)
     assert not v.allowed and "gave nothing" in v.reason
@@ -154,7 +154,7 @@ def test_a_common_word_inside_a_domain_does_not_name_it():
     q = WorkPlan.new("Fill cells for Petrossian Restaurants", "done", ["open petrossianrestaurants.com", "update_lead"])
     assert q.names_domain("petrossianrestaurants.com")
     r = WorkPlan.new("Update leads board: Sunny Deli and Willow Salon", "cells filled", ["open sites", "update_lead"])
-    assert r.names_domain("sunnydeli-example.com") and r.names_domain("willowsaloncompany.com") and not r.names_domain("junipercafe.com")
+    assert r.names_domain("sunnydeli.example") and r.names_domain("willowsaloncompany.com") and not r.names_domain("junipercafe.com")
 
 
 def test_estimates_and_actuals_are_recorded_and_nothing_is_enforced(cfg):

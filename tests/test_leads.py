@@ -249,16 +249,16 @@ def test_business_emails_noted_but_never_listed_come_back_as_work(cfg):
     cfg.leads.enabled, cfg.leads.noted_shown = True, 5
     c = make_controller(cfg)
     ep = c.memory.start_episode(None)
-    for title, body, url in (("Sweet Catch Springfield", "Footer: info@sweetcatchspf.com", "https://www.sweetcatchspf.com"),
-                             ("Placeholder form", "write to mymail@mailservice.com", "https://x.example"),
-                             ("A professor", "en21@cornell.edu", "https://cornell.edu/x"),
+    for title, body, url in (("Sweet Catch Springfield", "Footer: info@sweetcatch.test", "https://www.sweetcatch.test"),
+                             ("Placeholder form", "write to mymail@mailservice.test", "https://x.example"),
+                             ("A professor", "en21@fictional-university.edu", "https://fictional-university.edu/x"),
                              ("Gmail shop", "shop@gmail.com", "https://shop.example")):
         c.memory.add_note(title, body, source_url=url, episode_id=ep)
     lines = c._noted_not_listed()
-    assert lines == ["Sweet Catch Springfield | info@sweetcatchspf.com | https://www.sweetcatchspf.com"]
+    assert lines == ["Sweet Catch Springfield | info@sweetcatch.test | https://www.sweetcatch.test"]
     import json
     shared = json.loads((cfg.root.parent / "common-data" / "shared-state" / f"{cfg.root.name}-noted.json").read_text())
-    assert [i["email"] for i in shared["items"]] == ["info@sweetcatchspf.com"] and shared["items"][0]["refusals"] == 0
+    assert [i["email"] for i in shared["items"]] == ["info@sweetcatch.test"] and shared["items"][0]["refusals"] == 0
 
 
 def test_a_business_with_no_website_is_a_lead_through_its_public_listing():

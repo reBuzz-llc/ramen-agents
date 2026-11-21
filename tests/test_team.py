@@ -13,9 +13,9 @@ from explorer.team import Member, default_member, find_member, load_team, team_b
 from conftest import DENYLIST, make_controller
 
 TEAM = [
-    Member("u-alex", "Alex Stone", "alex@acmestudio.com", "Springfield representative", "meets clients in person", False),
-    Member("u-sam", "Sam Rai", "sam@acmestudio.com", "Springfield representative", "", False),
-    Member("u-mkt", "Marketing Lead", "mkt@acmestudio.com", "Marketing", "outreach, content, website", True),
+    Member("u-alex", "Alex Stone", "alex@acmestudio.example", "Springfield representative", "meets clients in person", False),
+    Member("u-sam", "Sam Rai", "sam@acmestudio.example", "Springfield representative", "", False),
+    Member("u-mkt", "Marketing Lead", "mkt@acmestudio.example", "Marketing", "outreach, content, website", True),
 ]
 
 
@@ -29,7 +29,7 @@ def write_team(path, members=TEAM):
 def test_members_match_by_full_name_first_name_or_email():
     assert find_member(TEAM, "Alex Stone") is TEAM[0]
     assert find_member(TEAM, "alex") is TEAM[0]
-    assert find_member(TEAM, "SAM@acmestudio.com") is TEAM[1]
+    assert find_member(TEAM, "SAM@acmestudio.example") is TEAM[1]
     assert find_member(TEAM, "Ash") is None
     assert find_member(TEAM, "") is None
     assert default_member(TEAM) is TEAM[2]

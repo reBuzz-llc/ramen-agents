@@ -3308,7 +3308,7 @@ class Controller:
 
     def _page_packages(self) -> dict[str, str]:
         """Exact name -> title of every toggle on the Packages page: this bot's own record (The CEO), or, for a bot that
-        hands packages to The CEO, the CEO's record read-only (near-duplicate check, creatorCC queue 15)."""
+        hands packages to The CEO, the CEO's record read-only."""
         blocks = dict(self._published_blocks())
         h = self.cfg.handoff
         if h.enabled and h.to_folder.strip():

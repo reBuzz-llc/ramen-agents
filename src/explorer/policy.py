@@ -542,7 +542,7 @@ def package_key(name: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
-# Words every offer on the page shares, dropped before two package names are compared (creatorCC queue 15, 2026-10-29),
+# Words every offer on the page shares, dropped before two package names are compared (2026-10-29),
 # plus a title's filler ("for", "from $99/month").
 _PACKAGE_FILLER = frozenset("nyc new york ny small business businesses smb smbs package packages for agent agents setup service services "
                             "the and of to a an with your our per month mo from ai powered solution solutions".split())  # every offer here is AI
@@ -1702,7 +1702,7 @@ class Policy:
                     key = url_key(target)
                     seen = any(url_key(u) == key for u in ctx.visited_urls) or any(url_key(u) == key for u in ctx.seen_link_urls)
                 # A business on the Leads board is no guess: its site is the row's Website (Lead Gen typed
-                # https://sunnydeli-example.com from the Validator's upkeep list three times and was refused, 2026-09-26).
+                # https://sunnydeli.example from the Validator's upkeep list three times and was refused, 2026-09-26).
                 seen = seen or (url_domain(target) in ctx.recent_lead_domains) or (target.rstrip("/") in ctx.seen_link_urls)
                 if not seen:  # a page on the same site as one opened this episode (/about, /contact): no guess (2026-10-14)
                     seen = any(same_site(url_domain(target), url_domain(u)) for u in ctx.visited_urls if u.startswith("http"))
@@ -1904,7 +1904,7 @@ class Policy:
                 )
             if ctx.tasks_today >= self.tasks.max_per_day:
                 # The CEO: hundreds of refused task attempts in a week; with a cap of 1 the day's one task is added to instead
-                # (creatorCC queue 5, 2026-10-28)
+                # (2026-10-28)
                 if self.tasks.max_per_day == 1:
                     return Verdict.no("today's task exists; add to it with update_task", permanent=True)
                 return Verdict.no(f"you have created {ctx.tasks_today} tasks today, the daily limit; add to one of them with update_task",

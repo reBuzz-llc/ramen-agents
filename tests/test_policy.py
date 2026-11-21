@@ -238,11 +238,11 @@ def test_domain_no_progress_cap_refuses_the_same_site_and_tags_it():
 
 
 def test_open_only_seen_urls_lets_a_leads_board_site_through():
-    # Lead Gen typed https://sunnydeli-example.com from the Validator's upkeep list and was refused three times (2026-09-26)
+    # Lead Gen typed https://sunnydeli.example from the Validator's upkeep list and was refused three times (2026-09-26)
     policy = make_policy(open_only_seen_urls=True, respect_robots=False)
-    c = ctx(mode="web"); c.recent_lead_domains = {"sunnydeli-example.com"}
-    assert policy.check(Open(type="open", url="https://sunnydeli-example.com"), c).allowed
-    assert policy.check(Open(type="open", url="https://www.sunnydeli-example.com/about"), c).allowed
+    c = ctx(mode="web"); c.recent_lead_domains = {"sunnydeli.example"}
+    assert policy.check(Open(type="open", url="https://sunnydeli.example"), c).allowed
+    assert policy.check(Open(type="open", url="https://www.sunnydeli.example/about"), c).allowed
     assert not policy.check(Open(type="open", url="https://someothershop.com"), c).allowed
 
 

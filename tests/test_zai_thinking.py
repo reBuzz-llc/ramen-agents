@@ -1,4 +1,4 @@
-"""z.ai's glm-4.5-flash is asked not to think: its reasoning ate the whole max_tokens (creatorCC queue 14, 2026-10-29)."""
+"""z.ai's glm-4.5-flash is asked not to think: its reasoning ate the whole max_tokens (2026-10-29)."""
 from __future__ import annotations
 
 import json

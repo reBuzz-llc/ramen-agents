@@ -108,9 +108,9 @@ def test_mailto_addresses_become_page_text():
     from explorer.browser import TextExtractor
 
     x = TextExtractor(lambda h: h)
-    x.feed('<html><body><p>Visit us in Northside.</p><a href="mailto:bakery@miasnorthside.com?subject=hi">Email us</a>'
-           '<a href="https://miasnorthside.com/menu">Menu</a></body></html>')
+    x.feed('<html><body><p>Visit us in Northside.</p><a href="mailto:bakery@miasnorthside.example?subject=hi">Email us</a>'
+           '<a href="https://miasnorthside.example/menu">Menu</a></body></html>')
     text = x.text()
     assert "Visit us in Northside." in text and "Email us" in text
-    assert "Email addresses linked on this page: bakery@miasnorthside.com" in text
-    assert [href for _, href in x.links] == ["https://miasnorthside.com/menu"]  # mailto is not a followable link
+    assert "Email addresses linked on this page: bakery@miasnorthside.example" in text
+    assert [href for _, href in x.links] == ["https://miasnorthside.example/menu"]  # mailto is not a followable link

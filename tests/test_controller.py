@@ -308,10 +308,10 @@ def test_a_bot_that_keeps_re_asking_is_told_to_stop_asking(cfg):
 def test_urls_in_routed_files_count_as_seen(cfg):
     routed = cfg.root.parent / "common-data" / "botBox" / "routed" / cfg.root.name
     routed.mkdir(parents=True, exist_ok=True)
-    (routed / "upkeep-list.md").write_text("- Sunny Deli -- https://sunnydeli-example.com -- Location, Founded by\n- x https://junipercafe.com/.\n")
+    (routed / "upkeep-list.md").write_text("- Sunny Deli -- https://sunnydeli.example -- Location, Founded by\n- x https://junipercafe.com/.\n")
     c = make_controller(cfg)
     c._seed_seen_links_from_own_files()
-    assert {"https://sunnydeli-example.com", "https://junipercafe.com/"} <= c.seen_links
+    assert {"https://sunnydeli.example", "https://junipercafe.com/"} <= c.seen_links
     c.seen_links.clear()
     c._seed_seen_links_from_own_files()  # unchanged files: no rescan
     assert not c.seen_links

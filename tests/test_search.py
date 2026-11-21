@@ -347,12 +347,12 @@ def test_tavily_answers_within_its_daily_budget_and_steps_aside_without_a_key(tm
 
     def handler(request):
         calls.append(request)
-        return httpx.Response(200, json={"results": [{"title": "Mia's Northside Bakery contact", "url": "https://miasnorthside.com/contact", "content": "info@miasnorthside.com 139 Smith St"}]})
+        return httpx.Response(200, json={"results": [{"title": "Mia's Northside Bakery contact", "url": "https://miasnorthside.example/contact", "content": "info@miasnorthside.example 139 Smith St"}]})
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     usage = tmp_path / "tavily-usage.json"
     page = tavily_search(client, "Northside bakery contact", "k", per_day=2, usage_file=usage)
-    assert page.ok and page.links[0].url == "https://miasnorthside.com/contact" and "(tavily)" in page.title
+    assert page.ok and page.links[0].url == "https://miasnorthside.example/contact" and "(tavily)" in page.title
     assert calls[0].headers["authorization"] == "Bearer k"
     assert tavily_search(client, "q2", "k", per_day=2, usage_file=usage).ok
     over = tavily_search(client, "q3", "k", per_day=2, usage_file=usage)

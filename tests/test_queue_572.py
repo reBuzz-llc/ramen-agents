@@ -93,7 +93,7 @@ def test_the_board_clients_come_from_one_address_and_one_key(tmp_path, monkeypat
 
 
 class Board:
-    """The local board's task and package routes, as appCC serves them (queue 572)."""
+    """The local board's task and package routes."""
 
     def __init__(self):
         self.calls: list[tuple[str, str, dict]] = []

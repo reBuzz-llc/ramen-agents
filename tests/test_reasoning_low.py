@@ -1,4 +1,4 @@
-"""Hidden reasoning turned down per provider, as the 2026-10-29 probes showed each API takes it (creatorCC queue 18)."""
+"""Hidden reasoning turned down per provider, as the 2026-10-29 probes showed each API takes it."""
 from __future__ import annotations
 
 import json

@@ -85,9 +85,9 @@ def test_urls_in_own_files_become_followable_links(tmp_path):
     from explorer.corpus import Corpus
 
     (tmp_path / "ny-seed.md").write_text(
-        "# Northside bakeries with a published email\n\n- Mia's Bakery https://miasnorthside.com/ bakery@miasnorthside.com\n"
-        "- Ovenly https://oven.ly/contact. Also https://miasnorthside.com/ again.\n", encoding="utf-8")
+        "# Northside bakeries with a published email\n\n- Mia's Bakery https://miasnorthside.example/ bakery@miasnorthside.example\n"
+        "- Ovenly https://oven.ly/contact. Also https://miasnorthside.example/ again.\n", encoding="utf-8")
     page = Corpus(tmp_path).search("northside bakeries published email")
     assert page.ok and "Mia's Bakery" in page.text
-    assert [l.url for l in page.links] == ["https://miasnorthside.com/", "https://oven.ly/contact"]
+    assert [l.url for l in page.links] == ["https://miasnorthside.example/", "https://oven.ly/contact"]
     assert page.links[0].number == 1 and page.links[1].number == 2

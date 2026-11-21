@@ -1,4 +1,4 @@
-"""find_place by name or by website domain, chains excluded (creatorCC queue 2b, 2026-10-28)."""
+"""find_place by name or by website domain, chains excluded (2026-10-28)."""
 import sqlite3
 from pathlib import Path
 

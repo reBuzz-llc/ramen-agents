@@ -259,7 +259,7 @@ def load_gemini_key(cfg: ModelConfig) -> str | None:
 
 
 # A host that timed out is benched this long: a provider that accepts the connection and then hangs cost the full read
-# timeout (180 s) every two minutes when it was benched like a refused connection (creatorCC queue 16, 2026-10-29).
+# timeout (180 s) every two minutes when it was benched like a refused connection (2026-10-29).
 TIMEOUT_BENCH_SECONDS = 900.0
 
 

@@ -1,4 +1,4 @@
-"""[agent] idle_when_empty: no model call when there is nothing to do (creatorCC queue 6, 2026-10-28)."""
+"""[agent] idle_when_empty: no model call when there is nothing to do (2026-10-28)."""
 from __future__ import annotations
 
 import json

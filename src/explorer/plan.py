@@ -92,7 +92,7 @@ class WorkPlan:
 
     def names_domain(self, domain: str) -> bool:
         """True when the plan's task or steps name this site: the domain itself, or its main label as the business
-        name without spaces ("Sunny Deli" for sunnydeli-example.com). A common word that merely sits inside the label does
+        name without spaces ("Sunny Deli" for sunnydeli.example). A common word that merely sits inside the label does
         not count -- "restaurants" is not petrossianrestaurants.com (26 wrongly refused plans, 2026-09-30)."""
         dom = (domain or "").lower()
         label = dom.split(".")[0]

@@ -1,4 +1,4 @@
-"""One offer, one name: a package that is an existing one in other words is refused (creatorCC queue 15, 2026-10-29)."""
+"""One offer, one name: a package that is an existing one in other words is refused (2026-10-29)."""
 from __future__ import annotations
 
 from explorer.actions import PublishPackage
@@ -16,7 +16,7 @@ def test_the_three_customer_support_names_are_one_offer():
 
 
 def test_the_comparison_page_shares_only_ai_with_them():
-    # a menu of offers, not a rename: matching it would match every AI offer on the page (reported to creatorCC)
+    # a menu of offers, not a rename: matching it would match every AI offer on the page
     assert package_overlap("SMB AI Implementation Package Comparison", SUPPORT[0]) < 0.6
 
 

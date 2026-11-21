@@ -41,7 +41,7 @@ second bot is mostly a second folder:
 
 - **Ollama.** One server, one model in memory at a time per model name. Two bots on `qwen2.5:7b`
   queue behind each other (Ollama serialises requests per model); two different 7B models means
-  ~10 GB resident on a 16 GB Mac mini, which is too much alongside a game. Rule of thumb: bots share
+  ~10 GB resident on a 16 GB machine, which is too much alongside a game. Rule of thumb: bots share
   a model, and quiet mode unloads it when the owner is present.
 - **Search engines.** Rate limits are per IP, and one bot already hit Brave's. A second bot doubles the
   problem. Per-bot `policy.pages_per_hour` is the lever now; a second search backend is the fix.

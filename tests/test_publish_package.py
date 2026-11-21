@@ -196,7 +196,7 @@ def test_a_package_refused_today_is_not_retried_before_tomorrow(cfg):
 
 
 def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: Path):
-    """creatorCC queue 4, 2026-10-28: The CEO published one package many times in a week under several names."""
+    """The CEO published one package many times in a week under several names."""
     import time
 
     from explorer.db import Database
@@ -227,7 +227,7 @@ def test_a_package_goes_up_at_most_once_a_week_whatever_it_is_called(tmp_path: P
 
 
 def test_a_republish_request_lets_a_package_up_once_whatever_spelling_it_used(cfg, tmp_path: Path, monkeypatch):
-    """creatorCC queue 13, 2026-10-29: requests under different spellings of one package let it up again and again within hours."""
+    """Requests under different spellings of one package let it up again and again within hours."""
     import json
     import time
 
