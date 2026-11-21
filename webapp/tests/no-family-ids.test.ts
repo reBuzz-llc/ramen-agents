@@ -1,26 +1,23 @@
 // The public starter carries nothing of the family's own (a link to one of the family's
 // Notion pages shipped in work-plan-view.tsx): every tracked file of this repository is scanned for a Notion link or page
-// id, a 32-hex id that is not an obvious placeholder, a Supabase project ref, a tailnet or device name, and the family's
-// own addresses and repo names, and a timestamp with a local UTC offset. A placeholder reads as one: "<project-ref>", "<mac>.<tailnet>.ts.net", a run of one
+// id, a 32-hex id that is not an obvious placeholder, a Supabase project ref, a tailnet name and a timestamp with a local
+// UTC offset. The family's own names are checked from the maintainers' private list (RAMEN_PRIVATE_WORDS), never written here. A placeholder reads as one: "<project-ref>", "<mac>.<tailnet>.ts.net", a run of one
 // character, or an id starting 0123 / 1234 / abcd / dead.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SELF = "webapp/tests/no-family-ids.test.ts";
-// the family's own names, built from parts so this file is no list of them
-const OWN = [["rebuzzs", "mac"].join("-"), ["productive", "peek"].join("-"), ["rebot", "omega"].join("-"), ["peek", "q5"].join("-"), ["bot", "q378"].join("-"), ["com", "rebuzz", ""].join("."), ["mac", "Bot1"].join("")];
 const PATTERNS: [string, RegExp][] = [
   ["a Notion link", /\b(?:www\.)?notion\.(?:so|site)\/|app\.notion\.com\//i],
   ["a Supabase project ref", /\b(?!<)[a-z]{20}\.supabase\.(?:co|com)\b/],
   ["a tailnet name", /\btail[0-9a-f]{6}\.ts\.net\b/i],
   // a date-time with a UTC offset other than Z / +00:00 dates a file to a place
   ["a timestamp with a local offset", /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?[+-](?!00:?00\b)\d{2}:?\d{2}\b/],
-  ["the family's own name", new RegExp(OWN.map((s) => s.replace(/[-.]/g, "\\$&")).join("|"), "i")],
 ];
 const HEX = /\b[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}\b/gi;
 const placeholder = (v: string) => {
@@ -50,7 +47,6 @@ test("no id, link or name of the family's own in any tracked file", () => {
 // The docs may not credit a member the starter does not ship. The family's own members are never
 // named in the prose; a member you can add (Lead Enricher, Outreach Writer) is named only in a paragraph or table row
 // that says so. Prompts and rule files (validator/instructions/, */persona.md) are rules for the member, not claims.
-const FAMILY_ONLY = new RegExp([["Jobless", "Bot"].join("-"), ["Onion", "Reader"].join(" "), ["Desk", "Agent"].join(" ")].join("|"), "i");
 const ADDABLE = /\b(?:Lead\s+)?Enricher\b|\bOutreach\s+Writer\b/i;
 const SAYS_ADDABLE = /if you add one|does not ship|ships no\b|not part of this starter/i;
 
@@ -60,9 +56,6 @@ test("the docs credit no member the starter does not ship", () => {
   for (const f of files) {
     if (f.startsWith("validator/instructions/") || /(^|\/)persona\.md$/.test(f)) continue;
     const text = readFileSync(path.join(ROOT, f), "utf8");
-    text.split("\n").forEach((line, i) => {
-      if (FAMILY_ONLY.test(line)) found.push(`${f}:${i + 1}: a member only the family has`);
-    });
     // a unit is a paragraph (a run of non-blank lines) or one table row; headings are skipped
     const units: [number, string][] = [];
     let para: [number, string[]] | null = null;
@@ -83,16 +76,32 @@ test("the docs credit no member the starter does not ship", () => {
   assert.deepEqual(found, []);
 });
 
-// With their code gone, the three members only the family had are named in no
-// tracked file at all, by name or by slug (code, tests, fixtures, configs and docs alike).
-const FAMILY_SLUGS = new RegExp(["jobless", "onion-reader", "desk-agent"].map((s, i) => (i ? s : `${s}-bot`)).join("|"), "i");
+// The maintainers' own names (a machine, products, repos, members the starter never shipped) stay in their private list.
+// Without that list this one check is skipped and says so; a name itself is never printed.
+const NAMES_HEADER = "# own names the public tests refuse";
+const LIST = process.env.RAMEN_PRIVATE_WORDS ?? "";
+const HAS_LIST = Boolean(LIST) && existsSync(LIST);
 
-test("no tracked file names a member only the family had", () => {
+function ownNames(): string[] {
+  const lines = readFileSync(LIST, "utf8").split("\n");
+  const at = lines.findIndex((l) => l.startsWith(NAMES_HEADER));
+  assert.ok(at >= 0, `the private list has no section starting "${NAMES_HEADER}"`);
+  const names: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    if (line.startsWith("#")) break;
+    if (line.trim()) names.push(line.trim());
+  }
+  assert.ok(names.length > 0, "the private list's names section is empty");
+  return names;
+}
+
+test("no tracked file or path holds a private name", { skip: HAS_LIST ? false : "RAMEN_PRIVATE_WORDS is not set: this check needs the maintainers' list" }, () => {
+  const rx = new RegExp(`(?<![A-Za-z0-9])(?:${ownNames().map((n) => n.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&")).join("|")})(?![A-Za-z0-9])`, "i");
   const files = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
   const found: string[] = [];
   for (const f of files) {
-    if (f === SELF || /(^|\/)package-lock\.json$|\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|sqlite3?)$/.test(f)) continue;
-    if (FAMILY_ONLY.test(f) || FAMILY_SLUGS.test(f)) found.push(`${f}: its path`);
+    if (rx.test(f)) found.push(`${f}: its path`);
+    if (/(^|\/)package-lock\.json$|\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|sqlite3?)$/.test(f)) continue;
     let text = "";
     try {
       text = readFileSync(path.join(ROOT, f), "utf8");
@@ -100,7 +109,7 @@ test("no tracked file names a member only the family had", () => {
       continue;
     }
     text.split("\n").forEach((line, i) => {
-      if (FAMILY_ONLY.test(line) || FAMILY_SLUGS.test(line)) found.push(`${f}:${i + 1}: a member only the family had`);
+      if (rx.test(line)) found.push(`${f}:${i + 1}: a private name`);
     });
   }
   assert.deepEqual(found, []);
