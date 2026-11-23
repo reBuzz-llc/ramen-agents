@@ -2,6 +2,10 @@
 online model first, then the next, and STOP when none answers. It never falls back to the local 7B model:
 a weak judge is worse than no judge. Every call is counted in the fleet's shared ledger
 (~/.config/explorer/model_calls.json, the same file the bots' chains use) so the free quotas stay honest.
+
+What it sends goes through the engine's mask, as every member's call does: email addresses, phone numbers and known
+contact names leave as stand-ins and come back in the answer. A provider on the closed list (personal_closed, which
+holds Gemini until you say yes in sh scripts/add-key.sh gemini) is never asked. If the mask cannot run, nothing is sent.
 """
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 log = logging.getLogger("validator.judge")
 _JSON = re.compile(r"\[.*\]", re.S)
@@ -43,12 +47,39 @@ class Answer:
     tokens: int
 
 
+def closed_names(root: Path) -> set[str]:
+    """The providers that may not read the judge's text: personal_closed, from local.toml when it sets one (the person's
+    own answer), else web-bots.toml. A list that cannot be read keeps Gemini closed."""
+    try:
+        import tomllib
+        for name in ("local.toml", "web-bots.toml"):
+            path = root / "common-data" / "configs" / name
+            if not path.exists():
+                continue
+            found = (tomllib.loads(path.read_text(encoding="utf-8")).get("model") or {}).get("personal_closed")
+            if isinstance(found, list):
+                return {str(x) for x in found}
+            if found is not None:
+                break
+    except (ImportError, OSError, ValueError):
+        pass
+    return {"gemini"}
+
+
+def _mask(messages: list[dict[str, Any]]) -> Any:
+    from explorer.common import masking
+    return masking.begin(messages, True)
+
+
 class Judge:
     """`post(url, headers, json) -> (status, body_dict)` is injectable for tests; the default uses httpx."""
 
     def __init__(self, chain: list[Provider], *, max_output_tokens: int = 400, ledger: Any | None = None,
-                 post: Callable[[str, dict[str, str], dict[str, Any]], tuple[int, dict[str, Any]]] | None = None):
+                 post: Callable[[str, dict[str, str], dict[str, Any]], tuple[int, dict[str, Any]]] | None = None,
+                 closed: Iterable[str] = ("gemini",), mask: Callable[[list[dict[str, Any]]], Any] = _mask):
         self.chain = chain
+        self.closed = set(closed)
+        self.mask = mask
         self.max_output_tokens = max_output_tokens
         self.ledger = ledger
         self.post = post or _httpx_post
@@ -61,14 +92,26 @@ class Judge:
         for p in self.chain:
             if p.name in self.benched:
                 continue
+            if p.name in self.closed:
+                self.benched.add(p.name)
+                log.info("judge: %s is closed to this text, skipped", p.name)
+                continue
             key = p.key()
             if not key:
                 self.benched.add(p.name)
                 log.info("judge: %s has no key, skipped", p.name)
                 continue
+            try:
+                call = self.mask([{"role": "system", "content": system}, {"role": "user", "content": prompt}])
+            except Exception as exc:  # noqa: BLE001 - a mask that breaks never sends the text as it is
+                log.warning("judge: the mask failed (%s); nothing sent", type(exc).__name__)
+                return None
+            if call is None:
+                log.warning("judge: no mask for this call; nothing sent")
+                return None
             body = {
                 "model": p.model,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                "messages": call.messages,
                 "max_tokens": self.max_output_tokens,
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
@@ -99,6 +142,11 @@ class Judge:
                     pass
             if not text.strip():
                 log.warning("judge: %s returned an empty answer (reasoning used the output budget?); trying the next", p.name)
+                continue
+            try:
+                text = call.restore(text)
+            except Exception as exc:  # noqa: BLE001 - a stand-in lost or invented: this answer is not used
+                log.warning("judge: %s failed the mask check (%s); trying the next", p.name, type(exc).__name__)
                 continue
             self.used[p.name] = self.used.get(p.name, 0) + 1
             return Answer(text, p.name, p_tok + c_tok)

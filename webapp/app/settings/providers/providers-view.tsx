@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { BotProfile } from "@/lib/bot";
 import type { ProviderCatalog, ProviderInfo, TestResult } from "@/lib/keys";
 import { sendJson } from "@/lib/client";
+import { needsTermsScript, TERMS_FIRST } from "@/lib/key-terms";
 import CopyButton from "../../copy-button";
 import Sheet from "../../sheet";
 import { Badge, buttonClass, Panel, Spinner } from "../../ui";
@@ -194,6 +195,14 @@ function KeySheet({ provider, slug, onClose, onSaved }: { provider: ProviderInfo
   };
 
   const looksValid = /^[\x21-\x7e]{16,512}$/.test(key.trim());
+
+  if (needsTermsScript(provider.name)) {
+    return (
+      <Sheet open onClose={close} title={`${provider.hasKey ? "Replace" : "Add"} ${provider.name} key`}>
+        <p className="mb-3 text-sm text-muted">{TERMS_FIRST}</p>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open onClose={close} title={`${provider.hasKey ? "Replace" : "Add"} ${provider.name} key`}>

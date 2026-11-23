@@ -37,7 +37,7 @@ sys.path.insert(0, str(HERE))
 
 from checks import Checker, Flag, Instructions, _collect, check_lead, check_lead_email_published, check_package_file, check_package_toggle, check_provider, check_task, duplicate_index, lead_key, lead_site_key, load_instructions, site_duplicate_index  # noqa: E402
 import checks  # noqa: E402
-from judge import Judge, Provider, judge_prompt, parse_verdicts  # noqa: E402
+from judge import Judge, Provider, closed_names, judge_prompt, parse_verdicts  # noqa: E402
 from email_check import stale, verify_many  # noqa: E402
 from leads_upkeep import ASSIGN_HOURS, Deletion, deletion_report, examine, provider_message, work_message, write_board_file  # noqa: E402
 import claims  # noqa: E402
@@ -737,7 +737,7 @@ class Run:
         if usage.get("date") != self.now.strftime("%Y-%m-%d"):
             usage.clear()
             usage.update(date=self.now.strftime("%Y-%m-%d"), tokens=0, calls=0)
-        if usage.get("tokens", 0) >= budget:
+        if budget > 0 and usage.get("tokens", 0) >= budget:      # 0 = no budget of ours
             self.notes.append(f"judgment pass skipped: today's {budget} token budget is used")
             return
         try:
@@ -745,7 +745,7 @@ class Run:
             ledger = CallLedger()
         except Exception:  # noqa: BLE001
             ledger = None
-        judge = Judge(chain, max_output_tokens=int(ms.get("max_output_tokens", 400)), ledger=ledger)
+        judge = Judge(chain, max_output_tokens=int(ms.get("max_output_tokens", 400)), ledger=ledger, closed=closed_names(HERE.parent))
         system = (HERE / "persona.md").read_text(encoding="utf-8")
         failed = {(f.kind, f.artifact) for f in self.current if f.severity == "error"}
         judged: dict[str, Any] = self.state.setdefault("judged", {})
@@ -774,7 +774,7 @@ class Run:
         candidates: list[tuple[str, str, str, str, str, dict[str, str], str, str]] = []  # kind, artifact, version, bot, label, fields, url, name
         closed = {"done", "archived", "cancelled", "dublicate", "not fisible"}
         for t in [t for t in tasks if (t.status or "").lower() not in closed]:   # a closed task needs no review
-            fields = {"Title": t.title, "Assignee": ", ".join(t.assignee_names), "Dead Line": t.due or "", "Priority": t.priority, "Brief": t.body}
+            fields = {"Title": t.title, "Assignee": "assigned" if t.assignee_names else "", "Dead Line": t.due or "", "Priority": t.priority, "Brief": t.body}
             candidates.append(("task", t.page_id, t.edited or t.created, owner_bot, t.label, fields, t.url, t.title))
         for p in toggles:
             version = hashlib.sha1(f"{p.title}|{p.email}|{p.conclusion}|{p.sources}".encode()).hexdigest()[:12]
@@ -785,7 +785,7 @@ class Run:
         stale = 0
         ranked = sorted(((due(f"{k}:{a}", ver), (k, a, ver, b, lab, f, u, n)) for k, a, ver, b, lab, f, u, n in candidates), key=lambda x: x[0])
         for (prio, _since), (kind, artifact, version, bot, label, fields, url, name) in ranked:
-            if done >= int(ms.get("max_items_per_run", 8)) or usage.get("tokens", 0) >= budget:
+            if done >= int(ms.get("max_items_per_run", 8)) or (budget > 0 and usage.get("tokens", 0) >= budget):
                 break
             if (kind, artifact) in failed or prio == 9:
                 continue

@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { BOTS_DIR } from "@/lib/bots";
 import { cleanKey, KEYS_DIR, saveKey, testKey, type ProviderInfo } from "@/lib/keys";
+import { needsTermsScript, TERMS_FIRST } from "@/lib/key-terms";
 import { changeVerdicts, newFinds, parseFinds, readVerdicts, withMark, type Mark } from "@/lib/provider-finds";
 import { sameOrigin } from "@/lib/same-origin";
 
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
     return Response.json(result, { headers: NO_STORE });
   }
   if (b.action === "save") {
+    if (needsTermsScript(slug)) return Response.json({ error: TERMS_FIRST }, { status: 400, headers: NO_STORE });
     const key = cleanKey(b.key);
     if (!key) return Response.json({ error: "that does not look like a key" }, { status: 400 });
     await saveKey({ name: slug, auto: false, note: "", model: "", baseUrl: "", kind: "", keyFile, hasKey: false }, key);

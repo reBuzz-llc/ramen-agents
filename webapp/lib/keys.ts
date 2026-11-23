@@ -11,6 +11,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { BotProfile } from "./bot";
 import { CODE_ROOT } from "./bots";
+import { needsTermsScript, TERMS_FIRST } from "./key-terms";
 
 const run = promisify(execFile);
 
@@ -58,6 +59,7 @@ export function cleanKey(raw: unknown): string | null {
 }
 
 export async function saveKey(p: ProviderInfo, key: string): Promise<void> {
+  if (needsTermsScript(p.name)) throw new Error(TERMS_FIRST);
   const file = safeKeyPath(p);
   if (!file) throw new Error(`${p.name}'s key file is outside ${KEYS_DIR}; set it there in the bot config first`);
   await mkdir(/*turbopackIgnore: true*/ KEYS_DIR, { recursive: true, mode: 0o700 });

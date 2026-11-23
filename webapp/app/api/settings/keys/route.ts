@@ -1,5 +1,6 @@
 import { findBot } from "@/lib/bots";
 import { cleanKey, findProvider, providerCatalog, readSavedKey, saveKey, testKey } from "@/lib/keys";
+import { needsTermsScript, TERMS_FIRST } from "@/lib/key-terms";
 import { sameOrigin } from "@/lib/same-origin";
 
 const NO_STORE = { "cache-control": "no-store" };
@@ -24,6 +25,7 @@ async function context(req: Request) {
 export async function PUT(req: Request) {
   const ctx = await context(req);
   if (ctx.error) return ctx.error;
+  if (needsTermsScript(ctx.provider.name)) return Response.json({ error: TERMS_FIRST }, { status: 400, headers: NO_STORE });
   const key = cleanKey(ctx.body.key);
   if (!key) return Response.json({ error: "That doesn't look like an API key: 16 to 512 characters, no spaces." }, { status: 400 });
   try {
