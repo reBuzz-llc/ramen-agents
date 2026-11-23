@@ -84,9 +84,12 @@ fi
 
 echo
 echo "Model keys: one is enough to start."
+model_key() {
+  for k in zai groq openrouter; do [ -s "common-data/keys/$k.key" ] && return 0; done
+  [ -s common-data/keys/gemini.key ] && python3 scripts/gemini_choice.py is-open
+}
 have=0
-for k in zai groq openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
-[ -s common-data/keys/gemini.key ] && python3 scripts/gemini_choice.py is-open && have=1
+model_key && have=1
 if [ "$have" = 1 ]; then echo "  ok       a model key is on file"
 elif [ -t 0 ]; then
   printf "  No model key yet. Add a free Z.ai key now? [Y/n] "
@@ -142,7 +145,13 @@ sh scripts/check-setup.sh >/dev/null 2>&1 && echo "  ok       setup check: ready
 open "http://127.0.0.1:3000" 2>/dev/null || true
 echo
 if [ "$STARTED" = 0 ]; then
-  echo "No member started yet. Fix what the lines above name (usually: sh scripts/add-key.sh zai), then run sh scripts/setup.sh again."
+  # Exit 3: no model key yet, so add one and run this again. Any other non-zero code: something failed.
+  if model_key; then
+    echo "No member started. Run the check line above to see why, fix it, then run sh scripts/setup.sh again."
+    exit 1
+  fi
+  echo "No member started yet: there is no model key. Add one (sh scripts/add-key.sh zai), then run sh scripts/setup.sh again."
+  exit 3
 else
   echo "Your family is starting. The dashboard: http://127.0.0.1:3000 (watch the first day; stop a member with its Stop button)."
 fi

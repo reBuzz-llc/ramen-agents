@@ -4,7 +4,8 @@
 #
 #   sh scripts/add-key.sh zai           # or: groq, openrouter, gemini,
 #                                       #     quickemailverification, sniffmail
-# One model key is enough to start; more mean more fallbacks. The dashboard's Key providers page does the same.
+# One model key is enough to start; more mean more fallbacks. The dashboard's Key providers page does the same, except for
+# Gemini: only this script shows Google's terms and asks first.
 set -eu
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 cd "$(dirname "$0")/.."

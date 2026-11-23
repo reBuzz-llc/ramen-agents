@@ -797,7 +797,8 @@ class Run:
                 continue
             answer = judge.ask(system, judge_prompt(kind, fields, questions))
             if answer is None:
-                self.errors.append("judgment pass: no model in the chain answered; skipped for this run")
+                self.errors.append("judgment pass: the mask could not run, so nothing was sent; skipped for this run" if judge.mask_failed
+                                   else "judgment pass: no model in the chain answered; skipped for this run")
                 break
             done += 1
             usage["tokens"] = usage.get("tokens", 0) + answer.tokens

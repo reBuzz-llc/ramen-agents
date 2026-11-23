@@ -17,7 +17,8 @@ thing to do.
    reads the key without showing it and tests it.
 3. Ask the person the setup questions (below), write their answers to `common-data/local/family.toml`, then
    `sh scripts/setup.sh --answers common-data/local/family.toml`. Without an agent, `sh scripts/setup.sh` asks the
-   same questions itself. It is safe to run again: if it says no member started, fix what it names and run it again.
+   same questions itself. It is safe to run again. Exit 3 means no member started because there is no model key yet:
+   the person adds one (step 2), then run it again. Any other non-zero code means something failed: read what it printed.
 4. `python3 scripts/setup-check.py` says what is still missing, one line each, and exits 0 when nothing is. The
    dashboard is http://127.0.0.1:3000.
 

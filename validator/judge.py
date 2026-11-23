@@ -5,7 +5,8 @@ a weak judge is worse than no judge. Every call is counted in the fleet's shared
 
 What it sends goes through the engine's mask, as every member's call does: email addresses, phone numbers and known
 contact names leave as stand-ins and come back in the answer. A provider on the closed list (personal_closed, which
-holds Gemini until you say yes in sh scripts/add-key.sh gemini) is never asked. If the mask cannot run, nothing is sent.
+holds Gemini until you say yes in sh scripts/add-key.sh gemini) is never asked. If the mask cannot run, or the board copy
+that holds the contact names cannot be read, nothing is sent.
 """
 from __future__ import annotations
 
@@ -68,6 +69,8 @@ def closed_names(root: Path) -> set[str]:
 
 def _mask(messages: list[dict[str, Any]]) -> Any:
     from explorer.common import masking
+    if not masking.board_readable():     # without the board copy no contact name would be hidden
+        raise RuntimeError("the board copy behind the name mask cannot be read")
     return masking.begin(messages, True)
 
 
@@ -80,6 +83,7 @@ class Judge:
         self.chain = chain
         self.closed = set(closed)
         self.mask = mask
+        self.mask_failed = False
         self.max_output_tokens = max_output_tokens
         self.ledger = ledger
         self.post = post or _httpx_post
@@ -105,9 +109,11 @@ class Judge:
                 call = self.mask([{"role": "system", "content": system}, {"role": "user", "content": prompt}])
             except Exception as exc:  # noqa: BLE001 - a mask that breaks never sends the text as it is
                 log.warning("judge: the mask failed (%s); nothing sent", type(exc).__name__)
+                self.mask_failed = True
                 return None
             if call is None:
                 log.warning("judge: no mask for this call; nothing sent")
+                self.mask_failed = True
                 return None
             body = {
                 "model": p.model,

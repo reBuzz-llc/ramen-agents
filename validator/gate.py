@@ -222,7 +222,7 @@ def _open_task_titles() -> list[str]:
 def questions(action: str, payload: dict, *, bot: str = "", page_text: str = "", open_tasks: list[str] | None = None) -> list[dict]:
     """Gate 3: the owner's model-judged questions for this write, each with its context assembled (<= CONTEXT_MAX chars).
     Pure and fast; [] for an action with no questions. The engine asks a small model for {"ok": bool, "why": str}, caches,
-    fails open, and refuses with "Validator rules: <id>: <why>" when ok is false. `page_text` is the cited page's text,
+    holds the write when it gets no verdict, and refuses with "Validator rules: <id>: <why>" when ok is false. `page_text` is the cited page's text,
     which only the engine holds (recent_page_texts)."""
     if action not in GATED or not isinstance(payload, dict):
         return []

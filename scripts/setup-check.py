@@ -172,7 +172,7 @@ def probe() -> list[str]:
             continue
         key = (KEYS / f"{n}.key").read_text(encoding="utf-8").strip()
         if n == "gemini":
-            req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models?key={key}")
+            req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models", headers={"x-goog-api-key": key})   # never in the URL
         else:
             m = re.search(rf"\[model\.providers\.{re.escape(n)}\][^\[]*?base_url\s*=\s*\"([^\"]+)\"", text, re.S)
             if not m:

@@ -312,7 +312,8 @@ def test_judge_chain_and_parsing(tmp_path):
 
     chain = [Provider("big", "https://first.example/v1", "big-model", "/nonexistent.key"),
              Provider("next", "https://second.example/v1", "next-model", str(key))]
-    j = Judge(chain, post=fake_post)
+    plain = lambda m: type("Sent", (), {"messages": m, "restore": staticmethod(lambda text: text)})()   # the mask has its own tests
+    j = Judge(chain, post=fake_post, mask=plain)
     ans = j.ask("sys", judge_prompt("task", {"Title": "x"}, ["Q1?", "Q2?"]))
     assert ans is not None and ans.provider == "next" and ans.tokens == 120
     assert calls == ["https://second.example/v1/chat/completions"]   # "big" had no key, skipped without a call

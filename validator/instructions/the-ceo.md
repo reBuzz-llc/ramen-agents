@@ -43,7 +43,7 @@ the Package Designer's and are checked under `package-designer.md`.
 - The owner copies each task by hand to the team and updates its status himself, so the row must carry everything.
 - Publish each package the Package Designer hands over exactly once, with `publish_package`, not as a task.
 
-## Model-judged at write time (gate 3: one small-model yes/no per write; the engine asks, fails open)
+## Model-judged at write time (gate 3: one small-model yes/no per write; the engine asks, and holds the write with no verdict)
 
 - MG01 [task] — Is this task a different piece of work from every open task listed, not the same work in other words?
 - MG04 [task] — Does this task need a person on the owner's team to act -- send, call, meet, post, sign, design, publish on the company website, or decide? Answer no when a family member can do it: finding businesses or their emails (Lead Gen), designing packages, prices, pitch emails or market research (Package Designer), the Packages page or Leads-board fields (The CEO itself), checking data (Validator). The task board is the human team's; family work goes to the family by message.

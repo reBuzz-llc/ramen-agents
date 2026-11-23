@@ -32,6 +32,7 @@ def _post(reply="{}", log=None):
 @pytest.fixture(autouse=True)
 def no_board(monkeypatch):
     monkeypatch.setattr(masking, "_load", lambda: masking.Known())
+    monkeypatch.setattr(masking, "board_readable", lambda: True)
 
 
 def _prompt():
@@ -77,6 +78,20 @@ def test_an_invented_stand_in_moves_to_the_next_provider(tmp_path):
 def test_no_mask_means_nothing_is_sent(tmp_path, mask):
     sent = []
     assert Judge(_chain(tmp_path, "groq"), post=_post("{}", sent), closed=(), mask=mask).ask("s", _prompt()) is None and sent == []
+
+
+def test_an_unreadable_board_copy_means_nothing_is_sent(tmp_path, monkeypatch):
+    monkeypatch.setattr(masking, "board_readable", lambda: False)
+    sent = []
+    j = Judge(_chain(tmp_path, "groq", "zai"), post=_post("{}", sent), closed=())
+    assert j.ask("s", _prompt()) is None and sent == [] and j.mask_failed is True
+
+
+def test_a_provider_that_does_not_answer_is_not_a_mask_failure(tmp_path):
+    def post(url, headers, body):
+        return 500, {"error": "down"}
+    j = Judge(_chain(tmp_path, "groq"), post=post, closed=())
+    assert j.ask("s", _prompt()) is None and j.mask_failed is False
 
 
 def _configs(root, web=None, local=None):
@@ -143,3 +158,28 @@ def test_a_used_budget_still_stops_the_pass(monkeypatch):
 def test_the_pass_sends_no_assignee_name_and_passes_the_closed_list(monkeypatch):
     asked, kept, _ = _pass(monkeypatch, 0)
     assert "Pat Example" not in asked[0] and "Assignee: assigned" in asked[0] and kept["closed"] == {"gemini"}
+
+
+def test_the_pass_says_the_mask_stopped_it(monkeypatch):
+    import judge
+    import validator as v
+
+    class NoMask(judge.Judge):
+        def __init__(self, chain, **kw):
+            super().__init__(chain, **kw)
+            self.mask_failed = True
+
+        def ask(self, system, prompt):
+            return None
+
+    from types import SimpleNamespace as NS
+    import datetime as dt
+    monkeypatch.setattr(v, "Judge", NoMask)
+    monkeypatch.setattr(v, "closed_names", lambda root: set())
+    task = NS(status="open", title="T", assignee_names=[], due="", priority="", body="B", page_id="t", edited="e", created="c", label="T", url="u")
+    me = NS(s={"model": {"chain": [{"name": "groq", "base_url": "https://x.invalid/v1", "model": "m", "key_file": "/none"}], "daily_token_budget": 0},
+               "task_owner_bot": "the-ceo"},
+            state={}, now=dt.datetime(2026, 11, 23), stamp="s", current=[], judged_now=set(), notes=[], errors=[],
+            ins=NS(questions={"the-ceo": ["Q?"]}, question_tags={}))
+    v.Run._model_pass(me, [task], [])
+    assert me.errors == ["judgment pass: the mask could not run, so nothing was sent; skipped for this run"]
