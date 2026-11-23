@@ -263,13 +263,13 @@ class PolicyConfig:
     disabled_actions: list[str] = field(default_factory=list)
     # A write gate: a Python file exposing check(action: str, payload: dict, *, bot: str, min_details: int) -> list[str]
     # (the Validator's gate.py). Run once before a lead / update_lead / task / update_task / publish_package executes;
-    # non-empty reasons refuse the write as "Validator rules: ...". Fails OPEN: a broken or slow gate is logged and the
-    # write proceeds -- a checker must never stop the family. "" = off.
+    # non-empty reasons refuse the write as "Validator rules: ...". Fails CLOSED: a gate that cannot load or run is logged
+    # and the write waits (held, not refused), and a failed load is tried again each minute. "" = off.
     write_gate: str = ""
     # Gate 3 (owner, 2026-09-26): the checker's model-judged questions at write time (validator/gate.py questions(),
     # rule ids MGnn in validator/instructions/<bot>.md). "" = off; "local" = Ollama write_gate_local_model on this Mac
     # (the bot's chain when Ollama is down); "chain" = the bot's own model. One call per question, {"ok", "why"},
-    # cached by content hash in write_gate_model_cache, fail-open. Refusal: "Validator rules: MG01: <why>".
+    # cached by content hash in write_gate_model_cache; with no verdict the write waits. Refusal: "Validator rules: MG01: <why>".
     write_gate_model: str = ""
     write_gate_local_model: str = "qwen2.5:7b"
     write_gate_model_cache: str = "~/bots/common-data/shared-state/write-gate-model.json"  # "~" is expanded where it is opened

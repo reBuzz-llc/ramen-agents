@@ -53,12 +53,12 @@ def test_model_question_refuses_with_the_rule_id_and_caches(tmp_path):
     assert len(cache) == 1 and list(cache.values())[0]["ok"] is False
 
 
-def test_model_question_passes_and_fails_open(tmp_path):
+def test_model_question_passes_and_an_unanswered_one_waits(tmp_path):
     policy = make_policy(tmp_path)
     assert policy.gate_write(TASK, bot="The CEO", judge=Judge('{"ok": true, "why": "team names only"}')).allowed
     silent = Judge("")
     v = policy.gate_write(Task(type="task", title="Another task for Bob", details="y" * 320), bot="The CEO", judge=silent)
-    assert v.allowed and silent.calls == 1 and policy.last_model_verdicts[0]["ok"] is None  # no answer: the rule is not applied
+    assert not v.allowed and v.tag == "judge_wait" and silent.calls == 1 and policy.last_model_verdicts[0]["ok"] is None  # no answer: the write waits
     assert len(json.loads((tmp_path / "cache.json").read_text())) == 1  # the unanswered question is not cached
 
 

@@ -349,7 +349,7 @@ def test_same_ask_matches_the_ceos_measured_repeats_and_not_different_files():
     assert not same_ask("file dropped by the owner: a.csv (.csv, 4 KB)", "file dropped by the owner: b.csv (.csv, 4 KB)")
 
 
-def test_the_write_gate_refuses_with_the_validators_reasons_and_fails_open(cfg, tmp_path: Path):
+def test_the_write_gate_refuses_with_the_validators_reasons_and_fails_closed(cfg, tmp_path: Path):
     from explorer.actions import Lead, Task
     from explorer.policy import Denylist, Policy
 
@@ -368,7 +368,8 @@ def test_the_write_gate_refuses_with_the_validators_reasons_and_fails_open(cfg, 
     assert not v.allowed and v.reason.startswith("Validator rules: LD01")
     ok = Lead(type="lead", name="X", website="https://x.example", email="info@x.example", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")
     assert policy.gate_write(ok, bot="Lead Gen").allowed
-    assert policy.gate_write(Task(type="task", title="t", details="d"), bot="The CEO").allowed  # broken gate: fails open
+    held = policy.gate_write(Task(type="task", title="t", details="d"), bot="The CEO")  # a check that crashes holds the write
+    assert not held.allowed and held.tag == "judge_wait"
     off = Policy(cfg.policy.__class__(), Denylist.load(Path(cfg.policy.denylist_file)))
     assert off.gate_write(lead, bot="Lead Gen").allowed  # no gate configured
 

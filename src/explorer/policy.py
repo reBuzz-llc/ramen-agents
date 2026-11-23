@@ -1482,12 +1482,15 @@ class Policy:
 
     GATED_TYPES = frozenset({"lead", "update_lead", "task", "update_task", "publish_package", "message"})  # message: MG06/MG07 for The CEO (2026-10-14)
 
+    GATE_RETRY_SECONDS = 60.0
+
     def _gate(self):
-        """The write gate module, loaded once from policy.write_gate; None when off or unloadable."""
-        if getattr(self, "_gate_loaded", False):
+        """The write gate module from policy.write_gate; None when off or not loadable. A gate that is set and will not load leaves
+        _gate_broken set, so gate_write holds the write, and is tried again after a minute."""
+        if getattr(self, "_gate_loaded", False) and (not self._gate_broken or time.time() < self._gate_retry_at):
             return self._gate_module
         self._gate_loaded = True
-        self._gate_module = None
+        self._gate_module, self._gate_broken = None, ""
         path = (self.cfg.write_gate or "").strip()
         if path:
             try:
@@ -1496,10 +1499,22 @@ class Policy:
                 spec = importlib.util.spec_from_file_location("fleet_write_gate", Path(path).expanduser())
                 module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
                 spec.loader.exec_module(module)  # type: ignore[union-attr]
-                self._gate_module = module if callable(getattr(module, "check", None)) else None
+                if callable(getattr(module, "check", None)):
+                    self._gate_module = module
+                else:
+                    self._gate_broken = "it has no check"
             except Exception as exc:  # noqa: BLE001
-                logging.getLogger("explorer.policy").warning("write gate %s could not be loaded (%s); writes are not gated", path, exc)
+                self._gate_broken = type(exc).__name__
+                logging.getLogger("explorer.policy").error("write gate %s could not be loaded (%s); gated writes wait", path, exc)
+            if self._gate_broken:
+                self._gate_retry_at = time.time() + self.GATE_RETRY_SECONDS
         return self._gate_module
+
+    @staticmethod
+    def _gate_waits(why: str) -> Verdict:
+        """Held, not refused: no check ran, so nothing is known against this write and nothing is written."""
+        return Verdict.no(f"this write waits: the write check could not run just now ({why}). It is not refused; send it again later, "
+                          "and do other work meanwhile", tag="judge_wait")
 
     JUDGE_SYSTEM = (
         "You check one write by a research bot against one of its owner's rules. Judge only what the context shows. "
@@ -1508,20 +1523,23 @@ class Policy:
 
     def gate_write(self, action: Action, bot: str = "", min_details: int = 300, *, page_text: str = "",
                    open_tasks: list[str] | None = None, judge: Callable[[str, str], str] | None = None) -> Verdict:
-        """The owner's format rules at write time (validator/gate.py). Fails open. With `judge` (a (system, prompt) -> str
+        """The owner's format rules at write time (validator/gate.py). Fails closed: a check that cannot load or run holds the write. With `judge` (a (system, prompt) -> str
         callable) and policy.write_gate_model set, the checker's model-judged questions (gate.questions) are asked too,
         each answered once per content (cached); the verdicts are left in self.last_model_verdicts for the caller's log."""
         self.last_model_verdicts: list[dict] = []
+        self.last_unjudged: list[str] = []
+        self.last_gate_error = ""
         gate = self._gate() if action.type in self.GATED_TYPES else None
         if gate is None:
-            return Verdict.ok()
+            broken = getattr(self, "_gate_broken", "") if action.type in self.GATED_TYPES else ""
+            return self._gate_waits(broken) if broken else Verdict.ok()
         started = time.time()
         payload = action.model_dump()
         try:
             reasons = gate.check(action.type, payload, bot=bot, min_details=min_details)
-        except Exception as exc:  # noqa: BLE001 - never block the family on a broken checker
-            logging.getLogger("explorer.policy").warning("write gate failed on %s (%s); write allowed", action.type, exc)
-            return Verdict.ok()
+        except Exception as exc:  # noqa: BLE001 - a check that did not run has passed nothing
+            logging.getLogger("explorer.policy").error("write gate failed on %s (%s); the write waits", action.type, exc)
+            return self._gate_waits(type(exc).__name__)
         took = time.time() - started
         if took > 2.0:
             logging.getLogger("explorer.policy").warning("write gate took %.1fs on %s", took, action.type)
@@ -1530,6 +1548,8 @@ class Policy:
             return Verdict.no("Validator rules: " + "; ".join(reasons)[:700])
         if judge is not None and self.cfg.write_gate_model and callable(getattr(gate, "questions", None)):
             reasons = self._model_questions(gate, action.type, payload, bot, page_text, open_tasks, judge)
+            if self.last_gate_error:
+                return self._gate_waits(self.last_gate_error)
             if reasons:
                 hint = ""
                 if action.type == "task" and any(r.startswith("MG04") for r in reasons) and self.messaging is not None and self.messaging.enabled:
@@ -1543,6 +1563,9 @@ class Policy:
                         hint = (f" This is family work: hand it over with a `message`, or the same `task` with assignee set to "
                                 f"{' or '.join(peers)} (delivered to that family member, not to the board).")
                 return Verdict.no("Validator rules: " + "; ".join(reasons)[:700] + hint, tag="write_gate_model")
+            if self.last_unjudged:        # no verdict means the write waits, never passes
+                return Verdict.no(f"this write waits: no model could judge rule {', '.join(self.last_unjudged)} just now. It is not refused; "
+                                  "send it again once a provider is back, and do other work meanwhile", tag="judge_wait")
         return Verdict.ok()
 
     def _model_questions(self, gate, action_type: str, payload: dict, bot: str, page_text: str,
@@ -1553,7 +1576,8 @@ class Policy:
         try:
             questions = gate.questions(action_type, payload, bot=bot, page_text=page_text or "", open_tasks=open_tasks) or []
         except Exception as exc:  # noqa: BLE001
-            log.warning("write gate questions failed on %s (%s); write allowed", action_type, exc)
+            log.error("write gate questions failed on %s (%s); the write waits", action_type, exc)
+            self.last_gate_error = type(exc).__name__
             return []
         cache = getattr(self, "_judge_cache", None)
         if cache is None:
@@ -1571,12 +1595,13 @@ class Policy:
                 try:
                     raw = judge(self.JUDGE_SYSTEM, prompt) or ""
                 except Exception as exc:  # noqa: BLE001 - a judge never breaks a write
-                    log.warning("write gate judge failed on %s %s (%s); rule not applied", action_type, qid, exc)
+                    log.warning("write gate judge failed on %s %s (%s); the write waits", action_type, qid, exc)
                     raw = ""
                 verdict = parse_verdict(raw, "ok")
                 if verdict is None:
                     self.last_model_verdicts.append({"id": qid, "ok": None, "why": "no judge answered", "cached": False})
-                    continue  # fail open on this question
+                    self.last_unjudged.append(qid)
+                    continue
                 cache.put(key, verdict)
             ok, why = bool(verdict.get("ok")), str(verdict.get("why", ""))[:120]
             self.last_model_verdicts.append({"id": qid, "ok": ok, "why": why, "cached": cached})

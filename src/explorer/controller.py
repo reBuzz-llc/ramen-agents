@@ -771,7 +771,7 @@ class Controller:
             # bot opened state them, and blanks them otherwise, so a doubt about an optional cell never sinks a whole lead
             # (8 of 15 leads refused that way, 2026-09-30).
             action, strip_note = self._ground_optional_lead_facts(action)
-        if verdict.allowed:  # the owner's format rules at write time (validator/gate.py), fail-open
+        if verdict.allowed:  # the owner's format rules at write time (validator/gate.py); a check that cannot run holds the write
             gate_args = dict(bot=self.cfg.agent.name, min_details=int(self.cfg.tasks.min_details_chars or 300),
                              open_tasks=self._open_task_titles_for_gate(action),
                              judge=self._write_gate_judge() if self.cfg.policy.write_gate_model else None)
@@ -788,6 +788,15 @@ class Controller:
                 event(self.logger, "write_gate_model", action=action.type, rule=v.get("id"), ok=v.get("ok"), why=v.get("why"), cached=v.get("cached"))
         payload = action.model_dump()
         self._save_trace(action.type, verdict)
+        if not verdict.allowed and verdict.tag == "judge_wait":
+            # held, not refused: no day-block, no episode block, no refusal streak, and "held:" keeps it out of the refused counts
+            self.memory.bump_episode_actions(ep["id"])
+            self.memory.record_action(self.cycle_no, ep["id"], action.type, payload, decision.thought, "held: " + verdict.reason, None, False)
+            event(self.logger, "write_gate_waiting", action=action.type)
+            self.feedback = f"Your last action ({action.type}) was held: {verdict.reason}"
+            self.heartbeat.tick(self.cycle_no, "running", self._current_url(), obs.current_question)
+            self._sleep(self.JUDGE_WAIT_SECONDS)      # no check now: the same write must not spin
+            return
         if not verdict.allowed:
             if verdict.permanent:
                 self.blocked_keys.add(key)
@@ -2572,6 +2581,7 @@ class Controller:
             feedback=f"'{name}' is on the packages page now; do not publish it again. Publish a different package next time.",
         )
 
+    JUDGE_WAIT_SECONDS = 60.0  # a write held because no check could run is not tried again sooner
     TRACE_EVERY = 20  # one allowed decision in this many is kept, plus every refused one
     TRACE_DAYS = 7
 
