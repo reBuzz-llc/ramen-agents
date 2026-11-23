@@ -71,7 +71,7 @@ def read_site(url: str, *, get: Callable | None = None) -> dict:
         if get:
             status, html, final = get(url)
         else:
-            with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as c:
+            with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": "ramen-agents-validator/1.0 (site signals)"}) as c:
                 r = c.get(url)
                 status, html, final = r.status_code, r.text, str(r.url)
     except Exception:  # noqa: BLE001

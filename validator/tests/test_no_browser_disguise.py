@@ -5,11 +5,12 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DISGUISE = re.compile("Mozilla/5" + r"\.0 \((?:Macintosh|Windows|X11|iPhone|iPad|Linux)|Apple" + "WebKit/|Chrome/" + r"\d")
+DISGUISE = re.compile("Mozilla/5" + r"\.0 \((?:Macintosh|Windows|X11|iPhone|iPad|Linux)|Mozilla/5" + r"\.0[\"']|Apple" + "WebKit/|Chrome/" + r"\d")
 
 
 def test_the_pattern_catches_a_browser_string_and_passes_an_honest_one():
     assert DISGUISE.search("Mozilla/5" + ".0 (Macintosh; Intel Mac OS X 10_15_7) Apple" + "WebKit/537.36")
+    assert DISGUISE.search('{"User-Agent": "Mozilla/5' + '.0"}')          # the bare name says nothing but "a browser"
     assert not DISGUISE.search("Mozilla/5.0 (compatible; Lead EnricherExplorer/0.1; curiosity agent)")
     assert not DISGUISE.search("ramen-agents-validator/1.0 (email check)")
 
