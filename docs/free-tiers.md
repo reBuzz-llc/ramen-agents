@@ -67,7 +67,8 @@ before you add a key.
   [privacy page](https://docs.z.ai/legal-agreement/privacy-policy) (updated September 29, 2025) says it does "not store
   any of the content the Customer or its End Users provide or generate". Other customer data is stored temporarily and
   deleted after the terms end, unless the law requires otherwise.
-- **Gemini (free tier):** Google's [terms](https://ai.google.dev/gemini-api/terms) say it uses what you submit "to
+- **Gemini (free tier):** Google's [terms](https://ai.google.dev/gemini-api/terms) (effective March 23, 2026) say it
+  uses what you submit "to
   provide, improve, and develop Google products and services and machine learning technologies", that "human reviewers
   may read, annotate, and process your API input and output", and "Do not submit sensitive, confidential, or personal
   information to the Unpaid Services."
