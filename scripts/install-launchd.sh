@@ -1,8 +1,8 @@
 #!/bin/sh
 # Render the launch-agent templates in ~/bots/launchd for THIS Mac and load them.
-#   sh scripts/install-launchd.sh                 # everything (but the three named below), plus a data server per bot folder
+#   sh scripts/install-launchd.sh                 # everything (but those named below), plus a data server per bot folder
 #   sh scripts/install-launchd.sh --dry-run       # show what would be written, change nothing
-#   sh scripts/install-launchd.sh searxng ollama  # only the named ones (the part after "com.ramen-agents.")
+#   sh scripts/install-launchd.sh searxng         # only the named ones (the part after "com.ramen-agents.")
 # Safe to run again: an agent that is already loaded is replaced. Bots' run loops are installed separately with
 #   ~/Projects/bot/.venv/bin/bot --config ~/bots/<bot>/config.toml install
 set -eu
@@ -25,7 +25,8 @@ NODE=$(command -v node 2>/dev/null || echo /usr/local/bin/node)
 # Installed only when named: the portal's database copy needs its two keys first, and local mode is for an outage.
 #   sh scripts/install-launchd.sh db-standby          sh scripts/install-launchd.sh portal-local portal-tunnel
 #   sh scripts/install-launchd.sh family-week         (the weekly write-up, Sundays 21:00)
-BY_NAME_ONLY="db-standby portal-local portal-tunnel family-week"
+#   sh scripts/install-launchd.sh ollama              (a local model, only if you added one: SETUP.md)
+BY_NAME_ONLY="db-standby portal-local portal-tunnel family-week ollama"
 
 wanted() {  # $1 = short name, e.g. "searxng" or "data.lead-gen"
   if [ -z "$ONLY" ]; then
