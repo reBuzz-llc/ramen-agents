@@ -116,9 +116,12 @@ if [ "$START" = 0 ]; then echo; echo "Answers saved. Start later: sh scripts/set
 echo
 echo "Starting: the dashboard, search, the Validator, then $MEMBERS"
 sh scripts/install-launchd.sh >/dev/null && echo "  ok       the always-on services (launchd)"
+# a member's check reads the board, so give the dashboard time to come up first
+i=0; until curl -s -o /dev/null -m 2 http://127.0.0.1:3000/ || [ "$i" -ge 45 ]; do i=$((i+1)); sleep 1; done
+STARTED=0
 for m in $MEMBERS; do
   if "$ENGINE/.venv/bin/bot" --config "$ROOT/$m/config.toml" check >/dev/null 2>&1; then
-    "$ENGINE/.venv/bin/bot" --config "$ROOT/$m/config.toml" install >/dev/null && echo "  ok       $m started"
+    "$ENGINE/.venv/bin/bot" --config "$ROOT/$m/config.toml" install >/dev/null && { echo "  ok       $m started"; STARTED=$((STARTED+1)); }
   else
     echo "  !!       $m did not pass its check: $ENGINE/.venv/bin/bot --config $ROOT/$m/config.toml check"
   fi
@@ -127,4 +130,8 @@ sleep 3
 sh scripts/check-setup.sh >/dev/null 2>&1 && echo "  ok       setup check: ready" || echo "  note     setup check: sh scripts/check-setup.sh says what is left"
 open "http://127.0.0.1:3000" 2>/dev/null || true
 echo
-echo "Your family is starting. The dashboard: http://127.0.0.1:3000 (watch the first day; stop a member with its Stop button)."
+if [ "$STARTED" = 0 ]; then
+  echo "No member started yet. Fix what the lines above name (usually: sh scripts/add-key.sh zai), then run sh scripts/setup.sh again."
+else
+  echo "Your family is starting. The dashboard: http://127.0.0.1:3000 (watch the first day; stop a member with its Stop button)."
+fi
