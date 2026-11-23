@@ -6,6 +6,7 @@ Google's terms for the free tier say not to submit personal information, so Gemi
 common-data/configs/local.toml and changes nothing else in that file.
 
     python3 scripts/gemini_choice.py open|close
+    python3 scripts/gemini_choice.py is-open        # exit 0 when Gemini may take lead data
 """
 from __future__ import annotations
 
@@ -73,9 +74,23 @@ def choose(root: Path, open_it: bool) -> None:
     tmp.replace(local)
 
 
+def is_open(root: Path) -> bool:
+    """Closed unless the person's own yes took it off the list. A list that cannot be read counts as closed."""
+    try:
+        local = root / "common-data" / "configs" / "local.toml"
+        current = names(local.read_text(encoding="utf-8")) if local.exists() else None
+        if current is None:
+            current = names((root / "common-data" / "configs" / "web-bots.toml").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return current is not None and "gemini" not in current
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in ("open", "close"):
-        sys.exit("usage: python3 scripts/gemini_choice.py open|close")
+    if len(sys.argv) != 2 or sys.argv[1] not in ("open", "close", "is-open"):
+        sys.exit("usage: python3 scripts/gemini_choice.py open|close|is-open")
+    if sys.argv[1] == "is-open":
+        sys.exit(0 if is_open(ROOT) else 1)
     try:
         choose(ROOT, sys.argv[1] == "open")
     except (OSError, ValueError) as exc:

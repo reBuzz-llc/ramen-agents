@@ -85,7 +85,8 @@ fi
 echo
 echo "Model keys: one is enough to start."
 have=0
-for k in gemini groq zai openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
+for k in zai groq openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
+[ -s common-data/keys/gemini.key ] && python3 scripts/gemini_choice.py is-open && have=1
 if [ "$have" = 1 ]; then echo "  ok       a model key is on file"
 elif [ -t 0 ]; then
   printf "  No model key yet. Add a free Z.ai key now? [Y/n] "

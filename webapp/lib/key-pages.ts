@@ -9,7 +9,6 @@ const PAGES: Record<string, string> = {
   openrouter: "https://openrouter.ai/settings/keys",
   zai: "https://z.ai/manage-apikey/apikey-list",
   orcarouter: "https://www.orcarouter.ai/",
-  freeai: "https://free.ai/api/",
   freetheai: "https://github.com/Free-The-Ai/free-ai",
   "gonka-broker": "https://gonkabroker.com/",
   "dahl-inference": "https://inference.dahl.global/",

@@ -276,8 +276,8 @@ def test_good_lead_passes(ck):
 
 
 def test_lead_defects(ck):
-    assert check_lead(ck, lead(email="acmebakery@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[]) == []   # the business's own free-mail (owner, 2026-10-10)
-    flags = check_lead(ck, lead(email="ada.okafor1990@gmail.com"), allowed_packages=PACKAGES, duplicate_of=[])
+    assert check_lead(ck, lead(email="acmebakery@gmail.example"), allowed_packages=PACKAGES, duplicate_of=[]) == []   # the business's own free-mail (owner, 2026-10-10)
+    flags = check_lead(ck, lead(email="ada.okafor1990@gmail.example"), allowed_packages=PACKAGES, duplicate_of=[])
     assert rules_of(flags) == ["LD01"] and "person's own mailbox" in flags[0].detail
     flags = check_lead(ck, lead(email="hello@othersite.example", evidence="https://yelp.com/biz/acme", how_we_help="Consulting",
                                 pain_point=""), allowed_packages=PACKAGES, duplicate_of=["Acme Bakery (old)"])
@@ -515,7 +515,7 @@ def test_a_whatsapp_link_must_be_wa_me_from_the_site():
     page = '<a href="https://wa.me/12125550100">Chat</a>'
     get = lambda url: (200, page)  # noqa: E731
     assert verify_whatsapp("https://wa.me/12125550100", "https://shop.example", get=get).status == "published"
-    v = verify_whatsapp("https://wa.me/19998887777", "https://shop.example", get=get)
+    v = verify_whatsapp("https://wa.me/19995550197", "https://shop.example", get=get)
     assert v.status == "not_found" and "12125550100" in v.others
 
 
@@ -609,16 +609,16 @@ def test_a_price_from_the_published_package_email_is_allowed(tmp_path, monkeypat
 def test_a_business_with_no_website_is_a_lead(ck):
     from checks import free_mail_issue, lead_key
     listing = "https://www.yellowpages.com/queens-ny/mip/joes-pizza-1"
-    nosite = dict(business="Joe's Pizza", website="", email="joespizzanyc@gmail.com", location="Queens, NY, USA",
+    nosite = dict(business="Joe's Pizza", website="", email="joespizzanyc@gmail.example", location="Queens, NY, USA",
                   evidence=listing, source_pages=listing, how_we_help="Growth Plan")
     assert check_lead(ck, lead(**nosite), allowed_packages=PACKAGES, duplicate_of=[]) == []
     assert check_lead(ck, lead(**dict(nosite, email="", whatsapp="https://wa.me/17185550100")), allowed_packages=PACKAGES, duplicate_of=[]) == []
     assert "LD01" in rules_of(check_lead(ck, lead(**dict(nosite, email="")), allowed_packages=PACKAGES, duplicate_of=[]))
     assert "LD01" in rules_of(check_lead(ck, lead(**dict(nosite, location="")), allowed_packages=PACKAGES, duplicate_of=[]))
     assert "LD02" in rules_of(check_lead(ck, lead(**dict(nosite, evidence="")), allowed_packages=PACKAGES, duplicate_of=[]))
-    assert free_mail_issue("orders.queens@yahoo.com", "Joe's Pizza") == ""
-    assert free_mail_issue("jordan.smith1987@gmail.com", "Joe's Pizza")
-    assert free_mail_issue("michael.chen@gmail.com", "Joe's Pizza")          # "hi" inside a name is not a business word
+    assert free_mail_issue("orders.queens@yahoo.example", "Joe's Pizza") == ""
+    assert free_mail_issue("jordan.smith1987@gmail.example", "Joe's Pizza")
+    assert free_mail_issue("michael.chen@gmail.example", "Joe's Pizza")          # "hi" inside a name is not a business word
     assert lead_key({"website": "", "business": "Joe's Pizza", "city": "Queens"}) == "name:joespizza|queens"
     assert lead_key({"website": "https://www.joes.example/menu", "business": "Joe's Pizza"}) == "joes.example"
 

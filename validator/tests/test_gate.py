@@ -23,7 +23,7 @@ def test_a_hallucinated_lead_is_refused_with_reasons():
     bad = dict(GOOD_LEAD, location="Michigan", size="A fast-growing family business", evidence="https://yelp.com/biz/holy-molli")
     rules = {r.split(":")[0] for r in gate.check("lead", bad, bot="lead-gen")}
     assert rules == {"LD02"}, rules
-    rules = {r.split(":")[0] for r in gate.check("lead", dict(GOOD_LEAD, email="x@gmail.com", website="https://yelp.com/biz/x"), bot="lead-gen")}
+    rules = {r.split(":")[0] for r in gate.check("lead", dict(GOOD_LEAD, email="x@gmail.example", website="https://yelp.com/biz/x"), bot="lead-gen")}
     assert {"LD01", "LD14"} <= rules, rules
 
 

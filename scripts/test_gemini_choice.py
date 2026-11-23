@@ -126,3 +126,16 @@ def test_yes_at_a_terminal_saves_the_key_and_opens_it(root):
 def test_enter_at_a_terminal_means_no(root):
     out = _at_a_terminal(root, [""])
     assert not (root / "common-data" / "keys" / "gemini.key").exists() and not local(root).exists() and "no key was saved" in out
+
+
+def test_is_open_follows_the_answer(root):
+    assert not gc.is_open(root)
+    gc.choose(root, True)
+    assert gc.is_open(root)
+    gc.choose(root, False)
+    assert not gc.is_open(root)
+
+
+def test_a_list_it_cannot_read_counts_as_closed(root):
+    local(root).write_text('[model]\npersonal_closed = [\n  "other",\n]\n')
+    assert not gc.is_open(root)

@@ -427,6 +427,7 @@ PERSONAL_MAILBOXES = {
     "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "hotmail.com", "outlook.com", "live.com", "msn.com",
     "icloud.com", "me.com", "mac.com", "proton.me", "protonmail.com", "pm.me", "aol.com", "gmx.com", "gmx.net",
     "mail.com", "zoho.com", "yandex.com", "fastmail.com", "hey.com", "duck.com",
+    "gmail.example", "yahoo.example",      # reserved names, so the tests and examples need no address anyone could own
 }
 JOB_BOARDS = ("greenhouse.io", "lever.co", "workable.com", "ashbyhq.com", "bamboohr.com", "breezy.hr",
               "jobs.smartrecruiters.com", "myworkdayjobs.com", "wellfound.com", "linkedin.com")

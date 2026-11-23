@@ -22,8 +22,9 @@ say "== Keys (common-data/keys/<name>.key); a model provider without a key is sk
 for k in zai gemini groq openrouter quickemailverification sniffmail portal-engine portal-validator portal-dashboard; do
   if [ -s "common-data/keys/$k.key" ]; then say "  ok       $k"; else say "  missing  $k"; fi
 done
-have=0; for k in zai gemini groq openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
-[ "$have" = 1 ] || { say "  -> no model provider key yet: the bots would run on the local model only"; todo=1; }
+have=0; for k in zai groq openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
+[ -s common-data/keys/gemini.key ] && python3 scripts/gemini_choice.py is-open && have=1
+[ "$have" = 1 ] || { say "  -> no model key yet: the members rest until one is added (sh scripts/add-key.sh zai)"; todo=1; }
 [ -s common-data/keys/portal-engine.key ] || { say "  -> no board key: tasks, packages and leads cannot be written (sh scripts/install.sh writes it, step 1)"; todo=1; }
 
 say "== The board (the dashboard's local board on 127.0.0.1:3000)"

@@ -14,7 +14,7 @@ import whatsapp_false
 class Portal:
     def __init__(self):
         self.leads = {"a1": {"id": "a1", "business": "Corner Bakery", "website": "https://cornerbakery.example", "package": "Starter Website",
-                             "updated_at": "2026-11-08T10:00:00", "created_at": "2026-11-01", "whatsapp": "https://wa.me/15550100",
+                             "updated_at": "2026-11-08T10:00:00", "created_at": "2026-11-01", "whatsapp": "https://wa.me/12125550198",
                              "whatsapp_status": "False Whatsapp Number", "archived": False, "rev": 1}}
         self.rev, self.calls = 1, []
 
@@ -64,9 +64,9 @@ def test_false_whatsapp_cleared_on_the_portal(tmp_path, monkeypatch):
     monkeypatch.setattr(whatsapp_false, "FALSE_FILE", tmp_path / "false.json")
     portal = Portal()
     done = whatsapp_false.clear_false_portal(_p(portal, None), now=dt.datetime(2026, 11, 8, 12))
-    assert done == [{"business": "Corner Bakery", "page_id": "a1", "number": "15550100"}]
+    assert done == [{"business": "Corner Bakery", "page_id": "a1", "number": "12125550198"}]
     assert portal.leads["a1"]["whatsapp"] is None and portal.leads["a1"]["whatsapp_status"] is None
-    assert "15550100" in json.loads((tmp_path / "false.json").read_text())
+    assert "12125550198" in json.loads((tmp_path / "false.json").read_text())
 
 
 def test_portal_url_from_common_toml_and_the_local_overlay(tmp_path):

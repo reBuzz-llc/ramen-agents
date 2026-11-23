@@ -16,7 +16,7 @@ provider's `api_key_file` in `common-data/configs/web-bots.toml` points at its f
 Every web bot uses one shared list of providers, `provider_chain` in `web-bots.toml`, tried in order. A provider that
 answers "rate limited", "over quota" or "down" is benched for a while (its `cooldown_minutes`), and the next one
 answers. A provider with a `calls_per_day` cap is counted for the whole machine, so a stopped bot holds nothing back.
-With every provider out, a member rests until one is back. Nothing runs on your Mac unless you add a local model yourself
+With every provider out, a member rests until one is back. No model runs on your Mac unless you add a local one yourself
 (`fallback_provider = "ollama"` in `common-data/configs/local.toml`). Put the most generous
 free tier first and the scarce ones last. A bot that needs a different order sets `model.provider_first`; it never gets
 its own list.
@@ -44,7 +44,6 @@ provider's. Everything else is "not measured".
 | Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed. Its [terms](https://ai.google.dev/gemini-api/terms) say "Do not submit sensitive, confidential, or personal information to the Unpaid Services", so it takes no lead data until you say yes in `sh scripts/add-key.sh gemini` | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
 | Groq (`groq`, gpt-oss-120b) | free tier; the page does not state whether a card is needed | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only; the page does not state whether a card is needed | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
-| free.ai (`freeai`) | 30,000 tokens a day, as published | a family call is about 5,500 tokens | 5 calls/day | https://free.ai |
 
 **Not in the default chain** (checked 2026-11-21). These can charge, or stop at a credit, so a key file alone never switches
 them on and cannot spend money by accident:

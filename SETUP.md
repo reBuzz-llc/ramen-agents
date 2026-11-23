@@ -34,7 +34,7 @@ A few questions: your company's name, what you sell, who buys it, where they are
 own domain and, if you like, your direction for the agents in one sentence. The answers go to
 `common-data/local/family.toml`, which git ignores, so updating never touches them. Every card reads them.
 
-Then it offers to add a free model key (`sh scripts/add-key.sh gemini` says where the key is made, reads it without
+Then it offers to add a free model key (`sh scripts/add-key.sh zai` says where the key is made, reads it without
 showing it and tests it), asks which optional members to start, starts the family and opens the dashboard at
 http://127.0.0.1:3000.
 

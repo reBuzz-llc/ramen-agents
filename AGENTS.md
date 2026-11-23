@@ -16,7 +16,7 @@ thing to do.
    `sh scripts/setup.sh --answers common-data/local/family.toml`. Without an agent, `sh scripts/setup.sh` asks the
    same questions itself.
 3. A model key: the person makes it, in their own browser (see "What is never yours to do"). Then they run
-   `sh scripts/add-key.sh gemini` themselves; it reads the key without showing it and tests it.
+   `sh scripts/add-key.sh zai` (or `groq`, `openrouter`) themselves; it reads the key without showing it and tests it.
 4. `python3 scripts/setup-check.py` says what is still missing, one line each, and exits 0 when nothing is. The
    dashboard is http://127.0.0.1:3000.
 

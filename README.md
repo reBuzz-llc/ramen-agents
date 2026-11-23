@@ -5,7 +5,7 @@ autonomous web bots on one Mac, with every project-specific detail removed. Your
 `sh scripts/setup.sh`, kept out of git.
 
 This is the `fleet` branch of the starter. The `engine` branch is the `bot` program, cloned to `~/Projects/bot`;
-this one is what the engine runs, cloned to `~/bots`. Both start with no history and no data:
+this one is what the engine runs, cloned to `~/bots`. Both ship with none of our data:
 no leads, notes, packages, finds, memories or logs. Everything a bot learns from here on is the new project's own.
 
 ## The family
@@ -43,6 +43,8 @@ The rules of the house are kept, because they are what makes the fleet safe to l
   credentials; no spending; no personal data beyond a business role address; no invented values.
 - **Free tiers only.** The default model chain lists providers with a free tier. Not every provider's page says whether a card
   is needed, so keep a card off these accounts ([what each page says](docs/free-tiers.md)). A provider without a key is skipped.
+- **What leaves your Mac:** prompts go to the model providers you added, with a lead's email, phone and known contact name masked,
+  except Lead Gen's decision calls. [Does my data leave my machine?](https://github.com/reBuzz-llc/ramen-agents#does-my-data-leave-my-machine)
 - **Keyless search**, through a local search tool.
 - **Three kinds of rule, kept apart:** the fence refuses; quality rules are flagged after the write by the Validator;
   repeat guards stop a bot doing the same thing twice. Every rule, and whether it refuses or flags, is in
