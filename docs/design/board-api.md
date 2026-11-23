@@ -165,7 +165,7 @@ What runs now, read against the design above.
   kept. `GET /v1/family/latest` (`board:read`) answers `{tick, morning, week}`, each the newest report with its `at`, or
   `null`.
 - **Phone**: `phone` is an ordinary cell next to `whatsapp`, written by bots and people under person wins
-  (not a team-only field). Every write stores it in E.164 (`"+17188760861"`): a US number in any common shape gets `+1`,
+  (not a team-only field). Every write stores it in E.164 (`"+17185550195"`): a US number in any common shape gets `+1`,
   a number with a country code keeps it, an extension is dropped, and text that is not a number is kept as written.
   Rows answer it as `phone`; the board shows it as a tap-to-call link.
 - **Lists:** `PUT /v1/lists/send-next` (board:write) keeps the Validator's send-next list as sent, for the Send next tab.

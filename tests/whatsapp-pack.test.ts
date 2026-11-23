@@ -18,7 +18,7 @@ async function board(n: number) {
   const { tenant, owner } = await createTenant(db, "Acme", "acme", { email: "o@acme.example", name: "Olu" });
   const ids: string[] = [];
   for (let i = 0; i < n; i++) {
-    const r = await writeLead(db, tenant.id, {}, { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, whatsapp: `https://wa.me/1718555${String(1000 + i)}`, lead_score: 100 - i, draft_email: `Hi ${i}` }, ENGINE, { create: true });
+    const r = await writeLead(db, tenant.id, {}, { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, whatsapp: `https://wa.me/1718555${String(100 + i).padStart(4, "0")}`, lead_score: 100 - i, draft_email: `Hi ${i}` }, ENGINE, { create: true });
     if (!r.ok) throw new Error(r.message);
     ids.push(r.lead.id);
   }
@@ -27,8 +27,8 @@ async function board(n: number) {
 
 describe("waLink", () => {
   it("keeps a wa.me link, builds one from a number, none without digits", () => {
-    expect(waLink("https://wa.me/17185551000", null)).toBe("https://wa.me/17185551000");
-    expect(waLink(null, "+1 (718) 555-1000")).toBe("https://wa.me/17185551000");
+    expect(waLink("https://wa.me/17185550198", null)).toBe("https://wa.me/17185550198");
+    expect(waLink(null, "+1 (718) 555-0198")).toBe("https://wa.me/17185550198");
     expect(waLink("n/a", null)).toBeNull();
   });
 });
@@ -43,7 +43,7 @@ describe("WhatsApp pack", () => {
     expect(mine).toHaveLength(CHECK);
     expect(mine[0].business).toBe("Shop 01");
     expect(mine.map((l) => l.id)).not.toContain(ids[0]);
-    expect(mine[0].link).toBe("https://wa.me/17185551001");
+    expect(mine[0].link).toBe("https://wa.me/17185550101");
     // the email pack: none of these (taken for WhatsApp), and nothing of its own yet
     expect(await packOf(db, tenantId, owner.id)).toEqual([]);
     expect((await fillPack(db, tenantId, owner.id)) > 0).toBe(true);

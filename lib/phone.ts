@@ -1,6 +1,6 @@
 /** Phone numbers: stored in E.164
- *  ("+17188760861") whoever writes them. A US number may come in any common shape ("(718) 876-0861", "718.876.0861",
- *  "1 718 876 0861"); a number with a country code keeps it. Anything that is not a phone number is kept as written,
+ *  ("+17185550195") whoever writes them. A US number may come in any common shape ("(718) 555-0195", "718.555.0195",
+ *  "1 718 555 0195"); a number with a country code keeps it. Anything that is not a phone number is kept as written,
  *  so nothing a person or a bot typed is lost. */
 export function e164(raw: string): string {
   const s = raw.trim();

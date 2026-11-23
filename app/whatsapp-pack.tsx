@@ -18,7 +18,7 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; error
   }
 }
 
-/** The number as people read it: "+17185551000", from the WhatsApp cell (a wa.me link or a number) or the phone. */
+/** The number as people read it: "+17185550198", from the WhatsApp cell (a wa.me link or a number) or the phone. */
 const shownNumber = (l: WaLead) => {
   const digits = ((l.whatsapp ?? "").replace(/^https?:\/\/(wa\.me|api\.whatsapp\.com)\/(send\?phone=)?/i, "") || l.phone || "").replace(/\D/g, "");
   return digits ? `+${digits}` : "";

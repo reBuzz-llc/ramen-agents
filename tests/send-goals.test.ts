@@ -35,7 +35,7 @@ async function board(n: number) {
       db,
       tenant.id,
       {},
-      { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, business_email: `hi@shop${i}.example`, whatsapp: `https://wa.me/1718555${1000 + i}`, draft_email: `Hi ${i}`, draft_whatsapp: `Hello ${i}`, lead_score: 100 - i },
+      { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, business_email: `hi@shop${i}.example`, whatsapp: `https://wa.me/1718555${String(100 + i).padStart(4, "0")}`, draft_email: `Hi ${i}`, draft_whatsapp: `Hello ${i}`, lead_score: 100 - i },
       ENGINE,
       { create: true },
     );

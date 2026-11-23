@@ -99,16 +99,16 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     const foundBy = foundByOf(true, new Date("2026-11-02T18:00:00Z"));
     expect(foundBy).toBe("import: google maps 2026-11-02");
     expect(leadFields(rows[0], { foundBy, maps: true, packageForWebsite: "SMB Website Care Retainer" })).toMatchObject({
-      business: "Hem Story - Staten Island",
-      website: "http://www.hemstory.example/",
+      business: "Sample Stitch Shop - Staten Island",
+      website: "http://www.samplestitch.example/",
       location: "Staten Island, NY, USA",
-      address: "1171, 240 Page Ave #103, Staten Island, NY 10307, United States",
+      address: "1 Example Ave #1, Staten Island, NY 10307, United States",
       industry: "Women's clothing store",
-      map_link: "https://www.google.com/maps/place/Hem+Story/data=!4m7!3m6!1s0x0:0x1",
-      evidence: "http://www.hemstory.example/",
+      map_link: "https://www.google.com/maps/place/Sample+Stitch+Shop",
+      evidence: "http://www.samplestitch.example/",
       package: "SMB Website Care Retainer",
       listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" },
-      notes: "Casual, California-inspired clothing.",
+      notes: "Casual clothing.",
       found_by: "import: google maps 2026-11-02",
     });
     // no website: evidence is the map link, no package; the listing-only note
@@ -119,7 +119,7 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     const { db, tenantId, who } = await board();
     const plan = await planImport(db, tenantId, rows, MAPS_RULES);
     expect(plan.map((l) => [l.business, l.outcome, l.batch ?? l.reason])).toEqual([
-      ["Hem Story - Staten Island", "create", "email"],
+      ["Sample Stitch Shop - Staten Island", "create", "email"],
       ["Brooklyn Threads", "create", "email"],
       ["Bronx Kids Wear", "create", "listing"],
       ["Hoboken Linen", "create", "email"], // New Jersey is kept
@@ -144,7 +144,7 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     expect(b.id).toBe(a.id);
     expect([a.created, b.created]).toEqual([3, 2]);
     const lead = (await listLeads(db, tenantId, { city: "Staten Island" })).leads[0];
-    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+17185554178", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
+    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+17185550196", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
     const nj = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Hoboken Linen")!;
     expect(nj).toMatchObject({ state: "NJ", location: "Hoboken, NJ, USA" });
     const kids = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Bronx Kids Wear")!;
