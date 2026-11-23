@@ -61,7 +61,8 @@ One API in front of many providers. Models whose name ends in `:free` cost nothi
 - **The catch:** the free pool is shared and busy, and OpenRouter says free models "are usually not suitable for
   production use". Logging and training follow each upstream provider's policy, with a separate setting for free
   models.
-- Sources: [limits](https://openrouter.ai/docs/api-reference/limits), [FAQ](https://openrouter.ai/docs/faq),
+- Sources: [limits](https://openrouter.ai/docs/api-reference/limits), [pricing](https://openrouter.ai/pricing),
+  [FAQ](https://openrouter.ai/docs/faq),
   [logging](https://openrouter.ai/docs/guides/privacy/provider-logging)
 
 ## NVIDIA API Catalog
@@ -74,7 +75,8 @@ Hosted open models (Llama, Nemotron and more) from build.nvidia.com, behind an O
 - **Last tested:** 20 November 2026, the API answered.
 - **The catch:** NVIDIA allows it for prototyping, research, development and testing only; production use needs a
   paid licence.
-- Sources: [NIM API docs](https://docs.api.nvidia.com/nim/docs/product), [NIM](https://developer.nvidia.com/nim)
+- Sources: [API catalog FAQ](https://build.nvidia.com/llms.txt), [NIM API docs](https://docs.api.nvidia.com/nim/docs/product),
+  [NIM](https://developer.nvidia.com/nim)
 
 ## Bytez
 
@@ -91,7 +93,7 @@ Open models through one API, plus access to closed models.
 - **Mistral:** its docs now say the Free mode "doesn't include API access"; using the API needs billing
   activation. ([usage limits](https://docs.mistral.ai/admin/billing-usage/usage-limits))
 - **IBM watsonx.ai Lite:** a real monthly allowance, but IBM asks for payment details up front.
-  ([plans](https://dataplatform.cloud.ibm.com/docs/content/wsj/getting-started/wml-plans.html?context=wx))
+  ([free tier](https://www.ibm.com/cloud/free), [plans](https://dataplatform.cloud.ibm.com/docs/content/wsj/getting-started/wml-plans.html?context=wx))
 - **Ollama Cloud:** its pricing page says "Pay per token for every cloud model". Running Ollama on your own machine
   stays free. ([pricing](https://ollama.com/pricing))
 - **Speka:** its page says "$1 lifetime credit on every account. No credit card required." That is a one-off credit,
