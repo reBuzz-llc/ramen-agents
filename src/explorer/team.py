@@ -16,13 +16,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .common.keys import keys_dir
-
 MAX_MEMBERS = 40
-
-
-def default_team_file() -> str:
-    return str(keys_dir().parent / "team.json")
 
 
 @dataclass(frozen=True)

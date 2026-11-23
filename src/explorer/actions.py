@@ -454,7 +454,3 @@ def action_key(action: Action, resolved_url: str | None = None, extra: str | Non
     if isinstance(action, UpdateLead):
         return f"update_lead:{action.name.strip().lower()}"
     return action.type
-
-
-def dump_action(action: Action) -> str:
-    return json.dumps(action.model_dump(), ensure_ascii=False)

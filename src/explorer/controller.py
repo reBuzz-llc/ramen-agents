@@ -3146,16 +3146,6 @@ class Controller:
         except OSError:
             pass
 
-    def _map_link(self, name: str, location: str, website: str = "") -> str | None:
-        from .places import map_link
-
-        if not str(self.cfg.browser.places_db).strip():
-            return None
-        try:
-            return map_link(name, location, Path(str(self.cfg.browser.places_db)).expanduser(), website)
-        except Exception:  # noqa: BLE001
-            return None
-
     def _with_number_page(self, sources: str, link: str) -> str:
         """Source pages with the page the WhatsApp number was read from added, so the Validator can find it (LD20)."""
         from .whatsapp import page_with
