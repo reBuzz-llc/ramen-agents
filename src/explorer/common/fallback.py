@@ -15,6 +15,7 @@ from typing import Any, Callable
 from ..config import KNOWN_PROVIDERS, ModelConfig
 from .keys import key_file, load_key
 from ..model import (
+    NoLocalModel,
     FakeModel,
     GeminiModel,
     ReplicateModel,
@@ -213,7 +214,7 @@ class FallbackModel:
 
     def _name(self, provider: Any | None) -> str:
         if provider is None:
-            return f"the local fallback ({type(self.secondary).__name__})"
+            return "no provider" if isinstance(self.secondary, NoLocalModel) else f"the local fallback ({type(self.secondary).__name__})"
         return getattr(provider, "label", type(provider).__name__)
 
     def _note(self, provider: Any | None) -> None:
@@ -226,8 +227,25 @@ class FallbackModel:
             self.logger.info("using %s", self._name(provider))
         self._active = provider
 
+    NO_PROVIDER = "no provider answered"
+    NO_PROVIDER_MIN_SECONDS = 60
+    NO_PROVIDER_MAX_SECONDS = 600
+
+    def _rest_no_provider(self, failed: ModelResult) -> ModelResult:
+        """Every provider passed and nothing local answers: a wait until the first one is back (1 to 10 minutes), not a failed
+        step, so a long provider gap never counts toward the watchdog's exit."""
+        from ..actions import Decision, Rest
+
+        now = self.clock()
+        backs = [float(getattr(p, "unavailable_until", 0.0)) - now for p in self.primaries
+                 if float(getattr(p, "unavailable_until", 0.0)) > now]
+        wait = int(min(self.NO_PROVIDER_MAX_SECONDS, max(self.NO_PROVIDER_MIN_SECONDS, min(backs) if backs else self.NO_PROVIDER_MIN_SECONDS)))
+        self.logger.warning("%s; resting %ds", self.NO_PROVIDER, wait)
+        return ModelResult(Decision(thought=f"{self.NO_PROVIDER}; resting until one is back", action=Rest(type="rest", seconds=wait)),
+                           raw=failed.raw, latency=failed.latency, held=True)
+
     def decide(self, system: str, obs: Observation) -> ModelResult:
-        if self.remote_for == "writing":
+        if self.remote_for == "writing" and not isinstance(self.secondary, NoLocalModel):      # no local draft to start from
             return self._decide_locally_then_write_remotely(system, obs)
         for provider in self.primaries:
             if self._down(provider) or self._capped(provider):
@@ -238,7 +256,8 @@ class FallbackModel:
                 self._note(provider)
                 return result
         self._note(None)
-        return self.secondary.decide(system, obs)
+        result = self.secondary.decide(system, obs)
+        return self._rest_no_provider(result) if isinstance(self.secondary, NoLocalModel) and result.decision is None else result
 
     def _decide_locally_then_write_remotely(self, system: str, obs: Observation) -> ModelResult:
         draft = self.secondary.decide(system, obs)
@@ -390,13 +409,17 @@ def build_model(
         return FakeModel()
     if cfg.provider == "ollama":
         return OllamaModel(cfg, logger)
-    secondary: Model = OllamaModel(cfg, logger) if cfg.fallback_provider == "ollama" else FakeModel()
+    secondary: Model = (OllamaModel(cfg, logger) if cfg.fallback_provider == "ollama"
+                        else NoLocalModel() if cfg.fallback_provider == "none" else FakeModel())
     names = effective_chain(cfg)
     primaries = []
     for n in names:
         for p in _remote_providers(n, cfg, logger):
             p.chain_name = n                         # the chain's name for it, for the data rules
             primaries.append(p)
+    if not primaries and cfg.fallback_provider == "none":
+        logger.warning("no model key yet: this member rests until one is added (sh scripts/add-key.sh zai)")
+        return FallbackModel([], secondary, logger, ledger=CallLedger(ledger_path or DEFAULT_LEDGER, bot=bot_name))
     if not primaries:
         logger.warning("no remote provider has a key; running on %s only", cfg.fallback_provider)
         return secondary

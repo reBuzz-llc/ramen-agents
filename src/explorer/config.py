@@ -97,7 +97,7 @@ class ModelConfig:
     # `fallback_provider` taking over automatically while Gemini is rate-limited, out of quota, or
     # unreachable. The key is never in this file: the env var is read first, then a file outside the
     # repo (launchd jobs have no shell env, so the file is the practical route).
-    fallback_provider: str = "ollama"  # ollama | fake
+    fallback_provider: str = "none"  # none (no local model: an empty chain is a rest) | ollama (opt-in) | fake (the demo, never for a live bot)
     # Ordered remote providers, tried in order; the first one that answers wins. Empty means "just
     # `provider`". Entries: "gemini" or the name of a [model.providers.<name>] table. The local
     # fallback_provider is always last.
@@ -1124,8 +1124,8 @@ def validate(cfg: Config) -> None:
         raise ValueError("model.decide_kind = 'new_names' needs model.new_names_open: the providers allowed to read unmasked names")
     if cfg.model.token_wait_seconds < 0:
         raise ValueError("model.token_wait_seconds must not be negative")
-    if cfg.model.fallback_provider not in ("fake", "ollama"):
-        raise ValueError(f"model.fallback_provider must be 'fake' or 'ollama', got {cfg.model.fallback_provider!r}")
+    if cfg.model.fallback_provider not in ("fake", "ollama", "none"):
+        raise ValueError(f"model.fallback_provider must be 'none', 'ollama' or 'fake', got {cfg.model.fallback_provider!r}")
     if cfg.model.gemini_cooldown_minutes < 0 or any(
         float(spec.get("cooldown_minutes", 0)) < 0 for spec in cfg.model.providers.values() if isinstance(spec, dict)
     ):

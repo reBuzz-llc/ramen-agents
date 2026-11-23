@@ -725,6 +725,12 @@ class Controller:
         from .common.masking import call_kind
         with call_kind(self.cfg.model.decide_kind):        # only a contact-finding member's decide runs unmasked
             result = self.model.decide(self.system, obs)
+        if getattr(result, "held", False):                 # the whole chain is out: a wait, not the member's action
+            wait = max(30.0, min(600.0, float(getattr(result.decision.action, "seconds", 0) or 120.0)))
+            event(self.logger, "no_provider_rest", seconds=int(wait))
+            self.heartbeat.tick(self.cycle_no, f"resting {int(wait)}s: no provider answered")
+            self._sleep(wait)
+            return
         if result.decision is None:
             failures = self.heartbeat.record_model_failure()
             event(self.logger, "model_failure", error=result.error, failures=failures, raw=(result.raw or "")[:300])

@@ -88,7 +88,7 @@ def build_judge(mode: str, model_cfg: Any, local_model: str, chain: Any, logger:
     """mode "local": Ollama `local_model` on this Mac when it is up (nothing spent), else the bot's chain;
     "chain": the bot's own configured model. The result is a plain (system, prompt) -> str callable."""
     logger = logger or logging.getLogger("explorer")
-    if mode == "local":
+    if mode == "local" and getattr(model_cfg, "fallback_provider", "") != "none":
         try:
             from dataclasses import replace
 

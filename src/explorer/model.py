@@ -31,6 +31,7 @@ class ModelResult:
     error: str | None = None
     latency: float = 0.0
     attempts: int = 1
+    held: bool = False  # the engine's own wait (no provider answered), not the member's action
 
 
 class Model(Protocol):
@@ -240,6 +241,19 @@ class OllamaModel:
 
 
 # ---- Gemini (free tier) with a local fallback -------------------------------------------------
+
+
+class NoLocalModel:
+    """fallback_provider = "none": nothing runs on this machine, so with the chain empty there is no answer."""
+
+    def decide(self, system: str, observation: Observation) -> ModelResult:
+        return ModelResult(decision=None, error="no local model")
+
+    def complete(self, system: str, prompt: str) -> str:
+        return ""
+
+    def available(self) -> tuple[bool, str]:
+        return False, "no local model is configured"
 
 
 class ProviderUnavailable(RuntimeError):
