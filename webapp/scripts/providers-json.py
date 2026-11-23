@@ -93,6 +93,7 @@ def main() -> int:
             name=name,
             auto=name in discovered,
             note=KNOWN_PROVIDERS.get(name, {}).get("free", ""),
+            closedToLeadData=name in (cfg.model.personal_closed or []),
             usage={k: {"calls": v[0], "tokens": v[1] + v[2]} for k, v in sorted(used.items())},
         )
         out["chain"].append(entry)

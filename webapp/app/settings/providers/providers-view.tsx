@@ -79,6 +79,7 @@ export default function ProvidersView({ bots, initial }: { bots: BotProfile[]; i
           <p className="mt-0.5 text-xs text-muted">{p.note}</p>
           {inChain && usageText(p) ? <p className="mt-0.5 text-xs text-muted">{usageText(p)}</p> : null}
           {!inChain && p.needsBilling ? <p className="mt-0.5 text-xs text-muted">Needs billing, not in the default chain.</p> : null}
+          {p.closedToLeadData ? <p className="mt-0.5 text-xs text-muted">Closed to lead data. To choose, read Google&apos;s terms in: sh scripts/add-key.sh gemini</p> : null}
           {st.result ? (
             <p role="status" className="mt-2">
               <Badge tone={LEVEL_TONE[st.result.level]}>{st.result.message}</Badge>

@@ -40,7 +40,7 @@ provider's. Everything else is "not measured".
 | Provider | Free tier | What we measured | Our cap | Sign up |
 |---|---|---|---|---|
 | Z.ai (`zai`, glm-4.5-flash) | the flash models are listed at $0; the page does not state whether a card is needed; limits not published | about 1,575 calls and 9.4M tokens in one day (2026-10-14) with no limit hit | 3,000 calls/day | https://z.ai |
-| Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
+| Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed. Its [terms](https://ai.google.dev/gemini-api/terms) say "Do not submit sensitive, confidential, or personal information to the Unpaid Services", so it takes no lead data until you say yes in `sh scripts/add-key.sh gemini` | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
 | Groq (`groq`, gpt-oss-120b) | free tier; the page does not state whether a card is needed | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only; the page does not state whether a card is needed | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
 | free.ai (`freeai`) | 30,000 tokens a day, as published | a family call is about 5,500 tokens | 5 calls/day | https://free.ai |

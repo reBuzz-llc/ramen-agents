@@ -28,6 +28,9 @@ domain_no_progress_cap = 5      # five pages on one site with nothing written fr
 enabled = true                  # the first page of a new site is judged once: a business's own site, or a directory?
 
 [model]
+# This member finds and lists contacts, so its decide call reads names on no row and runs unmasked, only on the providers in
+# new_names_open (common-data/configs/web-bots.toml). Its other calls stay masked.
+decide_kind = "new_names"
 remote_for = "all"
 budget_weight = 2.0             # the family's producer takes a double share of the pool when others are running
 

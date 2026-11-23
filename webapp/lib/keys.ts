@@ -22,6 +22,7 @@ export type ProviderInfo = {
   position?: number;
   auto: boolean;
   needsBilling?: boolean; // not free: shown as such, with no key prompt
+  closedToLeadData?: boolean; // takes no call with lead data until the person chooses (add-key.sh)
   note: string;
   model: string;
   baseUrl: string;

@@ -21,6 +21,11 @@ provider = "remote"
 # is skipped, so leave the list as it is and add keys as you get them (common-data/keys/<name>.key).
 # Free tiers only: a provider that needs a payment method stays out of the chain unless the owner decides otherwise.
 provider_chain = ["zai", "gemini", "groq", "openrouter"]
+# A lead's email, phone and contact name go to remote models as tokens. Google's terms for the free Gemini tier say not to submit
+# personal information, so Gemini takes no call with lead data until you say yes in: sh scripts/add-key.sh gemini
+personal_closed = ["gemini"]
+# The only providers that may read a contact-finding call, which reads names on no row yet and so cannot be masked.
+new_names_open = ["zai", "groq", "openrouter"]
 gemini_model = "gemini-3.6-flash"
 gemini_fallback_models = ["gemini-flash-lite-latest"]
 gemini_api_key_file = "~/bots/common-data/keys/gemini.key"

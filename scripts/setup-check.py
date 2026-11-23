@@ -112,13 +112,15 @@ def checks() -> tuple[list[str], list[str], int]:
     # 2. this repository
     need((HOME / ".config" / "explorer").is_symlink(), "the folders and the state link: sh scripts/install.sh (step 1)")
     # 3. model keys
-    have = [n for n, _, _ in MODEL_KEYS if key_ok(n)]
+    have = [n for n, _, _ in MODEL_KEYS if key_ok(n) and not (n == "gemini" and gemini_closed())]
+    if key_ok("gemini") and gemini_closed():
+        optional.append("common-data/keys/gemini.key is on file but closed to lead data until you choose: sh scripts/add-key.sh gemini")
     if not have:
         missing.append("at least one model key, sh scripts/add-key.sh <provider> (step 3): " + "; ".join(f"{n}.key from {link}" for n, _, link in MODEL_KEYS[:3]) + " (more are optional)")
     else:
         done += 1
         for n, who, link in MODEL_KEYS:
-            if n not in have:
+            if n not in have and not key_ok(n):
                 optional.append(f"common-data/keys/{n}.key: {who}, {link} (another fallback)")
     for n in have + [k for k, _, _ in OPTIONAL_KEYS if key_ok(k)]:
         mode = (KEYS / f"{n}.key").stat().st_mode & 0o077
@@ -188,6 +190,18 @@ def probe() -> list[str]:
         except OSError as e:
             out.append(f"  !! {n}: {who}: no answer ({str(e)[:60]})")
     return out
+
+
+def gemini_closed() -> bool:
+    """Gemini takes lead data only after the person's own choice in sh scripts/add-key.sh gemini."""
+    for f in (ROOT / "common-data" / "configs" / "local.toml", ROOT / "common-data" / "configs" / "web-bots.toml"):
+        try:
+            found = re.search(r"(?m)^\s*personal_closed\s*=\s*\[([^\]]*)\]", f.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if found:
+            return '"gemini"' in found.group(1)
+    return True
 
 
 def main(argv: list[str]) -> int:

@@ -31,7 +31,7 @@ Each key is one file, `common-data/keys/<name>.key`, written by `sh scripts/add-
 showing it and tests it. Any subset works; more keys mean more fallbacks. Limits and what we measured:
 [free-tiers.md](free-tiers.md).
 
-- [ ] `gemini`: Google AI Studio, https://aistudio.google.com/apikey
+- [ ] `gemini` (optional): Google AI Studio, https://aistudio.google.com/apikey. The script shows Google's terms first; without your yes it saves no key
 - [ ] `groq`: Groq, https://console.groq.com/keys
 - [ ] `zai`: Z.ai, https://z.ai (the flash models are free)
 - [ ] `openrouter`: OpenRouter, https://openrouter.ai/keys (free models only)

@@ -88,10 +88,10 @@ have=0
 for k in gemini groq zai openrouter; do [ -s "common-data/keys/$k.key" ] && have=1; done
 if [ "$have" = 1 ]; then echo "  ok       a model key is on file"
 elif [ -t 0 ]; then
-  printf "  No model key yet. Add a free Google AI Studio key now? [Y/n] "
+  printf "  No model key yet. Add a free Z.ai key now? [Y/n] "
   IFS= read -r a || a=""
-  case "$a" in n|N) echo "  later: sh scripts/add-key.sh gemini (or groq, zai, openrouter)";; *) sh scripts/add-key.sh gemini || true ;; esac
-else echo "  missing  no model key: sh scripts/add-key.sh gemini (or groq, zai, openrouter)"; fi
+  case "$a" in n|N) echo "  later: sh scripts/add-key.sh zai (or groq, openrouter, gemini)";; *) sh scripts/add-key.sh zai || true ;; esac
+else echo "  missing  no model key: sh scripts/add-key.sh zai (or groq, openrouter, gemini)"; fi
 
 MEMBERS="the-ceo lead-gen package-designer"
 OPTIONAL="research-analyst scout"
