@@ -17,7 +17,7 @@ provider = "remote"
 # providers: a key is nobody's own, each provider's calls_per_day is counted for the whole Mac in
 # ~/.config/explorer/model_calls.json, so whoever is running draws on it and a stopped bot holds nothing back.
 # A bot that wants a different ORDER sets model.provider_first. A provider that is rate-limited, capped or down is
-# benched and the next one answers; the local Ollama model is the last resort. A provider whose key file is missing
+# benched and the next one answers; with all of them out a member rests until one is back. A provider whose key file is missing
 # is skipped, so leave the list as it is and add keys as you get them (common-data/keys/<name>.key).
 # Free tiers only: a provider that needs a payment method stays out of the chain unless the owner decides otherwise.
 provider_chain = ["zai", "gemini", "groq", "openrouter"]
@@ -29,9 +29,10 @@ new_names_open = ["zai", "groq", "openrouter"]
 gemini_model = "gemini-3.6-flash"
 gemini_fallback_models = ["gemini-flash-lite-latest"]
 gemini_api_key_file = "~/bots/common-data/keys/gemini.key"
-# "writing": the local model decides every step and only a note, task, post or message is written by the remote
-# chain. A bot that should think with the remote models sets remote_for = "all" in its own config.
-remote_for = "writing"
+# Every step is decided by the remote chain. No model runs on this Mac unless you add one: fallback_provider = "ollama" in
+# common-data/configs/local.toml, with Ollama installed, makes it the last resort.
+remote_for = "all"
+fallback_provider = "none"
 # One pool of remote tokens for the day, shared by the bots that are running right now in proportion to their
 # budget_weight; a stopped bot's share flows to the rest at once. Set it to about what your free tiers carry in a day.
 budget_scope = "active"

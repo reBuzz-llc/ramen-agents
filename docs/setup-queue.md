@@ -49,7 +49,6 @@ showing it and tests it. Any subset works; more keys mean more fallbacks. Limits
 
 ## 5. Optional
 
-- [ ] Ollama with `ollama pull qwen2.5:7b`, the last resort when no provider answers (https://ollama.com/download).
 - [ ] Reach the dashboard from your phone: [remote-access.md](remote-access.md).
 - [ ] A weekly write-up of what the family did, every Sunday at 21:00, with no business, person or place named: copy
       `common-data/configs/family-week.example.toml` to `family-week.toml`, add your own places and people, then

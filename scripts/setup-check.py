@@ -139,10 +139,8 @@ def checks() -> tuple[list[str], list[str], int]:
     # 5. the company, in your words
     left = family_missing()
     need(not left, "your family (step 2): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
-    # 6. search and the local model
+    # 6. search
     need(local_answers("http://127.0.0.1:8888/config"), "the local search (SearXNG) does not answer on 127.0.0.1:8888 (SETUP.md step 4; it starts with the launch agents)")
-    if not local_answers("http://127.0.0.1:11434/api/tags"):
-        optional.append("the local model (Ollama) on 127.0.0.1:11434, the last resort when no provider answers (SETUP.md step 3)")
     # 7. the dashboard
     need((ROOT / "webapp" / ".next" / "BUILD_ID").is_file(), "the dashboard is not built: sh scripts/install.sh builds it (step 1)")
     # 8. always on

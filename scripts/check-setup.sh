@@ -32,7 +32,6 @@ if curl -s -o /dev/null -m 5 http://127.0.0.1:3000/; then say "  ok       the da
 say "== Software"
 [ -x "$HOME/Projects/bot/.venv/bin/bot" ] && say "  ok       engine (~/Projects/bot/.venv)" || { say "  missing  engine: clone it to ~/Projects/bot and install it (SETUP.md step 1)"; todo=1; }
 command -v node >/dev/null 2>&1 && say "  ok       node $(node --version)" || say "  missing  node (only for the dashboard)"
-curl -s -m 4 -o /dev/null http://127.0.0.1:11434/api/tags && say "  ok       local model server (Ollama) answers" || say "  off      local model server (Ollama) on 127.0.0.1:11434"
 curl -s -m 4 -o /dev/null "http://127.0.0.1:8888/config" && say "  ok       local search (SearXNG) answers" || say "  off      local search (SearXNG) on 127.0.0.1:8888"
 [ -L "$HOME/.config/explorer" ] && say "  ok       state link (~/.config/explorer)" || { say "  missing  state link: sh scripts/install.sh (step 1)"; todo=1; }
 

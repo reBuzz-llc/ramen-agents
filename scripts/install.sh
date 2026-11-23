@@ -95,6 +95,5 @@ if [ -f webapp/.next/BUILD_ID ] && [ -z "$(find webapp/app webapp/lib -newer web
 else (cd webapp && npm run build >"$ROOT/common-data/logs/dashboard-build.log" 2>&1) && did "the dashboard's build" || stop "the dashboard's build failed: see common-data/logs/dashboard-build.log"; fi
 
 echo
-command -v ollama >/dev/null 2>&1 || [ -d /Applications/Ollama.app ] && ok "optional: Ollama, the last-resort local model" || echo "  optional Ollama (a local model for when no provider answers): https://ollama.com/download, then: ollama pull qwen2.5:7b"
 echo
 echo "Installed. Next: sh scripts/setup.sh   (your family: a few questions, a model key, then it starts)"
