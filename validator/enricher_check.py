@@ -13,7 +13,7 @@ import sqlite3
 from pathlib import Path
 from typing import Callable, Iterable
 
-from email_check import _httpx_get, pages_for, visible_text
+from email_check import _httpx_get, pages_for, refused_page, visible_text
 
 BOTS = Path.home() / "bots"
 DB = BOTS / "lead-enricher" / "workspace" / "explorer.sqlite3"
@@ -76,17 +76,21 @@ def check_fill(fill: dict, website: str, *, get: Callable | None = None) -> list
     urls = pages_for(website, srcs) + ([site + x for x in EXTRA_PATHS] if site.startswith("http") else [])
     fetch = get or _httpx_get
     seen = ""
+    refused = 0
     for url in list(dict.fromkeys(urls))[:16]:
         try:
             status, html = fetch(url)
         except Exception:  # noqa: BLE001
             continue
+        if refused_page(status, html):      # a page that declined to show itself proves nothing
+            refused += 1
+            continue
         if status < 400 and html:
             seen += " " + _norm(visible_text(html)) + " " + " ".join(re.findall(r"linkedin\.com(/(?:in|company)/[^\s\"'<>?#]+)", html.lower()))
         if all(all(n in seen for n in ns) for ns in todo.values()):
             return []
-    if not seen.strip():
-        return []                                              # nothing could be read: unverifiable, not wrong
+    if not seen.strip() or refused:
+        return []                                              # nothing, or not everything, could be read: unverifiable, not wrong
     return [(f, f"'{p.get(f)}' is not printed on any page it cites or on the site ({', '.join(urls[:3])}...)")
             for f, ns in todo.items() if not all(n in seen for n in ns)]
 

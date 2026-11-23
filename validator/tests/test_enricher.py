@@ -55,3 +55,26 @@ def test_a_linkedin_from_the_own_site_must_be_linked_there():
     assert enricher_check.check_fill(fill, "https://joes.example", get=lambda u: (200, page)) == []
     other = dict(fill, payload=dict(fill["payload"], founder_linkedin="https://www.linkedin.com/in/someone-else"))
     assert [f for f, _ in enricher_check.check_fill(other, "https://joes.example", get=lambda u: (200, page))] == ["founder_linkedin"]
+
+
+def test_the_email_check_says_who_it_is_and_a_refusal_proves_nothing():
+    """A plain agent name, and a page that declined to show itself is never "not found"."""
+    import email_check as e
+    assert e.UA == {"User-Agent": "ramen-agents-validator/1.0 (email check)"}
+    real = "<p>" + "Our menu and our story, told at length for every visitor. " * 12 + "</p>"
+    assert e.verify("a@casa.example", "https://casa.example", get=lambda u: (200, real)).status == "not_found"
+    for status, body in ((403, ""), (406, "no"), (451, "no"), (429, ""), (200, "<title>Just a moment...</title>"), (200, "<h1>Access denied</h1>")):
+        assert e.verify("a@casa.example", "https://casa.example", get=lambda u: (status, body)).status == "unreachable", (status, body)
+    partly = lambda u: (403, "") if u.endswith("/contact") else (200, real)
+    assert e.verify("a@casa.example", "https://casa.example", get=partly).status == "unreachable"
+    assert e.verify_whatsapp("https://wa.me/12015550100", "https://casa.example", get=partly).status == "unreachable"
+    found = lambda u: (403, "") if u.endswith("/contact") else (200, real + "a@casa.example")
+    assert e.verify("a@casa.example", "https://casa.example", get=found).status == "published"
+
+
+def test_the_enricher_fact_check_flags_nothing_from_a_page_that_refused():
+    import enricher_check as c
+    fill = {"payload": {"founded_by": "Ana Ruiz", "sources": ["https://casa.example/about"]}, "name": "Casa", "ts": "t", "id": 1}
+    real = "<p>" + "Our menu and our story, told at length for every visitor. " * 12 + "</p>"
+    assert c.check_fill(fill, "https://casa.example", get=lambda u: (200, real))
+    assert c.check_fill(fill, "https://casa.example", get=lambda u: (403, "") if u.endswith("/about") else (200, real)) == []

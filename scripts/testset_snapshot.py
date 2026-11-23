@@ -19,7 +19,8 @@ from pathlib import Path
 from explorer.light_browser import LightBrowser
 
 ROOT = Path.home() / "bots" / "common-data" / "testset" / "lead-gen"
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36"
+# A plain agent name on purpose: an automated client never presents itself as a person's browser.
+UA = "ramen-agents-testset-snapshot/1.0"
 
 
 def slug(name: str) -> str:

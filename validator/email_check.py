@@ -22,8 +22,8 @@ from typing import Callable, Iterable
 
 PATHS = ("", "/contact", "/contact-us", "/contacts", "/franchise", "/franchising", "/franchise-opportunities",
          "/own-a-franchise", "/about", "/about-us")
-UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0 Safari/537.36"}
+# A plain agent name on purpose: an automated client never presents itself as a person's browser.
+UA = {"User-Agent": "ramen-agents-validator/1.0 (email check)"}
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 TIMEOUT = 12.0
 _CFEMAIL = re.compile(r'data-cfemail="([0-9a-f]+)"', re.I)
@@ -39,6 +39,18 @@ def visible_text(html: str) -> str:
         return "".join(chr(b ^ raw[0]) for b in raw[1:])
 
     return _html.unescape(_CFEMAIL.sub(lambda m: " " + decode(m) + " ", html)).lower()
+
+
+_BLOCK_PAGE = re.compile(r"(?i)bot verification|verify you are human|just a moment|are you a (?:human|robot)|unusual traffic|captcha")
+_SHORT_BLOCK = re.compile(r"(?i)access denied|request (?:was )?blocked|attention required|enable javascript and cookies|forbidden|not acceptable")
+
+
+def refused_page(status: int, text: str) -> bool:
+    """The site declined to show us this page. What it did not show proves nothing: never "not found" from it."""
+    if 400 <= status < 500 and status not in (404, 410):
+        return True
+    head = (text or "")[:4000]
+    return bool(_BLOCK_PAGE.search(head)) or (len(re.sub(r"<[^>]+>", " ", text or "").split()) < 100 and bool(_SHORT_BLOCK.search(head)))
 
 
 @dataclass
@@ -78,11 +90,14 @@ def verify(email: str, website: str, extra: Iterable[str] = (), *, get: Callable
         return EmailVerdict("skipped", "no website to read")
     fetch = get or _httpx_get
     found_elsewhere: set[str] = set()
-    read = 0
+    read = refused = 0
     for url in urls:
         try:
             status, text = fetch(url)
         except Exception:  # noqa: BLE001 - an unreachable page is not the row's fault
+            continue
+        if refused_page(status, text):
+            refused += 1
             continue
         if status >= 400 or not text:
             continue
@@ -93,8 +108,8 @@ def verify(email: str, website: str, extra: Iterable[str] = (), *, get: Callable
         for other in EMAIL_RE.findall(low):
             if not other.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")) and "sentry" not in other:
                 found_elsewhere.add(other)
-    if not read:
-        return EmailVerdict("unreachable", "none of its pages could be read from this Mac")
+    if not read or refused:
+        return EmailVerdict("unreachable", f"{refused} of its pages refused the read" if refused else "none of its pages could be read from this Mac")
     return EmailVerdict("not_found", f"{read} page(s) read", tuple(sorted(found_elsewhere)[:3]))
 
 
@@ -165,11 +180,14 @@ def verify_whatsapp(link: str, website: str, extra: Iterable[str] = (), *, get: 
     if not urls:
         return EmailVerdict("skipped", "no website to read")
     fetch = get or _httpx_get
-    read, others = 0, set()
+    read, refused, others = 0, 0, set()
     for url in urls:
         try:
             status, text = fetch(url)
         except Exception:  # noqa: BLE001
+            continue
+        if refused_page(status, text):
+            refused += 1
             continue
         if status >= 400 or not text:
             continue
@@ -178,6 +196,6 @@ def verify_whatsapp(link: str, website: str, extra: Iterable[str] = (), *, get: 
         if any(d[-10:] == digits[-10:] for d in found if len(d) >= 10) or digits in found:
             return EmailVerdict("published", url)
         others |= found
-    if not read:
-        return EmailVerdict("unreachable", "none of its pages could be read from this Mac")
+    if not read or refused:
+        return EmailVerdict("unreachable", f"{refused} of its pages refused the read" if refused else "none of its pages could be read from this Mac")
     return EmailVerdict("not_found", f"{read} page(s) read", tuple(sorted(others)[:3]))

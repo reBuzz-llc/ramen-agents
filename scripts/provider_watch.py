@@ -34,7 +34,8 @@ SNAPSHOTS = COMMON / "shared-state" / "provider-watch"
 REPORT = COMMON / "provider-watch-report.md"
 SCOUT = Path.home() / "bots" / "scout"
 CEO_CFG = Path.home() / "bots" / "the-ceo" / "config.toml"
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36"
+# A plain agent name on purpose: an automated client never presents itself as a person's browser.
+UA = "ramen-agents-provider-watch/1.0"
 SYSTEM = ("You compare two versions of an AI provider's pricing or limits page. In at most three short bullet points, say "
           "what changed that matters to a user on the FREE tier: limits, prices, card requirements, models added or retired. "
           "Only what the diff shows; if the changes are cosmetic (dates, layout, wording), answer exactly: no material change.")
