@@ -44,7 +44,7 @@ def test_new_bot_makes_a_loadable_config_with_persona_and_denylist(tmp_path: Pat
     assert folder == tmp_path / "bots" / "the-ceo"
     cfg = load_config(folder / "config.toml")
     assert cfg.agent.name == "The CEO"
-    assert cfg.agent.mode == "web" and cfg.model.provider == "ollama"
+    assert cfg.agent.mode == "web" and cfg.model.provider == "remote" and cfg.model.provider_chain == ["zai", "groq", "openrouter"]
     assert cfg.agent.persona_file == "persona.md" and (folder / "persona.md").read_text().startswith("You are the CEO")
     assert cfg.dashboard.port == 8790
     assert cfg.quiet.enabled

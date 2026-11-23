@@ -45,7 +45,7 @@ def test_policy_wants_a_published_business_email_and_grounded_facts():
     assert policy.check(lead(), ctx()).allowed
     # No email, no lead -- and it must be theirs, on their site, on a page that was opened.
     assert "a way to reach the business" in policy.check(lead(email=""), ctx()).reason
-    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.com"), ctx()).reason  # a free-mail address needs the same proof
+    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.example"), ctx()).reason  # a free-mail address needs the same proof
     assert "does not appear on any page" in policy.check(lead(email="hello@other.example"), ctx()).reason  # another domain, not printed on the site
     unseen = policy.check(lead(email="owner@acmebakery.example"), ctx())
     assert not unseen.allowed and "does not appear on any page" in unseen.reason
@@ -198,9 +198,9 @@ def test_an_email_on_another_domain_is_accepted_when_the_businesss_own_page_prin
     printed = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: sandra@acmebakery-nyc.example"})
     assert policy.check(lead(email="sandra@acmebakery-nyc.example"), printed).allowed
     assert "does not appear on any page" in policy.check(lead(email="sandra@acmebakery-nyc.example"), ctx()).reason  # not printed: refused
-    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.com"), printed).reason  # not printed: refused
-    free = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: acmebakery@gmail.com"})
-    assert policy.check(lead(email="acmebakery@gmail.com"), free).allowed  # printed on their page: passes; the Validator's gate judges whether it reads as the business's (owner, 2026-10-10)
+    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.example"), printed).reason  # not printed: refused
+    free = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: acmebakery@gmail.example"})
+    assert policy.check(lead(email="acmebakery@gmail.example"), free).allowed  # printed on their page: passes; the Validator's gate judges whether it reads as the business's (owner, 2026-10-10)
 
 
 def test_an_undeliverable_email_stops_the_lead_and_a_good_one_is_noted_on_the_row(cfg):
@@ -252,7 +252,7 @@ def test_business_emails_noted_but_never_listed_come_back_as_work(cfg):
     for title, body, url in (("Sweet Catch Springfield", "Footer: info@sweetcatch.test", "https://www.sweetcatch.test"),
                              ("Placeholder form", "write to mymail@mailservice.test", "https://x.example"),
                              ("A professor", "en21@fictional-university.edu", "https://fictional-university.edu/x"),
-                             ("Gmail shop", "shop@gmail.com", "https://shop.example")):
+                             ("Gmail shop", "shop@gmail.example", "https://shop.example")):
         c.memory.add_note(title, body, source_url=url, episode_id=ep)
     lines = c._noted_not_listed()
     assert lines == ["Sweet Catch Springfield | info@sweetcatch.test | https://www.sweetcatch.test"]
@@ -268,14 +268,14 @@ def test_a_business_with_no_website_is_a_lead_through_its_public_listing():
 
     policy_for = lambda: Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True))  # noqa: E731
     listing = "https://www.yellowpages.com/brooklyn-ny/mip/corner-bakery-123"
-    base = dict(type="lead", name="Corner Bakery", website="", email="cornerbakery@gmail.com", pain_point="No website at all; only this listing",
+    base = dict(type="lead", name="Corner Bakery", website="", email="cornerbakery@gmail.example", pain_point="No website at all; only this listing",
                 how_we_help="SMB Website Care Retainer", evidence=listing, location="Brooklyn, NY, USA")
-    c = ctx(visited_urls={listing}, recent_page_texts={listing: "Corner Bakery, 12 Court St Brooklyn. cornerbakery@gmail.com. (718) 555-0101"}, recent_lead_names={})
+    c = ctx(visited_urls={listing}, recent_page_texts={listing: "Corner Bakery, 12 Court St Brooklyn. cornerbakery@gmail.example. (718) 555-0101"}, recent_lead_names={})
     assert policy_for().check(Lead(**base), c).allowed
     assert "needs its location" in policy_for().check(Lead(**{**base, "location": ""}), c).reason
     assert "have not read the listing page" in policy_for().check(Lead(**{**base, "evidence": "https://www.yellowpages.com/other"}), ctx(visited_urls={"https://www.yellowpages.com/other"}, recent_page_texts={}, recent_lead_names={})).reason
     wa = Lead(**{**base, "email": "", "whatsapp": "(718) 555-0101"})
     assert policy_for().check(wa, c).allowed and wa.whatsapp == "https://wa.me/17185550101"
     assert "a way to reach the business" in policy_for().check(Lead(**{**base, "email": ""}), c).reason
-    dup = ctx(visited_urls={listing}, recent_page_texts={listing: "cornerbakery@gmail.com"}, recent_lead_names={}, recent_lead_domains={lead_key("Corner Bakery", "Brooklyn, NY, USA")})
+    dup = ctx(visited_urls={listing}, recent_page_texts={listing: "cornerbakery@gmail.example"}, recent_lead_names={}, recent_lead_domains={lead_key("Corner Bakery", "Brooklyn, NY, USA")})
     assert "already on the Leads board" in policy_for().check(Lead(**base), dup).reason

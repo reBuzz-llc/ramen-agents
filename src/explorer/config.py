@@ -138,7 +138,7 @@ class ModelConfig:
     # contact-finding member (Lead Gen, the Enricher): it reads names on no row yet, so that call runs unmasked.
     decide_kind: str = "personal"
     # Chain names that never take a call that may carry personal data, masked or not.
-    personal_closed: list[str] = field(default_factory=list)
+    personal_closed: list[str] = field(default_factory=lambda: ["gemini"])     # Google's free-tier terms: no personal information
     # The only chain names that may take a "new_names" call.
     new_names_open: list[str] = field(default_factory=list)
     # Add a provider automatically when ~/bots/common-data/keys/<name>.key exists for a name in
@@ -230,8 +230,7 @@ PROVIDER_KEYS = frozenset({"base_url", "model", "api_key_env", "api_key_file", "
 # OpenAI-compatible providers this project knows how to reach: drop a key at
 # ~/bots/common-data/keys/<name>.key and, when model.auto_discover_providers is on, it joins the
 # chain with no config edit (fallback.discover_providers). "free" is a human note for `bot providers`;
-# the bots never sign up for these, that is always the owner's step (Plan 7). No OpenRouter (owner's
-# rule). Model ids drift; `bot check` verifies each against the provider's catalogue.
+# the bots never sign up for these, that is always the owner's step. Model ids drift; `bot check` verifies each against the provider's catalogue.
 KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "groq": {"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "free": "free tier; its page does not state whether a card is needed"},
     "cerebras": {"base_url": "https://api.cerebras.ai/v1", "model": "gpt-oss-120b", "free": "card required (2026-09-25: API access needs credits, $5 trial or $10 PayGo) -- declined", "auto": False},

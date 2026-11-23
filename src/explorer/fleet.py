@@ -147,7 +147,8 @@ def write_bot_config(folder: Path, name: str, persona: str, port: int, code_root
         if spec["tasks"]
         else ""
     )
-    model = "" if "model.provider" in have else 'provider = "ollama"\n'  # web bots take the shared model chain
+    # web bots take the shared model chain; a bot on its own gets the free providers that need no separate choice
+    model = "" if "model.provider" in have else 'provider = "remote"\nprovider_chain = ["zai", "groq", "openrouter"]\n'
     if fake:
         model = '# Fake mode: a built-in model that needs no key; nothing leaves this machine.\nprovider = "fake"\nprovider_chain = []\n'
     fake_web = str(code_root / "workspace" / "fake_web")

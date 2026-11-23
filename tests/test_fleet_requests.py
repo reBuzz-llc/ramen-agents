@@ -356,14 +356,14 @@ def test_the_write_gate_refuses_with_the_validators_reasons_and_fails_closed(cfg
     gate = tmp_path / "gate.py"
     gate.write_text(
         "def check(action, payload, *, bot='', min_details=300):\n"
-        "    if action == 'lead' and payload.get('email', '').endswith('@gmail.com'):\n"
-        "        return ['LD01: email is on a personal mailbox provider (gmail.com)']\n"
+        "    if action == 'lead' and payload.get('email', '').endswith('@gmail.example'):\n"
+        "        return ['LD01: email is on a personal mailbox provider (gmail.example)']\n"
         "    if action == 'task':\n"
         "        raise RuntimeError('broken checker')\n"
         "    return []\n", encoding="utf-8")
     cfg.policy.write_gate = str(gate)
     policy = Policy(cfg.policy, Denylist.load(Path(cfg.policy.denylist_file)))
-    lead = Lead(type="lead", name="X", website="https://x.example", email="info@gmail.com", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")
+    lead = Lead(type="lead", name="X", website="https://x.example", email="info@gmail.example", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")
     v = policy.gate_write(lead, bot="Lead Gen")
     assert not v.allowed and v.reason.startswith("Validator rules: LD01")
     ok = Lead(type="lead", name="X", website="https://x.example", email="info@x.example", pain_point="p", how_we_help="Website Care Basic", evidence="https://x.example")

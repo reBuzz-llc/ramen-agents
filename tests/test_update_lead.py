@@ -41,7 +41,7 @@ def test_policy_only_fixes_the_bots_own_leads_with_grounded_changes():
     assert "at least one change" in policy.check(upd(evidence=None), ctx()).reason
     # Changed fields obey the lead rules: email on the business's own domain AND on a page the bot opened.
     assert policy.check(upd(evidence=None, email="orders@acmebakery.example"), ctx()).allowed
-    assert "does not appear on" in policy.check(upd(email="acmebakery@gmail.com"), ctx()).reason  # free-mail: same page proof; the gate judges the rest
+    assert "does not appear on" in policy.check(upd(email="acmebakery@gmail.example"), ctx()).reason  # free-mail: same page proof; the gate judges the rest
     assert "does not appear on any page" in policy.check(upd(email="hello@other.example"), ctx()).reason  # another domain, not printed on the site
     assert "does not appear on any page" in policy.check(upd(email="owner@acmebakery.example"), ctx()).reason
     assert "actually opened" in policy.check(upd(evidence=SITE + "/never"), ctx()).reason

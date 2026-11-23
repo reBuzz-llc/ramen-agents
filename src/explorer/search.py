@@ -77,7 +77,7 @@ class SearchSettings:
     # (it rests in the shared pause file); the keyless engines answer in between. Brave started
     # serving bot checks at ~40 searches an evening, which is what this stays under. 0 = no rest.
     web_min_interval_seconds: float = 0.0
-    user_agent: str = "Mozilla/5.0 (compatible; explorer curiosity agent)"
+    user_agent: str = "Mozilla/5.0 (compatible; ramen-agents/0.2; +https://github.com/reBuzz-llc/ramen-agents)"
     # The API engines get a plain bot user agent. Wikimedia's policy (https://w.wiki/4wJS) answers
     # 403 to browser-like strings and to bots without a contact, so include one when configured.
     api_user_agent: str = ""
@@ -722,7 +722,7 @@ def settings_from_config(cfg: Any) -> SearchSettings:
         rate_limit_minutes=float(getattr(policy, "search_rate_limit_cooldown_minutes", 5.0)),
         bot_check_minutes=float(getattr(policy, "search_cooldown_minutes", 30.0)),
         web_min_interval_seconds=0.0 if fake else float(getattr(browser_cfg, "search_web_interval_seconds", 180.0)),
-        user_agent=str(getattr(cfg, "user_agent", "Mozilla/5.0 (compatible; explorer curiosity agent)")),
+        user_agent=str(getattr(cfg, "user_agent", "Mozilla/5.0 (compatible; ramen-agents/0.2; +https://github.com/reBuzz-llc/ramen-agents)")),
         api_user_agent=api_user_agent(str(getattr(agent, "name", "explorer")), str(getattr(agent, "contact", "") or "")),
         searxng_url=str(getattr(browser_cfg, "searxng_url", "") or "http://127.0.0.1:8888"),
         tavily_api_key=load_key("TAVILY_API_KEY", key_file("tavily")) or "",

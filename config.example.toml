@@ -26,9 +26,8 @@ seed_interests = [
 
 [model]
 # fake = deterministic heuristic (no LLM), ollama = local model over HTTP, gemini = Google's free-tier
-# API, remote = the providers in provider_chain, in order. A remote provider is the primary brain and
-# `fallback_provider` (ollama) takes over automatically while it is rate-limited, out of quota, or
-# unreachable.
+# API, remote = the providers in provider_chain, in order. With every provider out the agent rests until
+# one is back. `fallback_provider = "ollama"` adds a local model as the last resort, if you installed one.
 provider = "fake"
 host = "http://localhost:11434"
 name = "qwen2.5:7b"
@@ -43,7 +42,10 @@ keep_alive = "30m"
 # moves the folder), e.g.
 #   umask 077 && printf '%s' 'YOUR_KEY' > ~/bots/common-data/keys/groq.key
 # Note: a remote provider is the first thing that sends page text and the agent's state off this Mac.
-fallback_provider = "ollama"
+fallback_provider = "none"
+# A lead's email, phone and known contact name go to remote models as tokens. Google's terms for the free Gemini
+# tier say not to submit personal information, so Gemini takes no such call until you remove it from this list.
+personal_closed = ["gemini"]
 # With provider = "remote": the providers tried in order, "gemini" or the name of a
 # [model.providers.<name>] table, e.g. ["groq", "gemini"].
 provider_chain = []
@@ -57,10 +59,8 @@ gemini_fallback_models = []   # e.g. ["gemini-flash-lite-latest"]
 # (every bot and dashboard on this Mac shares the count, and a restart does not forget it). A capped
 # provider is skipped until tomorrow and the chain moves on to the next one. 0 = no cap.
 calls_per_day = 0
-# "all": every call goes to the remote chain first. "writing": the local model decides every step and
-# the remote chain writes only notes, tasks, posts and messages (journal and chat stay remote first).
-# A free tier of 8,000 tokens a minute holds about one full step a minute, so "writing" is what
-# lets the better model write the output instead of the local fallback.
+# "all": every call goes to the remote chain. "writing" needs a local model: it decides every step and the
+# remote chain writes only notes, tasks, posts and messages.
 remote_for = "all"
 # Add a provider automatically when ~/bots/common-data/keys/<name>.key exists for a name the project
 # knows as free (config.KNOWN_PROVIDERS: groq, zai, openrouter), without editing this file. One that needs billing never joins this way.

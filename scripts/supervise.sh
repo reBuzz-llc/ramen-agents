@@ -1,7 +1,7 @@
 #!/bin/sh
 # Supervisor for the explorer: runs `bot run`, understands the self-upgrade exit code, and rolls
 # back a new version that crashes soon after it starts. launchd runs this (wrapped in caffeinate)
-# instead of `bot` directly. See docs/milestone-5-6-self-upgrade.md.
+# instead of `bot` directly.
 #
 #   exit 75 from the bot  -> it merged a new version into main; restart immediately on it
 #   exit 0                -> STOP file or cycle cap; stay down (launchd does not restart a clean exit)

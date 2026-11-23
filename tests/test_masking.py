@@ -234,6 +234,10 @@ def _named(name, bodies, clock, reply=None, **cfg):
 RULE = {"personal_closed": ["gemini"], "new_names_open": ["zai", "groq", "openrouter"]}
 
 
+def test_the_engine_closes_gemini_to_personal_data_by_default():
+    assert ModelConfig().personal_closed == ["gemini"]
+
+
 def test_an_unmarked_call_never_reaches_a_closed_provider():
     clock, seen = Clock(100.0), []
     chain = FallbackModel([_named("gemini", seen, clock, **RULE), _named("zai", seen, clock, **RULE)], FakeModel(), clock=clock)
@@ -331,7 +335,7 @@ def test_mistral_opens_by_its_config_line_alone(rows):
 
 
 def test_a_page_call_is_unmasked_and_follows_the_personal_list(rows):
-    assert "maria@example.com" in _sent("gemini", Clock(100.0), "page", new_names_open=RULE["new_names_open"])     # Gemini keeps pages
+    assert "maria@example.com" in _sent("gemini", Clock(100.0), "page", personal_closed=[], new_names_open=RULE["new_names_open"])     # opened by the person's choice
     assert _sent("gemini", Clock(100.0), "page", **RULE) == ""                     # the line that would take it off them
 
 

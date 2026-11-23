@@ -5,13 +5,13 @@
 > fleet branch's SETUP.md. Names, places and businesses in the
 > tests and comments are fictional.
 
-A curiosity-driven local agent. It roams the web with a local model, takes notes, asks itself
+A curiosity-driven agent. It roams the web with a model you choose, takes notes, asks itself
 questions, and writes a daily journal. Nobody assigns it tasks. See `explorer.md` for the design
 and `bot.md` for the original spec.
 
 ## What it needs
 
-- macOS, Python 3.11+, Ollama running on `localhost:11434` with the configured model pulled.
+- macOS and Python 3.11+. Fake mode needs no key. Real work needs one model key (Z.ai, Groq or OpenRouter). A local Ollama model is optional.
 - The `.venv` in this folder (`python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`).
 - Chromium for Playwright (`.venv/bin/playwright install chromium`), started only for pages that need it.
 
@@ -23,11 +23,11 @@ bot shares; its own values win.
 
 | Command | What it does |
 |---|---|
-| `bot check` | verify SQLite FTS5, workspace, denylist, Ollama, Chromium |
+| `bot check` | verify SQLite FTS5, workspace, denylist, Chromium, and Ollama if you configured it |
 | `bot init` | create the workspace and database, seed interests |
 | `bot run` | run forever (Ctrl-C to stop) |
 | `bot run --cycles 20 --mode fake --model fake` | offline dry run on the local fake web |
-| `bot run --mode web --model ollama --cycles 10` | ten real cycles with the local model |
+| `bot run --mode web --model ollama --cycles 10` | ten real cycles with a local model, if you added one |
 | `bot status` | latest heartbeat, counts, open episode |
 | `bot tail -n 50` | last log lines |
 | `bot journal` | print today's journal |
@@ -44,7 +44,7 @@ seconds: a picture of the page the agent is on, its current question and last ac
 actions with the model's thoughts and any refusals, its notes, questions, interests and journal, and
 Pause / Resume / Stop buttons.
 
-The Chat panel talks to the same local model with the agent's memory as context. A plain message gets
+The Chat panel talks to the agent's model with the agent's memory as context. A plain message gets
 a reply there and is also shown to the running agent on its next cycle as "Owner says", so it can act
 on suggestions or answer with its `say` action. Commands are handled by code, not the model:
 `/ask <question>`, `/interest <topic> [delta]`, `/pause`, `/resume`, `/stop`, `/help`.
@@ -69,14 +69,14 @@ addresses.
 
 - `mode = "fake"` browses only the HTML files under `workspace/fake_web`. Nothing leaves the machine.
 - `mode = "web"` reads the real web through `browser.backend`: `"light"` (default) is a plain HTTP fetch with Chromium (its own empty profile under `workspace/browser_profile`) only for pages that need it; `"chromium"` uses Chromium for every page.
-- `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is the local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order with Ollama as the fallback.
+- `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is an optional local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order with Ollama as the fallback.
 
 ## Safety switches
 
 - `workspace/STOP` stops the agent and keeps it stopped, even under launchd.
 - `workspace/PAUSE` holds it; delete the file to continue.
 - `workspace/denylist.txt` blocks login, account, and payment pages. Private networks and non-http schemes are always blocked.
-- The action vocabulary has no download, form submission, or shell. Text on web pages is data, never instructions.
+- The action vocabulary has no download or form submission, and no shell unless you turn on the developer skill (`[developer] enabled` and `allow_shell`, both off by default). Text on web pages is data, never instructions.
 - A search engine that answers with a bot-verification page is never "solved": the page counts as unreachable and searching pauses for `policy.search_cooldown_minutes`.
 - `policy.pages_per_hour` and `policy.per_domain_delay_seconds` keep it a polite visitor. robots.txt is respected.
 
