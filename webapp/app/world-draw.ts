@@ -1292,14 +1292,6 @@ export function drawBird(c: Ctx, a: { x: number; y: number }, b: { x: number; y:
   if (k < 0.97) r(c, x - 1, y + 3, 4, 3, "#ffdcd6");
 }
 
-/** A grey bubble over a member three refusals in a row: "stuck" until an allowed action. */
-export function drawStuck(c: Ctx, feet: { x: number; y: number }) {
-  const g = labelRects(feet, 0).tag; // beside it at its wall's height, below every screen
-  r(c, g.x, g.y, g.w, g.h, "#8a8a8a");
-  r(c, g.x - 2, g.y + 3, 2, 3, "#8a8a8a");
-  text(c, "stuck", g.x + g.w / 2, g.y + 6.5, { size: 5, color: "#ffffff" });
-}
-
 /** The main model provider is out: the sky greys over and a light rain falls until it answers again. */
 export function drawRain(c: Ctx, t: number) {
   c.fillStyle = "rgba(110,118,130,0.45)";

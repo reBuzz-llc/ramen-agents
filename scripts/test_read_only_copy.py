@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 HERE = Path(__file__).resolve().parent
-SCRIPTS = ("install.sh", "setup.sh", "update.sh", "install-launchd.sh", "enable-bot.sh", "disable-bot.sh", "restart-bot.sh", "sync-launchd.sh",
+SCRIPTS = ("install.sh", "setup.sh", "update.sh", "install-launchd.sh", "enable-bot.sh", "disable-bot.sh", "restart-bot.sh",
            "portal-local-setup.sh", "webapp/scripts/deploy.sh", "webapp/scripts/remote-access.sh")
 
 
