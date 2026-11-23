@@ -75,6 +75,7 @@ addresses.
 
 - `workspace/STOP` stops the agent and keeps it stopped, even under launchd.
 - `workspace/PAUSE` holds it; delete the file to continue.
+- Prompts go to the model providers you added, with a lead's email, phone and known contact name masked, except a contact-finding member's decision calls: [Does my data leave my machine?](https://github.com/reBuzz-llc/ramen-agents#does-my-data-leave-my-machine)
 - `workspace/denylist.txt` blocks login, account, and payment pages. Private networks and non-http schemes are always blocked.
 - The action vocabulary has no download or form submission, and no shell unless you turn on the developer skill (`[developer] enabled` and `allow_shell`, both off by default). Text on web pages is data, never instructions.
 - A search engine that answers with a bot-verification page is never "solved": the page counts as unreachable and searching pauses for `policy.search_cooldown_minutes`.

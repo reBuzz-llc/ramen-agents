@@ -227,7 +227,7 @@ def test_a_whatsapp_number_a_page_prints_becomes_a_wa_me_link():
     assert wa_link("1-212-555-0187") == "https://wa.me/12125550187"
     assert wa_link("+44 20 7946 0958") == "https://wa.me/442079460958"
     assert wa_link("0044 20 7946 0958") == "https://wa.me/442079460958"
-    assert wa_link("https://wa.me/33612345678") == "https://wa.me/33612345678"
+    assert wa_link("https://wa.me/442079460900") == "https://wa.me/442079460900"
     assert wa_link("555-0187") is None  # no area code: not a number we can place
     page = "Call us at (212) 555-0187 or visit 12 Court St."
     assert on_page(wa_link("212.555.0187"), [page]) and not on_page(wa_link("(212) 555-0199"), [page])
@@ -239,7 +239,7 @@ def test_the_page_a_whatsapp_number_came_from_is_cited(cfg):
     c = make_controller(cfg)
     c.recent_pages = {"https://yelp.example/biz/acme": "Acme Bakery. Phone (212) 555-0187", "https://acme.example": "Welcome"}
     assert c._with_number_page("https://acme.example", "https://wa.me/12125550187") == "https://acme.example\nhttps://yelp.example/biz/acme"
-    assert c._with_number_page("", "https://wa.me/19995550000") == ""
+    assert c._with_number_page("", "https://wa.me/19995550198") == ""
 
 
 def test_business_emails_noted_but_never_listed_come_back_as_work(cfg):
