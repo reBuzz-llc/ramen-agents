@@ -1,7 +1,8 @@
 # Free tiers: the models and search engines the family runs on
 
-The family runs on free tiers only. That means no card on file, no trial credit that turns into a bill, and no paid plan,
-even a cheap one. If a provider asks for a payment method before it answers, it is not used. The person running the
+The family runs on free tiers only: no trial credit that turns into a bill and no paid plan, even a cheap one. Not every
+provider's page says whether a card is needed, so keep a card off these accounts: with one on file, some providers bill
+past the free amount. If a provider asks for a payment method before it answers, it is not used. The person running the
 family signs up and creates every key by hand; **bots never sign up, log in or create keys**.
 
 ## Where keys go
@@ -66,7 +67,7 @@ cap.
 | DuckDuckGo MCP | keyless | a web search, search only | none |
 | LangSearch | free plan; the page does not state whether a card is needed | the first backup, used only when the local search fails or finds nothing; never named by a bot | https://langsearch.com |
 | Parallel | $5 of free credit a month with a card on file (its page); past that it bills per use, so leave it out to stay card-free | not in the default search path: add `parallel` to a member's `search_engines` by hand to use it, after LangSearch | https://parallel.ai |
-| Tavily | free plan, no card | The CEO only, for special searches; never automatic | https://tavily.com |
+| Tavily | 1,000 credits a month; its pricing page: "No credit card required" | The CEO only, for special searches; never automatic | https://tavily.com |
 
 Our daily caps for the keyed backups are set in `web-bots.toml`: `langsearch_per_day` (100) and `parallel_per_day`
 (30). A search engine that rate-limits or bot-checks one bot is paused for every bot (`search_pause_file`).

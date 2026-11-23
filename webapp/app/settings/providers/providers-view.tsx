@@ -72,19 +72,20 @@ export default function ProvidersView({ bots, initial }: { bots: BotProfile[]; i
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-ink">{p.name}</span>
             <Badge tone={p.hasKey ? "good" : inChain ? "bad" : "muted"}>{p.hasKey ? "Key saved" : "No key"}</Badge>
+            {!inChain && p.needsBilling ? <Badge tone="muted">Needs billing</Badge> : null}
             {p.auto && inChain ? <Badge tone="info">Added automatically</Badge> : null}
           </div>
           <p className="mt-0.5 font-mono text-xs break-all text-ink/85">{p.model}</p>
           <p className="mt-0.5 text-xs text-muted">{p.note}</p>
           {inChain && usageText(p) ? <p className="mt-0.5 text-xs text-muted">{usageText(p)}</p> : null}
-          {!inChain && !p.auto ? <p className="mt-0.5 text-xs text-muted">Not added automatically: list it in provider_chain to use it.</p> : null}
+          {!inChain && p.needsBilling ? <p className="mt-0.5 text-xs text-muted">Needs billing, not in the default chain.</p> : null}
           {st.result ? (
             <p role="status" className="mt-2">
               <Badge tone={LEVEL_TONE[st.result.level]}>{st.result.message}</Badge>
             </p>
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">
+        {!inChain && p.needsBilling ? null : <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">
           {p.hasKey ? (
             <button type="button" onClick={() => void test(p)} disabled={st.testing} className={buttonClass("tinted", "sm")}>
               {st.testing ? <Spinner small /> : null}
@@ -94,7 +95,7 @@ export default function ProvidersView({ bots, initial }: { bots: BotProfile[]; i
           <button type="button" onClick={() => setEditing(p)} className={buttonClass(p.hasKey ? "gray" : "prominent", "sm")}>
             {p.hasKey ? "Replace" : "Add key"}
           </button>
-        </div>
+        </div>}
       </li>
     );
   };

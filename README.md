@@ -41,7 +41,8 @@ The rules of the house are kept, because they are what makes the fleet safe to l
 
 - **The fence**, enforced in code and not editable by any bot: no accounts, sign-ups or log-ins; no keys or
   credentials; no spending; no personal data beyond a business role address; no invented values.
-- **Free tiers only.** The model chain lists free, card-free providers; a provider without a key is skipped.
+- **Free tiers only.** The default model chain lists providers with a free tier. Not every provider's page says whether a card
+  is needed, so keep a card off these accounts ([what each page says](docs/free-tiers.md)). A provider without a key is skipped.
 - **Keyless search**, through a local search tool.
 - **Three kinds of rule, kept apart:** the fence refuses; quality rules are flagged after the write by the Validator;
   repeat guards stop a bot doing the same thing twice. Every rule, and whether it refuses or flags, is in

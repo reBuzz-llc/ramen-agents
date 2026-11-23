@@ -22,7 +22,7 @@ seed_interests = [
 ]
 
 [policy]
-# A keyed special search the owner may allow this bot alone to call with "engine":"tavily" (free plan, no card; the
+# A keyed special search the owner may allow this bot alone to call with "engine":"tavily" (free plan; its pricing page: "No credit card required"; the
 # fleet's budget is 30 a day). Needs common-data/keys/tavily.key; leave the list empty to keep search keyless.
 search_engines_on_request = []
 # The owner hears from this bot once a day; a reply to something the owner writes is always allowed on top.

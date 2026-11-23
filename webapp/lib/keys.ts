@@ -21,6 +21,7 @@ export type ProviderInfo = {
   name: string;
   position?: number;
   auto: boolean;
+  needsBilling?: boolean; // not free: shown as such, with no key prompt
   note: string;
   model: string;
   baseUrl: string;

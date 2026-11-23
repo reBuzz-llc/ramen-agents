@@ -6,15 +6,11 @@ const PAGES: Record<string, string> = {
   // AI models with a free tier (a paid-only provider gets no link here: this starter runs on free tiers)
   gemini: "https://aistudio.google.com/apikey",
   groq: "https://console.groq.com/keys",
-  mistral: "https://console.mistral.ai/api-keys",
   openrouter: "https://openrouter.ai/settings/keys",
-  "ollama-cloud": "https://ollama.com/settings/keys",
   zai: "https://z.ai/manage-apikey/apikey-list",
-  sambanova: "https://cloud.sambanova.ai/apis",
   orcarouter: "https://www.orcarouter.ai/",
   freeai: "https://free.ai/api/",
   freetheai: "https://github.com/Free-The-Ai/free-ai",
-  speka: "https://speka.me/",
   "gonka-broker": "https://gonkabroker.com/",
   "dahl-inference": "https://inference.dahl.global/",
   // search, checks, storage, tools

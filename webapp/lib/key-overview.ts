@@ -73,15 +73,15 @@ const FREE: Record<string, string> = {
   ezverify: "200 checks a month",
   tavily: "1,000 credits a month (fleet cap 30/day)",
   "cloudflare-r2": "10 GB storage free (needs R2 switched on)",
-  // The Scout's finds the owner saved keys for on 2026-11-04 (providers-found.md); terms as the Scout recorded them.
   "dahl-inference": "free models (GLM-5.3 Flash, MiniMax M2.7, DeepSeek V4 Flash); limits not checked yet",
   textperfector: "10 corrections a day",
 };
-const PAID = new Set(["deepseek", "openai", "moonshot", "replicate", "together", "cerebras"]);
+const PAID = new Set(["deepseek", "openai", "moonshot", "replicate", "together", "cerebras", "mistral", "ollama-cloud", "speka", "sambanova"]);
+const NEEDS_BILLING = "Needs billing, not in the default chain";
 // Keys saved before any bot is wired to them: what they wait for.
 const NEW_KEY: Record<string, string> = {
-  "dahl-inference": "Saved 11-04 from the Scout's find; in no chain until the dev agent adds it",
-  textperfector: "Saved 11-04 from the Scout's find (grammar and rewriting, 15 languages); no bot calls it yet",
+  "dahl-inference": "In no chain yet",
+  textperfector: "Grammar and rewriting; no member calls it yet",
 };
 const SERVICE_KIND: Record<string, KeyKind> = {
   quickemailverification: "Email check",
@@ -220,13 +220,13 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       lastLimit: ev?.last ?? null,
       pauseMin: ev?.pauseMin ?? PAUSE_MIN,
       available: !hasKey ? "no key" : down && down.state !== "ready" ? down.state : (pausedNow ? "paused" : (ev?.n ?? 0) > 0 ? "limited" : live.length ? "ready" : "unused"),
-      note: down && hasKey
+      note: PAID.has(name)
+        ? NEEDS_BILLING
+        : down && hasKey
         ? down.note
         : !hasKey
         ? "Known to the bots, but no key on this Mac"
-        : PAID.has(name)
-          ? "Paid per call: in no chain (no spending)"
-          : live.length
+        : live.length
             ? ""
             : m.chains.length
               ? "Only stopped bots list it"
@@ -280,7 +280,7 @@ export async function keyOverview(bots: BotProfile[], fresh = false): Promise<Ke
       pauseMin: PAUSE_MIN,
       // (1) "Ready" only when a check actually ran; a key nobody may call for free is "on file".
       available: s ? (s.ok === null ? "on file" : s.ok ? (s.verified === false ? "on file" : "ready") : "not working") : "on file",
-      note: s?.detail ?? NEW_KEY[name] ?? "",
+      note: PAID.has(name) ? NEEDS_BILLING : s?.detail ?? NEW_KEY[name] ?? "",
     });
   }
 

@@ -28,7 +28,7 @@ def key_state(path: str) -> dict:
 def known_catalog() -> list[dict]:
     return [
         {"name": name, "note": info.get("free", ""), "baseUrl": info.get("base_url", ""), "kind": info.get("kind", "openai"),
-         "model": info.get("model", ""), "auto": info.get("auto", True) is not False, **key_state(key_file(name))}
+         "model": info.get("model", ""), "auto": info.get("auto", True) is not False, "needsBilling": info.get("auto", True) is False, **key_state(key_file(name))}
         for name, info in KNOWN_PROVIDERS.items() if name != "gemini"
     ]
 
@@ -99,7 +99,7 @@ def main() -> int:
     for name, info in KNOWN_PROVIDERS.items():
         if name in chain or name == "gemini":
             continue
-        out["known"].append({"name": name, "note": info.get("free", ""), "baseUrl": info.get("base_url", ""), "kind": info.get("kind", "openai"), "model": info.get("model", ""), "auto": info.get("auto", True) is not False, **key_state(key_file(name))})
+        out["known"].append({"name": name, "note": info.get("free", ""), "baseUrl": info.get("base_url", ""), "kind": info.get("kind", "openai"), "model": info.get("model", ""), "auto": info.get("auto", True) is not False, "needsBilling": info.get("auto", True) is False, **key_state(key_file(name))})
     print(json.dumps(out))
     return 0
 

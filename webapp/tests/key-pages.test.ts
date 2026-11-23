@@ -10,5 +10,6 @@ test("a key page per provider, with its host; the team's own keys and unknown na
   assert.equal(keyPage("portal-owner"), null);
   assert.equal(keyPage("world-share"), null);
   assert.equal(keyPage("no-such-provider"), null);
+  for (const paid of ["mistral", "ollama-cloud", "sambanova", "speka"]) assert.equal(keyPage(paid), null, paid);
   assert.deepEqual([...NEEDS_FIX], ["not working", "limited", "paused", "no key"]);
 });

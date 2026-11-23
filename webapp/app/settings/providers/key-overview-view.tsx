@@ -135,7 +135,7 @@ function StatusLine({ row }: { row: KeyRow }) {
 /** Where to fix a key that is refused, limited, paused or missing (owner, 2026-11-12): the provider's key page and the
  *  file a new key goes into. A limited or paused key usually only waits; its page shows the plan and the usage. */
 function FixLine({ row: r }: { row: KeyRow }) {
-  if (!(NEEDS_FIX as readonly string[]).includes(r.available)) return null;
+  if (r.paid || !(NEEDS_FIX as readonly string[]).includes(r.available)) return null;     // not free: no prompt for a key
   const page = keyPage(r.name);
   const file = `common-data/keys/${r.file ?? `${r.name}.key`}`;
   // a new key only when the key itself was refused (401/403, rejected, invalid) or is missing; a provider that did not
