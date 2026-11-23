@@ -76,3 +76,12 @@ def make_controller(
 @pytest.fixture
 def controller(cfg: Config) -> Controller:
     return make_controller(cfg)
+
+
+@pytest.fixture(autouse=True)
+def _mask_reads_no_live_board():
+    """A test never reads a live lead cache through the mask; the pattern pass still runs."""
+    from explorer.common import masking
+    masking._set_known([])
+    yield
+    masking._reset_known()

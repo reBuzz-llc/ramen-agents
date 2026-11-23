@@ -178,8 +178,17 @@ class FallbackModel:
         """Quotas are per key and host, not per model id: `api.groq.com`, `gemini`."""
         return str(getattr(provider, "label", type(provider).__name__)).split("/")[0]
 
+    @staticmethod
+    def _closed_to_data(provider: Any) -> str:
+        """Why this call's data may not go to this provider. A provider outside a built chain has no name and no rule."""
+        from . import masking
+        cfg, name = getattr(provider, "cfg", None), str(getattr(provider, "chain_name", "") or "")
+        return masking.closed(cfg, name) if cfg is not None and name else ""
+
     def _capped(self, provider: Any) -> bool:
-        """True when this provider has used its calls_per_day today; otherwise records the call."""
+        """True when this provider may not take this call's data or has used its calls_per_day today; otherwise records the call."""
+        if self._closed_to_data(provider):          # before any count, so a closed provider spends nothing
+            return True
         cap = int(getattr(provider, "calls_per_day", 0) or 0)
         if self.ledger is None or cap <= 0:
             return False
@@ -383,7 +392,11 @@ def build_model(
         return OllamaModel(cfg, logger)
     secondary: Model = OllamaModel(cfg, logger) if cfg.fallback_provider == "ollama" else FakeModel()
     names = effective_chain(cfg)
-    primaries = [p for n in names for p in _remote_providers(n, cfg, logger)]
+    primaries = []
+    for n in names:
+        for p in _remote_providers(n, cfg, logger):
+            p.chain_name = n                         # the chain's name for it, for the data rules
+            primaries.append(p)
     if not primaries:
         logger.warning("no remote provider has a key; running on %s only", cfg.fallback_provider)
         return secondary

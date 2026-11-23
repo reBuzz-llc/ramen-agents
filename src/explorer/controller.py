@@ -722,7 +722,9 @@ class Controller:
             self._task_actions = getattr(self, "_task_actions", 0) + 1
         ep = self._ensure_episode()
         obs = self._observe(ep)
-        result = self.model.decide(self.system, obs)
+        from .common.masking import call_kind
+        with call_kind(self.cfg.model.decide_kind):        # only a contact-finding member's decide runs unmasked
+            result = self.model.decide(self.system, obs)
         if result.decision is None:
             failures = self.heartbeat.record_model_failure()
             event(self.logger, "model_failure", error=result.error, failures=failures, raw=(result.raw or "")[:300])

@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from .actions import Ask, Decision, Follow, Note, Open, Rest, Search, Summarize, decision_schema, parse_decision
 from .config import ModelConfig
+from .common import masking
 from .common.keys import key_file, load_key
 from .prompts import Observation
 
@@ -268,6 +269,23 @@ def unreachable_wait(exc: BaseException) -> float:
     return TIMEOUT_BENCH_SECONDS if isinstance(exc, httpx.TimeoutException) else 120.0
 
 
+def masked_send(model: Any, messages: list[dict[str, Any]], send: Callable[[list[dict[str, Any]]], str]) -> str:
+    """Every request to a remote model passes here. A lead's email, phone and contact name go out as tokens and the reply comes
+    back with them restored; a token left over or invented is a failed reply, so the chain asks the next provider. No value is
+    logged, and a mask that breaks never sends the text unmasked."""
+    try:
+        call = masking.begin(messages, bool(getattr(model.cfg, "mask_personal", True)))
+    except Exception as exc:  # noqa: BLE001
+        raise ProviderUnavailable(f"{model.label} not asked: the mask failed ({type(exc).__name__})", SKIP_THIS_CALL) from None
+    if call is None:
+        return send(messages)
+    reply = send(call.messages)
+    try:
+        return call.restore(reply)
+    except masking.MaskFailed as exc:
+        raise ProviderUnavailable(f"{model.label} failed the mask check: {exc}", SKIP_THIS_CALL) from None
+
+
 @dataclass
 class CompatProvider:
     """One [model.providers.<name>] table: an OpenAI-compatible endpoint and how to reach it."""
@@ -367,6 +385,10 @@ class GeminiModel:
         self.label = f"gemini/{cfg.gemini_model}"
 
     def _generate(self, system: str, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> str:
+        return masked_send(self, [{"role": "system", "content": system}, *messages],
+                           lambda sent: self._generate_raw(sent[0]["content"], sent[1:], json_mode, max_tokens))
+
+    def _generate_raw(self, system: str, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> str:
         contents = [
             {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]} for m in messages
         ]
@@ -562,6 +584,9 @@ class OpenAICompatModel:
         )
 
     def _chat(self, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> str:
+        return masked_send(self, messages, lambda sent: self._chat_raw(sent, json_mode, max_tokens))
+
+    def _chat_raw(self, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> str:
         max_tokens = max(max_tokens, self.provider.max_tokens)
         body: dict[str, Any] = {
             "model": self.provider.model,
@@ -619,7 +644,7 @@ class OpenAICompatModel:
                 # again in plain text for the rest of the run; parse_decision extracts the JSON.
                 self.json_mode_supported = False
                 self.logger.warning("%s rejected JSON mode; asking for plain JSON text instead", self.label)
-                return self._chat(messages, False, max_tokens)
+                return self._chat_raw(messages, False, max_tokens)
             raise ProviderUnavailable(f"{self.label} rejected the request ({resp.status_code}): {detail}", 900.0)
         data = resp.json()
         if isinstance(data.get("error"), dict):  # some gateways answer 200 with an error body
@@ -749,6 +774,9 @@ class ReplicateModel:
         return str(out or "")
 
     def _run(self, messages: list[dict[str, str]], max_tokens: int) -> str:
+        return masked_send(self, messages, lambda sent: self._run_raw(sent, max_tokens))
+
+    def _run_raw(self, messages: list[dict[str, str]], max_tokens: int) -> str:
         system, prompt = self._split(messages)
         body = {"input": {"prompt": prompt, "system_prompt": system,
                           "max_tokens": max_tokens, "temperature": self.cfg.temperature}}

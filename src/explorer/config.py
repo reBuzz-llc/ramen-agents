@@ -132,6 +132,15 @@ class ModelConfig:
     # free tier like Groq's 8,000 tokens a minute holds about one full step a minute, so "all" spends
     # most of the day on the local fallback anyway; "writing" spends it on the output that shows.
     remote_for: str = "all"
+    # A lead's email, phone and contact name go to remote models as tokens and come back before the reply is read.
+    mask_personal: bool = True
+    # The data kind of this member's decide call only; its other calls stay "personal" (masked). "new_names" is for a
+    # contact-finding member (Lead Gen, the Enricher): it reads names on no row yet, so that call runs unmasked.
+    decide_kind: str = "personal"
+    # Chain names that never take a call that may carry personal data, masked or not.
+    personal_closed: list[str] = field(default_factory=list)
+    # The only chain names that may take a "new_names" call.
+    new_names_open: list[str] = field(default_factory=list)
     # Add a provider automatically when ~/bots/common-data/keys/<name>.key exists for a name in
     # config.KNOWN_PROVIDERS and it is not already in provider_chain. Owner drops a key, restarts, done.
     auto_discover_providers: bool = True
@@ -1108,6 +1117,11 @@ def validate(cfg: Config) -> None:
         raise ValueError(f"model.budget_scope must be 'fleet', 'bot' or 'active', got {cfg.model.budget_scope!r}")
     if cfg.model.remote_for not in ("all", "writing"):
         raise ValueError(f"model.remote_for must be 'all' or 'writing', got {cfg.model.remote_for!r}")
+    from .common.masking import DATA_KINDS
+    if cfg.model.decide_kind not in DATA_KINDS:
+        raise ValueError(f"model.decide_kind must be one of {', '.join(DATA_KINDS)}, got {cfg.model.decide_kind!r}")
+    if cfg.model.decide_kind == "new_names" and not cfg.model.new_names_open:
+        raise ValueError("model.decide_kind = 'new_names' needs model.new_names_open: the providers allowed to read unmasked names")
     if cfg.model.token_wait_seconds < 0:
         raise ValueError("model.token_wait_seconds must not be negative")
     if cfg.model.fallback_provider not in ("fake", "ollama"):
