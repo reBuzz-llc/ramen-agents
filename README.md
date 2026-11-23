@@ -69,7 +69,7 @@ addresses.
 
 - `mode = "fake"` browses only the HTML files under `workspace/fake_web`. Nothing leaves the machine.
 - `mode = "web"` reads the real web through `browser.backend`: `"light"` (default) is a plain HTTP fetch with Chromium (its own empty profile under `workspace/browser_profile`) only for pages that need it; `"chromium"` uses Chromium for every page.
-- `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is an optional local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order with Ollama as the fallback.
+- `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is an optional local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order. No local model runs unless you set `fallback_provider = "ollama"`.
 
 ## Safety switches
 

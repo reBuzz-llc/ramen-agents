@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from explorer import cli
@@ -40,6 +41,7 @@ def test_no_key_fails_and_names_the_next_step(cfg, monkeypatch, capsys):
     _keys(monkeypatch, set())
     code, out = _run(_cfg(cfg, ["zai", "groq"]), capsys)
     assert code != 0 and "model providers: 0 of 2" in out and "sh scripts/add-key.sh zai" in out
+    assert "with the engine alone save it in" in out and "zai.key" in out      # an engine-only clone has no scripts folder
 
 
 def test_a_key_that_is_refused_does_not_count(cfg, monkeypatch, capsys):
@@ -47,6 +49,15 @@ def test_a_key_that_is_refused_does_not_count(cfg, monkeypatch, capsys):
     monkeypatch.setattr(OpenAICompatModel, "available", lambda self: (False, "rejected the key"))
     code, out = _run(_cfg(cfg, ["zai", "groq"]), capsys)
     assert code != 0 and "model providers: 0 of 2" in out
+
+
+def test_one_key_that_is_rate_limited_still_starts_the_family(cfg, monkeypatch, capsys):
+    _keys(monkeypatch, {"zai"})
+    real = OpenAICompatModel.__init__
+    monkeypatch.setattr(OpenAICompatModel, "__init__", lambda self, c, provider, key, **kw: real(
+        self, c, provider, key, transport=httpx.MockTransport(lambda r: httpx.Response(429, json={}))))
+    code, out = _run(_cfg(cfg, ["zai", "groq"]), capsys)
+    assert code == 0 and "model providers: 1 of 2" in out and "rate limited right now (429)" in out
 
 
 def test_a_provider_down_does_not_stop_the_others(cfg, monkeypatch, capsys):

@@ -209,3 +209,9 @@ def test_the_ledger_totals_tokens_per_bot_for_budget_scope_bot(tmp_path):
     assert a.tokens_today("Lead Gen") == 1200 and a.tokens_today("The CEO") == 15000
     assert a.tokens_today() == 16200  # the machine-wide figure is unchanged
     assert CallLedger(tmp_path / "ledger.json").tokens_today("Nobody") == 0
+
+
+def test_a_rate_limited_gemini_key_counts_as_available():
+    model = GeminiModel(ModelConfig(provider="gemini"), "k", transport=httpx.MockTransport(lambda r: httpx.Response(429, json={})))
+    ok, text = model.available()
+    assert ok and "429" in text

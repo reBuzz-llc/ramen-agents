@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..config import KNOWN_PROVIDERS, ModelConfig
-from .keys import key_file, load_key
+from .keys import how_to_add, key_file, load_key
 from ..model import (
     NoLocalModel,
     FakeModel,
@@ -418,7 +418,7 @@ def build_model(
             p.chain_name = n                         # the chain's name for it, for the data rules
             primaries.append(p)
     if not primaries and cfg.fallback_provider == "none":
-        logger.warning("no model key yet: this member rests until one is added (sh scripts/add-key.sh zai)")
+        logger.warning("no model key yet: this member rests until one is added (%s)", how_to_add("zai"))
         return FallbackModel([], secondary, logger, ledger=CallLedger(ledger_path or DEFAULT_LEDGER, bot=bot_name))
     if not primaries:
         logger.warning("no remote provider has a key; running on %s only", cfg.fallback_provider)

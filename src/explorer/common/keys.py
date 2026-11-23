@@ -22,6 +22,11 @@ def key_file(name: str) -> str:
     return str(keys_dir() / f"{name}.key")
 
 
+def how_to_add(name: str) -> str:
+    """Where a key goes, in words for a message: the family folder has a script, the engine on its own has the key file."""
+    return f"sh scripts/add-key.sh {name} in a family folder, or with the engine alone save it in {key_file(name)}"
+
+
 def load_key(env_name: str | None, file_path: str | os.PathLike[str] | None) -> str | None:
     """A key from the env var, else from the file. None when neither has one (or the file is empty)."""
     if env_name:

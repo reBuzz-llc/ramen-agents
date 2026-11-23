@@ -161,6 +161,13 @@ def test_error_body_returned_with_status_200_is_treated_as_unavailable():
     assert model.unavailable_until == 10 * 60
 
 
+def test_a_rate_limited_key_counts_as_available_and_a_refused_one_does_not():
+    ok, text = make_compat(lambda r: httpx.Response(429, json={})).available()
+    assert ok and "429" in text
+    for status in (401, 403, 500):
+        assert make_compat(lambda r: httpx.Response(status, json={})).available()[0] is False
+
+
 def test_available_checks_the_model_id_against_the_catalogue():
     catalogue = {"data": [{"id": "openai/gpt-oss-120b"}, {"id": "openai/gpt-oss-20b"}]}
     ok, text = make_compat(lambda r: httpx.Response(200, json=catalogue)).available()

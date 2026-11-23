@@ -84,7 +84,7 @@ class AgentConfig:
 
 @dataclass
 class ModelConfig:
-    provider: str = "fake"  # fake | ollama | gemini | remote (provider_chain in order, then the local fallback)
+    provider: str = "fake"  # fake | ollama | gemini | remote (provider_chain in order; a local model only if fallback_provider names one)
     host: str = "http://localhost:11434"
     name: str = "qwen2.5:7b"
     temperature: float = 0.7
@@ -240,7 +240,7 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
                   "free": "needs a payment method: \"Add a payment method and purchase credits to run your first requests.\" (its plans page; not in the default chain)", "auto": False},
     # A $1 lifetime credit, then pay per token (speka.me, 2026-11-21): never joins by a key file alone.
     "speka": {"base_url": "https://speka.me/v1", "model": "openai/gpt-oss-20b", "free": "$1 lifetime credit, then pay per token (not in the default chain)", "auto": False},
-    # Added 2026-09-22 (owner's keys): Z.ai's flash model is list-priced $0; its page does not state whether a card is needed. Ollama Cloud's $0 plan is pay per token (2026-11-21).
+    # Added 2026-09-22: Z.ai's flash model is list-priced $0; its page does not state whether a card is needed. Ollama Cloud's $0 plan is pay per token (2026-11-21).
     "zai": {"base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.5-flash", "free": "free model ($0 list price); its page does not state whether a card is needed"},
     "ollama-cloud": {"base_url": "https://ollama.com/v1", "model": "gpt-oss:120b", "free": "pay per token (not in the default chain)", "auto": False},
     "together": {"base_url": "https://api.together.xyz/v1", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "free": "trial credit only, then paid", "auto": False},

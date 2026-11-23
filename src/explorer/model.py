@@ -475,6 +475,8 @@ class GeminiModel:
             return False, f"cannot reach Gemini: {type(exc).__name__}"
         if resp.status_code == 200:
             return True, f"Gemini reachable, model {self.cfg.gemini_model} available"
+        if resp.status_code == 429:          # the key was accepted and is busy now: a member waits for it, as the chain does
+            return True, "Gemini reachable, rate limited right now (429)"
         return False, f"Gemini answered {resp.status_code} for model {self.cfg.gemini_model}: {resp.text[:120]}"
 
 
@@ -718,6 +720,8 @@ class OpenAICompatModel:
             return False, f"cannot reach {base}: {type(exc).__name__}"
         if resp.status_code in (401, 403):
             return False, f"{base} rejected the key ({resp.status_code})"
+        if resp.status_code == 429:          # the key was accepted and is busy now: a member waits for it, as the chain does
+            return True, f"{self.label} reachable, rate limited right now (429)"
         if resp.status_code != 200:
             return False, f"{base} answered {resp.status_code} for /models"
         try:

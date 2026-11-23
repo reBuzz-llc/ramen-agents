@@ -26,6 +26,7 @@ from .heartbeat import Heartbeat
 from .logging_config import setup_logging
 from .memory import Memory
 from .common.fallback import CallLedger, FallbackModel, build_model
+from .common.keys import how_to_add
 from .model import (
     GeminiModel,
     OllamaModel,
@@ -359,7 +360,7 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
             used = CallLedger().count(FallbackModel.ledger_key(model))
             text += f"; {used}/{cap} calls used today (machine-wide)"
         if closed:
-            text += "; closed to lead data until you choose (sh scripts/add-key.sh gemini)"
+            text += "; closed to lead data until you choose (sh scripts/add-key.sh gemini in a family folder, or with the engine alone take gemini off model.personal_closed)"
         if configured:
             answering += bool(good) and not closed
             print(("ok    " if good else "note  ") + text)
@@ -374,7 +375,7 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
             print(f"note  {FallbackModel.ledger_key(model)} today: " + "; ".join(parts))
     if remote:
         report(answering > 0, f"model providers: {answering} of {len(remote)} can take a member's call"
-               + ("" if answering else "; add a key: sh scripts/add-key.sh zai"))
+               + ("" if answering else f"; add a key: {how_to_add('zai')}"))
         print(f"note  remote_for = {cfg.model.remote_for}: " + (
             "the local model decides every step; notes, tasks, posts and messages are written remotely"
             if cfg.model.remote_for == "writing" else "every call goes to the remote chain first"
