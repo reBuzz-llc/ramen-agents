@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -351,33 +352,6 @@ class DashboardConfig:
 
 
 @dataclass
-class ChatPartnerConfig:
-    """A second local model the agent can talk to via say(to="partner"). Off by default.
-
-    Runs on its own Ollama call (same or a different host/model), with its own name and system
-    prompt so it reads as a distinct voice rather than the agent talking to a copy of itself.
-    """
-
-    enabled: bool = False
-    host: str = "http://localhost:11434"
-    model: str = "qwen2.5:7b"
-    name: str = "Convo"
-    # {name} is replaced with agent.name at runtime.
-    system_prompt: str = (
-        "You are Convo, an AI the owner set up so {name} has someone to talk to. "
-        "Answer honestly and briefly, in your own voice."
-    )
-    temperature: float = 0.7
-    num_ctx: int = 4096
-    num_predict: int = 300
-    timeout_seconds: float = 60.0
-    # After this many turns without a note, say(to="partner") is refused until one is taken.
-    max_turns_before_note: int = 4
-    # Hard ceiling on partner turns in one episode, so talking to it can't be the whole episode.
-    max_turns_per_episode: int = 8
-
-
-@dataclass
 class TasksConfig:
     """Creating tasks on the team's task board (the CEO persona's output skill). Off by default.
 
@@ -581,39 +555,6 @@ class LeadsConfig:
 
 
 @dataclass
-class SendConfig:
-    """Sending the first emails a person approved (owner, 2026-10-07: "update skill in a family member so that it can
-    send email and update the status as email sent" -> Brevo free plan, a copy to the owner the first week).
-
-    Not a model decision: an engine routine in the bot's loop sends, exactly as written, the Draft email of each Leads
-    row whose Status a PERSON set to status_ready, to that row's Business email, then sets status_sent and stage_sent.
-    Nothing is sent unless enabled, the key file, from_email and footer_address are all set. One email per business
-    ever, per_day at most, inside the business hours of `timezone` on weekdays, spacing_minutes apart. The draft is
-    re-checked by the Validator's write gate at send time; a failure is noted on the row, never retried blindly."""
-
-    enabled: bool = False
-    provider: str = "brevo"
-    key_file: str = ""
-    from_email: str = ""
-    from_name: str = ""
-    reply_to: str = ""  # "" = from_email
-    copy_to: str = ""  # a bcc of every email (the owner's first week); "" = none
-    footer_address: str = ""  # the company's postal address (CAN-SPAM); nothing is sent without it
-    opt_out_line: str = "If you'd rather not hear from us, reply \"no thanks\" and we won't write again."
-    per_day: int = 10
-    spacing_minutes: int = 5
-    timezone: str = "America/New_York"
-    hours: str = "09:00-17:00"
-    draft_column: str = "Draft email"
-    status_column: str = "Status"
-    status_ready: str = "Ready to Send Email"
-    status_sent: str = "Email Sent"
-    stage_column: str = "Stage"
-    stage_sent: str = "Contacted"
-    log_file: str = ""  # "" = <fleet>/common-data/shared-state/emails-sent.jsonl
-
-
-@dataclass
 class SiteGateConfig:
     """Lead Gen's page gate (owner, 2026-09-26): when the bot opens a page on a domain it has not judged yet, one cheap
     model call decides whether it is a small business's OWN site. If not, the page's text is dropped from the next
@@ -759,36 +700,6 @@ class QuietConfig:
 
 
 @dataclass
-class DeveloperConfig:
-    """Let the agent read, write, and run commands in a workspace-scoped folder. Off by default.
-
-    `root` is the only folder the agent may touch, ever -- every path is resolved and checked to
-    stay inside it. `allow_shell` gates run_command specifically, on top of `enabled`, so file
-    access and command execution can be turned on independently.
-    """
-
-    enabled: bool = False
-    root: str = "workspace/dev"
-    allow_shell: bool = False
-    allowed_commands: list[str] = field(default_factory=lambda: ["pytest", "python", "git", "ls", "cat", "grep"])
-    command_timeout_seconds: float = 120.0
-    max_file_bytes: int = 200_000
-    # Basenames write_file always refuses, wherever they appear under root -- defense in depth for
-    # the self-upgrade checkout, which lives inside this same root.
-    protected_names: list[str] = field(
-        default_factory=lambda: [
-            "policy.py", "control.py", "config.py", "supervise.sh", "launchd", "config.toml",
-            "denylist.txt", "test_policy.py", "test_upgrade.py", "docs", "CLAUDE.md", "workspace",
-        ]
-    )
-    # Self-upgrade (milestone 6): the checkout is a git worktree inside root, on this branch prefix.
-    upgrade_enabled: bool = False
-    upgrade_branch_prefix: str = "bot/proposal-"
-    # The rollback window (600 s) and limit (3 in a row) belong to scripts/supervise.sh, which reads them
-    # from EXPLORER_ROLLBACK_WINDOW and EXPLORER_MAX_ROLLBACKS.
-
-
-@dataclass
 class PathsConfig:
     workspace: str = "workspace"
     db: str = "workspace/explorer.sqlite3"
@@ -797,11 +708,19 @@ class PathsConfig:
 
 # sections, keys and action names of removed features, read and ignored so an old config
 # still loads: the desktop agent's [desktop], the blog-post [publish], messaging.route_only_peers, and the Tor
-# reader's browser.tor_proxy, browser.onion_directory_file, messaging.plain_only and scout.kind.
-RETIRED_SECTIONS = frozenset({"desktop", "publish"})
+# reader's browser.tor_proxy, browser.onion_directory_file, messaging.plain_only and scout.kind; also the mailer's
+# [send], the second model's [chat_partner] and the file and upgrade tools' [developer], which say so once on stderr.
+RETIRED_SECTIONS = frozenset({"desktop", "publish", "send", "chat_partner", "developer"})
+RETIRED_SECTION_NOTES: dict[str, str] = {
+    "send": " (the starter has no mailer, your team sends by hand)",
+    "chat_partner": "",
+    "developer": "",
+}
+_retired_sections_told: set[str] = set()  # one line per section per process, however many files repeat it
 RETIRED_KEYS: dict[str, frozenset[str]] = {"messaging": frozenset({"route_only_peers", "plain_only"}),
                                            "browser": frozenset({"tor_proxy", "onion_directory_file"}), "scout": frozenset({"kind"})}
-RETIRED_ACTIONS = frozenset({"interest", "publish", "app", "look", "click", "type", "hotkey"})
+RETIRED_ACTIONS = frozenset({"interest", "publish", "app", "look", "click", "type", "hotkey",
+                             "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit"})
 SECTIONS: dict[str, type] = {
     "agent": AgentConfig,
     "model": ModelConfig,
@@ -809,17 +728,14 @@ SECTIONS: dict[str, type] = {
     "policy": PolicyConfig,
     "watchdog": WatchdogConfig,
     "dashboard": DashboardConfig,
-    "chat_partner": ChatPartnerConfig,
     "tasks": TasksConfig,
     "packages": PackagesConfig,
     "handoff": HandoffConfig,
     "leads": LeadsConfig,
-    "send": SendConfig,
     "scout": ScoutConfig,
     "messaging": MessagingConfig,
     "site_gate": SiteGateConfig,
     "quiet": QuietConfig,
-    "developer": DeveloperConfig,
     "paths": PathsConfig,
 }
 
@@ -833,17 +749,14 @@ class Config:
     policy: PolicyConfig = field(default_factory=PolicyConfig)
     watchdog: WatchdogConfig = field(default_factory=WatchdogConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
-    chat_partner: ChatPartnerConfig = field(default_factory=ChatPartnerConfig)
     tasks: TasksConfig = field(default_factory=TasksConfig)
     packages: PackagesConfig = field(default_factory=PackagesConfig)
     handoff: HandoffConfig = field(default_factory=HandoffConfig)
     leads: LeadsConfig = field(default_factory=LeadsConfig)
-    send: SendConfig = field(default_factory=SendConfig)
     scout: ScoutConfig = field(default_factory=ScoutConfig)
     messaging: MessagingConfig = field(default_factory=MessagingConfig)
     site_gate: SiteGateConfig = field(default_factory=SiteGateConfig)
     quiet: QuietConfig = field(default_factory=QuietConfig)
-    developer: DeveloperConfig = field(default_factory=DeveloperConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
 
     def path(self, rel: str | os.PathLike[str]) -> Path:
@@ -963,6 +876,13 @@ def overlay_paths(cfg_path: Path) -> list[Path]:
     return [real.parent.parent / "common-data" / "configs" / "local.toml", real.with_name(real.stem + ".local.toml")]
 
 
+def _tell_retired_section(name: str, where: str) -> None:
+    if name in RETIRED_SECTION_NOTES and name not in _retired_sections_told:
+        _retired_sections_told.add(name)
+        print(f"[{name}] in {where} is no longer used and is ignored; you can delete it{RETIRED_SECTION_NOTES[name]}.",
+              file=sys.stderr)
+
+
 def check_keys(data: dict[str, Any], where: str) -> None:
     """Every section and key known, or the bot stops at load naming the file: a leftover [notion] or a
     typo in an overlay is never silently ignored."""
@@ -972,6 +892,7 @@ def check_keys(data: dict[str, Any], where: str) -> None:
         raise ValueError(f"unknown section(s) {unknown} in {where}{hint}")
     for name, value in data.items():
         if name in RETIRED_SECTIONS:
+            _tell_retired_section(name, where)
             continue
         if not isinstance(value, dict):
             raise ValueError(f"[{name}] in {where} must be a table")
@@ -1135,21 +1056,9 @@ def validate(cfg: Config) -> None:
         raise ValueError("policy.pages_per_hour must be at least 1")
     if not 1 <= cfg.dashboard.port <= 65535:
         raise ValueError("dashboard.port must be between 1 and 65535")
-    if cfg.chat_partner.max_turns_before_note < 1:
-        raise ValueError("chat_partner.max_turns_before_note must be at least 1")
-    if cfg.chat_partner.max_turns_per_episode < 1:
-        raise ValueError("chat_partner.max_turns_per_episode must be at least 1")
     if cfg.tasks.max_per_episode < 1 or cfg.tasks.max_per_day < 1:
         raise ValueError("tasks.max_per_episode and max_per_day must be at least 1")
     if cfg.tasks.min_details_chars < 0:
         raise ValueError("tasks.min_details_chars must be 0 (no minimum) or positive")
     if cfg.quiet.idle_seconds < 0 or cfg.quiet.check_interval_seconds < 0:
         raise ValueError("quiet.idle_seconds and quiet.check_interval_seconds must not be negative")
-    if not cfg.developer.root.strip():
-        raise ValueError("developer.root must not be empty")
-    if cfg.developer.command_timeout_seconds <= 0:
-        raise ValueError("developer.command_timeout_seconds must be positive")
-    if cfg.developer.max_file_bytes <= 0:
-        raise ValueError("developer.max_file_bytes must be positive")
-    if cfg.developer.upgrade_enabled and not cfg.developer.enabled:
-        raise ValueError("developer.upgrade_enabled requires developer.enabled")

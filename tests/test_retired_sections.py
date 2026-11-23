@@ -1,6 +1,8 @@
 """the desktop agent, the blog-post publish action, the interest action and
 messaging.route_only_peers are gone; an old config naming them still loads, and none of them is offered."""
-from explorer import prompts
+import pytest
+
+from explorer import config, prompts
 from explorer.actions import ALL_TYPES
 from explorer.config import load_config
 
@@ -32,3 +34,35 @@ def test_an_old_tor_readers_keys_are_read_and_ignored(tmp_path):
     q.write_text('[agent]\nname = "Old"\nmode = "web"\n\n[browser]\nbackend = "tor"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="'light' or 'chromium'"):
         load_config(q)
+
+
+@pytest.mark.parametrize("section, body", [
+    ("send", 'enabled = true\nprovider = "brevo"\n'),
+    ("chat_partner", 'enabled = true\nname = "Convo"\n'),
+    ("developer", 'enabled = true\nallow_shell = true\n'),
+])
+def test_a_removed_features_section_loads_and_is_named_once(tmp_path, capsys, monkeypatch, section, body):
+    monkeypatch.setattr(config, "_retired_sections_told", set())
+    p = tmp_path / "config.toml"
+    p.write_text(f"[{section}]\n{body}", encoding="utf-8")
+    cfg = load_config(p)
+    load_config(p)
+    assert not hasattr(cfg, section)
+    lines = [line for line in capsys.readouterr().err.splitlines() if f"[{section}]" in line]
+    assert len(lines) == 1
+    assert "no longer used" in lines[0] and "ignored" in lines[0] and "delete" in lines[0]
+    assert ("your team sends by hand" in lines[0]) == (section == "send")
+
+
+def test_an_old_disabled_actions_list_with_the_developer_actions_still_loads(tmp_path):
+    p = tmp_path / "config.toml"
+    p.write_text('[policy]\ndisabled_actions = ["list_files", "read_file", "write_file", "run_command", '
+                 '"upgrade", "upgrade_test", "upgrade_submit"]\n', encoding="utf-8")
+    assert "upgrade_submit" in load_config(p).policy.disabled_actions
+
+
+def test_an_unknown_section_still_raises(tmp_path):
+    p = tmp_path / "config.toml"
+    p.write_text("[no_such_section]\nenabled = true\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="no_such_section"):
+        load_config(p)

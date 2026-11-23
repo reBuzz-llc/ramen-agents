@@ -21,7 +21,6 @@ from .actions import (
     Ask,
     Follow,
     Lead,
-    ListFiles,
     Message,
     Note,
     Open,
@@ -29,26 +28,20 @@ from .actions import (
     ProposeTeammate,
     Provider,
     PublishPackage,
-    ReadFile,
     Rest,
     ReviseGoal,
     Plan,
-    RunCommand,
     Say,
     Search,
     Summarize,
     Task,
     UpdateLead,
     UpdateTask,
-    Upgrade,
-    UpgradeSubmit,
-    UpgradeTest,
-    WriteFile,
 )
-from .actions import CONSOLIDATION_TYPES, DEVELOPER_TYPES, NAVIGATION_TYPES, UPGRADE_TYPES
+from .actions import CONSOLIDATION_TYPES, NAVIGATION_TYPES
 from .browser import PageView
 from .chatroom import ROOM_RECIPIENT, is_room_recipient
-from .config import KNOWN_PROVIDERS, ChatPartnerConfig, DeveloperConfig, HandoffConfig, LeadsConfig, MessagingConfig, PackagesConfig, PolicyConfig, ScoutConfig, TasksConfig
+from .config import KNOWN_PROVIDERS, HandoffConfig, LeadsConfig, MessagingConfig, PackagesConfig, PolicyConfig, ScoutConfig, TasksConfig
 from .memory import question_words, questions_are_similar
 from .board import valid_date, valid_priority
 from .places import MAP_LINK
@@ -312,12 +305,7 @@ class PolicyContext:
     says_in_episode: int = 0  # say(to="owner") actions accepted this episode
     says_today: int = 0  # say(to="owner") actions accepted since local midnight
     owner_wrote: bool = False  # the owner wrote in chat this episode: a reply is always allowed
-    partner_turns_since_note: int = 0  # say(to="partner") exchanges since the last note
-    partner_turns_in_episode: int = 0  # say(to="partner") exchanges accepted this episode
     search_paused_seconds: float = 0.0  # > 0 while searching is paused after a bot check
-    upgrade_active: bool = False  # an upgrade worktree exists right now
-    upgrade_tests_passed: bool = False  # the most recent upgrade_test in this worktree passed
-    upgrade_touches_protected: list[str] = field(default_factory=list)  # protected files changed in the worktree
     tasks_in_episode: int = 0  # board tasks created this episode
     tasks_today: int = 0  # board tasks created today
     recent_task_titles: set[str] = field(default_factory=set)  # lower-cased, last 30 days: never create one twice
@@ -587,9 +575,6 @@ class Policy:
         cfg: PolicyConfig,
         denylist: Denylist,
         robots: RobotsCache | None = None,
-        chat_partner: ChatPartnerConfig | None = None,
-        developer: DeveloperConfig | None = None,
-        developer_root: Path | None = None,
         tasks: TasksConfig | None = None,
         packages: PackagesConfig | None = None,
         allowlist: Allowlist | None = None,
@@ -607,16 +592,12 @@ class Policy:
         # When set, every page must be on it; None means the whole web minus the denylist.
         self.allowlist = allowlist
         self.robots = robots
-        self.chat_partner = chat_partner or ChatPartnerConfig()  # disabled unless configured
-        self.developer = developer or DeveloperConfig()  # disabled unless configured
         self.tasks = tasks or TasksConfig()  # disabled unless configured (and the board is ready)
         self.packages = packages or PackagesConfig()  # disabled unless configured (and the board is ready)
         self.handoff = handoff or HandoffConfig()  # disabled unless configured
         self.scout = scout or ScoutConfig()  # disabled unless configured
         self.messaging = messaging or MessagingConfig()  # disabled unless configured
         self.leads = leads or LeadsConfig()  # disabled unless configured
-        # The one folder developer actions may touch, already resolved against the config root.
-        self.developer_root = developer_root.resolve() if developer_root is not None else None
 
     # -- handoff -------------------------------------------------------------
 
@@ -1321,89 +1302,6 @@ class Policy:
             return Verdict.no(f"you have sent {ctx.messages_today} messages today, the daily limit; take notes instead")
         return Verdict.ok()
 
-    # -- developer -----------------------------------------------------------
-
-    def resolve_dev_path(self, raw: str) -> Path | None:
-        """The absolute path `raw` names under developer.root, or None if it would escape it.
-
-        Absolute paths, `..`, and symlinks are all handled by resolving first and then checking
-        containment, so there is no pattern to sneak past: what matters is where it lands.
-        """
-        if self.developer_root is None:
-            return None
-        raw = raw.strip() or "."
-        if Path(raw).is_absolute():
-            return None
-        try:
-            candidate = (self.developer_root / raw).resolve()
-        except (OSError, RuntimeError):
-            return None
-        if candidate != self.developer_root and self.developer_root not in candidate.parents:
-            return None
-        return candidate
-
-    def is_protected(self, path: Path) -> bool:
-        """True when any component of the path under root is a protected name."""
-        if self.developer_root is None:
-            return False
-        try:
-            rel = path.relative_to(self.developer_root)
-        except ValueError:
-            return True
-        protected = {p.strip().lower() for p in self.developer.protected_names}
-        return any(part.lower() in protected for part in rel.parts)
-
-    def _check_developer(self, action: Action, ctx: PolicyContext) -> Verdict:
-        if not self.developer.enabled or self.developer_root is None:
-            return Verdict.no("developer actions are not enabled; that action does not exist")
-        if isinstance(action, RunCommand):
-            if not self.developer.allow_shell:
-                return Verdict.no("running commands is not enabled (developer.allow_shell is off)")
-            if not action.argv or not action.argv[0].strip():
-                return Verdict.no("run_command needs an argv list with at least a command")
-            command = Path(action.argv[0].strip()).name
-            allowed = {c.strip() for c in self.developer.allowed_commands}
-            if command not in allowed:
-                return Verdict.no(f"'{command}' is not an allowed command; allowed: {', '.join(sorted(allowed))}")
-            cwd = self.resolve_dev_path(action.cwd)
-            if cwd is None:
-                return Verdict.no(f"cwd '{action.cwd}' is outside your folder", permanent=True)
-            return Verdict.ok()
-        target = self.resolve_dev_path(action.path)  # list_files, read_file, write_file
-        if target is None:
-            return Verdict.no(f"path '{action.path}' is outside your folder", permanent=True)
-        if isinstance(action, WriteFile):
-            if self.is_protected(target):
-                return Verdict.no(f"'{action.path}' is a protected file; you may not change it", permanent=True)
-            if len(action.content.encode("utf-8")) > self.developer.max_file_bytes:
-                return Verdict.no(f"that file would be larger than {self.developer.max_file_bytes} bytes")
-            return Verdict.ok()
-        if isinstance(action, ReadFile) and action.offset < 0:
-            return Verdict.no("offset must not be negative")
-        return Verdict.ok()
-
-    def _check_upgrade(self, action: Action, ctx: PolicyContext) -> Verdict:
-        if not (self.developer.enabled and self.developer.upgrade_enabled):
-            return Verdict.no("self-upgrade is not enabled; that action does not exist")
-        if isinstance(action, Upgrade):
-            if not action.goal.strip():
-                return Verdict.no("upgrade needs a goal: what you want to change and why")
-            if ctx.upgrade_active:
-                return Verdict.no("an upgrade is already in progress; test it, submit it, or keep working on it")
-            return Verdict.ok()
-        if not ctx.upgrade_active:
-            return Verdict.no("no upgrade is in progress; start one with upgrade first")
-        if isinstance(action, UpgradeTest):
-            return Verdict.ok()
-        if isinstance(action, UpgradeSubmit):
-            if ctx.upgrade_touches_protected:
-                names = ", ".join(ctx.upgrade_touches_protected[:5])
-                return Verdict.no(f"the change touches protected files ({names}); revert those first", permanent=True)
-            if not ctx.upgrade_tests_passed:
-                return Verdict.no("run upgrade_test and get a passing result before submitting")
-            return Verdict.ok()
-        return Verdict.no(f"unknown upgrade action {action.type}")
-
     # -- helpers -------------------------------------------------------------
 
     def resolve_target(self, action: Action, ctx: PolicyContext) -> str | None:
@@ -1660,11 +1558,7 @@ class Policy:
                     f"then reply with one `message` to {sender} saying what you did, or why you cannot. Nothing else counts until then."
                 )
 
-        if action.type in DEVELOPER_TYPES:
-            return self._check_developer(action, ctx)
 
-        if action.type in UPGRADE_TYPES:
-            return self._check_upgrade(action, ctx)
 
         if isinstance(action, Search):
             if not action.query.strip():
@@ -1822,21 +1716,6 @@ class Policy:
                 return Verdict.no("say needs some text")
             if len(action.text) > 1000:
                 return Verdict.no("keep messages under 1000 characters")
-            if action.to == "partner":
-                if not self.chat_partner.enabled:
-                    return Verdict.no("there is no AI partner to talk to right now")
-                name = self.chat_partner.name
-                if ctx.partner_turns_since_note >= self.chat_partner.max_turns_before_note:
-                    return Verdict.no(
-                        f"you have exchanged {ctx.partner_turns_since_note} messages with {name} without "
-                        "noting anything; take a note on what you learned before continuing that conversation"
-                    )
-                if ctx.partner_turns_in_episode >= self.chat_partner.max_turns_per_episode:
-                    return Verdict.no(
-                        f"you have already exchanged {ctx.partner_turns_in_episode} messages with {name} this "
-                        "episode; note what you learned, or move on to something else"
-                    )
-                return Verdict.ok()
             if ctx.says_in_episode >= self.cfg.max_says_per_episode:
                 return Verdict.no(
                     f"you already sent {ctx.says_in_episode} messages this episode; say is for your owner, "

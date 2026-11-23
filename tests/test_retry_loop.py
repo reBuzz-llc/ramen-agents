@@ -1,13 +1,12 @@
-"""The decide loop every adapter shares (model.decide_with_retries), and the Ollama request both the
-agent's model and the chat partner send (model.ollama_chat)."""
+"""The decide loop every adapter shares (model.decide_with_retries), and the Ollama request the agent's
+model sends (model.ollama_chat)."""
 from __future__ import annotations
 
 import json
 
 import httpx
 
-from explorer.chat_partner import OllamaChatPartner
-from explorer.config import ChatPartnerConfig, ModelConfig
+from explorer.config import ModelConfig
 from explorer.model import OllamaModel, ProviderUnavailable, decide_with_retries
 
 from test_remote_providers import DECISION, chat_reply, make_compat, obs
@@ -97,20 +96,3 @@ def test_compat_paces_and_records_usage_on_every_attempt(monkeypatch):
     result = model.decide("s", obs())
     assert result.decision is not None and result.attempts == 2
     assert paced == [2, 4]  # the retry carries the bad reply and the correction
-
-
-def test_chat_partner_sends_the_shared_ollama_request_without_keep_alive_or_format():
-    seen: list[dict] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(json.loads(request.content))
-        return httpx.Response(200, json={"message": {"content": "  hello  "}})
-
-    cfg = ChatPartnerConfig(enabled=True)
-    partner = OllamaChatPartner(cfg)
-    partner.client = httpx.Client(base_url="http://ollama.test", transport=httpx.MockTransport(handler))
-    assert partner.reply("be brief", [{"role": "user", "content": "hi"}]) == "hello"
-    body = seen[0]
-    assert body["model"] == cfg.model and body["stream"] is False
-    assert "keep_alive" not in body and "format" not in body
-    assert body["messages"] == [{"role": "system", "content": "be brief"}, {"role": "user", "content": "hi"}]

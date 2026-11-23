@@ -38,21 +38,10 @@ from .actions import (
     Plan,
     ProposeTeammate,
     PublishPackage,
-    ListFiles,
-    ReadFile,
-    WriteFile,
-    RunCommand,
-    Upgrade,
-    UpgradeTest,
-    UpgradeSubmit,
-    DEVELOPER_TYPES,
     NAVIGATION_TYPES,
-    UPGRADE_TYPES,
     action_key,
 )
 from .browser import Browser, PageView
-from .chat_partner import ChatPartner
-from .developer import CHECKOUT_DIR, UPGRADE_EXIT_CODE, Developer
 from .config import Config
 from .control import pause_requested, stop_requested
 from .heartbeat import Heartbeat
@@ -159,8 +148,6 @@ class Controller:
         policy: Policy,
         heartbeat: Heartbeat,
         logger: logging.Logger,
-        chat_partner: ChatPartner | None = None,
-        developer: Developer | None = None,
         quiet: QuietDetector | None = None,
         board: Any | None = None,
         searcher: Searcher | None = None,
@@ -250,11 +237,6 @@ class Controller:
             event(self.logger, "engine_stats_reset", epoch=epoch)
         self._last_answer_engine: str | None = None
         self._apply_engine_tuning(announce=False)
-        self.chat_partner = chat_partner if cfg.chat_partner.enabled else None
-        self.partner_turns: list[dict[str, str]] = []  # this episode's conversation, reset per episode
-        self.partner_turns_since_note = 0  # a soft nudge, not restart-durable, matches pages_since_note
-        self.developer = developer if cfg.developer.enabled else None
-        self.exit_code: int | None = None  # set by upgrade_submit: run() returns it so the supervisor restarts us
         self.quiet = quiet if cfg.quiet.enabled else None
         self.quiet_since: float | None = None  # when the current quiet spell began, if any
         # The team's board for tasks and package drafts (portal_store.PortalBoard). Each skill is on
@@ -344,11 +326,6 @@ class Controller:
         return system_prompt(
             cfg.agent.name,
             self.target.fill(cfg.agent.bio),
-            chat_partner_enabled=self.chat_partner is not None,
-            chat_partner_name=cfg.chat_partner.name,
-            developer_enabled=self.developer is not None,
-            shell_enabled=self.developer is not None and cfg.developer.allow_shell,
-            upgrade_enabled=self.developer is not None and cfg.developer.upgrade_enabled,
             persona=self._family_block() + self.target.fill(self._persona) + self._steer_block(),
             tasks_enabled=self.task_board is not None,
             handoff_to=cfg.handoff.to_name.strip() if cfg.handoff.enabled else "",
@@ -417,9 +394,6 @@ class Controller:
                     continue
                 self._cycle()
                 done += 1
-                if self.exit_code is not None:
-                    event(self.logger, "stop", reason="upgrade", exit_code=self.exit_code)
-                    return self.exit_code
                 if max_cycles is not None and done >= max_cycles:
                     event(self.logger, "cycles_done", cycles=done)
                     return 0
@@ -706,8 +680,6 @@ class Controller:
             self.noted_urls.clear()
             self.blocked_keys.clear()
             self.pages_since_note = 0
-            self.partner_turns = []
-            self.partner_turns_since_note = 0
             event(self.logger, "episode", episode=eid, question=question["question"] if question else None)
             self._apply_engine_tuning()
             self._task_nudge()
@@ -1361,7 +1333,6 @@ class Controller:
             curiosity=curiosity,
             reflection=reflection,
             reflection_journal=reflection_journal,
-            developer_note=self._developer_note(),
             owner_goal_line=self.owner_plan.step_line(),
             plan_lines=self._plan_lines(),
             allowed_now=self._allowed_now(ep),
@@ -1393,8 +1364,7 @@ class Controller:
     def _policy_context(self, ep: sqlite3.Row, obs: Observation | None = None) -> PolicyContext:
         """What the policy needs to judge one action. Counts the observation already read this cycle are
         reused; the rest load only if the check for this action type looks at them (PolicyContext.loaders),
-        so a search or a note does not pay for task, publish and partner counts it never reads."""
-        upgrade_active, upgrade_tests_passed, upgrade_protected = self._upgrade_flags()
+        so a search or a note does not pay for task and publish counts it never reads."""
         eid = ep["id"]
         memory = self.memory
         loaders: dict[str, Callable[[], object]] = {
@@ -1410,7 +1380,6 @@ class Controller:
             "says_in_episode": lambda: memory.count_says(eid, "owner"),
             "says_today": lambda: memory.count_says_today("owner"),
             "owner_wrote": lambda: bool(self.shown_owner_ids),
-            "partner_turns_in_episode": lambda: memory.count_says(eid, "partner"),
             "search_paused_seconds": lambda: self.searcher.pause.seconds_until_any(self.searcher.engines),
             "tasks_in_episode": lambda: memory.count_tasks_for_episode(eid),
             "tasks_today": memory.count_tasks_today,
@@ -1487,10 +1456,6 @@ class Controller:
             blocked_keys=set(self.blocked_keys),
             day_blocked_keys=set(self._day_blocks()),
             pages_since_note=self.pages_since_note,
-            partner_turns_since_note=self.partner_turns_since_note,
-            upgrade_active=upgrade_active,
-            upgrade_tests_passed=upgrade_tests_passed,
-            upgrade_touches_protected=upgrade_protected,
             loaders=loaders,
         )
 
@@ -1505,33 +1470,6 @@ class Controller:
         if load_gemini_key(self.cfg.model):
             have.add("gemini")
         return have
-
-    def _upgrade_flags(self) -> tuple[bool, bool, list[str]]:
-        """(an upgrade worktree exists, its last test run passed, protected files it changed)."""
-        if self.developer is None or not self.cfg.developer.upgrade_enabled:
-            return False, False, []
-        state = self.developer.upgrade_state()
-        if state is None:
-            return False, False, []
-        return True, bool(state.get("tests_passed")), self.developer.upgrade_protected_changes()
-
-    def _developer_note(self) -> str | None:
-        if self.developer is None:
-            return None
-        dcfg = self.cfg.developer
-        parts = [f"you may read and write files under your own folder ({dcfg.root})"]
-        parts.append("and run allowed commands there" if dcfg.allow_shell else "(running commands is off)")
-        if dcfg.upgrade_enabled:
-            state = self.developer.upgrade_state()
-            if state is None:
-                parts.append("no upgrade in progress; upgrade with a goal proposes a change to your own code")
-            else:
-                tests = "tests passed" if state.get("tests_passed") else "tests not passed yet"
-                parts.append(
-                    f"upgrade in progress on {state['branch']} (goal: {state['goal'][:80]}; {tests}); "
-                    f"your code is at {CHECKOUT_DIR}/ inside your folder"
-                )
-        return "; ".join(parts)
 
     # ---- execution ---------------------------------------------------------
 
@@ -1631,7 +1569,6 @@ class Controller:
                             extra += f" (source: {source})"
                         self.memory.append_note(int(saved["id"]), extra)
                         self.pages_since_note = 0
-                        self.partner_turns_since_note = 0
                         if source:
                             self.noted_urls.add(source)
                         return ExecResult(True, f"added {len(facts)} new fact(s) to note #{saved['id']} '{str(saved['title'])[:60]}'", True)
@@ -1641,7 +1578,6 @@ class Controller:
                 if self.page is not None:
                     self.noted_urls.add(self.page.url)
                 self.pages_since_note = 0
-                self.partner_turns_since_note = 0
                 self._credit_engine_noted()
                 summary = f"saved note #{note_id} '{action.title.strip()[:60]}'"
                 feedback: str | None = None
@@ -1695,8 +1631,6 @@ class Controller:
                 return self._execute_propose_teammate(action)
             if isinstance(action, PublishPackage):
                 return self._execute_publish_package(action)
-            if action.type in DEVELOPER_TYPES or action.type in UPGRADE_TYPES:
-                return self._execute_developer(action)
             return ExecResult(False, f"unknown action {action.type}", False)
         except Exception as exc:  # noqa: BLE001 - one bad action must not kill the loop
             self.logger.exception("action %s failed", action.type)
@@ -3502,24 +3436,6 @@ class Controller:
             pass
 
     def _execute_say(self, action: Say) -> ExecResult:
-        if action.to == "partner":
-            if self.chat_partner is None:
-                return ExecResult(False, "there is no AI partner configured", False)
-            name = self.cfg.chat_partner.name
-            text = action.text.strip()
-            self.memory.add_chat("bot", f"[to {name}] {text}", seen=True)
-            self.partner_turns.append({"role": "user", "content": text})
-            system = self.cfg.chat_partner.system_prompt.replace("{name}", self.cfg.agent.name)
-            reply = (self.chat_partner.reply(system, self.partner_turns) or "").strip()
-            if not reply:
-                self.partner_turns.pop()  # nothing useful came back; do not poison the next turn's context
-                return ExecResult(False, f"{name} did not reply (unreachable or empty response)", False)
-            self.partner_turns.append({"role": "assistant", "content": reply})
-            self.memory.add_chat("partner", f"[{name}] {reply}", seen=True)
-            self.partner_turns_since_note += 1
-            return ExecResult(
-                True, f"{name} replied: {reply[:200]}", True, feedback=f"{name} said: {reply[:600]}"
-            )
         self.memory.add_chat("bot", action.text, seen=True)
         if self.requests is not None:  # a report to the owner closes the owner's open ask -- unless it only promises
             try:
@@ -3532,80 +3448,6 @@ class Controller:
             except OSError:
                 pass
         return ExecResult(True, f"told the owner: {action.text.strip()[:80]}", True)
-
-    def _execute_developer(self, action: Action) -> ExecResult:
-        """Developer and upgrade actions. The policy already resolved and contained every path; this
-        just does the work. Whatever a file or command produces is shown as feedback, as data."""
-        if self.developer is None:
-            return ExecResult(False, "developer actions are not enabled", False)
-        dev = self.developer
-        if isinstance(action, ListFiles):
-            path = self.policy.resolve_dev_path(action.path)
-            if path is None:
-                return ExecResult(False, "path is outside your folder", False)
-            listing = dev.list_files(path)
-            where = action.path.strip() or "."
-            return ExecResult(True, f"listed {where}", True, feedback=f"Files at {where}:\n{listing}")
-        if isinstance(action, ReadFile):
-            path = self.policy.resolve_dev_path(action.path)
-            if path is None:
-                return ExecResult(False, "path is outside your folder", False)
-            window, more = dev.read_file(path, action.offset)
-            nxt = f"\n(more follows; read_file again with offset={action.offset + dev.output_limit})" if more else ""
-            return ExecResult(
-                True, f"read {action.path} from {action.offset}", True,
-                feedback=f"Contents of {action.path} from {action.offset}:\n{window}{nxt}",
-            )
-        if isinstance(action, WriteFile):
-            path = self.policy.resolve_dev_path(action.path)
-            if path is None:
-                return ExecResult(False, "path is outside your folder", False)
-            size = dev.write_file(path, action.content)
-            return ExecResult(True, f"wrote {size} bytes to {action.path}", True)
-        if isinstance(action, RunCommand):
-            cwd = self.policy.resolve_dev_path(action.cwd)
-            if cwd is None:
-                return ExecResult(False, "cwd is outside your folder", False)
-            result = dev.run(action.argv, cwd)
-            shown = " ".join(action.argv)[:80]
-            return ExecResult(
-                result.ok, f"ran {shown}: {result.summary(120)}", True,
-                feedback=f"Output of {shown}:\n{result.output.strip() or '(no output)'}",
-            )
-        if isinstance(action, Upgrade):
-            branch = dev.upgrade_start(action.goal)
-            self.memory.write_journal(
-                f"Started an upgrade on {branch}: {action.goal.strip()[:200]}", heading="Upgrade"
-            )
-            event(self.logger, "upgrade_start", branch=branch, goal=action.goal.strip()[:200])
-            return ExecResult(
-                True, f"started upgrade on {branch}", True,
-                feedback=(
-                    f"A copy of your code is at {CHECKOUT_DIR}/ inside your folder, on branch {branch}. "
-                    f"Read it with list_files and read_file, change it with write_file, then upgrade_test. "
-                    "Only when the tests pass, upgrade_submit."
-                ),
-            )
-        if isinstance(action, UpgradeTest):
-            result = dev.upgrade_test()
-            event(self.logger, "upgrade_test", ok=result.ok, detail=result.summary(200))
-            tail = result.output.strip()[-2500:]
-            return ExecResult(
-                result.ok, f"upgrade tests {'passed' if result.ok else 'failed'}: {result.summary(120)}", True,
-                feedback=f"Test output ({'passed' if result.ok else 'FAILED'}):\n{tail}",
-            )
-        if isinstance(action, UpgradeSubmit):
-            state = dev.upgrade_state() or {}
-            new_head = dev.upgrade_submit()
-            self.memory.write_journal(
-                f"Merged my change from {state.get('branch', '?')} ({state.get('goal', '')[:120]}) as "
-                f"{new_head[:8]}. Restarting on it; the supervisor rolls back if it fails.",
-                heading="Upgrade",
-            )
-            event(self.logger, "upgrade_submit", branch=state.get("branch"), head=new_head)
-            self.exit_code = UPGRADE_EXIT_CODE
-            return ExecResult(True, f"merged the change as {new_head[:8]}; restarting on it", True)
-        return ExecResult(False, f"unknown developer action {action.type}", False)
 
     def _after_nav(self, page: PageView, label: str) -> ExecResult:
         self.memory.record_visit(page.url, page.title, page.ok, page.error)

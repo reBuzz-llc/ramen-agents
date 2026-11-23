@@ -149,8 +149,7 @@ def ollama_chat(
     keep_alive: str | None = None,
     fmt: Any = None,
 ) -> str:
-    """One non-streaming /api/chat request to Ollama; raises httpx errors. Used by the agent's model and
-    by the chat partner (chat_partner.py)."""
+    """One non-streaming /api/chat request to Ollama; raises httpx errors. Used by the agent's model."""
     body: dict[str, Any] = {
         "model": model,
         "messages": messages,

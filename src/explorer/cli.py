@@ -17,7 +17,6 @@ from typing import Any
 
 from . import __version__
 from .browser import FakeBrowser, PlaywrightBrowser
-from .chat_partner import OllamaChatPartner
 from .config import Config, PackagesConfig, TasksConfig, load_config, validate
 from .control import PidLock, pause_requested, stop_requested
 from .controller import Controller
@@ -109,15 +108,11 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
     denylist = Denylist.load(cfg.path(cfg.policy.denylist_file))
     # A configured allowlist that is missing on disk allows nothing, never everything.
     allowlist = Allowlist.load(cfg.path(cfg.policy.allowlist_file)) if cfg.policy.allowlist_file.strip() else None
-    developer_root = cfg.path(cfg.developer.root)
     leads_board, board = build_boards(cfg, logger)
     policy = Policy(
         cfg.policy,
         denylist,
         robots,
-        chat_partner=cfg.chat_partner,
-        developer=cfg.developer,
-        developer_root=developer_root,
         # The policy only lets `task` and `publish_package` exist when the board client is ready, not merely enabled.
         tasks=cfg.tasks if board is not None else TasksConfig(),
         packages=cfg.packages if board is not None else PackagesConfig(),
@@ -130,14 +125,6 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         leads=cfg.leads,
     )
     heartbeat = Heartbeat(db, cfg.watchdog)
-    chat_partner = OllamaChatPartner(cfg.chat_partner, logger) if cfg.chat_partner.enabled else None
-    developer = None
-    if cfg.developer.enabled:
-        from .developer import Developer
-
-        developer = Developer(
-            cfg.developer, developer_root, repo_root=cfg.root, logger=logger, output_limit=cfg.browser.page_text_limit
-        )
     quiet = QuietDetector(cfg.quiet) if cfg.quiet.enabled else None
     transcripts = None
     if cfg.agent.mode == "web" and cfg.browser.video_transcripts:
@@ -146,7 +133,7 @@ def build_controller(cfg: Config, logger: logging.Logger) -> Controller:
         transcripts = YouTubeTranscripts(cfg.browser.video_transcript_languages, logger=logger)
     return Controller(
         cfg, memory, model, browser, policy, heartbeat, logger,
-        chat_partner=chat_partner, developer=developer, quiet=quiet, board=board,
+        quiet=quiet, board=board,
         transcripts=transcripts,
         searcher=searcher,
         leads_board=leads_board,
@@ -563,7 +550,6 @@ def _demo_in(cfg: Config, args: argparse.Namespace, scratch: Path) -> int:
     cfg.paths.log = str(scratch / "logs" / "explorer.jsonl")
     cfg.browser.user_data_dir = str(scratch / "browser_profile")
     cfg.browser.search_pause_file = ""
-    cfg.developer.root = str(scratch / "dev")
     validate(cfg)
     cfg.ensure_dirs()
     logger = setup_logging(cfg.log_path, to_stderr=False)
