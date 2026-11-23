@@ -18,7 +18,7 @@ workspace/screenshots/
 workspace/dashboard.token
 .claude/settings.local.json
 
-# self-upgrade worktree and supervisor state
+# files an older version's self-upgrade may have left
 workspace/dev/
 
 # runtime state belongs in ~/bots/<slug>/, never in the repo

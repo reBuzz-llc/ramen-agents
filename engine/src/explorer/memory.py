@@ -471,8 +471,8 @@ class Memory:
         )
 
     def count_says_today(self, to: str) -> int:
-        """Accepted say actions addressed to 'owner' or 'partner' since local midnight (the daily say cap)."""
-        assert to in ("owner", "partner")
+        """Accepted say actions addressed to the owner since local midnight (the daily say cap)."""
+        assert to == "owner"
         day = dt.date.today().isoformat()
         return int(
             self.db.scalar(
@@ -484,11 +484,10 @@ class Memory:
         )
 
     def count_says(self, episode_id: int, to: str) -> int:
-        """Accepted say actions in an episode addressed to 'owner' or 'partner' (survives restarts).
-        Separate from count_actions so a long AI-partner conversation never eats into the owner's
-        say budget, or vice versa. `to` must be 'owner' or 'partner'; matches json.dumps' default
-        ': ' separator, e.g. '"to": "partner"'."""
-        assert to in ("owner", "partner")
+        """Accepted say actions in an episode addressed to the owner (survives restarts). Matches json.dumps'
+        default ': ' separator, e.g. '"to": "owner"', so a row an older version stored for another recipient
+        stays readable and is not counted."""
+        assert to == "owner"
         return int(
             self.db.scalar(
                 "SELECT COUNT(*) FROM actions WHERE episode_id = ? AND action_type = 'say' AND verdict = 'allowed' "

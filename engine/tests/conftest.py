@@ -33,7 +33,7 @@ def cfg(tmp_path: Path) -> Config:
 
 
 def make_controller(
-    cfg: Config, model=None, browser=None, chat_partner=None, developer=None, quiet=None, board=None,
+    cfg: Config, model=None, browser=None, quiet=None, board=None,
     searcher=None, transcripts=None, leads_board=None,
 ) -> Controller:
     db = Database(cfg.db_path)
@@ -41,9 +41,6 @@ def make_controller(
     policy = Policy(
         cfg.policy,
         Denylist.load(Path(cfg.policy.denylist_file)),
-        chat_partner=cfg.chat_partner,
-        developer=cfg.developer,
-        developer_root=cfg.path(cfg.developer.root),
         tasks=cfg.tasks,
         packages=cfg.packages,
         handoff=cfg.handoff,
@@ -63,8 +60,6 @@ def make_controller(
         policy,
         heartbeat,
         logger,
-        chat_partner=chat_partner,
-        developer=developer,
         quiet=quiet,
         board=board,
         searcher=searcher,

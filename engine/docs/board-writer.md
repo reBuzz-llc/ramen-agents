@@ -1,8 +1,8 @@
 # Board Writer: a supervised core capability
 
-Companion to `bot.md` and `explorer.md`. This defines **Board Writer**, the capability that lets a bot write to the
-team's board: leads, tasks and package drafts. Everything in `bot.md` about the controller loop, memory and policy still
-applies; this adds one action surface and the guardrails around it.
+This defines **Board Writer**, the capability that lets a bot write to the team's board: leads, tasks and package
+drafts. The controller loop, memory and policy stay as they are; this adds one action surface and the guardrails
+around it.
 
 ## The board
 

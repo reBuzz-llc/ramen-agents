@@ -76,9 +76,6 @@ export function localIso(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/** The record's change is a roster one: the step-one proposals list and the CEO changes leave these out. */
-export const isRoster = (raw: unknown) => obj(obj(raw).change).kind === "roster";
-
 function sheetOf(raw: unknown): Sheet {
   const s = obj(raw);
   const m = obj(s.member);

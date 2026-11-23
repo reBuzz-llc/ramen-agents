@@ -30,7 +30,7 @@ seed_interests = [
 # one is back. `fallback_provider = "ollama"` adds a local model as the last resort, if you installed one.
 provider = "fake"
 host = "http://localhost:11434"
-name = "qwen2.5:7b"
+name = "your-ollama-model"  # used only with provider = "ollama" or fallback_provider = "ollama"
 temperature = 0.7
 num_ctx = 8192
 num_predict = 700
@@ -217,42 +217,6 @@ processes = []     # e.g. ["steam_osx"]: also quiet while a process with this in
 check_interval_seconds = 15
 unload_model = true
 close_browser = true
-
-[chat_partner]
-# A second local model it can talk to with say(to="partner"), a distinct voice, not itself, not
-# the owner. Off by default. Runs on Ollama, same host by default; point it at a different model
-# once you pull one so it isn't just talking to a copy of itself.
-enabled = false
-host = "http://localhost:11434"
-model = "qwen2.5:7b"
-name = "Convo"
-system_prompt = "You are Convo, an AI the owner set up so Roam has someone to talk to. Answer honestly and briefly, in your own voice."
-temperature = 0.7
-num_ctx = 4096
-num_predict = 300
-timeout_seconds = 60
-# After this many turns without a note, say(to="partner") is refused until one is taken.
-max_turns_before_note = 4
-# Hard ceiling on partner turns in one episode, so talking to it can't be the whole episode.
-max_turns_per_episode = 8
-
-[developer]
-# A folder of its own where the agent may read and write files, and (separately) run a few allowed
-# commands. Off by default. Every path is resolved and must stay inside `root`.
-enabled = false
-root = "workspace/dev"
-allow_shell = false
-allowed_commands = ["pytest", "python", "git", "ls", "cat", "grep"]
-command_timeout_seconds = 120
-max_file_bytes = 200000
-# write_file always refuses these names, wherever they appear under root (the self-upgrade checkout lives there).
-protected_names = ["policy.py", "control.py", "config.py", "supervise.sh", "launchd", "config.toml", "denylist.txt", "test_policy.py", "test_upgrade.py", "docs", "CLAUDE.md", "workspace"]
-# Self-upgrade: the agent proposes a change in a git worktree at root/checkout, tests it, and on a
-# pass fast-forwards main and restarts (exit 75). scripts/supervise.sh rolls back a version that
-# crashes within 600 s of starting and stops after 3 rollbacks in a row; set EXPLORER_ROLLBACK_WINDOW
-# and EXPLORER_MAX_ROLLBACKS in the launch agent's environment to change that.
-upgrade_enabled = false
-upgrade_branch_prefix = "bot/proposal-"
 
 [paths]
 workspace = "workspace"

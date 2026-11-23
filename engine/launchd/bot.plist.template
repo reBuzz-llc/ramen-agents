@@ -6,8 +6,8 @@
   <key>Label</key>
   <string>{{LABEL}}</string>
 
-  <!-- scripts/supervise.sh runs `bot run` for the config below, restarts on the self-upgrade exit
-       code (75), and rolls a crashing new version back. Exit 0 (STOP file) stays down. -->
+  <!-- scripts/supervise.sh runs `bot run` for the config below and hands its exit to launchd.
+       Exit 0 (STOP file) stays down. -->
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/caffeinate</string>

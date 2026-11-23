@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { homedir } from "node:os";
 const BOTS_DIR = process.env.BOTS_DIR ?? path.join(homedir(), "bots"); // as lib/bots.ts (no import: Node's test runner loads this file)
 // @ts-expect-error TS5097 -- the extension lets Node's own test runner load it; the bundlers resolve it the same
-import { adoptToken, tokenName, type Actor, type Refusal, type Row, type WriteResult } from "./local-board.ts";
+import { adoptToken, tokenName, type Actor, type Refusal, type WriteResult } from "./local-board.ts";
 
 /** The key files setup writes (one random value each); the board learns each the first time it is used. */
 export const KEY_NAMES = ["portal-engine", "portal-validator", "portal-dashboard"] as const;
@@ -75,4 +75,3 @@ export const queryHash = (search: string) => createHash("sha256").update(search)
 export function num(v: string | null): number | undefined {
   return v === null || v === "" ? undefined : Number(v);
 }
-export const rowsAs = (rows: Row[]) => rows;

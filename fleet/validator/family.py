@@ -1,6 +1,6 @@
 """The family, as a check (owner, 2026-09-25: "family is the key check").
 
-common-data/family.md is the root concept every persona opens with: the eight bots are family; a family member's
+common-data/family.md is the root concept every persona opens with: the agents are family; a family member's
 message is answered before own work; The CEO is the provider and rule maker, so its ask is top priority until
 answered; full names in messages. This module holds the fleet to it, read-only, from the requests record the
 engine keeps (common-data/shared-state/requests.jsonl, one event per line, folded here exactly as

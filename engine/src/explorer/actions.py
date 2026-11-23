@@ -56,41 +56,11 @@ class Rest(BaseModel):
 
 
 class Say(BaseModel):
-    """A short message for the owner, or for the AI chat partner when one is configured.
-    Both show up in the dashboard chat."""
+    """A short message for the owner. It shows up in the dashboard chat."""
 
     type: Literal["say"]
     text: str
-    to: Literal["owner", "partner"] = "owner"
-
-
-# Developer actions exist only when [developer] is enabled; the policy refuses them otherwise.
-# Every path is workspace-scoped: resolved and checked to stay inside developer.root.
-
-
-class ListFiles(BaseModel):
-    type: Literal["list_files"]
-    path: str = "."
-
-
-class ReadFile(BaseModel):
-    type: Literal["read_file"]
-    path: str
-    offset: int = 0
-
-
-class WriteFile(BaseModel):
-    type: Literal["write_file"]
-    path: str
-    content: str
-
-
-class RunCommand(BaseModel):
-    """argv, not a shell string -- no shell, no metacharacter interpretation."""
-
-    type: Literal["run_command"]
-    argv: list[str]
-    cwd: str = "."  # relative to developer.root
+    to: Literal["owner"] = "owner"
 
 
 class Task(BaseModel):
@@ -288,33 +258,9 @@ class ProposeTeammate(BaseModel):
     why: str  # the gap you see that makes it worth creating
 
 
-# Self-upgrade (milestone 6) actions exist only when [developer].upgrade_enabled is true.
-
-
-class Upgrade(BaseModel):
-    """Start a fresh worktree on a new branch for a proposed change."""
-
-    type: Literal["upgrade"]
-    goal: str
-
-
-class UpgradeTest(BaseModel):
-    """Run the test suite inside the current upgrade worktree."""
-
-    type: Literal["upgrade_test"]
-
-
-class UpgradeSubmit(BaseModel):
-    """Merge the worktree into main and restart on it, only if the last test run passed and no
-    protected file was touched."""
-
-    type: Literal["upgrade_submit"]
-
-
 Action = Annotated[
     Union[
         Search, Open, Read, Follow, Back, Note, Ask, Summarize, Rest, Say,
-        ListFiles, ReadFile, WriteFile, RunCommand, Upgrade, UpgradeTest, UpgradeSubmit,
         Task, Package, Provider, Message, ReviseGoal, ProposeTeammate, PublishPackage, UpdateTask, Lead, UpdateLead, Plan,
         MergeTask, PaceMember,
     ],
@@ -323,11 +269,8 @@ Action = Annotated[
 
 NAVIGATION_TYPES = frozenset({"search", "open", "follow"})
 CONSOLIDATION_TYPES = frozenset({"summarize", "note", "ask", "rest", "say", "plan"})  # plan: tick or close it at the end
-DEVELOPER_TYPES = frozenset({"list_files", "read_file", "write_file", "run_command"})
-UPGRADE_TYPES = frozenset({"upgrade", "upgrade_test", "upgrade_submit"})
 ALL_TYPES = (
     "search", "open", "read", "follow", "back", "note", "ask", "summarize", "rest", "say",
-    "list_files", "read_file", "write_file", "run_command", "upgrade", "upgrade_test", "upgrade_submit",
     "task", "package", "provider", "message", "revise_goal", "propose_teammate", "publish_package", "update_task", "lead",
     "update_lead", "plan", "merge_task", "pace_member",
 )
@@ -425,14 +368,6 @@ def action_key(action: Action, resolved_url: str | None = None, extra: str | Non
         return f"read:{extra or ''}"
     if isinstance(action, Summarize):
         return f"summarize:{extra or ''}"
-    if isinstance(action, ListFiles):
-        return f"list_files:{action.path.strip()}"
-    if isinstance(action, ReadFile):
-        return f"read_file:{action.path.strip()}:{action.offset}"
-    if isinstance(action, WriteFile):
-        return f"write_file:{action.path.strip()}"
-    if isinstance(action, RunCommand):
-        return f"run_command:{action.cwd.strip()}:{' '.join(action.argv)}"
     if isinstance(action, Task):
         return f"task:{action.title.strip().lower()}"
     if isinstance(action, Package):
@@ -454,7 +389,3 @@ def action_key(action: Action, resolved_url: str | None = None, extra: str | Non
     if isinstance(action, UpdateLead):
         return f"update_lead:{action.name.strip().lower()}"
     return action.type
-
-
-def dump_action(action: Action) -> str:
-    return json.dumps(action.model_dump(), ensure_ascii=False)

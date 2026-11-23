@@ -30,11 +30,10 @@ Everything hangs off one `config.toml`, and every path in it is relative to that
 second bot is mostly a second folder:
 
 - `agent.name`, `agent.bio`, `agent.seed_interests`: the persona. The name goes into the system
-  prompt, the chat partner prompt, and the browser user agent.
+  prompt and the browser user agent.
 - `paths.workspace`, `paths.db`, `paths.log`: its memory, journal, screenshots, flags (`STOP`,
   `PAUSE`), and the single-instance lock (`workspace/explorer.pid`), so two bots never collide.
 - `dashboard.port`: one dashboard per bot.
-- `developer.root`: its own sandbox and upgrade worktree.
 - `quiet`: shared behaviour, but each bot can be more or less deferential.
 
 ## What is shared, and where bots will compete

@@ -95,7 +95,6 @@ export const RATE_FIELDS: FieldSpec[] = [
 export const FIELDS: Record<Board, FieldSpec[]> = { leads: LEAD_FIELDS, tasks: TASK_FIELDS, packages: PACKAGE_FIELDS, rates: RATE_FIELDS };
 /** Worked out from other cells (website -> domain, location -> city and state); never written directly. */
 export const DERIVED = ["domain", "city", "state"];
-export const TASK_STATUSES = ["Not started", "In progress", "Done"];
 export const FALSE_WHATSAPP = "False Whatsapp Number";
 
 export type Actor = { kind: "person"; name: string } | { kind: "bot"; name: string; validator?: boolean };
