@@ -41,7 +41,7 @@ provider's. Everything else is "not measured".
 | Provider | Free tier | What we measured | Our cap | Sign up |
 |---|---|---|---|---|
 | Z.ai (`zai`, glm-4.5-flash) | the flash models are listed at $0; the page does not state whether a card is needed; limits not published | about 1,575 calls and 9.4M tokens in one day (2026-10-14) with no limit hit | 3,000 calls/day | https://z.ai |
-| Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed. Its [terms](https://ai.google.dev/gemini-api/terms) say "Do not submit sensitive, confidential, or personal information to the Unpaid Services", so it takes no lead data until you say yes in `sh scripts/add-key.sh gemini` | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
+| Gemini (`gemini`) | free tier with an AI Studio key; the page does not state whether a card is needed. Its [terms](https://ai.google.dev/gemini-api/terms) say "Do not submit sensitive, confidential, or personal information to the Unpaid Services", so neither the agents nor the Validator's review give it lead data until you say yes in `sh scripts/add-key.sh gemini` | the larger flash model answered 429/503 at busy times; the lite model answered; limits not measured | none | https://aistudio.google.com/apikey |
 | Groq (`groq`, gpt-oss-120b) | free tier; the page does not state whether a card is needed | about 8,000 tokens per minute and about 200,000 tokens per day; tokens run out before requests do | 900 calls/day | https://console.groq.com/keys |
 | OpenRouter (`openrouter`, a `:free` model) | `:free` models only; the page does not state whether a card is needed | about 50 calls a day without credit; the free model often answers 429 upstream | 50 calls/day | https://openrouter.ai/keys |
 
@@ -56,6 +56,30 @@ them on and cannot spend money by accident:
 
 If you pay for one and want it, add its name to `provider_chain` in `common-data/configs/local.toml`, with a `calls_per_day`
 cap.
+
+## What each provider says about your prompts
+
+Each prompt goes to the provider that answers it. We read these pages on 2026-11-23. Terms change, so read them again
+before you add a key.
+
+- **Z.ai:** for API users, its [terms](https://docs.z.ai/legal-agreement/terms-of-use) (updated April 14, 2026) say "we
+  will not use your User Content for developing or improving Services unless you explicitly agree to such use." Its
+  [privacy page](https://docs.z.ai/legal-agreement/privacy-policy) (updated September 29, 2025) says it does "not store
+  any of the content the Customer or its End Users provide or generate". Other customer data is stored temporarily and
+  deleted after the terms end, unless the law requires otherwise.
+- **Gemini (free tier):** Google's [terms](https://ai.google.dev/gemini-api/terms) say it uses what you submit "to
+  provide, improve, and develop Google products and services and machine learning technologies", that "human reviewers
+  may read, annotate, and process your API input and output", and "Do not submit sensitive, confidential, or personal
+  information to the Unpaid Services."
+- **Groq:** its [data page](https://console.groq.com/docs/your-data) (no date shown) says it "does not retain customer
+  data for inference requests" by default. It may log inputs and outputs for up to 30 days to troubleshoot reliability
+  or investigate abuse, longer if the law requires, and you can opt out in Data Controls. The page does not say whether
+  API data trains models.
+- **OpenRouter:** its [privacy policy](https://openrouter.ai/privacy) (updated August 31, 2026) says "OpenRouter does not
+  use your Inputs or Outputs for model training" and "Some Model Providers may use your Inputs and Outputs for model
+  training or improvement." Its [logging guide](https://openrouter.ai/docs/guides/privacy/logging) describes an account
+  setting that stops routing to providers that may train, with separate settings for paid and free models. Neither page
+  states the rule for `:free` models, so check that setting before you add the key.
 
 ## Search engines
 
