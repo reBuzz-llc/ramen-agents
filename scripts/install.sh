@@ -20,6 +20,13 @@ set -eu
 ok() { printf '  ok       %s\n' "$*"; }
 did() { printf '  done     %s\n' "$*"; }
 stop() { printf '  STOP     %s\n' "$*"; printf '\nFix the line above, then run sh scripts/install.sh again.\n'; exit 1; }
+# Homebrew changes this Mac outside the project, so it asks first; with no terminal to ask at, it stops and names the command.
+may_brew() {  # $1 = what, $2 = the formula
+  [ -t 0 ] || stop "$1 is missing: run  brew install $2"
+  printf '  %s is missing. Install it with Homebrew (brew install %s)? [Y/n] ' "$1" "$2"
+  IFS= read -r a || a=""
+  case "$a" in n|N|no|No) stop "$1 is needed: run  brew install $2  when you are ready" ;; esac
+}
 
 case "$(uname -s)" in
   Darwin) ;;
@@ -49,10 +56,12 @@ for c in python3.13 python3.12 python3.11 python3; do
   [ -n "$p" ] && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null && { PY=$p; break; }
 done
 if [ -z "$PY" ]; then
-  brew install python@3.12 >/dev/null && PY=$(brew --prefix python@3.12)/bin/python3.12 && did "Python 3.12 (Homebrew)"
+  may_brew "Python 3.11 or newer" python@3.12
+  brew install python@3.12 >/dev/null || stop "brew install python@3.12 failed"
+  PY=$(brew --prefix python@3.12)/bin/python3.12 && did "Python 3.12 (Homebrew)"
 else ok "Python $("$PY" -c 'import platform; print(platform.python_version())') ($PY)"; fi
 if command -v node >/dev/null 2>&1 && node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)'; then ok "Node.js $(node --version)"
-else brew install node >/dev/null && did "Node.js $(node --version) (Homebrew)"; fi
+else may_brew "Node.js 20 or newer" node; brew install node >/dev/null || stop "brew install node failed"; did "Node.js $(node --version) (Homebrew)"; fi
 
 echo "3. The engine ($ENGINE)"
 if [ -d "$ENGINE/.git" ]; then ok "the engine's clone"

@@ -112,6 +112,17 @@ echo
 echo "Reach it from your phone or another computer (optional): docs/remote-access.md. With Tailscale signed in here:"
 echo "  sh webapp/scripts/remote-access.sh"
 
+# Launch agents keep running after this script ends, so a person says yes first. --answers is the unattended way in.
+if [ "$START" = 1 ] && [ -z "$ANSWERS" ]; then
+  if [ -t 0 ]; then
+    echo
+    printf "Start the family now? This loads launch agents that keep the members running in the background. [Y/n] "
+    IFS= read -r a || a=""
+    case "$a" in n|N|no|No) START=0 ;; esac
+  else
+    START=0
+  fi
+fi
 if [ "$START" = 0 ]; then echo; echo "Answers saved. Start later: sh scripts/setup.sh"; exit 0; fi
 echo
 echo "Starting: the dashboard, search, the Validator, then $MEMBERS"
