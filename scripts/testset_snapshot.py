@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Save Lead Gen's test set: a few real business sites as offline snapshots (owner, 2026-10-06, queue item E2).
+"""Save Lead Gen's test set as offline snapshots of business sites (the set shipped here is one made-up trap site).
 
 For each business: its home page and its contact page (the first link whose text or address says contact/about), as
 the engine's light browser sees them (url, title, text, links), in common-data/testset/lead-gen/<slug>/pages.json, plus

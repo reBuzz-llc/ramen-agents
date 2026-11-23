@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Lead Gen's site-to-lead step against the saved test set and score it (owner, 2026-10-06, queue items E2/E4).
+"""Run Lead Gen's site-to-lead step against the saved test set and score it.
 
 For each site in common-data/testset/lead-gen/<slug>/: the saved pages go to Lead Gen's own model chain with Lead Gen's
 own card and lead rule, offline (no page is fetched). The answer is a lead JSON or "no lead". Scored first on the decision

@@ -142,8 +142,8 @@ export function idleIssue(name: string, lastAccepted: string | null, rests: Inte
 type ProviderHealth = { last_ok?: string; last_fail?: string; last_reason?: string; first_fail?: string };
 export type Provider = { host: string; label: string; calls: number; ok: boolean | null; dot: boolean };
 
-// Ledger keys that are not chain providers, with their label: the Validator's judge calls Gemini directly and keeps its
-// own key, with no health record (2026-10-29); the chain's Gemini calls count under "gemini".
+// Ledger keys that are not chain providers, with their label: the Validator's judge counts a Gemini call by its host, with
+// no health record, and asks Gemini only after your yes in add-key.sh; the chain's Gemini calls count under "gemini".
 const SIDE_KEYS: Record<string, string> = { "generativelanguage.googleapis.com": "Gemini (Validator judge)" };
 const LABELS: Record<string, string> = { gemini: "Gemini" };
 type ModelCalls = { counts?: Record<string, number>; health?: Record<string, ProviderHealth> };

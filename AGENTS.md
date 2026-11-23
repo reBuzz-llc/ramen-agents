@@ -12,11 +12,12 @@ thing to do.
 1. `sh scripts/install.sh`: tools, the engine, search, the dashboard. Safe to run again. When it stops for the Xcode
    command line tools or Homebrew, those ask for the person's password or a click: hand over to them, then run it
    again.
-2. Ask the person the setup questions (below), write their answers to `common-data/local/family.toml`, then
+2. A model key, before setup, because no member starts without one: the person makes it, in their own browser (see
+   "What is never yours to do"). Then they run `sh scripts/add-key.sh zai` (or `groq`, `openrouter`) themselves; it
+   reads the key without showing it and tests it.
+3. Ask the person the setup questions (below), write their answers to `common-data/local/family.toml`, then
    `sh scripts/setup.sh --answers common-data/local/family.toml`. Without an agent, `sh scripts/setup.sh` asks the
-   same questions itself.
-3. A model key: the person makes it, in their own browser (see "What is never yours to do"). Then they run
-   `sh scripts/add-key.sh zai` (or `groq`, `openrouter`) themselves; it reads the key without showing it and tests it.
+   same questions itself. It is safe to run again: if it says no member started, fix what it names and run it again.
 4. `python3 scripts/setup-check.py` says what is still missing, one line each, and exits 0 when nothing is. The
    dashboard is http://127.0.0.1:3000.
 
