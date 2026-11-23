@@ -129,8 +129,8 @@ class ModelConfig:
     # Which calls go to the remote chain. "all": every call, remote first. "writing": the local model
     # decides every step, and only when it picks a note, task, publish or say does the remote chain
     # write that action from the same observation (journal entries and chat stay remote first). A
-    # free tier like Groq's 8,000 tokens a minute holds about one full step a minute, so "all" spends
-    # most of the day on the local fallback anyway; "writing" spends it on the output that shows.
+    # free tier like Groq's 8,000 tokens a minute holds about one full step a minute, so with a local
+    # model set, "all" spends most of the day on it anyway; "writing" spends the remote allowance on the output that shows.
     remote_for: str = "all"
     # A lead's email, phone and contact name go to remote models as tokens and come back before the reply is read.
     mask_personal: bool = True

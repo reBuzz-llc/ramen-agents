@@ -1,4 +1,4 @@
-"""Gemini provider with a local fallback: JSON decisions, quota handling, cooldown, key loading."""
+"""Gemini provider: JSON decisions, quota handling, cooldown, key loading."""
 from __future__ import annotations
 
 import json

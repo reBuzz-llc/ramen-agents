@@ -79,6 +79,12 @@ def controller(cfg: Config) -> Controller:
 
 
 @pytest.fixture(autouse=True)
+def _no_real_keys(tmp_path_factory, monkeypatch):
+    """A test never sees the keys of the Mac it runs on: an empty folder unless the test sets its own."""
+    monkeypatch.setenv("EXPLORER_KEYS_DIR", str(tmp_path_factory.mktemp("keys")))
+
+
+@pytest.fixture(autouse=True)
 def _mask_reads_no_live_board():
     """A test never reads a live lead cache through the mask; the pattern pass still runs."""
     from explorer.common import masking

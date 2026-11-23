@@ -240,7 +240,7 @@ class OllamaModel:
             self.logger.debug("ollama unload failed: %s", exc)
 
 
-# ---- Gemini (free tier) with a local fallback -------------------------------------------------
+# ---- Gemini (free tier) -------------------------------------------------------------------------
 
 
 class NoLocalModel:

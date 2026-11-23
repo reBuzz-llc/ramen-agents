@@ -219,6 +219,15 @@ def _load() -> Known:
     return _known
 
 
+def board_readable() -> bool:
+    """Whether the board copy behind the name mask can be read now (it may hold no rows yet). _load keeps going without it, as the
+    pattern pass still hides addresses and numbers; a caller that must send nothing without the names asks this first."""
+    try:
+        return isinstance(json.loads(_cache_path().read_text(encoding="utf-8")).get("rows"), dict)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def _set_known(rows: Iterable[dict]) -> None:
     """For tests: this index until the next call to it."""
     global _known, _known_at, _known_stamp

@@ -402,7 +402,7 @@ def effective_chain(cfg: ModelConfig) -> list[str]:
 def build_model(
     cfg: ModelConfig, logger: logging.Logger | None = None, ledger_path: Path | str | None = None, bot_name: str = ""
 ) -> Model:
-    """The configured model: fake, ollama, or remote providers in order with a local fallback.
+    """The configured model: fake, ollama, or remote providers in order, with a local model only if fallback_provider names one.
     One place for every entry point (bot run, bot dashboard)."""
     logger = logger or logging.getLogger("explorer")
     if cfg.provider == "fake":
