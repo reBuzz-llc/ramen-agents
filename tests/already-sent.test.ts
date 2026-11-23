@@ -48,13 +48,13 @@ describe("matchEntries", () => {
     lead("studio", { domain: "studio.example" }),
     lead("chain-1", { domain: "chain.example" }),
     lead("chain-2", { domain: "chain.example" }),
-    lead("gmail-shop", { businessEmail: "shop@gmail.com", domain: null }),
+    lead("gmail-shop", { businessEmail: "not-a-shop@gmail.com", domain: null }),
     lead("sent", { businessEmail: "done@sent.example", emailStatus: "Email Sent" }),
     lead("wa", { whatsapp: "https://wa.me/17185550100", phone: "+17185550199", whatsappStatus: "WhatsApp msg sent" }),
     lead("00000000-0000-4000-8000-000000000202", { business: "By id" }),
   ];
   it("exact email, then the domain; never a free-mail domain; several leads: listed, not marked", () => {
-    const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\nx@chain.example\nother@gmail.com\nshop@gmail.com\ndone@sent.example\nnobody@nowhere.example"), board, "email_sent");
+    const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\nx@chain.example\nnot-an-other@gmail.com\nnot-a-shop@gmail.com\ndone@sent.example\nnobody@nowhere.example"), board, "email_sent");
     expect(p.matched.map((m) => [m.leadId, m.by, m.already])).toEqual([
       ["bakery", "email", false],
       ["studio", "domain", false],
@@ -62,7 +62,7 @@ describe("matchEntries", () => {
       ["sent", "email", true],
     ]);
     expect(p.ambiguous).toEqual([{ key: "x@chain.example", leads: 2 }]);
-    expect(p.notFound).toEqual(["other@gmail.com", "nobody@nowhere.example"]);
+    expect(p.notFound).toEqual(["not-an-other@gmail.com", "nobody@nowhere.example"]);
   });
   it("a number with or without its country code; a lead id", () => {
     expect(matchEntries(parsePaste("7185550100"), board, "whatsapp_sent").matched.map((m) => [m.leadId, m.already])).toEqual([["wa", true]]);
@@ -75,12 +75,12 @@ describe("matchEntries", () => {
     expect(matchEntries(parsePaste("owner@bakery.example"), board, "ready_email").matched[0].already).toBe(false);
   });
   it("as each line says: the line's status; a line that names none is listed", () => {
-    const p = matchEntries(parsePaste("owner@bakery.example, Email Sent\nnew@studio.example, WhatsApp Verified\nshop@gmail.com"), board, "per_line");
+    const p = matchEntries(parsePaste("owner@bakery.example, Email Sent\nnew@studio.example, WhatsApp Verified\nnot-a-shop@gmail.com"), board, "per_line");
     expect(p.matched.map((m) => [m.leadId, m.mark])).toEqual([
       ["bakery", "email_sent"],
       ["studio", "whatsapp_verified"],
     ]);
-    expect(p.noMark).toEqual(["shop@gmail.com"]);
+    expect(p.noMark).toEqual(["not-a-shop@gmail.com"]);
   });
   it("what marking prevents counts the Email sent marks: offered by Send next now, and drafts waiting", () => {
     const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\ndone@sent.example"), [board[0], { ...board[1], hasDraft: false }, board[5]], "email_sent");

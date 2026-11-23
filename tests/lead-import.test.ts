@@ -161,15 +161,15 @@ describe("a Google Maps business export (the owner's file's header)", () => {
 describe("a website from the email's domain", () => {
   it("takes a business's own domain, never a free or shared mailbox", async () => {
     const { websiteFromEmail } = await import("@/lib/lead-import");
-    expect(websiteFromEmail("hello@luna-salon.com")).toBe("https://luna-salon.com");
-    expect(websiteFromEmail(" Info@WWW.Bodega.NYC ")).toBe("https://bodega.nyc");
-    for (const free of ["a@gmail.com", "a@googlemail.com", "a@yahoo.com", "a@yahoo.co.uk", "a@yahoo.com.mx", "a@outlook.com", "a@outlook.fr", "a@hotmail.com", "a@hotmail.co.uk", "a@live.com", "a@icloud.com", "a@me.com", "a@proton.me", "a@protonmail.com", "a@aol.com", "a@verizon.net", "a@optonline.net", "a@cuny.edu", "a@nyc.gov", "a@school.edu.au"]) expect(websiteFromEmail(free), free).toBe("");
-    for (const bad of ["", null, undefined, "no-at-sign", "two@@x.com", "a@localhost"]) expect(websiteFromEmail(bad)).toBe("");
+    expect(websiteFromEmail("hello@luna-salon.example")).toBe("https://luna-salon.example");
+    expect(websiteFromEmail(" Info@WWW.Bodega.example ")).toBe("https://bodega.example");
+    for (const free of ["not-a-person@gmail.com", "not-a-person@googlemail.com", "not-a-person@yahoo.com", "not-a-person@yahoo.co.uk", "not-a-person@yahoo.com.mx", "not-a-person@outlook.com", "not-a-person@outlook.fr", "not-a-person@hotmail.com", "not-a-person@hotmail.co.uk", "not-a-person@live.com", "not-a-person@icloud.com", "not-a-person@me.com", "not-a-person@proton.me", "not-a-person@protonmail.com", "not-a-person@aol.com", "not-a-person@verizon.net", "not-a-person@optonline.net", "not-a-person@cuny.edu", "not-a-person@nyc.gov", "not-a-person@school.edu.au"]) expect(websiteFromEmail(free), free).toBe("");
+    for (const bad of ["", null, undefined, "no-at-sign", "two@@x.com", "not-a-person@localhost"]) expect(websiteFromEmail(bad)).toBe("");
   });
 
   it("fills an empty website on import, marked in History; a file's own website stays", async () => {
     const { db, tenantId, who } = await board();
-    const csv = `Business Name,Website,E-mail,Borough\nLuna Salon,,hello@luna-salon.example,Queens\nPark Deli,,parkdeli@gmail.com,Bronx\nRio Grill,riogrill.example,owner@rio-group.example,Bronx\n`;
+    const csv = `Business Name,Website,E-mail,Borough\nLuna Salon,,hello@luna-salon.example,Queens\nPark Deli,,not-a-person-parkdeli@gmail.com,Bronx\nRio Grill,riogrill.example,owner@rio-group.example,Bronx\n`;
     const t = parseCsv(csv);
     const r = await runImport(db, tenantId, who, mapRows(t.slice(1), autoMap(t[0])).map((x, i) => ({ ...x, row: i + 2 })), "maps.csv");
     expect(r.created).toBe(3);
