@@ -51,7 +51,7 @@ def find_place(name: str, location: str, db_path: Path | str, website: str = "",
             by_name = con.execute("SELECT name, locality, lat, lon, confidence, website, region, address FROM places WHERE name_norm = ? "
                                   "AND lat IS NOT NULL AND confidence >= 0.8 LIMIT 12", (_norm(name),)).fetchall()
             # a chain: the same name at more than one place anywhere in the snapshot. One store's address would misplace
-            # a franchisor row (Hot Chicken Takeover, Teriyaki Madness, Poplar Toast; 2026-10-10)
+            # a franchisor row (a chain listed under its head office; 2026-10-10)
             everywhere = con.execute("SELECT count(*) FROM places WHERE name_norm = ?", (_norm(name),)).fetchone()[0]
             by_site = []
             if site and "." in site:

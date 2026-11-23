@@ -37,7 +37,7 @@ def test_a_single_store_is_matched_by_name_or_by_domain(db):
 
 def test_chains_get_no_link(db):
     assert find_place("Zesto", "New York, NY", db, "https://zestochain.com", industry="Restaurant / Franchise") is None
-    assert find_place("Hot Chicken Takeover", "Columbus, OH", db, "https://hotchickentakeover.com", size="9 locations") is None
+    assert find_place("Poplar Hot Chicken", "Columbus, OH", db, "https://poplarhotchicken.example", size="9 locations") is None
     assert is_chain("", "Multiple locations") and is_chain("Franchise development", "") and not is_chain("Bakery", "1 location")
     assert find_place("Corner Deli", "Bronx, NY", db, "https://cornerdeli.com") is None      # two places on the domain
 

@@ -970,7 +970,7 @@ class Policy:
         L = self.leads
         if not L.enabled:
             return Verdict.no("updating leads is not enabled; that action does not exist")
-        if " | " in action.name:  # the work-list line pasted whole ("PJ's Coffee | https://pjscoffee.com", 37 refusals)
+        if " | " in action.name:  # the work-list line pasted whole ("Poplar Coffee | https://poplarcoffee.example", 37 refusals)
             action.name = action.name.split(" | ")[0].strip()
         name = action.name.strip()
         site_domain = ctx.recent_lead_names.get(name.lower()) if name else None
