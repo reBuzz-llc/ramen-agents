@@ -334,8 +334,10 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
         report(good, text + (" (the local fallback)" if remote else ""))
     if remote:
         print("note  remote providers, in order: " + ", ".join(remote))
+    answering = 0      # one provider that can take a member's call is enough: the chain skips the rest
     for name in remote or ((["gemini"] + list(cfg.model.providers)) if args.all else []):
         configured = name in remote
+        closed = configured and name in (cfg.model.personal_closed or [])
         if name == "gemini":
             key = load_gemini_key(cfg.model)
             where = f"env {cfg.model.gemini_api_key_env} or file {cfg.model.gemini_api_key_file}"
@@ -346,14 +348,23 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
             where = f"env {provider.api_key_env} or file {provider.api_key_file}"
             model = OpenAICompatModel(cfg.model, provider, key) if key else None
         if model is None:
-            report(not configured, f"{name} key: not found ({where})")
+            if configured:
+                print(f"note  {name} key: not found ({where}); skipped")
+            else:
+                report(True, f"{name} key: not found ({where})")
             continue
         good, text = model.available()
         cap = int(getattr(model, "calls_per_day", 0) or 0)
         if cap:
             used = CallLedger().count(FallbackModel.ledger_key(model))
             text += f"; {used}/{cap} calls used today (machine-wide)"
-        report(good or not configured, text)
+        if closed:
+            text += "; closed to lead data until you choose (sh scripts/add-key.sh gemini)"
+        if configured:
+            answering += bool(good) and not closed
+            print(("ok    " if good else "note  ") + text)
+        else:
+            report(True, text)
         usage = CallLedger().usage_today().get(FallbackModel.ledger_key(model), {})
         if usage:
             parts = [
@@ -362,6 +373,8 @@ def cmd_check(cfg: Config, args: argparse.Namespace) -> int:
             ]
             print(f"note  {FallbackModel.ledger_key(model)} today: " + "; ".join(parts))
     if remote:
+        report(answering > 0, f"model providers: {answering} of {len(remote)} can take a member's call"
+               + ("" if answering else "; add a key: sh scripts/add-key.sh zai"))
         print(f"note  remote_for = {cfg.model.remote_for}: " + (
             "the local model decides every step; notes, tasks, posts and messages are written remotely"
             if cfg.model.remote_for == "writing" else "every call goes to the remote chain first"
