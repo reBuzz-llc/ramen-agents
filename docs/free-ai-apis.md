@@ -92,6 +92,10 @@ Open models through one API, plus access to closed models.
   activation. ([usage limits](https://docs.mistral.ai/admin/billing-usage/usage-limits))
 - **IBM watsonx.ai Lite:** a real monthly allowance, but IBM asks for payment details up front.
   ([plans](https://dataplatform.cloud.ibm.com/docs/content/wsj/getting-started/wml-plans.html?context=wx))
+- **Ollama Cloud:** its pricing page says "Pay per token for every cloud model". Running Ollama on your own machine
+  stays free. ([pricing](https://ollama.com/pricing))
+- **Speka:** its page says "$1 lifetime credit on every account. No credit card required." That is a one-off credit,
+  not a free tier. ([speka.me](https://speka.me/))
 
 A provider that asks for a card, gives only a one-off trial credit or needs a paid plan before its API answers
 stays off this page.

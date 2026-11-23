@@ -10,12 +10,12 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 
 **What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
 **Who it is for:** a founder or a small agency with a laptop and big plans: the team works while you build the business.<br>
-**What it costs:** nothing. It runs on the free tiers model providers already give away, with keyless search; no step asks for a card.<br>
-**Running in production since late September 2026:** 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.
+**What it costs:** $0 in model fees on the default free tiers, with keyless search; ramen-agents itself never asks for a card.<br>
+**Running in production since late September 2026:** 800+ leads found by the agents.
 
 ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
 steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
-money, or collect personal data: that fence is in the code, not in a prompt.
+money, or collect personal data beyond a business's public contact: that fence is in the code, not in a prompt.
 
 [Try it in 10 minutes](https://github.com/reBuzz-llc/ramen-agents#try-it-in-10-minutes-no-key) · [Run it for real](https://github.com/reBuzz-llc/ramen-agents#run-it-for-real) · [Set up with your AI agent](https://github.com/reBuzz-llc/ramen-agents#set-up-with-your-ai-agent) · [We set it up for you](https://rebuzz-llc.github.io/ramen-agents/set-up-for-you.html) · [The fence](https://raw.githubusercontent.com/reBuzz-llc/ramen-agents/main/FENCE.md) · [FAQ](https://github.com/reBuzz-llc/ramen-agents#faq) · [The brochure (PDF)](https://rebuzz-llc.github.io/ramen-agents/brochure.pdf) · [Docs](https://rebuzz-llc.github.io/ramen-agents/) · Apache-2.0
 
@@ -28,8 +28,8 @@ money, or collect personal data: that fence is in the code, not in a prompt.
 
 ## Try it in 10 minutes (no key)
 
-You need Python 3.11 or newer. Nothing here needs an account or a key, and nothing leaves your machine: the agent thinks
-with a built-in heuristic model and reads a bundled set of eight local pages.
+You need Python 3.11 or newer. Nothing here needs an account or a key. The clone and install use the network; the demo
+itself runs with none: the agent thinks with a built-in heuristic model and reads a bundled set of eight local pages.
 
 ```sh
 git clone -b engine https://github.com/reBuzz-llc/ramen-agents ramen-engine
@@ -103,14 +103,15 @@ it refuses or flags, is in [What does the Validator check?](https://github.com/r
 
 ## Free models and keyless search
 
-The agents run on a single shared chain of free tiers, tried in order, with a local model as the last resort:
+The agents run on a single shared chain of free tiers, tried in order:
 
-- **Models:** Z.ai (GLM-4.5 Flash), Google Gemini, Groq, Speka, Mistral, OpenRouter's free models, Ollama Cloud, then a
-  local Ollama model on your own machine. A provider without a key is simply skipped.
+- **Models:** Z.ai (GLM-4.5 Flash), Google Gemini, Groq and OpenRouter's free models. One key is enough to start, and a
+  provider without a key is simply skipped. No local model is installed; you can add one yourself.
 - **Search:** a local SearXNG instance, DuckDuckGo through its MCP server, and FreeSerp's keyless index. No paid search
   API is needed.
-- **Budget:** each provider's own free daily limits are counted for the whole machine, so the family paces itself and
-  never runs up a bill. No step asks for a card.
+- **Budget:** the default chain uses free tiers. A paid provider joins only if you add it by hand, and ramen-agents
+  itself never asks for a card. If you link billing on a provider's own account, it can charge you. When a provider
+  says it is out for now, the next one answers. If every provider is out, the agent rests until one is back.
 
 ## Run it for real
 
@@ -128,11 +129,12 @@ command when one is missing), Python 3.11+ and Node.js 20+, the engine (cloned t
 
 `setup.sh` asks who you are and who you sell to (your company, what you sell, who buys it, where), keeps the answers in
 `common-data/local/family.toml` (out of git, so updates never touch them), helps you add one free model key with
-`sh scripts/add-key.sh gemini`, starts the members you choose and opens the dashboard at http://127.0.0.1:3000. The
+`sh scripts/add-key.sh zai`, starts the members you choose and opens the dashboard at http://127.0.0.1:3000. The
 same questions are on the dashboard's first-run page.
 
 Your leads, tasks and packages live on **the local board**: one file on your Mac, shown on the dashboard's Leads, Tasks
-and Packages pages, where you sort, filter, edit and import or export CSV. No account anywhere. Start with the default
+and Packages pages, where you sort, filter, edit and import or export CSV. The board needs no account; real agents need one free provider account, for a key you create
+yourself. Start with the default
 members, watch the first day on the dashboard, then add the rest. The full walk-through, with what each step does:
 [SETUP.md on the fleet branch](https://github.com/reBuzz-llc/ramen-agents/blob/fleet/SETUP.md).
 
@@ -166,9 +168,9 @@ never creates an account or a key for you: you make the one key yourself, at the
 
 | | ramen-agents | Agent frameworks (CrewAI, AutoGen, now Microsoft Agent Framework) | Paid AI SDRs (Artisan, 11x) |
 |---|---|---|---|
-| **Monthly cost** | Nothing: free model tiers and keyless search, no card | The framework is open source (MIT); you pay the model provider you choose | A paid subscription |
+| **Monthly cost** | $0 in model fees on the default free tiers; keyless search | The framework is open source (MIT); you pay the model provider you choose | A paid subscription |
 | **Setup and UI** | Three commands on a Mac; a local dashboard with the Leads, Tasks and Packages boards | You write the agents in code; visual editors are offered too (Crew Studio, AutoGen Studio) | A hosted web platform |
-| **Safety guardrails** | A fence in code that no agent can edit (no accounts, no spending, no personal data), and a Validator that checks every write | What you build and configure | Set by the vendor |
+| **Safety guardrails** | A fence in code that no agent can edit (no accounts, no spending, no personal data beyond a business's public contact), and a Validator that checks every write | What you build and configure | Set by the vendor |
 | **Data and privacy** | Boards, keys and the agents' memories in files on your Mac; prompts go to the model provider you chose | Runs where you deploy it; prompts go to the model provider you choose | Your leads and messages live on the vendor's platform |
 | **Email outreach** | Packages carry a ready-to-send email; your team sends it | Whatever you build | The vendor's agents send the outreach |
 
@@ -205,15 +207,22 @@ the setup is a paid service. Message us on WhatsApp (https://wa.me/15163518016) 
 
 ### Does it cost anything?
 
-No: ramen-agents costs nothing to run, because every model and search service in its default chain has a free tier
-with no card, and the engine counts each provider's daily limits so it never goes past them. You only need a Mac that
-stays on.
+The software is free, and you pay $0 in model fees on the default free tiers, with keyless search. Free tiers can
+change, and if you link billing on a provider's own account, it can charge you. The providers' own pages do not say
+whether their free tier needs a card, so read the sign-up page before you add one. When a provider says it is out for
+now, the next one answers. If every provider is out, the agent rests until one is back. You need one free model key
+to start and a Mac that stays on.
 
 ### Which models does it use?
 
-ramen-agents uses a chain of free model tiers, tried in order: Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter's free
-models, Ollama Cloud, then a local Ollama model. You add a key for each one you want; the rest are skipped. The
-quickstart uses none of them.
+ramen-agents uses a chain of free model tiers, tried in order: Z.ai, Gemini, Groq and OpenRouter's free models. One
+key is enough to start, from Z.ai, Groq or OpenRouter, and a provider without a key is skipped. With no key at all, a
+member rests and names the command that adds one. The ten-minute demo needs no key.
+
+Three providers left the default chain in November 2026, and you can still add any of them by hand. Mistral says
+"Creating API keys and using the API require billing activation and pay-as-you-go." Ollama Cloud is pay per token.
+[Speka](https://speka.me/) says "$1 lifetime credit on every account. No credit card required." After that it is pay per
+token. A local Ollama model is not installed or used unless you add it yourself.
 
 ### Can an agent spend money or sign up for something?
 
@@ -229,9 +238,17 @@ a paid key.
 
 ### Does my data leave my machine?
 
-Your boards, keys and the agents' memories stay in files on your Mac, but each prompt, including the page text an agent
-read, goes to the model provider that answers it. Choose providers you are comfortable with, or run everything on the
-local model.
+Yes, your prompts do. Your boards, keys and the agents' memories stay in files on your Mac, but the default setup has no
+local model, so every prompt, including the page text an agent read, goes to a provider you chose. A lead's email,
+phone and known contact name are masked by default. The mask does not hide a person's name that is on no row yet, an
+address spelled out in words, text inside an image, a phone number outside the usual US forms unless a row holds it,
+or business names, which stay readable on purpose. Lead Gen's decision calls read pages to find new contacts, so they
+run unmasked, only on Z.ai, Groq or OpenRouter. The Validator's reviews of tasks and packages use the same mask, leave
+out the names of a task's assignees, and send nothing if the mask cannot run or the board copy that holds the contact
+names cannot be read. Before you add a key, read [what each provider says about your prompts](https://rebuzz-llc.github.io/ramen-agents/free-tiers.html#what-each-provider-says-about-your-prompts). Google's
+[terms](https://ai.google.dev/gemini-api/terms) for the free Gemini tier say "human reviewers may read, annotate, and
+process your API input and output" and "Do not submit sensitive, confidential, or personal information to the Unpaid
+Services", so no Gemini key is saved until you say yes.
 
 ### Does it need a Mac?
 
@@ -250,6 +267,8 @@ persona; edit the persona in plain English, then `bot --config ~/bots/name/confi
 
 ## Repository layout
 
+`engine/` and `fleet/` are a copy for reading; install from the branch.
+
 This repository has four branches, because the engine and the family are cloned into different folders:
 
 | Branch | Clone to | Contents |
@@ -259,7 +278,7 @@ This repository has four branches, because the engine and the family are cloned 
 | `fleet` | `~/bots` | The agents' folders, shared settings, the Validator, the dashboard with the local board, the install, setup and update scripts |
 | `portal` | anywhere (optional) | A hosted team portal in place of the local board: people take leads and tasks and record what they sent |
 
-Both working branches start with no history and no data: no leads, notes, keys or logs.
+Both working branches ship with none of our data: no leads, notes, keys or logs.
 
 ## Contributing, licence, citation
 

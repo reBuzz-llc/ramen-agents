@@ -5,6 +5,29 @@ All notable changes to ramen-agents. Dates are when a change reached the public 
 
 ## [Unreleased]
 
+### Changed
+
+- **No local model by default.** The family runs on free remote providers. A local model runs only if you name one in
+  `fallback_provider`.
+- **One model key is enough.** `bot check` passes with one provider that answers, and a key that is rate limited at setup
+  still counts.
+- **Lead data is masked by default.** A lead's email, phone and contact name reach remote models as stand-ins, and the
+  Validator's review uses the same mask. The members that look for new contacts make one decision without it, on the
+  providers listed in `new_names_open`.
+- **Gemini asks first.** It takes no lead data until you say yes in `sh scripts/add-key.sh gemini`, with Google's terms in
+  front of you. The dashboard names that script instead of saving a Gemini key.
+- **The default chain stays free.** A provider that needs billing never joins by a key file alone and shows as needing
+  billing, and each provider's card terms are stated as its own page states them.
+- **Setup is clearer.** Install asks before using Homebrew, setup asks before loading launch agents, waits for the board,
+  and says plainly when no member started.
+
+### Fixed
+
+- The write gate fails closed: a check that cannot load, run or give a verdict holds the write.
+- Nothing installs or runs from the read-only copy on `main`.
+- Automated reads say what they are, and a page that refuses a read is not used as evidence.
+- A keyed search's daily budget of 0 means no call.
+
 ## [0.2.0] - 2026-11-16
 
 Local-first: from an empty Mac to a running family in three commands, and no Notion on any branch.

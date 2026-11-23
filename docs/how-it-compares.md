@@ -6,9 +6,9 @@ permalink: /how-it-compares.html
 
 | | ramen-agents | Agent frameworks (CrewAI, AutoGen, now Microsoft Agent Framework) | Paid AI SDRs (Artisan, 11x) |
 |---|---|---|---|
-| **Monthly cost** | Nothing: free model tiers and keyless search, no card | The framework is open source (MIT); you pay the model provider you choose | A paid subscription |
+| **Monthly cost** | $0 in model fees on the default free tiers; keyless search | The framework is open source (MIT); you pay the model provider you choose | A paid subscription |
 | **Setup and UI** | Three commands on a Mac; a local dashboard with the Leads, Tasks and Packages boards | You write the agents in code; visual editors are offered too (Crew Studio, AutoGen Studio) | A hosted web platform |
-| **Safety guardrails** | A fence in code that no agent can edit (no accounts, no spending, no personal data), and a Validator that checks every write | What you build and configure | Set by the vendor |
+| **Safety guardrails** | A fence in code that no agent can edit (no accounts, no spending, no personal data beyond a business's public contact), and a Validator that checks every write | What you build and configure | Set by the vendor |
 | **Data and privacy** | Boards, keys and the agents' memories in files on your Mac; prompts go to the model provider you chose | Runs where you deploy it; prompts go to the model provider you choose | Your leads and messages live on the vendor's platform |
 | **Email outreach** | Packages carry a ready-to-send email; your team sends it | Whatever you build | The vendor's agents send the outreach |
 

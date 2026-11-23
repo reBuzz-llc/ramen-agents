@@ -1,0 +1,281 @@
+"""The Lead Gen bot lists potential customers on the owner's Leads board -- only businesses whose own site it read,
+with a business email published there, a grounded pain point and the package that fixes it (Plan 11)."""
+from __future__ import annotations
+
+from explorer.actions import Decision, Lead, Open
+from explorer.browser import PageView
+from explorer.config import LeadsConfig, PolicyConfig
+from explorer.model import ModelResult
+from explorer.board import FakeBoard
+from explorer.policy import Denylist, Policy, PolicyContext, email_domain, same_site
+
+from conftest import make_controller
+
+SITE = "https://acmebakery.example"
+CONTACT = SITE + "/contact"
+HOME_TEXT = "Acme Bakery. Northside's sourdough since 2009. Our website was last updated in 2016 and orders are by phone only."
+CONTACT_TEXT = "Contact Acme Bakery: 122 Court St, Northside NY. Email hello@acmebakery.example or call us."
+
+
+def lead(**over) -> Lead:
+    spec = dict(type="lead", name="Acme Bakery", website=SITE, email="hello@acmebakery.example",
+                pain_point="Orders are phone-only and the site was last updated in 2016: no online ordering, not mobile-friendly.",
+                how_we_help="Website Care Basic", evidence=SITE, location="Northside, NY", industry="bakery",
+                sources=[SITE, CONTACT])
+    spec.update(over)
+    return Lead(**spec)
+
+
+def ctx(**over) -> PolicyContext:
+    base = dict(mode="web", current_page=None, actions_in_episode=0, pages_last_hour=0, open_questions=0, last_visit_by_domain={},
+                visited_urls={SITE, CONTACT}, recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT})
+    base.update(over)
+    return PolicyContext(**base)
+
+
+def test_email_helpers():
+    assert email_domain("Hello@Acme.Example") == "acme.example" and email_domain("not an email") == ""
+    assert same_site("mail.acme.example", "acme.example") and not same_site("acme.example", "other.example")
+
+
+def test_policy_wants_a_published_business_email_and_grounded_facts():
+    off = Policy(PolicyConfig(), Denylist())
+    assert "not enabled" in off.check(lead(), ctx()).reason
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
+    assert policy.check(lead(), ctx()).allowed
+    # No email, no lead -- and it must be theirs, on their site, on a page that was opened.
+    assert "a way to reach the business" in policy.check(lead(email=""), ctx()).reason
+    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.example"), ctx()).reason  # a free-mail address needs the same proof
+    assert "does not appear on any page" in policy.check(lead(email="hello@other.example"), ctx()).reason  # another domain, not printed on the site
+    unseen = policy.check(lead(email="owner@acmebakery.example"), ctx())
+    assert not unseen.allowed and "does not appear on any page" in unseen.reason
+    assert "not opened any page on the business's own site" in policy.check(lead(), ctx(recent_page_texts={})).reason
+    assert "evidence must be" in policy.check(lead(evidence="https://acmebakery.example/never-opened"), ctx()).reason
+    assert "actually opened" in policy.check(lead(sources=["https://elsewhere.example/"]), ctx()).reason
+    dup = policy.check(lead(), ctx(recent_lead_domains={"acmebakery.example"}))
+    assert not dup.allowed and dup.permanent
+    assert "this episode" in policy.check(lead(), ctx(leads_in_episode=1)).reason
+    assert "daily limit" in policy.check(lead(), ctx(leads_today=3)).reason
+    assert "own tools" in policy.check(lead(pain_point="Their site has a captcha rate limit problem"), ctx()).reason
+
+
+class SiteBrowser:
+    """A two-page business website."""
+
+    pages = {SITE: PageView(url=SITE, title="Acme Bakery", text=HOME_TEXT), CONTACT: PageView(url=CONTACT, title="Contact", text=CONTACT_TEXT)}
+
+    def open(self, url):
+        return self.pages.get(url) or PageView(url=url, title="", text="", ok=False, error="no such page")
+
+    def search(self, query):
+        return PageView(url="https://search.example/?q=" + query, title="search", text="nothing", ok=True)
+
+    def back(self):
+        return None
+
+    def current(self):
+        return None
+
+    def close(self):
+        pass
+
+    def screenshot(self, path):
+        return False
+
+    def fetch_text(self, url):
+        return None
+
+
+class ReadsThenLists:
+    def __init__(self):
+        self.step = 0
+
+    def decide(self, system, obs):
+        self.step += 1
+        action = {1: Open(type="open", url=SITE), 2: Open(type="open", url=CONTACT)}.get(self.step) or lead()
+        return ModelResult(decision=Decision(thought="lead", action=action))
+
+    def complete(self, system, prompt):
+        return "summary"
+
+
+def test_the_controller_lists_the_lead_and_tells_the_ceo(cfg, tmp_path):
+    cfg.agent.mode = "web"
+    cfg.policy.per_domain_delay_seconds = 0  # two pages of one site back to back
+    ceo = tmp_path / "the-ceo"
+    cfg.leads = LeadsConfig(enabled=True, notify_folder=str(ceo), notify_name="The CEO")
+    fake = FakeBoard()
+    ctl = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_board=fake)
+    assert "- lead:" in ctl.system
+    ctl.run(max_cycles=3)
+    rows = ctl.memory.db.query("SELECT action_type, verdict FROM actions ORDER BY id")
+    assert [(r["action_type"], r["verdict"]) for r in rows] == [("open", "allowed"), ("open", "allowed"), ("lead", "allowed")]
+    assert fake.rows == [{"title": "Acme Bakery", "Website": SITE, "Business email": "hello@acmebakery.example",
+                          "Location": "Northside, NY", "Industry": "bakery",
+                          "Pain point": "Orders are phone-only and the site was last updated in 2016: no online ordering, not mobile-friendly.",
+                          "How can I help": "Website Care Basic", "Evidence": SITE,
+                          "Source pages": f"{SITE}\n{CONTACT}"}]
+    inbox = list((ceo / "workspace" / "inbox").glob("*.json"))
+    import json
+    assert len(inbox) == 1
+    msg = json.loads(inbox[0].read_text())
+    assert msg["kind"] == "message" and msg["text"].startswith('new lead "Acme Bakery" (https://acmebakery.example)') and "row-1" in msg["text"]
+    # Listing it again is refused: one business once.
+    ctl2 = make_controller(cfg, model=ReadsThenLists(), browser=SiteBrowser(), leads_board=fake)
+    ctl2.run(max_cycles=3)
+    assert "already on the Leads board" in ctl2.memory.db.query("SELECT verdict FROM actions ORDER BY id DESC LIMIT 1")[0]["verdict"]
+    assert len(fake.rows) == 1
+
+
+def test_lead_columns_constant_matches_what_the_controller_writes(cfg, tmp_path):
+    """LEAD_COLUMNS is what `bot check` verifies against the board, so it must stay equal to the columns
+    _execute_lead fills -- otherwise the check passes on a board that silently drops a field. A lead with every
+    optional field set, since an empty one is left out of the row."""
+    from explorer.board import LEAD_COLUMNS
+
+    class ListsAFullLead(ReadsThenLists):
+        def decide(self, system, obs):
+            result = super().decide(system, obs)
+            if result.decision.action.type == "lead":
+                result.decision.action = lead(size="8 people", location="Northside, NY", industry="bakery")
+            return result
+
+    cfg.agent.mode = "web"
+    cfg.policy.per_domain_delay_seconds = 0
+    cfg.leads = LeadsConfig(enabled=True, notify_folder=str(tmp_path / "ceo"), notify_name="The CEO")
+    fake = FakeBoard()
+    ctl = make_controller(cfg, model=ListsAFullLead(), browser=SiteBrowser(), leads_board=fake)
+    ctl._ground_optional_lead_facts = lambda action: (action, "")  # this test is about the columns, not about grounding
+    ctl.run(max_cycles=3)
+    written = set(fake.rows[0]) - {"title"}
+    assert written == set(LEAD_COLUMNS), f"drifted: only in the row {written - set(LEAD_COLUMNS)}, only in the constant {set(LEAD_COLUMNS) - written}"
+
+
+def test_candidates_from_the_daily_file_reach_the_prompt_and_skip_visited_sites(cfg):
+    from conftest import make_controller
+
+    cfg.leads.enabled = True
+    cfg.leads.candidates_glob = "spf-open-data-*.md"
+    routed = cfg.root.parent / "common-data" / "botBox" / "routed" / cfg.root.name
+    routed.mkdir(parents=True, exist_ok=True)
+    (routed / "spf-open-data-2026-09-30.md").write_text(
+        "# SPF Open Data\n\n- Greene Grape Provisions | Northside | Grocery | http://www.greenegrape.com | owner on city record: A B\n"
+        "- St. Petersburg Trade House | Northside | Gifts | http://www.stpgoods.com | owner on city record: N O\n")
+    c = make_controller(cfg)
+    lines = c._candidate_lines()
+    assert len(lines) == 2 and lines[0].startswith("Greene Grape Provisions (Northside, Grocery): http://www.greenegrape.com")
+    assert "http://www.greenegrape.com" in c.seen_links  # `open` on it is not a typed guess
+    c.memory.record_visit("http://www.greenegrape.com/contact", "Greene Grape", True)
+    assert [l.split(" (")[0] for l in c._candidate_lines()] == ["St. Petersburg Trade House"]
+    obs_text = c._observe(c.memory.current_episode() or c.memory.db.query("SELECT * FROM episodes WHERE id = ?", (c.memory.start_episode(None),))[0]).render()
+    assert "Businesses to open next" in obs_text and "stpgoods.com" in obs_text
+    (routed / "spf-open-data-2026-09-30.md").unlink()
+
+
+def test_optional_lead_facts_are_kept_only_when_the_sites_pages_state_them(cfg):
+    from explorer.actions import Lead
+    from conftest import make_controller
+
+    cfg.leads.enabled = True
+    cfg.agent.mode = "web"
+    c = make_controller(cfg)
+    c.recent_pages["https://www.ovencorner.example/contact"] = "Oven Corner. 1673 Lexington Ave, Springfield, NY 10029. Email support@ovencorner.example"
+    lead = Lead(type="lead", name="Oven Corner", website="https://www.ovencorner.example", email="support@ovencorner.example",
+                pain_point="no online ordering", how_we_help="Acme POS", evidence="https://www.ovencorner.example/contact",
+                location="Springfield, NY, USA", size="12 staff")
+    kept, note = c._ground_optional_lead_facts(lead)
+    assert kept.location == "Springfield, NY, USA" and kept.size == "" and "Company size left empty" in note
+    far = lead.model_copy(update={"location": "Northside, NY, USA", "size": ""})
+    kept2, note2 = c._ground_optional_lead_facts(far)
+    assert kept2.location == "" and "Location left empty" in note2
+    same, none = c._ground_optional_lead_facts(lead.model_copy(update={"size": ""}))
+    assert same.location == "Springfield, NY, USA" and none == ""
+
+
+def test_an_email_on_another_domain_is_accepted_when_the_businesss_own_page_prints_it():
+    # owner, 2026-09-30: shopcityspf.com on shopcity.us, sweetcorner.org on the .com site -- "yes"
+    policy = Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True, max_per_day=3))
+    printed = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: sandra@acmebakery-nyc.example"})
+    assert policy.check(lead(email="sandra@acmebakery-nyc.example"), printed).allowed
+    assert "does not appear on any page" in policy.check(lead(email="sandra@acmebakery-nyc.example"), ctx()).reason  # not printed: refused
+    assert "does not appear on" in policy.check(lead(email="acmebakery@gmail.example"), printed).reason  # not printed: refused
+    free = ctx(recent_page_texts={SITE: HOME_TEXT, CONTACT: CONTACT_TEXT + " Orders: acmebakery@gmail.example"})
+    assert policy.check(lead(email="acmebakery@gmail.example"), free).allowed  # printed on their page: passes; the Validator's gate judges whether it reads as the business's (owner, 2026-10-10)
+
+
+def test_an_undeliverable_email_stops_the_lead_and_a_good_one_is_noted_on_the_row(cfg):
+    from explorer.board import FakeBoard
+    from conftest import make_controller
+
+    cfg.leads.enabled = True
+    cfg.leads.email_verify_key_file = "/nonexistent/key"
+    board = FakeBoard()
+    c = make_controller(cfg, leads_board=board)
+    c.memory.start_episode(None); ep = c.memory.current_episode()
+    c._verify_lead_email = lambda email: {"result": "invalid", "reason": "rejected_email", "at": "2026-10-02T10:00:00"}
+    r = c._execute_lead(lead(), ep)
+    assert not r.ok and "does not take mail" in r.summary and board.rows == []
+    c._verify_lead_email = lambda email: {"result": "valid", "reason": "accepted_email", "accept_all": False, "at": "2026-10-02T10:00:00"}
+    assert c._execute_lead(lead(), ep).ok and board.rows[0]["Email check"] == "deliverable, checked 2026-10-02"
+
+
+def test_a_whatsapp_number_a_page_prints_becomes_a_wa_me_link():
+    """Owner, 2026-10-07: a found number becomes the row's wa.me link; a missing country code is read as US (+1)."""
+    from explorer.whatsapp import on_page, wa_link
+
+    assert wa_link("(212) 555-0187") == "https://wa.me/12125550187"
+    assert wa_link("1-212-555-0187") == "https://wa.me/12125550187"
+    assert wa_link("+44 20 7946 0958") == "https://wa.me/442079460958"
+    assert wa_link("0044 20 7946 0958") == "https://wa.me/442079460958"
+    assert wa_link("https://wa.me/442079460900") == "https://wa.me/442079460900"
+    assert wa_link("555-0187") is None  # no area code: not a number we can place
+    page = "Call us at (212) 555-0187 or visit 12 Court St."
+    assert on_page(wa_link("212.555.0187"), [page]) and not on_page(wa_link("(212) 555-0199"), [page])
+
+
+def test_the_page_a_whatsapp_number_came_from_is_cited(cfg):
+    from conftest import make_controller
+
+    c = make_controller(cfg)
+    c.recent_pages = {"https://yelp.example/biz/acme": "Acme Bakery. Phone (212) 555-0187", "https://acme.example": "Welcome"}
+    assert c._with_number_page("https://acme.example", "https://wa.me/12125550187") == "https://acme.example\nhttps://yelp.example/biz/acme"
+    assert c._with_number_page("", "https://wa.me/19995550198") == ""
+
+
+def test_business_emails_noted_but_never_listed_come_back_as_work(cfg):
+    """Owner, 2026-10-07 : 16 business emails sat in Lead Gen's notes, never listed."""
+    from conftest import make_controller
+
+    cfg.leads.enabled, cfg.leads.noted_shown = True, 5
+    c = make_controller(cfg)
+    ep = c.memory.start_episode(None)
+    for title, body, url in (("Sweet Catch Springfield", "Footer: info@sweetcatch.test", "https://www.sweetcatch.test"),
+                             ("Placeholder form", "write to mymail@mailservice.test", "https://x.example"),
+                             ("A professor", "en21@fictional-university.edu", "https://fictional-university.edu/x"),
+                             ("Gmail shop", "shop@gmail.example", "https://shop.example")):
+        c.memory.add_note(title, body, source_url=url, episode_id=ep)
+    lines = c._noted_not_listed()
+    assert lines == ["Sweet Catch Springfield | info@sweetcatch.test | https://www.sweetcatch.test"]
+    import json
+    shared = json.loads((cfg.root.parent / "common-data" / "shared-state" / f"{cfg.root.name}-noted.json").read_text())
+    assert [i["email"] for i in shared["items"]] == ["info@sweetcatch.test"] and shared["items"][0]["refusals"] == 0
+
+
+def test_a_business_with_no_website_is_a_lead_through_its_public_listing():
+    """Owner, 2026-10-10: no website is a lead too (it may need web dev most); a free-mail address and a WhatsApp number count."""
+    from explorer.actions import Lead
+    from explorer.policy import lead_key
+
+    policy_for = lambda: Policy(PolicyConfig(), Denylist(), leads=LeadsConfig(enabled=True))  # noqa: E731
+    listing = "https://www.yellowpages.com/brooklyn-ny/mip/corner-bakery-123"
+    base = dict(type="lead", name="Corner Bakery", website="", email="cornerbakery@gmail.example", pain_point="No website at all; only this listing",
+                how_we_help="SMB Website Care Retainer", evidence=listing, location="Brooklyn, NY, USA")
+    c = ctx(visited_urls={listing}, recent_page_texts={listing: "Corner Bakery, 12 Court St Brooklyn. cornerbakery@gmail.example. (718) 555-0101"}, recent_lead_names={})
+    assert policy_for().check(Lead(**base), c).allowed
+    assert "needs its location" in policy_for().check(Lead(**{**base, "location": ""}), c).reason
+    assert "have not read the listing page" in policy_for().check(Lead(**{**base, "evidence": "https://www.yellowpages.com/other"}), ctx(visited_urls={"https://www.yellowpages.com/other"}, recent_page_texts={}, recent_lead_names={})).reason
+    wa = Lead(**{**base, "email": "", "whatsapp": "(718) 555-0101"})
+    assert policy_for().check(wa, c).allowed and wa.whatsapp == "https://wa.me/17185550101"
+    assert "a way to reach the business" in policy_for().check(Lead(**{**base, "email": ""}), c).reason
+    dup = ctx(visited_urls={listing}, recent_page_texts={listing: "cornerbakery@gmail.example"}, recent_lead_names={}, recent_lead_domains={lead_key("Corner Bakery", "Brooklyn, NY, USA")})
+    assert "already on the Leads board" in policy_for().check(Lead(**base), dup).reason

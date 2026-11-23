@@ -1,4 +1,4 @@
-"""The generated docs files, built from their one source each (queue 586). Run it after editing README.md, FENCE.md or
+"""The generated docs files, built from their one source each. Run it after editing README.md, FENCE.md or
 llms.txt, and commit what it writes:
 
     python3 scripts/build_docs.py           # write the generated files

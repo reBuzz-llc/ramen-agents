@@ -2,7 +2,7 @@
 layout: null
 permalink: /robots.txt
 ---
-# Search and AI crawlers are welcome on every page (queue 586).
+# Search and AI crawlers are welcome on every page.
 User-agent: Googlebot
 Allow: /
 

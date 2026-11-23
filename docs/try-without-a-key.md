@@ -1,10 +1,11 @@
 ---
 title: "How do I try ramen-agents without a key?"
-description: "Install the engine and run one research session in fake mode: no account, no API key, no network, about a second."
+description: "Install the engine and run one research session in fake mode: no account, no API key, about a second, and no network once installed."
 permalink: /try-without-a-key.html
 ---
 
-You need Python 3.11 or newer, and nothing else: no account, no key, no network. The agent thinks with a built-in
+You need Python 3.11 or newer, and a connection for the clone and install. No account, no key. The demo itself runs with
+no network: the agent thinks with a built-in
 heuristic model and reads a bundled set of eight local pages.
 
 ```sh

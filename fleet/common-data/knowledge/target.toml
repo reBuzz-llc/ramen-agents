@@ -1,0 +1,10 @@
+# The market the family is working right now: the engine fills {market}, {market_short}, {segment}, {trades}, {areas}
+# and {market_slug} in every bot's card, bio and starting interests from it, on the next cycle.
+# Your own market is not set here: sh scripts/setup.sh (or the dashboard's first-run page, or the Work plan page's
+# Target panel) writes it to common-data/local/family.toml [target], which git ignores and which wins over these lines.
+# These are the words the cards read until then. The direction itself (why, since when) is your steer.
+market = "its area"
+market_short = "its area"
+segment = "small businesses"
+trades = "local businesses"
+areas = ""

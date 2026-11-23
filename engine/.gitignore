@@ -1,0 +1,30 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+graphify-out/
+workspace/explorer.sqlite3*
+workspace/logs/*
+!workspace/logs/.gitkeep
+workspace/browser_profile/
+workspace/explorer.pid
+workspace/STOP
+workspace/PAUSE
+workspace/backups/
+docs/*.jsonl
+workspace/screenshots/
+workspace/dashboard.token
+.claude/settings.local.json
+
+# self-upgrade worktree and supervisor state
+workspace/dev/
+
+# runtime state belongs in ~/bots/<slug>/, never in the repo
+config.toml
+workspace/journal/
+workspace/published/
+workspace/interests.md
+workspace/questions.md
+workspace/screenshots/

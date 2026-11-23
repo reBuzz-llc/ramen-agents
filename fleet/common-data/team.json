@@ -1,0 +1,6 @@
+{
+ "version": 1,
+ "updatedAt": "",
+ "members": [],
+ "_note": "Your team is in common-data/local/family.toml [[team]] (sh scripts/setup.sh writes it; not in git). This file is the empty fallback."
+}

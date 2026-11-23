@@ -36,7 +36,7 @@ The software stays free and open source (Apache-2.0). The setup is a paid servic
 
 - The agents never send an email, sign up for anything or spend money. That fence is in the code:
   [what no agent may do](fence.html).
-- It runs on free model tiers and keyless search, so running it costs nothing.
+- It runs on keyless search and the default free model tiers, so you pay $0 in model fees.
 - Prefer to do it yourself? It is three commands: [how do I set it up?](faq.html#how-do-i-set-it-up), or
   [try it first without a key](try-without-a-key.html).
 

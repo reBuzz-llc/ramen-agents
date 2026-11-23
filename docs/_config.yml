@@ -2,7 +2,7 @@
 title: ramen-agents
 description: >-
   A free, open-source team of five AI agents that looks for your next client: it finds businesses with a
-  gap you can fix, prices an offer and writes the email. $0 to run on your Mac; we set it up for you.
+  gap you can fix, prices an offer and writes the email. $0 in model fees on the default free tiers; we set it up for you.
 url: https://rebuzz-llc.github.io
 baseurl: /ramen-agents
 lang: en
@@ -11,7 +11,7 @@ plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
 image: /assets/og.png
-defaults:            # queue 586: every page's og:image and twitter:image (jekyll-seo-tag reads it per page)
+defaults:            # every page's og:image and twitter:image (jekyll-seo-tag reads it per page)
   - scope:
       path: ""
     values:
@@ -27,7 +27,4 @@ header_pages:          # the four a buyer needs; the other pages stay linked fro
   - try-without-a-key.md
   - fence.md
   - faq.md
-exclude:
-  - launch.md
-  - launch/
 goatcounter_code: ramen

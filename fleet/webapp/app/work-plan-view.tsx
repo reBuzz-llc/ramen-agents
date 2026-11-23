@@ -1,0 +1,1286 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { BotSummary } from "@/lib/bot";
+import type { Identity } from "@/lib/identity";
+import { ago } from "@/lib/format";
+import { localIso } from "@/lib/summary";
+import { summaryStatus, TONE_DOT } from "@/lib/status";
+import type { CandidateFunnel } from "@/lib/candidates";
+import { deltaOf, rateOf, REFUSAL_TARGET, verdictOf, type Kind, type Marker } from "@/lib/checks";
+import type { Tick } from "@/lib/tick";
+import TickLine from "./tick-line";
+import type { LeadResults, Pipeline, ResultGroup } from "@/lib/lead-results";
+import type { TestRun } from "@/lib/test-runs";
+import type { CeoMeasure } from "@/lib/ceo-measure";
+import type { OwnerPlan, PastJob, RefusalDay, RefusalReason, RefusalStats, Rule, WorkCard } from "@/lib/work-plan";
+import type { Board } from "@/lib/board-read";
+import { attempts, endedLine, noPlanHeader, partition, pastDay, pastKey, pastLine, readHash, TAB_PATH, type Tab } from "@/lib/work-plan-rows";
+import { sendJson } from "@/lib/client";
+import { Avatar } from "./bot-switcher";
+import { useLeaveGuard, useNow, usePoll } from "./hooks";
+import PageShell from "./page-shell";
+import { markWorkPlanSeen } from "./work-plan-shortcut";
+import { compact } from "./summary-parts";
+import { buttonClass, Icon, Spinner } from "./ui";
+import SortableTable from "./sortable-table";
+
+const MAX_GOAL = 200;
+const MAX_RULE = 160;
+const MAX_RULES = 8;
+
+const input =
+  "h-9 w-full min-w-0 rounded-lg bg-fill-3 px-3 text-sm text-ink placeholder:text-muted focus:ring-2 focus:ring-sys-blue/40 focus:outline-none";
+
+/** Minutes as "45m" or "2h 10m". */
+const dur = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`);
+
+const same = (a: OwnerPlan, b: OwnerPlan) =>
+  a.goal === b.goal && a.rules.length === b.rules.length && a.rules.every((r, i) => r.id === b.rules[i].id && r.text === b.rules[i].text);
+const tidy = (p: OwnerPlan): OwnerPlan => ({ goal: p.goal.trim(), rules: p.rules.map((r) => ({ ...r, text: r.text.trim() })).filter((r) => r.text) });
+
+/**
+ * Every agent on one line (owner, 2026-09-26; folded 2026-10-30): tap a line for what it is working through now (the
+ * engine's checklist) and the goal and rules the owner sets for it in one line each (read by the engine into every
+ * step). Past jobs, the Leads numbers and the checks are pages of their own under a nav bar (owner, 2026-10-31), and
+ * each page loads only its own part of /api/work-plan.
+ */
+export default function WorkPlanView({ identity, tab }: { identity: Identity; tab: Tab }) {
+  // Looking at these pages is what clears the header's red dot: mark it seen now and while one stays open.
+  useEffect(() => {
+    markWorkPlanSeen();
+    const t = setInterval(markWorkPlanSeen, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <PageShell identity={identity} title="Work plan">
+      {/* the section's name; the app's nav (top bar, or the tab bar on a phone) moves between them (2026-10-31) */}
+      <h1 className="pt-2 pb-3 text-3xl font-bold text-ink">{TABS.find((t) => t.key === tab)?.label}</h1>
+      {tab === "plan" ? <PlanTab /> : tab === "past" ? <PastTab /> : tab === "leads" ? <LeadsTab /> : <ChecksTab />}
+    </PageShell>
+  );
+}
+
+/** The loading line or the error, until a section's first answer arrives. */
+function Waiting({ error }: { error: string | null }) {
+  return error ? (
+    <p className="rounded-xl bg-sys-red/10 p-4 text-sm text-bad">{error}</p>
+  ) : (
+    <p className="flex items-center gap-2 text-sm text-muted">
+      <Spinner /> Loading…
+    </p>
+  );
+}
+
+function PlanTab() {
+  const feed = usePoll<{ cards: WorkCard[]; updatedAt: string | null }>("work-plan?part=plan", 15000);
+  const fleet = usePoll<BotSummary[]>("bots", 15000);
+  const status = useMemo(() => new Map((fleet.data ?? []).map((b) => [b.slug, summaryStatus(b)])), [fleet.data]);
+  // What each agent is doing now, for the header of a card with no plan in hand: the board's state word,
+  // its last action in words, and whether a stopped one is retired.
+  const board = usePoll<Board>("board", 15000);
+  const nowOf = useMemo(() => {
+    const m = new Map<string, NowLine>();
+    for (const c of board.data?.cards ?? []) m.set(c.slug, { state: c.state.word, last: c.last?.words ?? null, retired: false });
+    for (const st of board.data?.stopped ?? []) m.set(st.slug, { state: null, last: null, retired: st.retired === true });
+    return m;
+  }, [board.data]);
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const markDirty = useCallback((slug: string, on: boolean) => {
+    setDirty((d) => {
+      if (d.has(slug) === on) return d;
+      const next = new Set(d);
+      if (on) next.add(slug);
+      else next.delete(slug);
+      return next;
+    });
+  }, []);
+  useLeaveGuard(dirty.size > 0, "You have unsaved goals or rules. Leave this page and lose them?");
+
+  const cards = useMemo(() => feed.data?.cards ?? [], [feed.data]);
+  const { running, stopped } = useMemo(() => partition(cards), [cards]);
+  const slugs = useMemo(() => cards.map((c) => c.slug).join(" "), [cards]);
+
+  // The open card lives in the address: #<slug> (the world's nameplates link there). The older #past, #leads and
+  // #checks links go to those sections' own pages.
+  const router = useRouter();
+  const [open, setOpen] = useState<string | null>(null);
+  const [showStopped, setShowStopped] = useState(false);
+  useEffect(() => {
+    const read = () => {
+      const h = readHash(window.location.hash, slugs.split(" "));
+      if (h.tab !== "plan") {
+        router.replace(TAB_PATH[h.tab]);
+        return;
+      }
+      if (h.open) {
+        setOpen(h.open);
+        if (stopped.some((c) => c.slug === h.open)) setShowStopped(true);
+      }
+    };
+    const t = setTimeout(read, 0);
+    window.addEventListener("hashchange", read);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("hashchange", read);
+    };
+  }, [slugs, stopped, router]);
+
+  if (!feed.data) return <Waiting error={feed.error} />;
+  return (
+    <div>
+      <p className="mb-2 text-xs text-muted">Each agent reads its goal and rules on its next step. “Can do” flips a card to what the agent can and cannot do.</p>
+      <TargetPanel />
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {running.map((c) => (
+          <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} now={nowOf.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+        ))}
+      </ul>
+      {stopped.length ? (
+        <div className="mt-3">
+          <button type="button" onClick={() => setShowStopped((v) => !v)} className={buttonClass("plain", "sm")} aria-expanded={showStopped}>
+            {showStopped ? "Hide stopped" : `Show stopped (${stopped.length})`}
+          </button>
+          <ul className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" hidden={!showStopped}>
+            {stopped.map((c) => (
+              <CardSlot key={c.slug} card={c} tone={status.get(c.slug)} now={nowOf.get(c.slug)} target={open === c.slug} onDirty={markDirty} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PastTab() {
+  const feed = usePoll<{ past: PastJob[] }>("work-plan?part=past", 30000);
+  return feed.data ? <PastList jobs={feed.data.past ?? []} /> : <Waiting error={feed.error} />;
+}
+
+function LeadsTab() {
+  const feed = usePoll<{ candidates?: CandidateFunnel; results?: LeadResults; tests?: TestRun[] }>("work-plan?part=leads", 30000);
+  if (!feed.data) return <Waiting error={feed.error} />;
+  const d = feed.data;
+  return (
+    <div>
+      {d.results ? <HowWeSend results={d.results} /> : null}
+      {d.results ? <ResultsPanel results={d.results} /> : null}
+      {d.candidates ? <CandidatesPanel funnel={d.candidates} /> : null}
+      {d.tests?.length ? <TestRunsPanel runs={d.tests} /> : null}
+    </div>
+  );
+}
+
+function ChecksTab() {
+  const feed = usePoll<{ refusals?: RefusalStats[]; changes?: Marker[]; ceo?: CeoMeasure; tick?: Tick | null; at?: string }>("work-plan?part=checks", 30000);
+  if (!feed.data) return <Waiting error={feed.error} />;
+  const d = feed.data;
+  return (
+    <div>
+      {d.ceo ? <CeoPanel m={d.ceo} /> : null}
+      <RefusalPanel stats={d.refusals ?? []} changes={d.changes ?? []} at={d.at ?? null} tick={d.tick ?? null} />
+    </div>
+  );
+}
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "plan", label: "Work plan" },
+  { key: "past", label: "Past jobs" },
+  { key: "leads", label: "Leads" },
+  { key: "checks", label: "Checks" },
+];
+
+/** A card in the grid, with its #slug anchor: the address /work-plan#<slug> (the world's nameplates) scrolls to it and
+ *  outlines it. Keyed on the saved values: a change to the file starts the card afresh, while polls that bring the same
+ *  values leave an edit in progress alone. */
+type NowLine = { state: string | null; last: string | null; retired: boolean };
+
+function CardSlot({ card, tone, now, target, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; now?: NowLine; target: boolean; onDirty: (slug: string, on: boolean) => void }) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (target) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [target]);
+  return (
+    <li ref={ref} id={card.slug} className={`min-w-0 scroll-mt-24 rounded-xl ${target ? "ring-2 ring-[#ff6600]" : ""}`}>
+      <AgentCard key={JSON.stringify(card.owner)} card={card} tone={tone} nowLine={now} onDirty={onDirty} />
+    </li>
+  );
+}
+
+/** Past jobs, one line each, newest first, 50 at a time under a heading per day (owner, 2026-10-30): bot,
+ *  task (with "attempt n of m" when the bot planned it more than once), when it ran, how it ended (and why it was
+ *  stuck), active minutes. Tap a line for its steps; an open line stays on its job when newer jobs arrive. */
+function PastList({ jobs }: { jobs: PastJob[] }) {
+  const [shown, setShown] = useState(50);
+  const [open, setOpen] = useState<string | null>(null);
+  if (!jobs.length) return <p className="text-sm text-muted">No finished jobs yet.</p>;
+  const tries = attempts(jobs);
+  const now = new Date();
+  const visible = jobs.slice(0, shown);
+  return (
+    <>
+      <div className="space-y-4">
+        {visible.map((j, i) => {
+          const day = pastDay(j.ended, now);
+          if (i > 0 && pastDay(visible[i - 1].ended, now) === day) return null;
+          const ofDay = visible.filter((x) => pastDay(x.ended, now) === day);
+          return (
+            <section key={day}>
+              <h3 className="mb-1 px-1 text-xs font-semibold text-muted">
+                {day} · {ofDay.length} {ofDay.length === 1 ? "job" : "jobs"}
+              </h3>
+              <ol className="divide-y divide-line rounded-xl bg-panel px-4">
+                {ofDay.map((j2) => {
+                  const k = pastKey(j2);
+                  const l = pastLine(j2);
+                  const why = j2.status === "stuck" && j2.closedReason ? j2.closedReason : "";
+                  return (
+                    <li key={k} className="py-2">
+                      <button type="button" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k} className="flex w-full items-baseline gap-3 text-left text-sm">
+                        <span className={`h-2 w-2 shrink-0 self-center rounded-full ${l.ended === "done" ? "bg-sys-green" : l.ended === "stuck" ? "bg-sys-orange" : "bg-sys-gray"}`} aria-hidden />
+                        <span className="w-24 shrink-0 truncate font-medium text-ink sm:w-32">{l.bot}</span>
+                        <span className="min-w-0 flex-1 truncate text-ink">
+                          {l.task}
+                          {tries.get(k) ? <span className="ml-2 text-xs text-muted">{tries.get(k)}</span> : null}
+                        </span>
+                        <span className="hidden shrink-0 text-xs text-muted tabular-nums md:inline">{l.when.replace(/^\d\d-\d\d /, "")}</span>
+                        <span className="w-16 shrink-0 text-right text-xs text-muted" title={why || undefined}>
+                          {l.ended}
+                        </span>
+                        <span className="hidden w-28 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{l.active}</span>
+                      </button>
+                      {open === k ? (
+                        <div className="mt-1.5 ml-5 space-y-1 text-xs">
+                          <p className="text-muted">
+                            {l.when} · {l.active}
+                            {why ? ` · closed by the engine: ${why}` : j2.status === "stuck" && j2.closedBy === "bot" ? " · the bot gave it up" : ""}
+                          </p>
+                          {j2.note ? <p className="break-words text-muted">{j2.note}</p> : null}
+                          {j2.steps.map((st, s2) => (
+                            <p key={s2} className={`break-words ${st.done ? "text-ink" : "text-muted"}`}>
+                              {st.done ? "✓ " : "○ "}
+                              {st.text}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          );
+        })}
+      </div>
+      {jobs.length > shown ? (
+        <button type="button" onClick={() => setShown((n) => n + 50)} className={`${buttonClass("plain", "sm")} mt-2`}>
+          More ({jobs.length - shown} older)
+        </button>
+      ) : (
+        <p className="mt-2 px-1 text-xs text-muted">All {jobs.length} past jobs shown.</p>
+      )}
+    </>
+  );
+}
+
+type TargetDoc = { market: string; market_short: string; segment: string; trades: string; areas: string };
+const TARGET_FIELDS: { key: keyof TargetDoc; label: string; hint: string }[] = [
+  { key: "market", label: "Market", hint: "e.g. New York" },
+  { key: "market_short", label: "Short name", hint: "e.g. NYC" },
+  { key: "segment", label: "Segment", hint: "e.g. small businesses" },
+  { key: "trades", label: "Trades", hint: "e.g. restaurants, shops, clinics" },
+  { key: "areas", label: "Areas", hint: "e.g. Brooklyn, Manhattan, Queens" },
+];
+
+/** The family's target market, one line each (common-data/knowledge/target.toml): every agent's card follows it on its
+ * next step, and Lead Gen's candidates come from that market's open-data feed when one is set up. */
+function TargetPanel() {
+  const [saved, setSaved] = useState<TargetDoc | null>(null);
+  const [draft, setDraft] = useState<TargetDoc | null>(null);
+  const [feeds, setFeeds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/target", { cache: "no-store" })
+      .then((r) => r.json() as Promise<TargetDoc & { feeds?: string[] }>)
+      .then(({ feeds: f, ...t }) => {
+        if (!live) return;
+        setSaved(t);
+        setDraft(t);
+        setFeeds(f ?? []);
+      })
+      .catch(() => live && setNotice({ ok: false, text: "Could not read the target." }));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const dirty = !!draft && !!saved && TARGET_FIELDS.some((f) => draft[f.key].trim() !== saved[f.key]);
+  useLeaveGuard(dirty, "You have an unsaved target. Leave this page and lose it?");
+  async function save() {
+    if (!draft || !dirty || busy) return;
+    const market = draft.market.trim();
+    const hasFeed = feeds.some((f) => f.toLowerCase() === market.toLowerCase());
+    // Ask before going busy: a Cancel must leave Save and Undo usable.
+    if (
+      !hasFeed &&
+      !window.confirm(
+        `There is no open-data feed for "${market}" yet, so Lead Gen's daily list will come from FreeSerp's index of business websites only ` +
+          `(the Overture places data covers New York City only). Save anyway?`,
+      )
+    )
+      return;
+    setBusy(true);
+    const sent = await sendJson<TargetDoc & { error?: string }>("/api/target", "PUT", draft);
+    if (sent.ok && sent.body) {
+      setSaved(sent.body);
+      setDraft(sent.body);
+      setNotice({ ok: true, text: "Saved. Every agent follows the new target on its next step." });
+    } else setNotice({ ok: false, text: sent.body?.error ?? sent.error ?? "request failed" });
+    setBusy(false);
+  }
+  return (
+    <details id="target" className="group mb-2 scroll-mt-24 rounded-xl bg-panel px-4 py-2.5">
+      <summary className="flex cursor-pointer list-none items-center gap-3 text-sm">
+        <Icon name="chevron-right" className="h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
+        <span className="font-semibold text-ink">Target</span>
+        <span className="min-w-0 flex-1 truncate text-muted">{saved ? [saved.market, saved.segment].filter(Boolean).join(" · ") || "not set" : "…"}</span>
+      </summary>
+      {!draft ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-muted">
+          <Spinner /> Loading…
+        </p>
+      ) : (
+        // Trades and Areas grow to four lines and wrap; the short three stay one line. Under 1100 px the five take two
+        // rows, Market, Short name and Segment over Trades and Areas, so nothing is clipped (owner, 19:45).
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6 min-[68.75rem]:grid-cols-[1fr_0.7fr_1fr_1.6fr_1.6fr]">
+          {TARGET_FIELDS.map((f) => {
+            const long = f.key === "trades" || f.key === "areas";
+            const change = (v: string) => setDraft((d) => (d ? { ...d, [f.key]: v } : d));
+            return (
+              <label key={f.key} className={`block min-w-0 ${long ? "sm:col-span-3" : "sm:col-span-2"} min-[68.75rem]:col-span-1`}>
+                <span className="mb-1 block text-xs font-semibold text-muted">{f.label}</span>
+                {long ? (
+                  <textarea
+                    data-field={f.key}
+                    rows={1}
+                    className={`${input} h-auto max-h-[calc(4lh+1rem)] resize-none overflow-y-auto py-2 leading-snug [field-sizing:content] [scrollbar-width:none]`}
+                    value={draft[f.key]}
+                    maxLength={200}
+                    placeholder={f.hint}
+                    onChange={(e) => change(e.target.value.replace(/\n/g, " "))}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault(); // one line of text that wraps: Enter saves
+                      void save();
+                    }}
+                  />
+                ) : (
+                  <input
+                    className={input}
+                    value={draft[f.key]}
+                    maxLength={200}
+                    placeholder={f.hint}
+                    onChange={(e) => change(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void save()}
+                  />
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {draft ? (
+        <div className="mt-3 space-y-1.5 text-xs text-muted">
+          {/* Whether Lead Gen gets a daily list of real businesses for this market (common-data/knowledge/candidate-feeds.toml). */}
+          {feeds.some((f) => f.toLowerCase() === draft.market.trim().toLowerCase()) ? (
+            <p className="text-good">
+              ✓ Candidates feed: Lead Gen gets a daily list of real {draft.market.trim()} businesses from open data.
+            </p>
+          ) : (
+            <p className="text-sys-orange">
+              No candidates feed for “{draft.market.trim() || "this market"}”: Lead Gen would find businesses by web search only. Feeds exist for:{" "}
+              {feeds.join(", ") || "none"}. A new one is a few lines in common-data/knowledge/candidate-feeds.toml.
+            </p>
+          )}
+          {/* The agents' cards say {market} and friends instead of a place; this is what those words become. */}
+          <p>
+            In the agents&apos; cards: <code className="font-mono">{"{market}"}</code> = {draft.market || "–"} ·{" "}
+            <code className="font-mono">{"{market_short}"}</code> = {draft.market_short || "–"} · <code className="font-mono">{"{segment}"}</code> ={" "}
+            {draft.segment || "–"} · <code className="font-mono">{"{trades}"}</code> and <code className="font-mono">{"{areas}"}</code> = the lines above.
+          </p>
+        </div>
+      ) : null}
+      <div className="mt-3 flex min-h-9 items-center justify-end gap-3">
+        {notice ? <span className={`min-w-0 flex-1 text-xs ${notice.ok ? "text-muted" : "text-bad"}`}>{notice.text}</span> : null}
+        {dirty ? (
+          <>
+            <button type="button" onClick={() => setDraft(saved)} className={buttonClass("plain", "sm")} disabled={busy}>
+              Undo
+            </button>
+            <button type="button" onClick={() => void save()} className={buttonClass("prominent", "sm")} disabled={busy}>
+              {busy ? <Spinner small /> : null}
+              Save
+            </button>
+          </>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function CeoStat({ label, value, prev, hint }: { label: string; value: number; prev: number; hint: string }) {
+  return (
+    <div className="rounded-lg bg-grouped-3 px-3 py-2.5">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="mt-0.5 text-2xl font-bold text-ink tabular-nums">
+        {value}
+        <span className={`ml-2 text-xs font-semibold ${value > prev ? "text-good" : value < prev ? "text-bad" : "text-muted"}`}>
+          {value > prev ? `▲ ${value - prev}` : value < prev ? `▼ ${prev - value}` : "="} vs last week
+        </span>
+      </p>
+      <p className="text-[11px] text-muted">{hint}</p>
+    </div>
+  );
+}
+
+/** The CEO's two weekly numbers (owner, 2026-10-06): tasks the team finished, leads that answered. Tasks created
+ * is deliberately not shown: it is activity, not result. This week large, the three before as small bars. */
+function CeoPanel({ m }: { m: CeoMeasure }) {
+  if (!m.ok)
+    return (
+      <section className="mb-5 rounded-xl border border-dashed border-line px-4 py-3">
+        <h2 className="text-lg font-semibold text-ink">The CEO this week</h2>
+        <p className="mt-1 text-sm text-muted">{/^source not connected/.test(m.reason) ? m.reason : `source not connected: ${m.reason}`}</p>
+      </section>
+    );
+  const [now, ...before] = m.weeks;
+  const max = Math.max(1, ...m.weeks.flatMap((w) => [w.tasksDone, w.leadsAnswered]));
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">The CEO this week</h2>
+        <span className="text-xs text-muted">How the CEO is measured · last 7 days</span>
+      </header>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_minmax(0,1.2fr)]">
+        <CeoStat label="Tasks the team finished" value={now.tasksDone} prev={before[0]?.tasksDone ?? 0} hint={`Moved to Done by a person on ${m.tasksSource ?? "the task board"} · ${m.openTasks} still open`} />
+        <CeoStat label="Leads that answered" value={now.leadsAnswered} prev={before[0]?.leadsAnswered ?? 0} hint="Result reached Replied, Meeting or Client" />
+        <div className="flex items-end gap-3 px-1" aria-label="Last four weeks">
+          {[...m.weeks].reverse().map((w) => (
+            <div key={w.from} className="flex flex-1 flex-col items-center gap-1">
+              <div className="flex h-14 items-end gap-0.5">
+                <span className="w-3 rounded-sm bg-sys-blue/70" style={{ height: `${Math.max(2, (w.tasksDone / max) * 56)}px` }} title={`${w.tasksDone} tasks done`} />
+                <span className="w-3 rounded-sm bg-sys-green" style={{ height: `${Math.max(2, (w.leadsAnswered / max) * 56)}px` }} title={`${w.leadsAnswered} leads answered`} />
+              </div>
+              <span className="text-[10px] text-muted tabular-nums">{w.from.slice(5)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const FIELD_LABEL: Record<string, string> = { email: "Email", location: "Location", industry: "Industry", company_size: "Company size" };
+
+/** Lead Gen's test runs on the saved sites: decisions right out of the sites per run (newest first, the engine version
+ * beside it), the trap result, and for the latest full run how each field scored. Run before a change goes live. */
+function TestRunsPanel({ runs }: { runs: TestRun[] }) {
+  const latest = runs.find((r) => r.full) ?? runs[0];
+  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Lead Gen test runs</h2>
+        <span className="text-xs text-muted">20 saved business sites with known answers · run before a change goes live</span>
+      </header>
+      <ul className="mt-2 divide-y divide-line">
+        {runs.slice(0, 6).map((r) => {
+          const right = r.decision.right ?? 0;
+          const p = pct(right, r.sites);
+          return (
+            <li key={r.file} className="grid grid-cols-1 gap-1 py-2 text-sm sm:grid-cols-[9rem_6rem_minmax(0,1fr)_9rem] sm:items-center">
+              <span className="text-muted tabular-nums">
+                {r.at.slice(5, 16).replace("T", " ")} <span className="font-mono text-[11px]">{r.commit}</span>
+              </span>
+              <span className={`font-semibold tabular-nums ${p >= 80 ? "text-good" : p >= 50 ? "text-sys-orange" : "text-bad"}`}>
+                {right}/{r.sites} right
+              </span>
+              <span className="text-xs text-muted">
+                {r.decision.missed_lead ? `${r.decision.missed_lead} missed leads` : ""}
+                {r.decision.false_lead ? ` · ${r.decision.false_lead} false leads` : ""}
+                {r.decision.no_answer ? ` · ${r.decision.no_answer} no answer` : ""}
+                {!r.full ? " · partial rerun" : ""}
+                {r.provisional ? " · provisional (answers not yet checked)" : ""}
+                {r.rule === "strict" ? " · strict rule (email + visible problem + target)" : r.rule === "lenient" ? " · lenient rule (email only)" : r.rule === "mixed" ? " · mixed rules (some sites strict, some email only)" : " · rule not recorded"}
+              </span>
+              <span className={`text-xs ${r.traps.total ? (r.traps.passed === r.traps.total ? "text-good" : "font-semibold text-bad") : "text-muted"}`}>
+                {r.traps.total ? `trap ${r.traps.passed === r.traps.total ? "passed" : "FAILED"} (${r.traps.passed}/${r.traps.total})` : "no trap"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {latest ? (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 sm:grid-cols-4">
+          {Object.entries(latest.fields).map(([field, s]) => {
+            const total = Object.values(s).reduce((a, b) => a + b, 0) - (s.not_a_lead ?? 0);
+            return (
+              <div key={field}>
+                <p className="text-xs text-muted">{FIELD_LABEL[field] ?? field}</p>
+                {/* Right first: a run of honest blanks is safe but has found nothing yet. */}
+                <p className="text-sm text-ink tabular-nums">
+                  {total ? `${s.right ?? 0} of ${total} right` : "no lead to score"}
+                  {total && (s.wrong ?? 0) + (s.invented ?? 0) ? <span className="text-bad"> · {(s.wrong ?? 0) + (s.invented ?? 0)} wrong</span> : null}
+                </p>
+                <p className="text-[11px] text-muted">
+                  {[s.right && `${s.right} right`, s.honest_blank && `${s.honest_blank} blank`, s.wrong && `${s.wrong} wrong`, s.invented && `${s.invented} invented`, s.missed && `${s.missed} missed`]
+                    .filter(Boolean)
+                    .join(" · ") || "–"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** The team's sending routine, read once here instead of a board task that never closes (2026-10-10). The bots draft;
+ * people send from the business mailbox. */
+
+function HowWeSend({ results }: { results: LeadResults }) {
+  const team = results.sending.team;
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">How we send{team.length ? ` (${team.join(", ")})` : ""}</h2>
+        {results.ready ? (
+          <span className="text-xs text-muted tabular-nums">
+            <span className="font-semibold text-ink">{results.sending.sent}</span> marked Email Sent ·{" "}
+            <span className="font-semibold text-ink">{results.sending.repliesWeek}</span> answers in the last 7 days
+          </span>
+        ) : null}
+      </header>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink/90">
+        <li>On the Leads board, filter to rows with a Draft email and an empty Status (WhatsApp statuses count as empty).</li>
+        <li>Read the draft against the business&apos;s own site and fix anything wrong. A draft starting &quot;skip:&quot; needs nothing.</li>
+        <li>Send it from your team&apos;s mailbox to the row&apos;s Business email, as written (the first line is the subject if it starts &quot;Subject:&quot;).</li>
+        <li>Set Status to &quot;Email Sent&quot;.</li>
+        <li>
+          When they answer, set Result (Replied, Meeting, Client, Not interested, Bounced) and Result date. This is the only way the
+          family learns what works.
+        </li>
+      </ol>
+      <p className="mt-2 text-xs text-muted">
+        The CEO&apos;s daily task names that day&apos;s drafted businesses with links; finishing it is what counts.
+      </p>
+    </section>
+  );
+}
+
+const STAGES_SHOWN: { key: keyof Pipeline; label: string; who: string }[] = [
+  { key: "leads", label: "On the board", who: "Lead Gen" },
+  { key: "drafted", label: "Drafted", who: "Outreach Writer" },
+  { key: "sent", label: "Sent", who: "the team" },
+  { key: "replied", label: "Answered", who: "the business" },
+  { key: "meeting", label: "Meeting", who: "the team" },
+  { key: "client", label: "Client", who: "the team" },
+];
+
+/** How far the leads got, and where they pile up (owner, 2026-10-10: "how could this be better?"). A pipeline from the
+ * board to a client, the first stage that stalls marked; then the same steps per source and per industry, so the
+ * source whose leads answer shows itself. Sent and later come from the team's Status and Result; bots never set them. */
+function ResultsPanel({ results }: { results: LeadResults }) {
+  const p = results.pipeline;
+  // The stall: the first stage that has nothing while the one before it has work waiting.
+  const stall = STAGES_SHOWN.findIndex((s, i) => i > 0 && p[s.key] === 0 && p[STAGES_SHOWN[i - 1].key] > 0);
+  // Before the first email goes out, the later columns are all zero: leave them out rather than show empty bars.
+  const cols = STAGES_SHOWN.filter((s) => s.key === "leads" || s.key === "drafted" || p.sent > 0 || s.key === "sent");
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Lead results</h2>
+        <span className="text-xs text-muted">The team sets Status and Result on the Leads board; the bots never touch them.</span>
+      </header>
+      {!results.ready ? (
+        <p className="mt-2 text-sm text-muted">{results.reason}</p>
+      ) : (
+        <>
+          <ol className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {STAGES_SHOWN.map((s, i) => (
+              <li key={s.key} className={`rounded-lg px-3 py-2 ${i === stall ? "bg-sys-orange/15 ring-1 ring-sys-orange/50" : "bg-fill-3"}`}>
+                <p className="text-[11px] text-muted">{s.label}</p>
+                <p className={`text-2xl font-semibold tabular-nums ${i === stall ? "text-sys-orange" : "text-ink"}`}>{p[s.key].toLocaleString()}</p>
+                <p className={`text-[11px] ${i === stall ? "font-semibold text-sys-orange" : "text-muted"}`}>{i === stall ? `waiting on ${s.who}` : s.who}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+            {results.drafts ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                drafts: {results.drafts.skipped} skipped · {results.drafts.waiting} still to draft
+              </span>
+            ) : null}
+            {results.whatsappDrafts !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">WhatsApp drafts: {results.whatsappDrafts}</span>
+            ) : null}
+            {results.mapLinks !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                map links: {results.mapLinks} of {results.total}
+              </span>
+            ) : null}
+            {results.noted?.waiting ? (
+              <span className="rounded-full bg-sys-orange/15 px-2 py-0.5 text-sys-orange tabular-nums" title={results.noted.titles.join("\n")}>
+                {results.noted.waiting} noted by Lead Gen, not yet listed
+              </span>
+            ) : null}
+            {results.whatsapp !== null ? (
+              <span className="rounded-full bg-fill-3 px-2 py-0.5 text-muted tabular-nums">
+                WhatsApp: {results.whatsapp} links · checked by hand {results.whatsappVerified} real, {results.whatsappFalse} false
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <GroupTable title="By where the lead came from" groups={results.bySource} cols={cols} />
+            <GroupTable title="By industry" groups={results.byIndustry} cols={cols} />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function GroupTable({ title, groups, cols }: { title: string; groups: ResultGroup[]; cols: typeof STAGES_SHOWN }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-1 text-xs font-semibold text-muted">{title}</h3>
+      <div className="overflow-x-auto">
+        <SortableTable className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="text-[11px] text-muted">
+              <th className="py-1 pr-2 text-left font-normal">Source</th>
+              {cols.map((c) => (
+                <th key={c.key} className="px-1.5 py-1 text-right font-normal whitespace-nowrap">
+                  {c.key === "leads" ? "Leads" : c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {groups.map((g) => (
+              <tr key={g.label}>
+                <td className="py-1.5 pr-2 text-ink">{g.label}</td>
+                {cols.map((c) => (
+                  <td key={c.key} className={`px-1.5 py-1.5 text-right ${g[c.key] ? "text-ink" : "text-muted/60"}`}>
+                    {g[c.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </SortableTable>
+      </div>
+    </div>
+  );
+}
+
+/** Lead Gen's daily candidate lists, per source: offered, visited, turned into leads (owner, 2026-10-05: which source
+ * pays off). A bar per step, as a share of what that source offered. */
+/** Where Lead Gen's leads come from (owner, 2026-10-31: "I do not understand this"): one sentence first, then one bar
+ *  per daily-list source on one shared scale (the businesses each offered), visited inside it and the leads darkest
+ *  inside that, and the yield in words, "1 lead in 10 offered". A small source draws a small bar. */
+function CandidatesPanel({ funnel }: { funnel: CandidateFunnel }) {
+  if (!funnel.sources.length) return null;
+  const fromLists = funnel.sources.reduce((a, s) => a + s.leads, 0);
+  const total = fromLists + (funnel.own ?? 0);
+  const max = Math.max(...funnel.sources.map((s) => s.candidates), 1);
+  const w = (n: number) => `${(n / max) * 100}%`;
+  const yieldOf = (s: (typeof funnel.sources)[number]) =>
+    s.leads ? `1 lead in ${Math.max(1, Math.round(s.candidates / s.leads))} offered` : s.visited ? "no leads yet" : "none visited yet";
+  const KEY = [
+    { label: "Offered", tone: "bg-fill-2" },
+    { label: "Visited", tone: "bg-sys-blue/45" },
+    { label: "Became a lead", tone: "bg-sys-blue" },
+  ];
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-4">
+      <h2 className="text-lg font-semibold text-ink">Where Lead Gen&apos;s leads come from</h2>
+      <p className="mt-1 text-sm text-ink">
+        <span className="font-semibold tabular-nums">{total}</span> new lead{total === 1 ? "" : "s"} in the last {funnel.files} day{funnel.files === 1 ? "" : "s"}:{" "}
+        <span className="tabular-nums">{fromLists}</span> from the daily lists of businesses below, <span className="tabular-nums">{funnel.own ?? 0}</span> found by Lead Gen
+        on its own.
+      </p>
+      {funnel.batches?.length ? <p className="mt-0.5 text-xs text-muted">Latest lists: {funnel.batches.join(" · ")}</p> : null}
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Key">
+        {KEY.map((k) => (
+          <li key={k.label} className="flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-sm ${k.tone}`} aria-hidden />
+            {k.label}
+          </li>
+        ))}
+      </ul>
+      <ul className="mt-3 space-y-3.5">
+        {funnel.sources.map((s) => {
+          const words = `${s.candidates.toLocaleString()} offered, ${s.visited.toLocaleString()} visited, ${s.leads.toLocaleString()} became lead${s.leads === 1 ? "" : "s"}`;
+          return (
+            <li key={s.source}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="text-sm font-medium text-ink">{s.source}</span>
+                <span className="text-sm text-ink tabular-nums">{yieldOf(s)}</span>
+              </div>
+              {/* offered, visited and leads nested from the left, all on the scale of the largest list */}
+              <div className="relative mt-1.5 h-3" role="img" aria-label={`${s.source}: ${words}`} title={words}>
+                <div className="absolute inset-y-0 left-0 rounded-[4px] bg-fill-2" style={{ width: w(s.candidates) }} />
+                {s.visited ? <div className="absolute inset-y-0 left-0 rounded-[4px] bg-sys-blue/45" style={{ width: w(s.visited) }} /> : null}
+                {s.leads ? <div className="absolute inset-y-0 left-0 min-w-[3px] rounded-[4px] bg-sys-blue" style={{ width: w(s.leads) }} /> : null}
+              </div>
+              <p className="mt-1 text-xs text-muted tabular-nums">
+                {s.candidates.toLocaleString()} offered · {s.visited.toLocaleString()} visited · {s.leads.toLocaleString()} became lead{s.leads === 1 ? "" : "s"}
+                {!s.visited && /no website/i.test(s.source) ? " · no website to open, so Lead Gen only lists them from a listing page" : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 text-xs text-muted">
+        A business counts once, under the list that offered it first; a lead counts when Lead Gen lists it (by its site or its name). FreeSerp joins from the
+        next daily list.
+      </p>
+    </section>
+  );
+}
+
+// the clean-up's target (engine session, 2026-10-03) and the rate, from lib/checks.ts
+const pctOf = (d: RefusalDay) => rateOf(d);
+const BRAND = "#ff6600";
+
+/** Refused / all actions per agent: today and seven days against the 20 % target; one 100 % bar per
+ * day stacked by kind (refused red at the bottom, failed outlined, held grey, closed hatched, fence light, accepted
+ * green); a day under 30 actions dimmed and hatched with its count; an empty outline for a day without actions; the
+ * top reasons in plain words, a tap opening their last three cases; a source that cannot be read or is stale says so. */
+const LOW_DAY = 30;
+const BAR_H = 40;
+const HATCH = "repeating-linear-gradient(135deg, rgb(0 0 0 / 0.18) 0 2px, transparent 2px 5px)";
+const SEGMENTS: { kind: Exclude<Kind, "allowed">; label: string; cls: string; style?: React.CSSProperties }[] = [
+  { kind: "refused", label: "refused", cls: "bg-sys-red" },
+  { kind: "failed", label: "failed", cls: "border border-sys-red bg-transparent" },
+  { kind: "held", label: "held", cls: "bg-sys-gray" },
+  { kind: "closed", label: "site closed", cls: "bg-fill-2", style: { backgroundImage: HATCH } },
+  { kind: "fence", label: "fence", cls: "bg-fill-2" },
+];
+const totalOf = (d: RefusalDay) => d.allowed + d.refused + d.fence + d.held + d.failed + d.closed;
+const stamp = (iso: string) => `${iso.slice(5, 10)} ${iso.slice(11, 16)}`;
+
+const WEEKDAY = ["S", "M", "T", "W", "T", "F", "S"];
+
+function DayBar({ d, marks, today }: { d: RefusalDay; marks: Marker[]; today: boolean }) {
+  const total = totalOf(d);
+  const p = pctOf(d);
+  const low = total > 0 && total < LOW_DAY;
+  const label = `${d.day}: ${total ? `${p ?? 0}% refused (${d.refused} of ${d.allowed + d.refused}); failed ${d.failed}, held ${d.held}, site closed ${d.closed}, fence ${d.fence}, accepted ${d.allowed}` : "no actions"}`;
+  return (
+    <span className="relative flex w-5 flex-col items-center" title={label}>
+      {total ? (
+        <span className={`flex w-5 flex-col-reverse overflow-hidden rounded-sm ${low ? "opacity-45" : ""}`} style={{ height: BAR_H, ...(low ? { backgroundImage: HATCH } : {}) }} aria-label={label}>
+          {SEGMENTS.map((seg) =>
+            d[seg.kind] ? <span key={seg.kind} className={`w-full shrink-0 ${seg.cls}`} style={{ height: `${(d[seg.kind] / total) * 100}%`, ...seg.style }} /> : null,
+          )}
+          {d.allowed ? <span className="w-full shrink-0 bg-sys-green/70" style={{ height: `${(d.allowed / total) * 100}%` }} /> : null}
+        </span>
+      ) : (
+        <span className="w-5 rounded-sm border border-dashed border-line" style={{ height: BAR_H }} aria-label={label} />
+      )}
+      <span className={`mt-0.5 text-[9px] leading-none tabular-nums ${low ? "text-muted" : "text-transparent"}`} aria-hidden={!low}>
+        {low ? `${d.refused}/${total}` : "·"}
+      </span>
+      {/* B4: the weekday's initial, today's marked */}
+      <span className={`mt-0.5 text-[10px] leading-none ${today ? "rounded-sm px-0.5 font-bold text-ink ring-1" : "text-muted"}`} style={today ? { ["--tw-ring-color" as string]: BRAND } : undefined} title={today ? `${d.day} (today)` : d.day}>
+        {WEEKDAY[new Date(`${d.day}T12:00:00`).getDay()]}
+      </span>
+      {marks.length ? (
+        <span
+          className="mt-0.5 h-1.5 w-1.5 rounded-full bg-sys-blue"
+          title={marks.map((c) => `${stamp(c.at)} · ${c.what}`).join("\n")}
+          aria-label={`${marks.length} change${marks.length === 1 ? "" : "s"} on ${d.day}`}
+        />
+      ) : (
+        <span className="mt-0.5 h-1.5" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+function Reasons({ reasons }: { reasons: RefusalReason[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (!reasons.length) return <span className="text-xs text-muted">nothing refused this week</span>;
+  return (
+    <ul className="min-w-0 space-y-0.5 text-xs">
+      {reasons.map((r) => (
+        <li key={r.reason}>
+          <button type="button" onClick={() => setOpen(open === r.reason ? null : r.reason)} aria-expanded={open === r.reason} className="min-h-6 text-left text-ink hover:underline">
+            {r.reason} <span className="text-muted tabular-nums">({r.n}{r.kind === "refused" ? "" : `, ${r.kind}`})</span>
+          </button>
+          {open === r.reason ? (
+            <ul className="mt-0.5 mb-1 space-y-0.5 border-l-2 border-line pl-2 text-muted">
+              {r.cases.length ? (
+                r.cases.map((c, i) => (
+                  <li key={i} className="break-words">
+                    <span className="tabular-nums">{stamp(c.ts)}</span>
+                    {c.business ? <span className="text-ink/85"> · {c.business}</span> : null} · {c.tried}
+                  </li>
+                ))
+              ) : (
+                <li>No case kept for this reason.</li>
+              )}
+            </ul>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** "source not connected" or "last updated …" when a bot's table cannot be read or has nothing for two hours. */
+function Freshness({ b }: { b: RefusalStats }) {
+  const now = useNow(60_000);
+  if (b.error) return <span className="block text-[11px] font-semibold text-bad">source not connected: {b.error}</span>;
+  if (!b.lastAt || !now) return null;
+  const age = now - new Date(b.lastAt).getTime();
+  return age > 2 * 3600e3 ? <span className="block text-[11px] text-muted">last updated {stamp(b.lastAt)}</span> : null;
+}
+
+/** One agent's row (B6: a tap opens the week's numbers per day and the changes, nothing hover-only; B9: its links). */
+function RefusalRow({ b, changesFor, restart, today }: { b: RefusalStats; changesFor: (slug: string, day: string) => Marker[]; restart: Marker | null; today: string }) {
+  const [open, setOpen] = useState(false);
+  const t = pctOf(b.today);
+  const wk = pctOf(b.week);
+  const delta = deltaOf(b.week, b.prevWeek);
+  const mark = (p: number | null) =>
+    p === null ? <span className="text-muted">–</span> : p <= REFUSAL_TARGET ? <span className="text-good">✓ {p}%</span> : <span className="text-bad">✕ {p}%</span>;
+  const apart = (["fence", "held", "failed", "closed"] as const).filter((k) => b.week[k]).map((k) => `${k === "closed" ? "site closed" : k} ${b.week[k]}`);
+  return (
+    <li className="py-2.5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_8rem_12rem_minmax(0,1fr)] sm:items-start">
+        <span className="min-w-0">
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-6 items-center gap-1 text-left font-medium text-ink hover:underline">
+            <span aria-hidden className={`inline-block text-xs text-muted transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+            {b.name}
+          </button>
+          <Freshness b={b} />
+        </span>
+        <span className="text-sm tabular-nums">
+          <span className="font-semibold">{mark(t)}</span> <span className="text-xs text-muted">today</span>
+          <span className="block text-xs">
+            {mark(wk)} <span className="text-muted">7 days</span>
+            {delta ? (
+              <span className={`ml-1 ${delta.arrow === "↑" ? "text-bad" : delta.arrow === "↓" ? "text-good" : "text-muted"}`} title="against the seven days before">
+                {delta.arrow === "=" ? "= last week" : `${delta.arrow} ${delta.points}`}
+              </span>
+            ) : null}
+          </span>
+          {apart.length ? <span className="block text-[11px] text-muted">{apart.join(" · ")} in 7 days</span> : null}
+        </span>
+        {/* one 100 % bar per day, oldest first; the orange line is the target, measured from the bottom */}
+        <span className="relative flex items-start gap-1.5">
+          <span className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed" style={{ top: BAR_H - Math.round((REFUSAL_TARGET / 100) * BAR_H), borderColor: BRAND }} aria-hidden />
+          {b.days.map((d) => (
+            <DayBar key={d.day} d={d} marks={changesFor(b.slug, d.day)} today={d.day === today} />
+          ))}
+        </span>
+        <Reasons reasons={b.reasons} />
+      </div>
+      {open ? (
+        <div className="mt-2 rounded-lg bg-grouped-3 px-3 py-2 text-xs">
+          <SortableTable className="w-full tabular-nums">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="py-0.5 font-normal">Day</th>
+                {["refused", "failed", "held", "site closed", "fence", "accepted", "rate"].map((h) => (
+                  <th key={h} className="py-0.5 text-right font-normal">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {b.days.map((d) => (
+                <tr key={d.day} className={d.day === today ? "font-semibold" : ""}>
+                  <td className="py-0.5">{d.day.slice(5)}{d.day === today ? " (today)" : ""}</td>
+                  {[d.refused, d.failed, d.held, d.closed, d.fence, d.allowed].map((n, i) => (
+                    <td key={i} className="py-0.5 text-right">
+                      {n}
+                    </td>
+                  ))}
+                  <td className="py-0.5 text-right">{pctOf(d) === null ? "–" : `${pctOf(d)}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </SortableTable>
+          {b.days.some((d) => changesFor(b.slug, d.day).length) ? (
+            <ul className="mt-2 space-y-0.5 text-muted">
+              {[...b.days].reverse().flatMap((d) => changesFor(b.slug, d.day)).slice(0, 12).map((c, i) => (
+                <li key={i} className="break-words">
+                  <span className="tabular-nums">{stamp(c.at)}</span> · {c.what} <span className="opacity-70">· {c.kind === "note" ? c.by : c.kind}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <a href={`/work-plan#${b.slug}`} className="font-semibold text-ink underline">
+              Work plan card
+            </a>
+            <a href="/settings/reports#refusals" className="font-semibold text-ink underline">
+              Refusal report
+            </a>
+            <span className="text-muted">{restart ? `Last restart ${stamp(restart.at)}` : "No restart in the tick report"}</span>
+          </p>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function RefusalPanel({ stats, changes, at, tick }: { stats: RefusalStats[]; changes: Marker[]; at: string | null; tick: Tick | null }) {
+  if (!stats.length) return null;
+  // Changes that touch a bot (or every bot), by day: marked under that day's bar so a jump has a visible cause.
+  const changesFor = (slug: string, day: string) => changes.filter((c) => c.at.startsWith(day) && (c.bots.includes("*") || c.bots.includes(slug)));
+  const week = new Set(stats[0]?.days.map((d) => d.day) ?? []);
+  const today = stats[0]?.today.day ?? "";
+  const recent = changes.filter((c) => week.has(c.at.slice(0, 10)));
+  const rows = [...stats].sort((a, b) => (pctOf(b.week) ?? -1) - (pctOf(a.week) ?? -1));
+  const verdict = verdictOf(stats);
+  const restartOf = (slug: string) => changes.find((c) => c.kind === "restart" && c.bots.includes(slug)) ?? null;
+  return (
+    <section className="mb-5 rounded-xl bg-panel px-4 pt-3.5 pb-3">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Refusal rate</h2>
+        <span className="text-xs text-muted">
+          {at ? `As of ${stamp(localIso(new Date(at).getTime()))} · ` : ""}refused / (accepted + refused) · target under {REFUSAL_TARGET}% · fence, held, failed and closed sites counted apart
+        </span>
+      </header>
+      {/* B1 and B10: the one line, with the worst agent above target called out */}
+      <p className="mt-1 text-sm text-ink">
+        {verdict.text}
+        {verdict.worst ? (
+          <span className="ml-1 font-semibold" style={{ color: BRAND }}>
+            ✕ Furthest over: {verdict.worst.name}, {verdict.worst.rate}%.
+          </span>
+        ) : null}
+      </p>
+      {tick ? <TickLine tick={tick} className="mt-1" /> : null}
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted" aria-label="Legend">
+        {SEGMENTS.map((seg) => (
+          <span key={seg.kind} className="flex items-center gap-1">
+            <span className={`inline-block h-2.5 w-2.5 rounded-sm ${seg.cls}`} style={seg.style} aria-hidden />
+            {seg.label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sys-green/70" aria-hidden />
+          accepted
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: BRAND }} aria-hidden />
+          target
+        </span>
+        <span>· dimmed, with refused/all: under {LOW_DAY} actions that day · dashed outline: no actions · tap a name for its days</span>
+      </p>
+      <ul className="mt-2 divide-y divide-line">
+        {rows.map((b) => (
+          <RefusalRow key={b.slug} b={b} changesFor={changesFor} restart={restartOf(b.slug)} today={today} />
+        ))}
+      </ul>
+      {recent.length ? (
+        <div className="mt-3 border-t border-line pt-2.5">
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-sys-blue" aria-hidden /> Changes this week (the dots under the bars): engine commits, restarts and notes
+          </p>
+          <ul className="space-y-0.5 text-xs text-muted">
+            {recent.slice(0, 10).map((c, i) => (
+              <li key={i} className="break-words">
+                <span className="tabular-nums">{stamp(c.at)}</span> · <span className="text-ink/85">{c.what}</span>
+                {c.bots.includes("*") ? "" : ` (${c.bots.join(", ")})`} <span className="opacity-70">· {c.kind === "note" ? c.by : c.kind}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AgentCard({ card, tone, nowLine, onDirty }: { card: WorkCard; tone?: ReturnType<typeof summaryStatus>; nowLine?: NowLine; onDirty: (slug: string, on: boolean) => void }) {
+  const [saved, setSaved] = useState<OwnerPlan>(card.owner);
+  const [draft, setDraft] = useState<OwnerPlan>(card.owner);
+  const [fresh, setFresh] = useState(0);
+  const [back, setBack] = useState(false); // the back of the card: what this agent can and cannot do // a counter for new rules' temporary ids; the server assigns r1, r2, ...
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const now = useNow(60000);
+  const dirty = !same(tidy(draft), saved);
+
+  useEffect(() => onDirty(card.slug, dirty), [card.slug, dirty, onDirty]);
+
+  async function save() {
+    if (!dirty || saving) return;
+    setSaving(true);
+    setNotice(null);
+    const sent = await sendJson<{ owner?: OwnerPlan; error?: string }>("/api/work-plan", "PUT", { bot: card.slug, ...tidy(draft) });
+    if (sent.ok && sent.body?.owner) {
+      setSaved(sent.body.owner);
+      setDraft(sent.body.owner);
+      setNotice({ ok: true, text: "Saved. The agent reads it on its next step." });
+    } else {
+      setNotice({ ok: false, text: sent.body?.error ?? sent.error ?? "request failed" });
+    }
+    setSaving(false);
+  }
+
+  const plan = card.plan;
+  const doneSteps = plan ? plan.steps.filter((s) => s.done).length : 0;
+
+  return (
+    <article className="flex h-full flex-col rounded-xl bg-panel p-4">
+      <header className="flex items-center gap-3">
+        <span className="relative shrink-0">
+          <Avatar bot={card} size="sm" />
+          <span className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg ${tone ? TONE_DOT[tone.tone] : "bg-sys-gray"}`} role="img" aria-label={tone?.label ?? "unknown"} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base font-semibold text-ink">{card.name}</span>
+          <span className="block truncate text-xs text-muted">
+            {card.score.outputs} output{card.score.outputs === 1 ? "" : "s"} today · {card.score.refused} refused
+            {card.score.tokens !== null ? ` · ${compact(card.score.tokens)} tokens` : ""}
+            {card.flags.errors + card.flags.warns ? ` · ${card.flags.errors + card.flags.warns} Validator flag${card.flags.errors + card.flags.warns === 1 ? "" : "s"}` : ""}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setBack((b) => !b)}
+          aria-pressed={back}
+          title={back ? "Back to the work plan" : "What this agent can and cannot do"}
+          className={`${buttonClass(back ? "tinted" : "plain", "sm")} shrink-0`}
+        >
+          <Icon name={back ? "check" : "info"} className="h-3.5 w-3.5" />
+          {back ? "Plan" : "Can do"}
+        </button>
+      </header>
+
+      {back ? (
+        <CapabilityList caps={card.capabilities} />
+      ) : (
+      <>
+
+      {/* The engine's checklist for the job in hand (workspace/plan.json). */}
+      <section className="mt-4">
+        <h3 className="mb-1.5 flex items-baseline justify-between gap-2 text-xs font-semibold text-muted">
+          <span>Checklist</span>
+          {plan && plan.status === "active" ? (
+            <span className="font-normal">
+              {doneSteps}/{plan.steps.length} · {plan.status}
+              {plan.updated ? ` · ${ago(plan.updated, now)}` : ""}
+            </span>
+          ) : null}
+        </h3>
+        {!plan || plan.status !== "active" ? (
+          // No plan in hand (owner, 18:50: "Enricher, Analyst and Scout show no checklist"): what the agent
+          // is doing now, from the board, and its last ended plan greyed under it. Never an empty box.
+          <>
+            <p className="text-sm break-words text-muted">
+              {noPlanHeader({ stoppedSince: card.stopped ? (card.stoppedSince ?? "?") : null, retired: nowLine?.retired, state: nowLine?.state, last: nowLine?.last })}
+            </p>
+            {card.lastPlan ? (
+              <div className="mt-2 rounded-lg bg-fill-3 px-3 py-2 opacity-70">
+                <p className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
+                  <span className="min-w-0 break-words text-ink">Last plan: {card.lastPlan.task || "(untitled job)"}</span>
+                  <span className="shrink-0 text-xs text-muted">{endedLine(card.lastPlan, localIso(now).slice(0, 10))}</span>
+                </p>
+                {card.lastPlan.note ? <p className="mt-0.5 text-xs break-words text-muted">{card.lastPlan.note}</p> : null}
+                {card.lastPlan.steps.length ? (
+                  <ul className="mt-1.5 space-y-1">
+                    {card.lastPlan.steps.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted">
+                        <span
+                          className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ${s.done ? "bg-sys-gray text-white" : "ring-1 ring-line"}`}
+                          role="img"
+                          aria-label={s.done ? "done" : "not done"}
+                        >
+                          {s.done ? <Icon name="check" className="h-2.5 w-2.5" /> : null}
+                        </span>
+                        <span className={`min-w-0 flex-1 break-words ${s.done ? "line-through" : ""}`}>{s.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted">No plan has ended yet.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium break-words text-ink">{plan.task || "(untitled job)"}</p>
+            {plan.doneWhen ? <p className="mt-0.5 text-xs break-words text-muted">Done when: {plan.doneWhen}</p> : null}
+            {/* Progress, not estimate against actual (owner, 2026-10-15): steps ticked, how soon the first one was in
+                active minutes (the engine's measure, pauses left out), and how many actions it has taken. */}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+              <span>
+                {plan.steps.filter((s) => s.done).length} of {plan.steps.length} steps
+              </span>
+              {plan.measured ? <span>· {plan.firstStepMin === null ? "no step yet" : `first step after ${dur(plan.firstStepMin)} active`}</span> : null}
+              <span>
+                · {plan.actionsEngine ?? plan.actions} action{(plan.actionsEngine ?? plan.actions) === 1 ? "" : "s"}
+              </span>
+              {plan.started ? <span>· started {ago(plan.started, now)}</span> : null}
+            </p>
+            {plan.note ? (
+              <p className="mt-1 rounded-md bg-fill-3 px-2 py-1 text-xs break-words text-muted">{plan.note}</p>
+            ) : null}
+            <ul className="mt-2 space-y-1">
+              {plan.steps.map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <span
+                    className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ${s.done ? "bg-sys-green text-white" : "ring-1 ring-line"}`}
+                    role="img"
+                    aria-label={s.done ? "done" : "to do"}
+                  >
+                    {s.done ? <Icon name="check" className="h-2.5 w-2.5" /> : null}
+                  </span>
+                  <span className={`min-w-0 flex-1 break-words ${s.done ? "text-muted line-through" : "text-ink"}`}>{s.text}</span>
+                  {s.activeMin !== null ? (
+                    <span className="mt-0.5 shrink-0 text-xs text-muted tabular-nums">
+                      {dur(s.activeMin)} active{s.actionsEngine !== null ? ` · ${s.actionsEngine} actions` : ""}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* The owner's goal and rules for this agent (common-data/work-plan.json): one line each. */}
+      <section className="mt-4 border-t border-line pt-3">
+        <label className="mb-1.5 block text-xs font-semibold text-muted" htmlFor={`goal-${card.slug}`}>
+          Future goal
+        </label>
+        {/* Wraps instead of scrolling sideways (owner, 2026-10-03); still one line of text: Enter saves, no newlines. */}
+        <textarea
+          id={`goal-${card.slug}`}
+          className={`${input} h-auto resize-none py-2 leading-snug [field-sizing:content]`}
+          rows={1}
+          value={draft.goal}
+          maxLength={MAX_GOAL}
+          placeholder="One line: where this agent should be heading"
+          onChange={(e) => setDraft((d) => ({ ...d, goal: e.target.value.replace(/\s*\n\s*/g, " ") }))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void save();
+            }
+          }}
+        />
+        {card.selfGoal ? (
+          <p className="mt-1 text-xs break-words text-muted">
+            <span className="font-semibold text-ink/80">Its own goal:</span> {card.selfGoal}
+          </p>
+        ) : null}
+        {card.personaGoal ? <p className="mt-1 text-xs break-words text-muted">In its persona: {card.personaGoal}</p> : null}
+
+        <div className="mt-3 mb-1.5 flex items-center justify-between text-xs font-semibold text-muted">
+          <span>Current rules</span>
+          <span className="font-normal">
+            {draft.rules.length}/{MAX_RULES}
+          </span>
+        </div>
+        <ul className="space-y-1.5">
+          {draft.rules.map((r: Rule, i) => (
+            <li key={r.id} className="flex items-center gap-1.5">
+              <input
+                className={input}
+                value={r.text}
+                maxLength={MAX_RULE}
+                aria-label={`Rule ${i + 1}`}
+                placeholder="One line rule"
+                onChange={(e) => setDraft((d) => ({ ...d, rules: d.rules.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) }))}
+                onKeyDown={(e) => e.key === "Enter" && void save()}
+              />
+              {r.by === "ceo" ? (
+                // a rule The CEO wrote itself; rewording it here makes it the owner's
+                <span className="shrink-0 text-xs text-muted" title="The CEO added or edited this rule itself; reword it to make it yours">
+                  (CEO)
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, rules: d.rules.filter((_, j) => j !== i) }))}
+                className="pressable hit grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-fill-3 hover:text-bad"
+                aria-label={`Remove rule ${i + 1}`}
+              >
+                <Icon name="xmark" className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        {draft.rules.length < MAX_RULES ? (
+          <button type="button" onClick={() => {
+              setDraft((d) => ({ ...d, rules: [...d.rules, { id: `new${fresh}`, text: "" }] }));
+              setFresh((n) => n + 1);
+            }} className={`${buttonClass("plain", "sm")} mt-1.5`}>
+            <Icon name="plus" className="h-3.5 w-3.5" /> Add a rule
+          </button>
+        ) : null}
+      </section>
+
+      </>
+      )}
+
+      <footer className="mt-auto flex min-h-9 items-center justify-end gap-3 pt-3">
+        {notice ? <span className={`min-w-0 flex-1 text-xs ${notice.ok ? "text-muted" : "text-bad"}`}>{notice.text}</span> : null}
+        {dirty ? (
+          <>
+            <button type="button" onClick={() => setDraft(saved)} className={buttonClass("plain", "sm")} disabled={saving}>
+              Undo
+            </button>
+            <button type="button" onClick={() => void save()} className={buttonClass("prominent", "sm")} disabled={saving}>
+              {saving ? <Spinner small /> : null}
+              Save
+            </button>
+          </>
+        ) : null}
+      </footer>
+    </article>
+  );
+}
+
+/** The back of a card: the agent's real skills and limits, so a goal or rule can be checked before it is saved. */
+function CapabilityList({ caps }: { caps: WorkCard["capabilities"] }) {
+  return (
+    <section className="mt-4 [animation:menu-in_0.28s_var(--ease-spring)]">
+      <p className={`mb-3 rounded-lg px-3 py-2 text-xs font-medium ${caps.state === "Running" ? "bg-sys-green/10 text-good" : "bg-sys-orange/10 text-sys-orange"}`}>{caps.state}</p>
+      <h3 className="mb-1.5 text-xs font-semibold text-muted">Can do</h3>
+      <ul className="space-y-1">
+        {caps.can.map((c) => (
+          <li key={c} className="flex items-start gap-2 text-sm text-ink">
+            <Icon name="check" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-good" />
+            <span className="min-w-0 break-words">{c}</span>
+          </li>
+        ))}
+      </ul>
+      <h3 className="mt-3 mb-1.5 text-xs font-semibold text-muted">Cannot do</h3>
+      <ul className="space-y-1">
+        {caps.cannot.map((c) => (
+          <li key={c} className="flex items-start gap-2 text-sm text-muted">
+            <Icon name="xmark" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-bad" />
+            <span className="min-w-0 break-words">{c}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted">A goal or rule that needs something on the Cannot do list gets refused and wastes tokens. Read from its config.</p>
+    </section>
+  );
+}

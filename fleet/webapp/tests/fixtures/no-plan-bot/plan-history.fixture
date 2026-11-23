@@ -1,0 +1,3 @@
+{"task": "Fill empty cells for three leads", "status": "done", "started": "2026-10-31T09:00:00", "ended": "2026-10-31T09:40:12", "note": "", "steps": [{"text": "open the first lead's site", "done": true}, {"text": "fill its phone", "done": true}]}
+{"task": "Enrich Cobalt Bakery", "status": "stuck", "started": "2026-10-31T15:20:00", "ended": "2026-10-31T15:50:42", "note": "update_lead blocked until tomorrow", "steps": [{"text": "open the listing", "done": true}, {"text": "confirm size and industry", "done": false}, {"text": ""}]}
+{"task": "torn

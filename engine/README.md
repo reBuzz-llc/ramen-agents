@@ -1,0 +1,101 @@
+# Explorer
+
+> Engine starter: the `bot` program with no history and no project data. This is the `engine` branch of the starter,
+> cloned to `~/Projects/bot`; the `fleet` branch holds the bots it runs and is cloned to `~/bots`. Start with the
+> fleet branch's SETUP.md. Names, places and businesses in the
+> tests and comments are fictional.
+
+A curiosity-driven agent. It roams the web with a model you choose, takes notes, asks itself
+questions, and writes a daily journal. Nobody assigns it tasks. See `explorer.md` for the design
+and `bot.md` for the original spec.
+
+## What it needs
+
+- macOS and Python 3.11+. Fake mode needs no key. Real work needs one model key (Z.ai, Groq or OpenRouter). A local Ollama model is optional.
+- The `.venv` in this folder (`python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`).
+- Chromium for Playwright (`.venv/bin/playwright install chromium`), started only for pages that need it.
+
+## Commands
+
+All commands read `config.toml` in this folder. Use `bot --config <path>` for another one. A bot's
+config can start with `extends = "../common-data/configs/web-bots.toml"` to pull in the settings every
+bot shares; its own values win.
+
+| Command | What it does |
+|---|---|
+| `bot check` | verify SQLite FTS5, workspace, denylist, Chromium, and Ollama if you configured it |
+| `bot init` | create the workspace and database, seed interests |
+| `bot run` | run forever (Ctrl-C to stop) |
+| `bot run --cycles 20 --mode fake --model fake` | offline dry run on the local fake web |
+| `bot run --mode web --model ollama --cycles 10` | ten real cycles with a local model, if you added one |
+| `bot status` | latest heartbeat, counts, open episode |
+| `bot tail -n 50` | last log lines |
+| `bot journal` | print today's journal |
+| `bot pause` / `bot resume` | hold the loop without losing state, then release |
+| `bot stop` | kill switch: the agent exits within a second and stays down |
+| `bot dashboard` | serve the watch-and-chat page on `http://127.0.0.1:8787` (add `--open` to launch the browser) |
+
+`bot` lives at `.venv/bin/bot`, or run `.venv/bin/python -m explorer`.
+
+## Watching it and talking to it
+
+`bot dashboard` runs beside the agent (it is a separate process) and shows, refreshing every few
+seconds: a picture of the page the agent is on, its current question and last action, a live feed of
+actions with the model's thoughts and any refusals, its notes, questions, interests and journal, and
+Pause / Resume / Stop buttons.
+
+The Chat panel talks to the agent's model with the agent's memory as context. A plain message gets
+a reply there and is also shown to the running agent on its next cycle as "Owner says", so it can act
+on suggestions or answer with its `say` action. Commands are handled by code, not the model:
+`/ask <question>`, `/interest <topic> [delta]`, `/pause`, `/resume`, `/stop`, `/help`.
+
+This is the per-bot page served from this repo. The fleet web dashboard (Next.js) lives in
+`~/bots/webapp`, runs as launch agent `com.ramen-agents.bot-dashboard`, and is reachable remotely only
+through Tailscale.
+
+The page binds to this machine only. Every write (chat, controls) needs a token that is generated
+when the dashboard starts and written to `workspace/dashboard.token`, so a web page the agent visits
+cannot drive it. The agent's browser also refuses to let page scripts reach localhost or private
+addresses.
+
+## Before going online
+
+- Set `agent.contact` in `config.toml` if you want site owners to be able to reach you; it goes into the browser user agent. Leave it empty to stay anonymous.
+- Search uses keyless engines, in order: `marginalia`, `wikipedia`, `hn` (plus `corpus`, the owner's own `raw/` folder, when listed in `browser.search_engines`). Wikipedia refuses bots without `agent.contact`.
+- API keys are read from the env var (e.g. `GROQ_API_KEY`) or from `~/bots/common-data/keys/<name>.key` (`EXPLORER_KEYS_DIR` moves the folder); never from the config.
+- robots.txt is honoured; a site that refuses plain HTTP clients is asked again through Chromium.
+
+## Modes
+
+- `mode = "fake"` browses only the HTML files under `workspace/fake_web`. Nothing leaves the machine.
+- `mode = "web"` reads the real web through `browser.backend`: `"light"` (default) is a plain HTTP fetch with Chromium (its own empty profile under `workspace/browser_profile`) only for pages that need it; `"chromium"` uses Chromium for every page.
+- `provider = "fake"` is a deterministic heuristic; `provider = "ollama"` is an optional local model; `"gemini"` is Google's free tier; `"remote"` tries `model.provider_chain` (`"gemini"` or `[model.providers.<name>]` OpenAI-compatible tables) in order. No local model runs unless you set `fallback_provider = "ollama"`.
+
+## Safety switches
+
+- `workspace/STOP` stops the agent and keeps it stopped, even under launchd.
+- `workspace/PAUSE` holds it; delete the file to continue.
+- Prompts go to the model providers you added, with a lead's email, phone and known contact name masked, except a contact-finding member's decision calls: [Does my data leave my machine?](https://github.com/reBuzz-llc/ramen-agents#does-my-data-leave-my-machine)
+- `workspace/denylist.txt` blocks login, account, and payment pages. Private networks and non-http schemes are always blocked.
+- The action vocabulary has no download or form submission, and no shell unless you turn on the developer skill (`[developer] enabled` and `allow_shell`, both off by default). Text on web pages is data, never instructions.
+- A search engine that answers with a bot-verification page is never "solved": the page counts as unreachable and searching pauses for `policy.search_cooldown_minutes`.
+- `policy.pages_per_hour` and `policy.per_domain_delay_seconds` keep it a polite visitor. robots.txt is respected.
+
+## Files it writes
+
+- `workspace/explorer.sqlite3` notes, questions, interests, visits, episodes, actions, heartbeat
+- `workspace/journal/YYYY-MM-DD.md` the journal, in the agent's own words
+- `workspace/interests.md`, `workspace/questions.md` human-readable mirrors
+- `workspace/logs/explorer.jsonl` structured log (rotated at 5 MB, five files kept)
+- `workspace/screenshots/current.png` the page it is on, for the dashboard (Chromium pages only; `dashboard.screenshots = false` to skip)
+- `workspace/dashboard.token` the dashboard's write token, while it runs
+
+## Running at login
+
+`bot --config ~/bots/<slug>/config.toml install` renders `launchd/bot.plist.template` into a launch
+agent `com.ramen-agents.bot.<slug>`. It starts at login, restarts after a crash, and stays down after
+`bot stop`. `bot --config ... uninstall` removes it; `bot list` shows every installed bot.
+
+## Tests
+
+`.venv/bin/pytest`

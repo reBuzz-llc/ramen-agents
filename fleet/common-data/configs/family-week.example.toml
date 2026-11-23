@@ -1,0 +1,13 @@
+# What scripts/family_week.py must never name in the weekly write-up, on top of what it masks by itself (every business
+# and website on the portal's lead cache, the names in common-data/team.json, emails, phone numbers and web addresses).
+# Copy to family-week.toml and fill in your own. Matching is by whole word, case does not matter.
+
+# Places: your own town and the markets you sell to. Each becomes "a city".
+places = ["Springfield", "Shelbyville"]
+
+# People who are not in team.json (an advisor, a client's contact you mention in commits). Each becomes "a person".
+people = ["Alex Example"]
+
+# Anything else, with what it becomes: an internal codename, a client's brand.
+[mask]
+"Project Falcon" = "an internal project"

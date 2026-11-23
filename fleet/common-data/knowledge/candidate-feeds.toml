@@ -1,0 +1,54 @@
+# Where Lead Gen's daily candidates come from, per market (scripts/candidates-feed.py). The market in use is the one
+# common-data/knowledge/target.toml names ("market"); a market with no feed here is skipped with a logged reason, and
+# Lead Gen then finds businesses by searching.
+#
+# Each feed is a Socrata open-data endpoint (free, keyless). `fields` maps our names to the dataset's columns;
+# `zip_field` + `areas` turn a ZIP prefix into a named area and keep only rows inside the market; `sector_field` +
+# `sector_order` put the trades that fit the packages first.
+#
+# FreeSerp's business-site index (free, keyless) works for any market: one search per trade x area from target.toml,
+# directories and guides left out, and only sites whose text names the trade.
+[sources.freeserp]
+enabled = true
+url = "https://freeserp.ai/api.php"
+rows_per_day = 100
+per_query = 50
+max_dr = 40          # Domain Rating ceiling: a neighbourhood business rarely passes it
+pause_seconds = 0.5  # between queries: be a light user
+
+# Overture Maps places (open data, CDLA-Permissive-2.0) from a local SQLite snapshot of your market's area
+# (table places: id, name, name_norm, category, website, postcode, confidence, status). Areas come from your feed's ZIP
+# map; a website or name shared by more than two places is a chain and is left out. Optional: build the snapshot, set
+# db and market (in common-data/configs/local.toml or here), then enabled = true.
+[sources.overture]
+enabled = false
+market = ""
+db = "~/bots/common-data/places/places.sqlite"
+rows_per_day = 100
+min_confidence = 0.8
+max_places_per_site = 2
+max_places_per_name = 2
+exclude = ["place_of_worship", "library", "school", "university", "college", "government", "park", "hospital", "atm",
+           "post_office", "police", "fire_station", "embassy", "cemetery", "public_", "community_", "non_profit", "charity",
+           "bank", "transit", "parking", "gas_station", "landmark", "historic"]
+
+# Optional: find an open business register for your market and describe it like this (remove the leading "# "):
+#
+# [feeds."Your Market"]
+# source = "Name of the open-data set"
+# url = "https://data.example.gov/resource/xxxx-xxxx.json"
+# id_field = "account_number"
+# website_field = "website"
+# zip_field = "zip"
+# sector_field = "sector"
+# name_fields = ["trade_name", "legal_name"]
+# industry_fields = ["industry", "sector"]
+# owner_fields = ["first_name", "last_name"]
+# rows_per_day = 150
+#
+# [feeds."Your Market".areas]
+# "100" = "District one"
+# "101" = "District two"
+#
+# [feeds."Your Market".sector_order]
+# order = ["Retail Trade", "Accommodation and Food Services"]

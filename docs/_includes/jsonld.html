@@ -65,7 +65,7 @@
    "name": "Does it cost anything?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "No: ramen-agents costs nothing to run, because every model and search service in its default chain has a free tier with no card, and the engine counts each provider's daily limits so it never goes past them. You only need a Mac that stays on."
+    "text": "The software is free, and you pay $0 in model fees on the default free tiers, with keyless search. Free tiers can change, and if you link billing on a provider's own account, it can charge you. The providers' own pages do not say whether their free tier needs a card, so read the sign-up page before you add one. When a provider says it is out for now, the next one answers. If every provider is out, the agent rests until one is back. You need one free model key to start and a Mac that stays on."
    }
   },
   {
@@ -73,7 +73,7 @@
    "name": "Which models does it use?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "ramen-agents uses a chain of free model tiers, tried in order: Z.ai, Gemini, Groq, Speka, Mistral, OpenRouter's free models, Ollama Cloud, then a local Ollama model. You add a key for each one you want; the rest are skipped. The quickstart uses none of them."
+    "text": "ramen-agents uses a chain of free model tiers, tried in order: Z.ai, Gemini, Groq and OpenRouter's free models. One key is enough to start, from Z.ai, Groq or OpenRouter, and a provider without a key is skipped. With no key at all, a member rests and names the command that adds one. The ten-minute demo needs no key. Three providers left the default chain in November 2026, and you can still add any of them by hand. Mistral says \"Creating API keys and using the API require billing activation and pay-as-you-go.\" Ollama Cloud is pay per token. Speka says \"$1 lifetime credit on every account. No credit card required.\" After that it is pay per token. A local Ollama model is not installed or used unless you add it yourself."
    }
   },
   {
@@ -97,7 +97,7 @@
    "name": "Does my data leave my machine?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Your boards, keys and the agents' memories stay in files on your Mac, but each prompt, including the page text an agent read, goes to the model provider that answers it. Choose providers you are comfortable with, or run everything on the local model."
+    "text": "Yes, your prompts do. Your boards, keys and the agents' memories stay in files on your Mac, but the default setup has no local model, so every prompt, including the page text an agent read, goes to a provider you chose. A lead's email, phone and known contact name are masked by default. The mask does not hide a person's name that is on no row yet, an address spelled out in words, text inside an image, a phone number outside the usual US forms unless a row holds it, or business names, which stay readable on purpose. Lead Gen's decision calls read pages to find new contacts, so they run unmasked, only on Z.ai, Groq or OpenRouter. The Validator's reviews of tasks and packages use the same mask, leave out the names of a task's assignees, and send nothing if the mask cannot run or the board copy that holds the contact names cannot be read. Before you add a key, read what each provider says about your prompts. Google's terms for the free Gemini tier say \"human reviewers may read, annotate, and process your API input and output\" and \"Do not submit sensitive, confidential, or personal information to the Unpaid Services\", so no Gemini key is saved until you say yes."
    }
   },
   {

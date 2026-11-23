@@ -1,11 +1,12 @@
 ---
 layout: home
 title: "ramen-agents: a team of AI agents that looks for your next client"
-description: "A free, open-source team of five AI agents for a small business: it finds businesses with a gap you can fix, prices an offer and writes the email. It costs nothing to run on your Mac, and we set it up for you."
+description: "A free, open-source team of five AI agents for a small business: it finds businesses with a gap you can fix, prices an offer and writes the email. $0 in model fees on the default free tiers, and we set it up for you."
 ---
 
 **A team of five AI agents that looks for your next client.** It finds businesses with a gap you can fix, prices an
-offer and writes the email. You read it and send it. It runs on your Mac and costs nothing to run.
+offer and writes the email. You read it and send it. The team runs on your Mac and calls free cloud models, with $0 in model fees on the default
+free tiers.
 
 **[We set it up for you](set-up-for-you.html)** · [Try it in ten minutes](try-without-a-key.html) ·
 [The code on GitHub](https://github.com/reBuzz-llc/ramen-agents)
@@ -23,13 +24,13 @@ offer and writes the email. You read it and send it. It runs on your Mac and cos
 
 ## Our own team's numbers
 
-**Running in production since late September 2026: 800+ leads found by the agents, 25 service packages priced and published, and 35 actions the fence refused.**
+**Running in production since late September 2026: 800+ leads found by the agents.**
 
 We built ramen-agents for our own small agency and run it every day.
 
 ## What no agent can do
 
-No agent can create an account, spend money, or collect personal data. That fence is in the code, not in a prompt,
+No agent can create an account, spend money, or collect personal data beyond a business's public contact. That fence is in the code, not in a prompt,
 and every refusal is written down where you can read it.
 [Can an AI agent spend money, sign up or collect personal data?](fence.html) ·
 [What does the Validator check?](validator-rules.html)
@@ -45,8 +46,8 @@ first run with you. The software stays free; the setup is a paid service.
 
 ## Good to know
 
-- **What it costs:** nothing to run. [Does it cost anything?](does-it-cost-anything.html)
-- **What it runs on:** free model tiers and keyless search. [Which free AI models and search engines does it use?](free-tiers.html)
+- **What it costs:** $0 in model fees on the default free tiers. [Does it cost anything?](does-it-cost-anything.html)
+- **What it runs on:** free cloud model tiers, one free key to start, and keyless search. [Which free AI models and search engines does it use?](free-tiers.html)
 - **Where your leads go:** one file on your Mac, shown on your dashboard. [Where do my leads go?](leads-board.html)
 - **How it differs from other tools:** [How it compares](how-it-compares.html)
 - **Looking after it with Claude Code:** [How do I run ramen-agents with a team of Claude Code sessions?](claude-code-team.html)
