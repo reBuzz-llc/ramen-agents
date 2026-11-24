@@ -22,7 +22,7 @@
 #    common-data/local/last-update.json: the heads it started from and ended on, and what was re-applied or set aside.
 #
 # Exit codes: 0 updated (or --check / --rollback done); 1 STOP, the line above says what to do; 2 updated, but the setup
-# check finds something missing that was not before (sh scripts/update.sh --rollback undoes it).
+# check still finds something missing that was not before, a minute after the restarts (sh scripts/update.sh --rollback undoes it).
 # Your keys, family.toml, local.toml, config.local.toml files and data are git-ignored: no step here touches them.
 set -eu
 # the copy on the main branch is for reading: stop there (read from a pipe, the script has no folder and the check is not needed)
@@ -177,6 +177,15 @@ if [ "$NO_INSTALL" != 1 ]; then echo "4. Reinstall and restart"; reinstall; fi
 echo "5. The setup check (python3 scripts/setup-check.py)"
 steps missing > "$TMPD/after.txt" 2>/dev/null || true
 steps new-missing "$TMPD/before.txt" "$TMPD/after.txt" > "$TMPD/new.txt"
+# the dashboard, the search and the members were just restarted: a line counts as new only if it is still missing after
+# they had time to come up (RAMEN_UPDATE_SETTLE seconds, 60 by default, asked again every 10)
+settle="${RAMEN_UPDATE_SETTLE:-60}"
+while [ -s "$TMPD/new.txt" ] && [ "$settle" -gt 0 ]; do
+  [ "$settle" = "${RAMEN_UPDATE_SETTLE:-60}" ] && echo "  wait     something is missing since the update; asking again for up to ${RAMEN_UPDATE_SETTLE:-60} s while the services start"
+  sleep 10; settle=$((settle - 10))
+  steps missing > "$TMPD/after.txt" 2>/dev/null || true
+  steps new-missing "$TMPD/before.txt" "$TMPD/after.txt" > "$TMPD/new.txt"
+done
 if [ -s "$TMPD/after.txt" ]; then sed 's/^/  missing  /' "$TMPD/after.txt"; else echo "  ok       nothing is missing"; fi
 code=0
 if [ -s "$TMPD/new.txt" ]; then

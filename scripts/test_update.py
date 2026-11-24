@@ -89,7 +89,7 @@ def _make(tmp_path, monkeypatch, steps_in_a: bool = True):
                   "the-ceo/config.toml": 'extends = "../common-data/configs/common.toml"\n[agent]\nname = "The CEO"\nbio = "We build sites."\n',
                   "the-ceo/persona.md": PERSONA_A.replace("Your company: FILL-ME.", "Your company: Cobalt Web, Springfield.")})
     env = {**os.environ, "HOME": str(home), "RAMEN_ENGINE": str(engine), "RAMEN_UPDATE_NO_INSTALL": "1", "RAMEN_UPDATE_ANY_OS": "1",
-           "RAMEN_UPDATE_CHECK": "true"}
+           "RAMEN_UPDATE_CHECK": "true", "RAMEN_UPDATE_SETTLE": "0"}
     return {"bots": bots, "engine": engine, "a": a, "b": b, "e1": e1, "e2": e2, "env": env}
 
 
@@ -186,3 +186,14 @@ def test_an_old_checkout_takes_its_first_update_from_a_pipe_and_can_roll_it_back
     assert git(bots, "rev-parse", "--short", "HEAD") == w["a"] and not (bots / "scripts/update_steps.py").exists()
     kept_in_effect(w)
     assert json.loads((bots / "common-data/local/last-update.json").read_text())["result"] == "rolled-back"
+
+
+def test_a_service_that_comes_up_a_little_late_does_not_count_as_newly_missing(world, tmp_path):
+    flag = tmp_path / "probes"
+    late = (f'n=$(cat "{flag}" 2>/dev/null || echo 0); echo $((n + 1)) > "{flag}"; '
+            f'if [ "$(git rev-parse --short HEAD)" = "{world["b"]}" ] && [ "$n" -lt 2 ]; then printf "Still missing (1):\\n  - the local search does not answer\\n"; fi')
+    env = dict(world["env"], RAMEN_UPDATE_CHECK=late, RAMEN_UPDATE_SETTLE="20")
+    r = subprocess.run(["sh", "scripts/update.sh"], cwd=world["bots"], capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "asking again" in r.stdout and "missing since this update" not in r.stdout
+    assert json.loads((world["bots"] / "common-data/local/last-update.json").read_text())["new_missing"] == []
