@@ -11,7 +11,7 @@ The README and FENCE.md of https://github.com/reBuzz-llc/ramen-agents, in one fi
 **What it is:** a free AI agent team for a small business: it finds leads, prices service packages with a ready-to-send email for each, and a dashboard watches it work; your team sends the emails.<br>
 **Who it is for:** a founder or a small agency with a laptop and big plans: the team works while you build the business.<br>
 **What it costs:** $0 in model fees on the default free tiers, with keyless search; ramen-agents itself never asks for a card.<br>
-**Running in production since late September 2026:** 800+ leads found by the agents.
+**Running in production since late September 2026:** 1,200+ leads found by the agents.
 
 ramen-agents gives you a lead finder, a research analyst, a package designer, a scout for free tools and a CEO agent that
 steers them, plus a Validator that checks every write and a local dashboard. No agent can create an account, spend
