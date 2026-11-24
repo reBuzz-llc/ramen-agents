@@ -164,6 +164,7 @@ update)
   rm -rf "${PORTAL:?}/.next.prev"
   prune
   say "ok" "Peek $(short "$old") -> $(short "$new"); data copied to $saved"
+  "$PY" "$BOTS/scripts/peek_setup.py" news --portal "$PORTAL" --old "$old" 2>/dev/null || true   # Peek's own release lines, when it keeps them
   ;;
 
 setup)

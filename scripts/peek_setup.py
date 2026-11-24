@@ -7,6 +7,7 @@
                                                                        # the same counts read back from Peek; exit 1 on a mismatch
     python3 scripts/peek_setup.py set-url URL                          # [leads] portal_url in common-data/configs/local.toml
     python3 scripts/peek_setup.py unset-url                            # take it out again (back to the local board)
+    python3 scripts/peek_setup.py news --portal DIR --old REV          # Peek's own docs/updates.json lines new since REV
 
 The read-back uses the dashboard's read key (common-data/keys/portal-dashboard.key), sent in a header by this program,
 never on a command line. Every lead and task the files hold must be on Peek by its id, archived ones included, and the
@@ -112,6 +113,21 @@ def set_url(text: str, url: str | None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def news(portal: Path, old: str) -> list[str]:
+    """Peek's docs/updates.json entries that its version `old` did not have, newest first (none when it keeps no such file)."""
+    import subprocess
+
+    def entries(text: str) -> list[dict]:
+        try:
+            return list(json.loads(text).get("entries") or [])
+        except (ValueError, AttributeError):
+            return []
+    now = entries((portal / "docs" / "updates.json").read_text(encoding="utf-8")) if (portal / "docs" / "updates.json").exists() else []
+    before = subprocess.run(["git", "-C", str(portal), "show", f"{old}:docs/updates.json"], capture_output=True, text=True)
+    seen = {json.dumps(e, sort_keys=True) for e in entries(before.stdout if before.returncode == 0 else "")}
+    return [f"{e.get('date', '')} {e.get('line', '')}".strip() + (f" ({e['step']})" if e.get("step") else "") for e in now if json.dumps(e, sort_keys=True) not in seen]
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -124,12 +140,19 @@ def main(argv: list[str]) -> int:
         if name == "readback":
             s.add_argument("--url", default=PEEK)
             s.add_argument("--key", type=Path, default=KEY)
+    s = sub.add_parser("news")
+    s.add_argument("--portal", type=Path, required=True)
+    s.add_argument("--old", required=True)
     s = sub.add_parser("set-url")
     s.add_argument("url")
     sub.add_parser("unset-url")
     a = ap.parse_args(argv)
     if a.cmd == "local-rows":
         print(local_rows(a.board))
+        return 0
+    if a.cmd == "news":
+        for line in news(a.portal, a.old):
+            print(f"  new      {line}")
         return 0
     if a.cmd == "expected":
         w = expected(a.dir, a.stamp)

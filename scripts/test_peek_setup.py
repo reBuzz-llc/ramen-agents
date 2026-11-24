@@ -196,6 +196,21 @@ class Helpers(unittest.TestCase):
         _, ok = ps.compare(want, {"leads": {"a", "b"}, "tasks": set(), "rates": 2, "packages": 0})
         self.assertFalse(ok)
 
+    def test_news_lists_only_what_is_new(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            repo = Path(t)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            (repo / "docs").mkdir()
+            one = {"date": "2026-11-20", "kind": "feature", "line": "Samples page", "step": ""}
+            two = {"date": "2026-11-25", "kind": "feature", "line": "Follow up page", "step": "restart Peek"}
+            (repo / "docs" / "updates.json").write_text(json.dumps({"entries": [one]}))
+            for c in (["add", "-A"], ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "a"]):
+                subprocess.run(["git", "-C", str(repo), *c], check=True)
+            old = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+            (repo / "docs" / "updates.json").write_text(json.dumps({"entries": [two, one]}))
+            self.assertEqual(ps.news(repo, old), ["2026-11-25 Follow up page (restart Peek)"])
+            self.assertEqual(ps.news(Path(t) / "none", old), [], "a Peek with no such file says nothing")
+
     def test_local_rows(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             self.assertEqual(ps.local_rows(Path(t) / "none.sqlite3"), 0)

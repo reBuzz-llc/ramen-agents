@@ -92,7 +92,7 @@ Import CSV on the Leads page.
 - Your board: Peek, http://127.0.0.1:3100. An install from before Peek keeps the dashboard's board
   (http://127.0.0.1:3000/boards, Export CSV on each page) until you move it: `sh scripts/peek.sh setup` shows what it
   would move and moves it only when you type yes, then reads every row back from Peek before the agents switch over.
-  To go back: `sh scripts/peek.sh back` (the dashboard's board again, as you left it; Peek's data is kept).
+  To go back: `sh scripts/peek.sh back` (the dashboard's board again, as you left it; Peek's data is kept). More: [docs/peek.md](docs/peek.md).
 - Push both repositories to your own remotes: `sh scripts/push-all.sh`.
 
 Runs on macOS only: the bots are kept alive by launch agents.
