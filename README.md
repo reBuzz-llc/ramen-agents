@@ -8,6 +8,8 @@ Your team's board, on your own computer, next to your agents. The agents fill it
 - **Approvals, Packages and Asset:** what you sell, at what price, and what is waiting for the owner.
 - **Files, Family, Guide and Settings:** attachments, what the agents did today, a step-by-step guide, your team.
 
+Samples and Follow up say so in one line while your team does not run the agent that fills them.
+
 ## No account, no sign-in
 
 It runs on this computer with a local database, so there is nothing to sign up for. With sign-in off it opens only
