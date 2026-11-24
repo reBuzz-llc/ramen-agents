@@ -1,12 +1,13 @@
-"""common-data/providers.json and docs/updates.json stay true to the scripts a person and their code agent run.
+"""common-data/providers.json is the one list of providers, and docs/updates.json stays one entry per line.
 
-The provider list must agree with the places that name a key today: the model chain in web-bots.toml, the key script's
-providers (add-key.sh) and the setup check's lists (setup-check.py). The updates file must stay one entry per line, so
-`git diff HEAD starter/fleet -- docs/updates.json` shows exactly the new entries. Reads files only.
+The Providers page, add-key.sh and setup-check.py all read providers.json; this checks that each entry is complete and
+honest about who judged it (only the owner's tested verdicts are "unusable"; the maintainers' judgements on paper are
+"rejected"; an unjudged entry carries what its own page says), that a key test is always a free read, that the chain is the
+config's chain, and that the scripts read the file instead of a list of their own. The updates file must stay one entry
+per line, so `git diff HEAD starter/fleet -- docs/updates.json` shows exactly the new entries. Reads files only.
 """
 from __future__ import annotations
 
-import ast
 import json
 import re
 import tomllib
@@ -16,28 +17,14 @@ ROOT = Path(__file__).resolve().parent.parent
 PROVIDERS = json.loads((ROOT / "common-data" / "providers.json").read_text(encoding="utf-8"))["providers"]
 UPDATES_TEXT = (ROOT / "docs" / "updates.json").read_text(encoding="utf-8")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-
-def _setup_check_lists() -> dict[str, list[str]]:
-    tree = ast.parse((ROOT / "scripts" / "setup-check.py").read_text(encoding="utf-8"))
-    out: dict[str, list[str]] = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name) and node.targets[0].id in ("MODEL_KEYS", "OPTIONAL_KEYS"):
-            out[node.targets[0].id] = [t[0] for t in ast.literal_eval(node.value)]
-    return out
-
-
-def _add_key_names() -> set[str]:
-    text = (ROOT / "scripts" / "add-key.sh").read_text(encoding="utf-8")
-    body = text.split('case "$name" in', 1)[1].split("esac", 1)[0]
-    return {m for m in re.findall(r"^\s*([a-z][a-z0-9-]*)\)", body, re.M)}
+AUTH = re.compile(r"^(bearer|x-api-key|header:[A-Za-z0-9-]{1,40}|query:[A-Za-z0-9_]{1,40})$")
 
 
 def _web_bots() -> dict:
     return tomllib.loads((ROOT / "common-data" / "configs" / "web-bots.toml").read_text(encoding="utf-8"))["model"]
 
 
-def _names(**match: str) -> set[str]:
+def _names(**match: object) -> set[str]:
     return {p["name"] for p in PROVIDERS if all(p[k] == v for k, v in match.items())}
 
 
@@ -45,39 +32,57 @@ def test_each_entry_is_complete():
     names = [p["name"] for p in PROVIDERS]
     assert len(names) == len(set(names))
     for p in PROVIDERS:
-        assert p["use"] in ("model", "email-check", "search", "board"), p
+        assert re.match(r"^[a-z0-9][a-z0-9-]{1,40}$", p["name"]), p
+        assert p["use"] in ("model", "email-check", "search", "tool", "board"), p
         assert p["status"] in ("chain", "opt-in", "removed"), p
         assert p["key_file"] == f"{p['name']}.key", p
         assert isinstance(p["free"], bool), p
         assert p["add_key"] in ("", f"sh scripts/add-key.sh {p['name']}"), p
         assert DATE.match(p["added"]) and DATE.match(p["changed"]) and p["added"] <= p["changed"], p
-        assert p["card"].strip(), p
+        assert p["where"] == "" or p["where"].startswith("https://"), p
 
 
-def test_the_chain_is_the_config_chain_and_only_free():
+def test_each_mark_says_who_judged_it_when_and_why():
+    for p in PROVIDERS:
+        mark = p["mark"]
+        assert mark in (None, "usable", "unusable", "rejected"), p
+        if mark is None:
+            assert p["mark_by"] == "" and p["mark_date"] == "" and p["mark_note"] == "", p
+            assert p["card"].strip() or p["status"] == "removed", f"{p['name']}: an unjudged entry carries what its page says"
+            continue
+        assert DATE.match(p["mark_date"]), p
+        assert p["mark_by"] == {"unusable": "owner", "rejected": "maintainers"}.get(mark, p["mark_by"]), p
+        assert p["mark_by"] in ("owner", "maintainers"), p
+        if mark in ("unusable", "rejected"):
+            assert p["mark_note"].strip(), f"{p['name']}: a provider marked {mark} ships with its reason"
+
+
+def test_a_key_test_is_a_free_read_over_https_or_none():
+    for p in PROVIDERS:
+        t = p["test"]
+        assert t["kind"] in ("models", "none"), p
+        if t["kind"] == "models":
+            assert t["url"].startswith("https://") and AUTH.match(t["auth"]), p
+            assert not re.search(r"/(chat/)?completions|/generate|/search|/correct|/scrape", t["url"]), f"{p['name']}: a test never spends"
+
+
+def test_the_chain_is_the_config_chain_free_and_usable():
     model = _web_bots()
     assert _names(status="chain") == set(model["provider_chain"])
-    assert all(p["free"] for p in PROVIDERS if p["status"] == "chain")
-    assert all(p["use"] == "model" for p in PROVIDERS if p["status"] == "chain")
+    for p in PROVIDERS:
+        if p["status"] == "chain":
+            assert p["free"] and p["use"] == "model" and p["mark"] == "usable", p
 
 
 def test_every_model_provider_in_the_config_is_listed():
     model = _web_bots()
-    # Gemini has no [model.providers] table: it is read through gemini_api_key_file
-    configured = set(model.get("providers", {})) | set(model["provider_chain"]) | {"gemini"}
-    assert _names(use="model") == configured
+    configured = set(model.get("providers", {})) | set(model["provider_chain"]) | {"gemini"}  # Gemini has no providers table
+    assert configured <= _names(use="model")
 
 
-def test_the_key_script_takes_exactly_the_listed_commands():
-    assert {p["name"] for p in PROVIDERS if p["add_key"]} == _add_key_names()
-
-
-def test_the_setup_check_names_the_same_keys():
-    lists = _setup_check_lists()
-    assert set(lists["MODEL_KEYS"]) == _names(status="chain")
-    # the optional keys: every free email check and search key that add-key.sh takes, never a paid one
-    optional = {p["name"] for p in PROVIDERS if p["use"] in ("email-check", "search") and p["add_key"] and p["free"]}
-    assert set(lists["OPTIONAL_KEYS"]) == optional
+def test_the_key_script_and_the_setup_check_read_this_file():
+    for script in ("scripts/add-key.sh", "scripts/setup-check.py"):
+        assert "providers.json" in (ROOT / script).read_text(encoding="utf-8"), f"{script} reads common-data/providers.json"
 
 
 def test_updates_are_one_entry_per_line_newest_first():
@@ -101,4 +106,12 @@ def test_every_step_names_a_script_that_exists():
         m = re.match(r"^sh (scripts/[\w.-]+\.sh)\b", e["step"]) or re.match(r"^python3 (scripts/[\w.-]+\.py)\b", e["step"])
         assert m and (ROOT / m.group(1)).is_file(), e
         if e["step"].startswith("sh scripts/add-key.sh "):
-            assert e["step"].split()[-1] in _add_key_names(), e
+            assert e["step"].split()[-1] in _names(), e
+
+
+def test_the_free_tiers_page_table_is_what_the_list_says():
+    import subprocess
+    import sys
+
+    res = subprocess.run([sys.executable, str(ROOT / "scripts" / "providers_table.py"), "--check"], capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout

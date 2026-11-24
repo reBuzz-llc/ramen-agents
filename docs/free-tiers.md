@@ -96,6 +96,111 @@ before you add a key.
 Our daily caps for the keyed backups are set in `web-bots.toml`: `langsearch_per_day` (100) and `parallel_per_day`
 (30). A search engine that rate-limits or bot-checks one bot is paused for every bot (`search_pause_file`).
 
+## Every provider we know
+
+Every provider in `common-data/providers.json`, the list the Providers page, `add-key.sh` and
+`setup-check.py` read. Each has an Add key on the dashboard's Settings → Providers → All providers; one marked unusable or
+set aside shows its reason before the key field, and none of them is ever suggested.
+
+<!-- providers table: written by scripts/providers_table.py from common-data/providers.json; do not edit by hand -->
+
+### In the default chain
+
+Free model tiers the members use, in this order.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [Z.ai](https://z.ai) | AI model | The flash model is list-priced $0; its page does not state whether a card is needed. | usable (maintainers, 2026-11-06) |
+| [Google AI Studio](https://aistudio.google.com/apikey) | AI model | Free; its page does not state whether a card is needed. It takes no lead data until you say yes in sh scripts/add-key.sh gemini, with Google's terms in front of you. | usable (maintainers, 2026-11-06) |
+| [Groq](https://console.groq.com/keys) | AI model | Free; its page does not state whether a card is needed. | usable (maintainers, 2026-11-06) |
+| [OpenRouter (free models only)](https://openrouter.ai/keys) | AI model | Only its :free models are used; its page does not state whether a card is needed. | usable (maintainers, 2026-11-06): Free models only: the free pool is shared and can be rate-limited. |
+
+### Other free keys
+
+Optional; none is needed.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [Mistral](https://console.mistral.ai) | AI model | A free plan, which you activate in its console (2026-11-24). Not in the default chain. | usable (maintainers, 2026-11-06) |
+| [Dahl Inference](https://inference.dahl.global) | AI model | A free allowance that can run out; not in the default chain. | usable (maintainers, 2026-11-06): Its free allowance can run out. |
+| [FreeAI](https://free.ai) | AI model | "30,000 a day (free pool)" and "No credit card required" (its page, read 2026-11-24). Not in the default chain. | usable (maintainers, 2026-11-06): A small free allowance. |
+| [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) | AI model | A free daily allowance; its API needs your account id as well as a key, so no member uses it yet. | usable (maintainers, 2026-11-06): Free, not used by any member yet. |
+| [QuickEmailVerification](https://quickemailverification.com) | Email check | Optional: Lead Gen checks an email before listing it. | usable (maintainers, 2026-11-06): Lead Gen checks every email with it before a lead is recorded. |
+| [Sniffmail](https://sniffmail.io) | Email check | Optional: the backup email check. | usable (maintainers, 2026-11-06): The backup when QuickEmailVerification's daily credits run out. |
+| [Tavily](https://tavily.com) | Search | 1,000 credits a month; its pricing page: "No credit card required". The CEO only, for special searches. | usable (maintainers, 2026-11-06): For special searches: only the CEO calls it, never as an automatic fallback. |
+| [LangSearch](https://langsearch.com) | Search | Free plan; its page does not state whether a card is needed. The first backup when the local search fails or finds nothing. | usable (maintainers, 2026-11-24): The first backup when the local search fails or finds nothing. |
+
+### Only if you pay
+
+Not free; setup never asks for one.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [Speka](https://speka.me) | AI model | A $1 lifetime credit, then pay per token. Out of the default chain since 2026-11-21. | usable (owner, 2026-11-24): Limited credit, then pay per token. |
+
+### Listed, not judged yet
+
+What each provider's own page says, and the day we read it. Nobody has tested these.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [Amazon Bedrock](https://aws.amazon.com/bedrock/) | AI model | No Bedrock free tier on its pricing page; a new AWS Free Tier account gets "$100 in credits immediately" (aws.amazon.com/free). Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
+| [Bytez](https://bytez.com) | AI model | "$0 / month - Get $1 in free credits", "Credits refresh every 4 weeks". Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
+| [xAI (Grok)](https://docs.x.ai) | AI model | No free tier stated; "Your API requests will be automatically rejected once your prepaid credits are depleted" (its billing docs). Read 2026-11-24. | not judged yet |
+| [Jina AI](https://jina.ai) | Tool | "Every new API key comes with 10M free tokens!" Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
+| [MegaNova AI](https://www.meganova.ai) | AI model | "Free registration — no credit card required", "550 messages/day (eligible models only)". Read 2026-11-24. | not judged yet |
+| [EzVerify](https://ezverify.app) | Email check | "200 free credits every month · No credit card". Read 2026-11-24. | not judged yet |
+| [Microlink](https://microlink.io) | Tool | "25 requests / day", "Free forever plan, no credit card." Read 2026-11-24. | not judged yet |
+| [TextPerfector](https://textperfector.com) | Tool | "Free plan alone includes 100 requests every month". Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
+| [Parallel](https://parallel.ai) | Search | $5 of free credit a month with a card on file (its page), then it bills per use. Out of the default search path since 2026-11-21. | not judged yet |
+
+### Unusable
+
+Tested by the owner and found wanting, with the date of that test.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [Apify](https://apify.com) | Tool | Free. | unusable (owner, 2026-11-12): A web-scraping platform, not an AI model API: its key calls no model. |
+| [Cerebras](https://cloud.cerebras.ai) | AI model | Not free. | unusable (owner, 2026-11-23): Advertises a free tier, but the account asked for a payment method. |
+| [DeepSeek](https://platform.deepseek.com) | AI model | Not free. | unusable (owner, 2026-11-18): Pay-as-you-go from the first call. |
+| [FreeTheAI](https://freetheai.org) | Tool | Free. | unusable (owner, 2026-11-12): A listing site, not an API. |
+| [LLM7.io](https://llm7.io) | AI model | Not free. | unusable (owner, 2026-11-20): Needs a card. |
+| [Moonshot (Kimi)](https://platform.kimi.ai) | AI model | Not free. | unusable (owner, 2026-11-12): Pay as you go: not free, and it needs a card. |
+| [Ollama Cloud](https://ollama.com/settings/keys) | AI model | Pay per token. Out of the default chain since 2026-11-21. | unusable (owner, 2026-11-18): Needs credit bought before use. |
+| [OpenAI](https://platform.openai.com) | AI model | Not free. | unusable (owner, 2026-11-18): Asks for a card. |
+| [OrcaRouter](https://orcarouter.ai) | AI model | Not free. | unusable (owner, 2026-11-23): Asks you to buy credit. |
+| [Perplexity](https://www.perplexity.ai) | AI model | Not free. | unusable (owner, 2026-11-20): Needs a card. |
+| [Replicate](https://replicate.com) | AI model | Not free. | unusable (owner, 2026-11-18): Not free: it bills per second. |
+| SummarizeAPI | AI model | Not free. | unusable (owner, 2026-11-12): Needs a card. |
+| [Together AI](https://api.together.ai) | AI model | Not free. | unusable (owner, 2026-11-18): Trial credit, then paid. |
+| [IBM watsonx.ai](https://www.ibm.com/watsonx) | AI model | Not free. | unusable (owner, 2026-11-20): Needs a card. |
+| Oh So Video | Tool | Free. | unusable (owner, 2026-11-20): Not a key provider. |
+| [Bright Data](https://brightdata.com) | Tool | Free. | unusable (owner, 2026-11-23): Not an AI API: a data and scraping platform. |
+
+### Set aside by the maintainers
+
+Judged on paper, not tested, with the date of that judgement.
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| [SambaNova Cloud](https://cloud.sambanova.ai) | AI model | Its models list answers, but a completion needs a payment method. | rejected (2026-11-24): Needs a payment method: a test call answered 402 PAYMENT_METHOD_REQUIRED on 2026-11-24. |
+| BazaarLink | AI model | Free. | rejected (2026-11-06): Tiny quotas or one-off credit. |
+| Cohere | AI model | Not free. | rejected (2026-11-06): Asked for a card. |
+| PlugSky | AI model | Free. | rejected (2026-11-06): Tiny quotas or one-off credit. |
+| SkillBoss | AI model | Free. | rejected (2026-11-06): Tiny quotas or one-off credit. |
+| Aion Labs | AI model | Free. | rejected (2026-11-06): Set aside as roleplay-only models; its site now describes a general API, so this judgement is worth a fresh look. |
+| GitHub Models | AI model | Free. | rejected (2026-11-12): Retired on 30 July 2026: its inference API, catalog and playground are gone. |
+| Gonka Broker | AI model | Free. | rejected (2026-11-06): Its own pages call it “free or trial”, so the allowance may not last. |
+| ModelScope | AI model | Free. | rejected (2026-11-23): Needs a real-name Alibaba Cloud account binding, and its docs point commercial users to commercial platforms. |
+
+### No longer used
+
+| Provider | Use | Free tier and card | Mark |
+|---|---|---|---|
+| Notion | Board | No longer used: the boards are on your dashboard. common-data/keys/notion.key can be deleted. | not judged yet |
+
+<!-- end of the providers table -->
+
 ## Adding a provider
 
 1. Check that its free tier needs no card and is not a time-limited trial.

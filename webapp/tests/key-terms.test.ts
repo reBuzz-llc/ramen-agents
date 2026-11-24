@@ -16,8 +16,11 @@ test("every path that saves a key refuses Gemini before it saves", () => {
   const lib = source("lib/keys.ts");
   const body = lib.slice(lib.indexOf("export async function saveKey"));
   assert.ok(body.indexOf("needsTermsScript(p.name)") < body.indexOf("writeFile"), "saveKey checks first");
+  const store = source("lib/providers-store.ts");
+  const own = store.slice(store.indexOf("export async function saveProviderKey"));
+  assert.ok(own.indexOf("needsTermsScript(p.name)") < own.indexOf("writeFile"), "saveProviderKey checks first");
   for (const [file, name, save] of [
-    ["app/api/settings/keys/route.ts", "needsTermsScript(ctx.provider.name)", "await saveKey"],
+    ["app/api/settings/provider-list/route.ts", "needsTermsScript(p.name)", "await saveProviderKey"],
     ["app/api/provider-finds/route.ts", "needsTermsScript(slug)", "await saveKey"],
   ]) {
     const text = source(file);
@@ -26,7 +29,8 @@ test("every path that saves a key refuses Gemini before it saves", () => {
   }
 });
 
-test("the key sheet shows the script instead of a key field for Gemini", () => {
-  const view = source("app/settings/providers/providers-view.tsx");
-  assert.ok(view.indexOf("needsTermsScript(provider.name)") < view.indexOf('id="api-key"'));
+test("the All providers row shows the script instead of Add key for Gemini", () => {
+  const view = source("app/settings/providers/all-providers-view.tsx");
+  assert.ok(view.includes('const terms = row.name === "gemini"'));
+  assert.ok(view.indexOf("sh scripts/add-key.sh gemini") < view.indexOf("data-add-key"));
 });
