@@ -158,10 +158,11 @@ An AI coding agent (Claude Code, Codex, Cursor and the like) can do the setup wi
 setup questions and writes your answers, and runs `python3 scripts/setup-check.py` to see what is still missing. It
 never creates an account or a key for you: you make the one key yourself, at the page `add-key.sh` names.
 
-### Keep it set up and up to date
+### Finish setup and stay up to date with one prompt
 
-Copy this prompt into your code agent (any agent that can run shell commands) in `~/bots`. Run it after cloning to
-finish setup, then once a month to update. It reads what is new from the repository, not from guesses.
+Paste this prompt into your code agent in `~/bots` (any agent that can run shell commands). It finishes setup, updates
+ramen-agents and tells you what is new, from the starter's own update notes. Run it once after cloning, then once a
+month.
 
 ```text
 You are helping me run ramen-agents on this Mac: the family is in ~/bots and the engine in ~/Projects/bot.
@@ -175,17 +176,19 @@ common-data/keys or common-data/local. Suggest a paid provider only after setup 
 1. Finish setup. Run `python3 scripts/setup-check.py`. Take each missing line in order: say what it is, then do
    it or walk me through it. For a key, give me its page from common-data/providers.json; I make the key there
    and run `sh scripts/add-key.sh <name>`. Run the check again until it exits 0. Name the optional lines once.
-2. Update. Run `sh scripts/update.sh --check` and show me what would change. Then run `sh scripts/update.sh`.
-   If `grep -q -- --check scripts/update.sh` fails, this copy is older and would ignore --check, so run each
-   update command from the starter instead: `git fetch starter && git show starter/fleet:scripts/update.sh |
-   sh -s -- --check`, then the same without `--check`.
+2. Update. First run `grep -q -- --check scripts/update.sh`. If it fails, this copy is older and would ignore
+   --check, so run each update command from the starter instead: `git fetch starter && git show
+   starter/fleet:scripts/update.sh | sh -s -- --check`, then the same without `--check`. If it succeeds, run
+   `sh scripts/update.sh --check`, then `sh scripts/update.sh`. Either way, show me what --check says would
+   change before you run the update.
    Exit 0: updated. Exit 2: updated, but something is newly missing (new_missing in
-   common-data/local/last-update.json). Wait a minute and run `python3 scripts/setup-check.py`: a service that
-   was still starting is gone from the list. If a line stays and docs/updates.json names a step for it, walk me
+   common-data/local/last-update.json). Wait a minute and run `python3 scripts/setup-check.py`: a line left by a
+   service that was still starting will be gone. If a line stays and docs/updates.json names a step for it, walk me
    through it; if not, or I say no, run `sh scripts/update.sh --rollback`. Exit 1: show me what it printed, and run
    `sh scripts/update.sh --rollback` only if it says to. Do not reset, check out or stash with git yourself.
-3. Tell me what is new. Read common-data/local/last-update.json, then the entries docs/updates.json gained:
-   `git diff <fleet.before> <fleet.after> -- docs/updates.json`, the added lines. Group them: keys and providers
+3. Tell me what is new. Read common-data/local/last-update.json. Then run
+   `git diff <fleet.before> <fleet.after> -- docs/updates.json` with the fleet.before and fleet.after values from
+   that file, and read only the added lines: they are the new entries. Group them: keys and providers
    worth adding, new features, removed things, and steps only I can take, each with its command. Use only these
    entries. If set_aside lists a file, tell me my edit is kept in common-data/local/before-update/ and was not
    put back.
@@ -287,8 +290,10 @@ the dashboard as a service) are built for macOS. The engine and the ten-minute d
 
 ### How do I update it?
 
-To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. To have your code agent do it each month, give it [the upkeep prompt](#keep-it-set-up-and-up-to-date). Your own values live in git-ignored files, so the
-update never meets an edit of yours; anything it has to move, it names. See [Updating](#updating).
+To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the
+update never meets an edit of yours; anything it has to move, it names. See [Updating](#updating). To have your code
+agent update it each month and tell you what is new, give it
+[the one prompt](#finish-setup-and-stay-up-to-date-with-one-prompt).
 
 ### How do I add an agent?
 
