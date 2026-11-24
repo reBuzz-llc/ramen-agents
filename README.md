@@ -176,10 +176,14 @@ common-data/keys or common-data/local. Suggest a paid provider only after setup 
    it or walk me through it. For a key, give me its page from common-data/providers.json; I make the key there
    and run `sh scripts/add-key.sh <name>`. Run the check again until it exits 0. Name the optional lines once.
 2. Update. Run `sh scripts/update.sh --check` and show me what would change. Then run `sh scripts/update.sh`.
+   If `grep -q -- --check scripts/update.sh` fails, this copy is older and would ignore --check, so run each
+   update command from the starter instead: `git fetch starter && git show starter/fleet:scripts/update.sh |
+   sh -s -- --check`, then the same without `--check`.
    Exit 0: updated. Exit 2: updated, but something is newly missing (new_missing in
-   common-data/local/last-update.json); if docs/updates.json names a step for it, walk me through it, and if
-   not, or I say no, run `sh scripts/update.sh --rollback`. Exit 1: show me what it printed; if the pull had
-   already run, run `sh scripts/update.sh --rollback`. Do not reset, check out or stash with git yourself.
+   common-data/local/last-update.json). Wait a minute and run `python3 scripts/setup-check.py`: a service that
+   was still starting is gone from the list. If a line stays and docs/updates.json names a step for it, walk me
+   through it; if not, or I say no, run `sh scripts/update.sh --rollback`. Exit 1: show me what it printed, and run
+   `sh scripts/update.sh --rollback` only if it says to. Do not reset, check out or stash with git yourself.
 3. Tell me what is new. Read common-data/local/last-update.json, then the entries docs/updates.json gained:
    `git diff <fleet.before> <fleet.after> -- docs/updates.json`, the added lines. Group them: keys and providers
    worth adding, new features, removed things, and steps only I can take, each with its command. Use only these
