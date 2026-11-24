@@ -45,7 +45,9 @@ def test_the_copy_refuses_before_it_does_anything(tmp_path, name):
 def test_the_guard_is_the_first_command(name):
     text = (HERE.parent / name if "/" in name else HERE / name).read_text()
     first = next(line for line in text.splitlines()[1:] if line.strip() and not line.startswith("#") and not line.startswith("set "))
-    assert first.startswith('. "$(dirname "$0")/') and "read-only-guard.sh" in first
+    # update.sh may also be read from a pipe (an old checkout's first update), where there is no folder: it tests for the file first
+    assert first.startswith('. "$(dirname "$0")/') and "read-only-guard.sh" in first or \
+        first.startswith('if [ -f "$(dirname "$0")/read-only-guard.sh" ]; then . "$(dirname "$0")/read-only-guard.sh"; fi')
 
 
 def test_outside_the_copy_the_guard_lets_a_script_run(tmp_path):

@@ -3,7 +3,7 @@
 # in common-data/keys/<provider>.key (only you can read it), then tests it with one read-only call. Never prints a key.
 #
 #   sh scripts/add-key.sh zai           # or: groq, openrouter, gemini,
-#                                       #     quickemailverification, sniffmail
+#                                       #     quickemailverification, sniffmail, langsearch, tavily
 # One model key is enough to start; more mean more fallbacks. The dashboard's Key providers page does the same, except for
 # Gemini: only this script shows Google's terms and asks first.
 set -eu
@@ -21,8 +21,10 @@ case "$name" in
   speka) free=""; where="https://speka.me (only if you pay for it: a $1 lifetime credit, then pay per token; the key does nothing until you add speka to provider_chain in common-data/configs/local.toml)" ;;
   quickemailverification) where="https://quickemailverification.com (optional: Lead Gen checks an email before listing it)" ;;
   sniffmail) where="https://sniffmail.io (optional: the backup email check)" ;;
-  "") echo "Which provider? sh scripts/add-key.sh zai   (or groq, openrouter, gemini, quickemailverification, sniffmail)"; exit 2 ;;
-  *) echo "unknown provider: $name (gemini, groq, zai, openrouter, quickemailverification, sniffmail)"; exit 2 ;;
+  langsearch) where="https://langsearch.com (optional: the first backup search, used only when the local search fails or finds nothing; its page does not state whether a card is needed)" ;;
+  tavily) where="https://tavily.com (optional: 1,000 credits a month, \"No credit card required\"; The CEO's special searches, never automatic)" ;;
+  "") echo "Which provider? sh scripts/add-key.sh zai   (or groq, openrouter, gemini, quickemailverification, sniffmail, langsearch, tavily)"; exit 2 ;;
+  *) echo "unknown provider: $name (gemini, groq, zai, openrouter, quickemailverification, sniffmail, langsearch, tavily)"; exit 2 ;;
 esac
 if [ "$name" = gemini ]; then
   # Google's own words, so the choice is made with them in front of you. No answer means no.
@@ -63,11 +65,11 @@ if [ "$name" = gemini ]; then
   if python3 scripts/gemini_choice.py open; then echo "Gemini may now take masked calls with lead data (common-data/configs/local.toml)."
   else echo "The key is saved, but Gemini stays closed to lead data: the choice could not be written."; fi
 fi
-case "$name" in quickemailverification|sniffmail) exit 0 ;; esac
+case "$name" in quickemailverification|sniffmail|langsearch|tavily) exit 0 ;; esac   # no read-only test call for these
 # the engine's Python carries certifi; a python.org Python without its certificates installed fails every HTTPS test
 PY="${RAMEN_ENGINE:-$HOME/Projects/bot}/.venv/bin/python"
 [ -x "$PY" ] || PY=python3
 CA=$("$PY" -c 'import certifi; print(certifi.where())' 2>/dev/null || true)
 res=$(SSL_CERT_FILE="${CA:-${SSL_CERT_FILE:-}}" "$PY" scripts/setup-check.py --probe 2>/dev/null | grep -E "^ +(ok|!!|\?) +$name:" || true)
-if [ -z "$res" ]; then echo "test: skipped (sh scripts/check-setup.sh tests every key)"
+if [ -z "$res" ]; then echo "test: skipped (python3 scripts/setup-check.py --probe tests every key)"
 else echo "test:$res" | sed 's/^test: */test: /'; fi

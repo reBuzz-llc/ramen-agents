@@ -12,7 +12,8 @@ did not:
     homes ([tasks], [packages]) or dropped, and each one is named;
   - target.toml and team.json: your market and your team go to common-data/local/family.toml ([target], [[team]]);
   - any other tracked file you edited (a card, a knowledge page): your version is kept in
-    common-data/local/before-update/<path>;
+    common-data/local/before-update/<path>, with your edit as <path>.patch, listed in before-update/set-aside.json:
+    update.sh applies each one again after the pull, and names any that no longer applies;
 then the tracked file is put back as the starter has it (with commits of your own, that is one more commit, "your values
 moved to the git-ignored files", so the pull meets no edit). An overlay that already exists keeps its values (yours
 win over what is lifted). Nothing is deleted: keys stay in common-data/keys. Standard library only (Python 3.11+).
@@ -226,6 +227,7 @@ def migrate(dry: bool = False) -> list[str]:
     family = tomllib.loads(fam_path.read_text(encoding="utf-8")) if fam_path.exists() else {}
     fam_before = json.dumps(family, sort_keys=True)
     restored: list[str] = []
+    set_aside: list[dict] = []
     for path in files:
         full = ROOT / path
         if not full.exists():
@@ -249,12 +251,17 @@ def migrate(dry: bool = False) -> list[str]:
                     put_back(path)
                     restored.append(path)
                 continue
-        if path.endswith(("target.toml", "team.json")):
+        lifted = path.endswith(("target.toml", "team.json"))
+        if lifted:
             family_lift(path, user_text, family, notes)
         backup = ROOT / "common-data" / "local" / "before-update" / path
         if not dry:
             backup.parent.mkdir(parents=True, exist_ok=True)
             backup.write_text(user_text, encoding="utf-8")
+            if not lifted:         # a card or a page: update.sh applies this edit again after the pull (lifted values live in family.toml)
+                patch = backup.with_name(backup.name + ".patch")
+                patch.write_text(git("diff", "--no-color", "--no-ext-diff", BASE, "--", path, check=False), encoding="utf-8")
+                set_aside.append({"path": path, "patch": str(patch.relative_to(ROOT))})
             put_back(path)
             restored.append(path)
         notes.append(f"{path}: your version is kept in common-data/local/before-update/{path}")
@@ -264,6 +271,9 @@ def migrate(dry: bool = False) -> list[str]:
         os.chmod(fam_path, 0o600)
     if not dry:
         commit_put_back(restored, notes)
+        manifest = ROOT / "common-data" / "local" / "before-update" / "set-aside.json"     # this run's edits to apply again
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps(set_aside, indent=1) + "\n", encoding="utf-8")
     return notes
 
 
