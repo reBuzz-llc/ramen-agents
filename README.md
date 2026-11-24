@@ -158,6 +158,38 @@ An AI coding agent (Claude Code, Codex, Cursor and the like) can do the setup wi
 setup questions and writes your answers, and runs `python3 scripts/setup-check.py` to see what is still missing. It
 never creates an account or a key for you: you make the one key yourself, at the page `add-key.sh` names.
 
+### Keep it set up and up to date
+
+Copy this prompt into your code agent (any agent that can run shell commands) in `~/bots`. Run it after cloning to
+finish setup, then once a month to update. It reads what is new from the repository, not from guesses.
+
+```text
+You are helping me run ramen-agents on this Mac: the family is in ~/bots and the engine in ~/Projects/bot.
+Work in ~/bots. Read AGENTS.md first and keep to its rules.
+
+Never: create an account, sign up, sign in, pay, start a trial or add a card. Never print, read back, log or
+commit a key, and never ask me to paste one anywhere but `sh scripts/add-key.sh <name>`, which I run myself.
+Never edit a tracked file to set a value, start a member that has a STOP file, or delete anything in
+common-data/keys or common-data/local. Suggest a paid provider only after setup is done, and only if I ask.
+
+1. Finish setup. Run `python3 scripts/setup-check.py`. Take each missing line in order: say what it is, then do
+   it or walk me through it. For a key, give me its page from common-data/providers.json; I make the key there
+   and run `sh scripts/add-key.sh <name>`. Run the check again until it exits 0. Name the optional lines once.
+2. Update. Run `sh scripts/update.sh --check` and show me what would change. Then run `sh scripts/update.sh`.
+   Exit 0: updated. Exit 2: updated, but something is newly missing (new_missing in
+   common-data/local/last-update.json); if docs/updates.json names a step for it, walk me through it, and if
+   not, or I say no, run `sh scripts/update.sh --rollback`. Exit 1: show me what it printed; if the pull had
+   already run, run `sh scripts/update.sh --rollback`. Do not reset, check out or stash with git yourself.
+3. Tell me what is new. Read common-data/local/last-update.json, then the entries docs/updates.json gained:
+   `git diff <fleet.before> <fleet.after> -- docs/updates.json`, the added lines. Group them: keys and providers
+   worth adding, new features, removed things, and steps only I can take, each with its command. Use only these
+   entries. If set_aside lists a file, tell me my edit is kept in common-data/local/before-update/ and was not
+   put back.
+4. Leave a note. Add a dated section to common-data/local/upkeep-notes.md: what you ran, each exit code, the
+   versions before and after, what is new, and what is still missing. Then tell me how to run this prompt on the
+   1st of each month with your own scheduler, and set that up only if I say yes.
+```
+
 ## How it compares
 
 | | ramen-agents | Agent frameworks (CrewAI, AutoGen, now Microsoft Agent Framework) | Paid AI SDRs (Artisan, 11x) |
@@ -251,7 +283,7 @@ the dashboard as a service) are built for macOS. The engine and the ten-minute d
 
 ### How do I update it?
 
-To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. Your own values live in git-ignored files, so the
+To update ramen-agents, run `sh scripts/update.sh` in `~/bots`. To have your code agent do it each month, give it [the upkeep prompt](#keep-it-set-up-and-up-to-date). Your own values live in git-ignored files, so the
 update never meets an edit of yours; anything it has to move, it names. See [Updating](#updating).
 
 ### How do I add an agent?
