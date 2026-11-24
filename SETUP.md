@@ -1,129 +1,58 @@
 # Setting up the portal
 
-This takes about an hour, start to finish. Everything here uses free tiers, and no step asks for a card. Run the
-commands in this folder.
+You need Node.js 22 or newer. Run every command in this folder.
 
-## 1. A Neon project of your own
+## 1. Install and start
 
-1. Sign up at <https://neon.com> with your own account and stay on the **Free** plan.
-2. Create a project. For the **Files** page, pick one of the regions where Neon Object Storage runs: AWS us-east-2,
-   us-east-1, eu-central-1 or ap-southeast-1. In any other region the app still works, but Files says it is not set up.
-3. Install the Neon CLI (`npm i -g neonctl`, which also gives the `neon` command) and sign in with `neon auth`.
-4. Link this folder to the project and create what `neon.ts` declares: Postgres, Neon Auth (the sign-in) and the
-   private `files` bucket.
+```sh
+npm ci
+npm run build
+npm run local
+```
+
+Open http://127.0.0.1:3100. The first visit shows a short notice about what the app records; read it and continue.
+You are the owner of a company called "My team": rename it in **Settings → Company**.
+
+Sign-in is off, so the portal answers only on this computer. Stop it with Ctrl+C.
+
+## 2. Give your agents their keys
+
+Each agent gets its own key. Stop the portal first (the local database opens in one program at a time), then:
+
+```sh
+node scripts/api-key.mjs engine --pglite .data/pglite
+node scripts/api-key.mjs validator --pglite .data/pglite
+node scripts/api-key.mjs dashboard --pglite .data/pglite
+```
+
+Each key is written to `~/bots/common-data/keys/peek-<name>.key` and never shown (set `PEEK_KEYS_DIR` to put them
+elsewhere). Making a key again replaces the old one. Start the portal again with `npm run local`.
+
+The agents find the portal at http://127.0.0.1:3100. The ramen-agents setup points them there for you.
+
+## 3. Keep your data safe
+
+Everything is in `.data/`. To back it up, stop the portal and copy that folder.
+
+## Sign in with Google (optional)
+
+Turn this on before anyone opens the portal from another device.
+
+1. In Google Cloud, create an OAuth client of the type **Web application**. Add your address followed by
+   `/api/google-signin/callback` as an authorized redirect URI, for example
+   `http://127.0.0.1:3100/api/google-signin/callback`.
+2. Give your owner account your Google address. Start once with sign-in still off, then stop:
+
    ```sh
-   neon link        # pick your project and its main branch
-   neon deploy      # creates Auth and the bucket, and writes their variables to .env.local
-   neon env pull    # writes the connection strings to .env.local
+   PEEK_OWNER_EMAIL=you@example.com npm run local
    ```
-   If you would rather not use the CLI, copy the two connection strings from the Neon console (Connect: the
-   **pooled** one into `DATABASE_URL`, the **direct** one into `DATABASE_URL_UNPOOLED`). Then turn on Auth in the
-   console and copy its base URL and JWKS URL into `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`.
 
-## 2. The env file
+3. Start with sign-in on, using the client's two values:
 
-```sh
-cp .env.example .env.local     # if `neon env pull` has not made it already; then keep only one copy of each line
-openssl rand -base64 32        # paste into NEON_AUTH_COOKIE_SECRET
-```
+   ```sh
+   FILES_LOCAL=1 GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... npm start
+   ```
 
-Set `NEXT_PUBLIC_APP_URL` to the address you will deploy to. You can fill it in after step 6.
-`NEXT_PUBLIC_HOME_STATES` is optional: it sets which states a Google Maps lead import keeps by default.
+   Every page now asks for Google sign-in, and only the people you add in **Settings → People** get in.
 
-`.env.local` is ignored by git. Never commit it, and never paste its values into an issue or a chat.
-
-## 3. The tables
-
-```sh
-npm install
-npm run migrate     # creates every table on DATABASE_URL_UNPOOLED; safe to run again
-```
-
-## 4. Your first sign-in creates your company
-
-```sh
-npm run dev         # http://localhost:3100
-```
-
-Sign in. On an empty database, the first person to sign in becomes the **owner** of a company called "My team". Read
-and acknowledge the notice (it says what the app records about people). After that, nobody else gets in unless you
-add them.
-
-Before your team uses it, read `docs/notice-template.md`. Adapt the notice to where your people work, and confirm it
-with a lawyer where the template says so.
-
-## 5. Your team
-
-Go to **Settings → People → Add member by Google email**. Enter each person's Google address, name and role (members;
-the owner adds managers). Their row says "invited, not signed in yet" until they first sign in with exactly that
-address. **Copy invite** gives you a message to paste on Slack or WhatsApp.
-
-## 6. Deploy
-
-Any Next.js host works. On Vercel:
-
-1. Import the repository. The build command is in `vercel.json` (`npm run migrate && npm run build`); set its region
-   next to your database.
-2. Add the variables. `npm run env:vercel` copies them from `.env.local` to the clipboard (macOS) as `NAME=value`
-   lines; it prints only their names. Paste them into Vercel → Settings → Environment Variables.
-   Never set these in production: `TEAMS_DEV_LOGIN`, `PGLITE_DIR`.
-3. Add your deployed address to Neon Auth's trusted domains (Neon console → Auth → Domains), so sign-in comes back to
-   it.
-4. If you use Files, let browsers upload to the bucket from your address:
-   `node --env-file=.env.local scripts/bucket-cors.mjs`.
-
-Vercel's Hobby plan is for personal, non-commercial use. A team selling its work should check the host's terms and
-pick one whose free tier allows that.
-
-Before real customers, set your own Google OAuth client and email sender in Neon Auth, because the shared ones are
-for development: <https://neon.com/docs/auth/production-checklist.md>.
-
-## 7. Keys for the agents
-
-Each reader in the agent family gets its own key, named after it. The key names its company and what it may do. Only
-its SHA-256 is kept, so the key is shown once, when you make it.
-
-| Name | Scopes | Who uses it | File in the fleet |
-|---|---|---|---|
-| `engine` | board:read board:write | the agents, to read and write leads | `common-data/keys/portal-engine.key` |
-| `validator` | board:read board:write board:validate | the Validator, to check and fill leads | `common-data/keys/portal-validator.key` |
-| `dashboard` | board:read | the fleet's dashboard, to read the board | `common-data/keys/portal-dashboard.key` |
-
-- From this folder (the script writes the file itself, mode 600, and never prints the key):
-  ```sh
-  node --env-file=.env.local scripts/api-key.mjs engine board:read board:write
-  node --env-file=.env.local scripts/api-key.mjs validator
-  node --env-file=.env.local scripts/api-key.mjs dashboard
-  ```
-  They write to `~/bots/common-data/keys/` (`PORTAL_KEYS_DIR` to change it). Making a key for a name again revokes its
-  old one. Run the script as shown; do not redirect its output into the key file.
-- Or in the app: **Settings → API keys → Make a key** with the same name (the right scopes are ticked for you), and
-  paste the key into its file, one line, `chmod 600`.
-
-## 8. Pointing the fleet at the portal
-
-By default the fleet keeps its boards on the dashboard's local board, on its own Mac. One setting moves them to the
-portal, in the fleet's `common-data/configs/local.toml` (git-ignored, so updating the fleet never touches it):
-
-```toml
-[leads]
-portal_url = "https://your-portal.example.com"
-```
-
-From then on the agents, the Validator and the dashboard read and write the boards here with the keys from step 7. The
-dashboard keeps the board in `common-data/shared-state/portal-leads-cache.json` and asks only for what changed since its
-last read, so a free database's transfer allowance lasts. Check it from the fleet folder with
-`python3 scripts/setup-check.py --probe`: each portal key is tested with one read-only request. To bring rows already
-on the local board, export each board as CSV from its page on the dashboard and import it here (Leads → Import).
-Without `portal_url`, the boards stay on the local board.
-
-If the portal's database ever runs out of its free quota, the fleet's `docs/portal-database.md` has the nightly standby
-copy and local mode.
-
-## Check it
-
-```sh
-sh scripts/smoke.sh
-```
-
-The script checks the env file, runs the migrations, starts the app and asks it for `/api/health` and the sign-in page.
+Only then put the portal behind a tunnel or on your network.
