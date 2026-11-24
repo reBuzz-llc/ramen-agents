@@ -15,7 +15,9 @@
 # 2. Pulls this folder and the engine, keeping anything uncommitted aside and back (autostash).
 # 3. Applies your set-aside edits again on the new files (git apply); one that no longer applies stays in before-update/
 #    and is named.
-# 4. Reinstalls what changed (sh scripts/install.sh) and restarts the dashboard and the members.
+# 4. Reinstalls what changed (sh scripts/install.sh), takes Peek's newest version when Peek runs on this Mac (sh
+#    scripts/peek.sh update: its data copied first, everything put back if it does not start), and restarts the
+#    dashboard and the members.
 # 5. Runs the setup check (python3 scripts/setup-check.py) before and after: anything missing after that was not missing
 #    before is named, with the rollback.
 # 6. Prints what changed (docs/updates.json's new entries, else the commit subjects) and writes
@@ -54,6 +56,8 @@ SET_ASIDE=common-data/local/before-update/last-set-aside.json   # the last updat
 reinstall() {
   [ "$NO_INSTALL" = 1 ] && return 0
   sh scripts/install.sh | sed -n '/STOP/p;/done/p' || true
+  # Peek, the team's board, when it runs on this Mac (nothing without its checkout); a failed update puts it back as it was
+  if [ -f scripts/peek.sh ]; then sh scripts/peek.sh update || echo "  !!       Peek stays on its previous version: the line above says why"; fi
   launchctl kickstart -k "gui/$(id -u)/com.ramen-agents.bot-dashboard" 2>/dev/null && echo "  ok       the dashboard restarted" || echo "  note     the dashboard is not installed as a launch agent: sh scripts/setup.sh starts it"
   if [ -s common-data/local/members.txt ]; then
     for m in $(cat common-data/local/members.txt); do
@@ -134,6 +138,7 @@ if [ "$MODE" = check ]; then
   steps changes HEAD "$UP" "$ENGINE" "$ebefore" "$(eup_head)"
   echo "What it would lift or set aside (your values stay in effect)"
   RAMEN_BASE="$BASE" "$PY" "$MIG" --dry-run
+  if [ -f scripts/peek.sh ]; then echo "Peek"; sh scripts/peek.sh update --check || true; fi
   exit 0
 fi
 

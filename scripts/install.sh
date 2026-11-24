@@ -84,6 +84,8 @@ if [ -L "$HOME/.config/explorer" ]; then ok "state link (~/.config/explorer)"
 elif [ -e "$HOME/.config/explorer" ]; then stop "~/.config/explorer exists and is not a link: move its files into common-data/shared-state, remove it, run again"
 else mkdir -p "$HOME/.config" && ln -s "$ROOT/common-data/shared-state" "$HOME/.config/explorer" && did "state link (~/.config/explorer -> common-data/shared-state)"; fi
 if [ -d .git ]; then git config core.hooksPath .githooks && ok "commit hook (a staged key or database is refused)"; fi
+# Peek's daily jobs need a secret of their own in Peek's checkout (made once, never printed; nothing without Peek)
+sh scripts/peek.sh secret
 SX="$HOME/.local/etc/searxng/settings.yml"
 if [ -e "$SX" ]; then ok "search settings ($SX)"
 else

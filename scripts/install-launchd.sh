@@ -22,11 +22,12 @@ done
 NODE=$(command -v node 2>/dev/null || echo /usr/local/bin/node)
 [ "$ROOT" = "$HOME/bots" ] || echo "note: this folder is $ROOT; the configs expect the fleet at $HOME/bots" >&2
 
-# Installed only when named: the portal's database copy needs its two keys first, and local mode is for an outage.
-#   sh scripts/install-launchd.sh db-standby          sh scripts/install-launchd.sh portal-local portal-tunnel
+# Installed only when named: the portal's database copy needs its two keys first; Peek on this Mac (portal-local, run by
+# scripts/peek.sh) and its daily jobs (peek-jobs) once its checkout is built in ~/Projects/portal.
+#   sh scripts/install-launchd.sh db-standby          sh scripts/install-launchd.sh portal-local peek-jobs portal-tunnel
 #   sh scripts/install-launchd.sh family-week         (the weekly write-up, Sundays 21:00)
 #   sh scripts/install-launchd.sh ollama              (a local model, only if you added one: SETUP.md)
-BY_NAME_ONLY="db-standby portal-local portal-tunnel family-week ollama"
+BY_NAME_ONLY="db-standby portal-local portal-tunnel family-week ollama peek-jobs"   # Peek and its jobs: by name until the board moves to Peek (935)
 
 wanted() {  # $1 = short name, e.g. "searxng" or "data.lead-gen"
   if [ -z "$ONLY" ]; then
