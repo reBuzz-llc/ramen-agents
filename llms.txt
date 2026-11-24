@@ -6,7 +6,7 @@
 > default free tiers, with keyless search; the software itself never asks for a card. A fence in the code stops any agent from creating
 > accounts, spending money or collecting personal data beyond a business's public contact.
 
-Running in production since late September 2026: 800+ leads found by the agents.
+Running in production since late September 2026: 1,200+ leads found by the agents.
 
 ## What it is
 

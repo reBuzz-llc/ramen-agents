@@ -24,7 +24,7 @@ free tiers.
 
 ## Our own team's numbers
 
-**Running in production since late September 2026: 800+ leads found by the agents.**
+**Running in production since late September 2026: 1,200+ leads found by the agents.**
 
 We built ramen-agents for our own small agency and run it every day.
 
