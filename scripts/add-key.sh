@@ -1,31 +1,46 @@
 #!/bin/sh
-# Add one key, safely: it says where to get the free key, reads it without showing it, saves it as one line
-# in common-data/keys/<provider>.key (only you can read it), then tests it with one read-only call. Never prints a key.
+# Add one key, safely: it says where you make the key yourself, reads it without showing it, saves it as one line in
+# common-data/keys/<provider>.key (only you can read it), then tests it with one free read (its models list or its
+# account, never a call that could bill). Never prints a key.
 #
-#   sh scripts/add-key.sh zai           # or: groq, openrouter, gemini,
-#                                       #     quickemailverification, sniffmail, langsearch, tavily
-# One model key is enough to start; more mean more fallbacks. The dashboard's Key providers page does the same, except for
-# Gemini: only this script shows Google's terms and asks first.
+#   sh scripts/add-key.sh zai           # any provider in common-data/providers.json that takes a key
+#   sh scripts/add-key.sh --list        # every name it takes
+#
+# The list is common-data/providers.json, the one the dashboard's Settings -> Providers page reads too. One model key is
+# enough to start (Z.ai, Groq or OpenRouter). A provider the owner found unusable, or the maintainers set aside, shows its
+# reason first and asks before it takes a key; one that is not free says so and asks. Gemini goes only through this script:
+# it shows Google's terms and asks first.
 set -eu
 case "$(uname -s)" in Darwin) ;; *) echo "ramen-agents runs on macOS only for now (this is $(uname -s))."; exit 1 ;; esac
 cd "$(dirname "$0")/.."
 name="${1:-}"
-free="free "
-case "$name" in
-  gemini) where="https://aistudio.google.com/apikey (Google AI Studio: Create API key; free; its page does not state whether a card is needed)" ;;
-  groq) where="https://console.groq.com/keys (free; its page does not state whether a card is needed)" ;;
-  zai) where="https://z.ai (API keys in your account; the free models)" ;;
-  mistral) free=""; where="https://console.mistral.ai (only if you pay for it: its API needs billing; the key does nothing until you add mistral to provider_chain in common-data/configs/local.toml)" ;;
-  openrouter) where="https://openrouter.ai/keys (only the free models are used)" ;;
-  ollama-cloud) free=""; where="https://ollama.com/settings/keys (only if you pay for it: pay per token; the key does nothing until you add ollama-cloud to provider_chain in common-data/configs/local.toml)" ;;
-  speka) free=""; where="https://speka.me (only if you pay for it: a $1 lifetime credit, then pay per token; the key does nothing until you add speka to provider_chain in common-data/configs/local.toml)" ;;
-  quickemailverification) where="https://quickemailverification.com (optional: Lead Gen checks an email before listing it)" ;;
-  sniffmail) where="https://sniffmail.io (optional: the backup email check)" ;;
-  langsearch) where="https://langsearch.com (optional: the first backup search, used only when the local search fails or finds nothing; its page does not state whether a card is needed)" ;;
-  tavily) where="https://tavily.com (optional: 1,000 credits a month, \"No credit card required\"; The CEO's special searches, never automatic)" ;;
-  "") echo "Which provider? sh scripts/add-key.sh zai   (or groq, openrouter, gemini, quickemailverification, sniffmail, langsearch, tavily)"; exit 2 ;;
-  *) echo "unknown provider: $name (gemini, groq, zai, openrouter, quickemailverification, sniffmail, langsearch, tavily)"; exit 2 ;;
+if [ -z "$name" ]; then
+  echo "Which provider? sh scripts/add-key.sh zai   (or groq, openrouter; every name: sh scripts/add-key.sh --list)"; exit 2
+fi
+if [ "$name" = "--list" ]; then python3 scripts/setup-check.py --key-names; exit 0; fi
+case "$name" in *[!a-z0-9-]*) echo "unknown provider: $name"; exit 2 ;; esac
+if ! info=$(python3 scripts/setup-check.py --key-info "$name"); then
+  echo "unknown provider, or one that takes no key: $name (every name: sh scripts/add-key.sh --list)"; exit 2
+fi
+US=$(printf '\037')
+IFS="$US" read -r who where free card mark mark_by mark_date mark_note testable hint <<INFO
+$info
+INFO
+ask() {   # a question with no answer, or no terminal to answer it, is a no
+  ans=""
+  if [ -t 0 ]; then printf "%s [y/N] " "$1"; IFS= read -r ans || ans=""; fi
+  case "$ans" in y|Y|yes|Yes) return 0 ;; *) return 1 ;; esac
+}
+case "$mark" in
+  unusable|rejected)
+    if [ "$mark" = unusable ]; then echo "$who is marked unusable (by the $mark_by, $mark_date): $mark_note"
+    else echo "$who was set aside by the maintainers ($mark_date): $mark_note"; fi
+    ask "Add a $name key anyway?" || { echo "No key saved."; exit 0; } ;;
 esac
+if [ "$free" != yes ]; then
+  echo "$who needs a card or payment: ${card:-its free use is not stated}"
+  ask "Go on and add a $name key?" || { echo "No key saved."; exit 0; }
+fi
 if [ "$name" = gemini ]; then
   # Google's own words, so the choice is made with them in front of you. No answer means no.
   echo "Google's terms for the free Gemini tier (https://ai.google.dev/gemini-api/terms) say:"
@@ -44,7 +59,8 @@ if [ "$name" = gemini ]; then
 fi
 mkdir -p common-data/keys && chmod 700 common-data/keys
 f="common-data/keys/$name.key"
-echo "Get a ${free}$name key here: $where"
+echo "Make the $who key yourself, at: ${where:-its own site}"
+[ -n "$card" ] && echo "  $card"
 [ -s "$f" ] && echo "(a $name key is already on file; a new one replaces it)"
 if [ -t 0 ]; then
   # Ctrl-C at the prompt: the terminal gets its echo back, and nothing is saved
@@ -65,11 +81,11 @@ if [ "$name" = gemini ]; then
   if python3 scripts/gemini_choice.py open; then echo "Gemini may now take masked calls with lead data (common-data/configs/local.toml)."
   else echo "The key is saved, but Gemini stays closed to lead data: the choice could not be written."; fi
 fi
-case "$name" in quickemailverification|sniffmail|langsearch|tavily) exit 0 ;; esac   # no read-only test call for these
+[ -n "$hint" ] && echo "$hint"
+if [ "$testable" != yes ]; then echo "test: saved, not tested ($who has no free read to test a key with)"; exit 0; fi
 # the engine's Python carries certifi; a python.org Python without its certificates installed fails every HTTPS test
 PY="${RAMEN_ENGINE:-$HOME/Projects/bot}/.venv/bin/python"
 [ -x "$PY" ] || PY=python3
 CA=$("$PY" -c 'import certifi; print(certifi.where())' 2>/dev/null || true)
-res=$(SSL_CERT_FILE="${CA:-${SSL_CERT_FILE:-}}" "$PY" scripts/setup-check.py --probe 2>/dev/null | grep -E "^ +(ok|!!|\?) +$name:" || true)
-if [ -z "$res" ]; then echo "test: skipped (python3 scripts/setup-check.py --probe tests every key)"
-else echo "test:$res" | sed 's/^test: */test: /'; fi
+res=$(SSL_CERT_FILE="${CA:-${SSL_CERT_FILE:-}}" "$PY" scripts/setup-check.py --test-key "$name" 2>/dev/null || true)
+echo "test: ${res:-not run (python3 scripts/setup-check.py --probe tests every key)}"

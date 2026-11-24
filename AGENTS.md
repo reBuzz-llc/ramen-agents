@@ -58,6 +58,9 @@ only what they tell you: never invent a company detail, a person or a figure.
   at start. `docs/your-family.md` lists every file.
 - **Keys** are files in `common-data/keys/` (private, git-ignored), one key per file, written by
   `sh scripts/add-key.sh`. Never print, paste, log or commit a key, and never read one back to the person.
+  Which providers take a key, and how each stands (usable, unusable with its reason, set aside, not judged yet), is
+  `common-data/providers.json`; `sh scripts/add-key.sh --list` prints every name. Never suggest one marked unusable or set
+  aside, or one not judged yet.
 - **The boards** (Leads, Tasks, Packages) are `common-data/local-board.sqlite3`, served by the dashboard at `/boards`.
   Change rows through those pages or the board API, never with SQL.
 - **Start, stop, restart:** the dashboard's Stop and Start, or `sh scripts/restart-bot.sh <slug>`. A member with a

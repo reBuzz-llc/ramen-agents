@@ -73,8 +73,10 @@ def test_a_list_it_cannot_read_is_left_alone(root):
 
 def _add_key(root: Path, stdin: str) -> subprocess.CompletedProcess:
     (root / "scripts").mkdir(exist_ok=True)
-    for f in ("add-key.sh", "gemini_choice.py"):
+    for f in ("add-key.sh", "gemini_choice.py", "setup-check.py"):
         shutil.copy(HERE / f, root / "scripts" / f)
+    (root / "common-data").mkdir(exist_ok=True)
+    shutil.copy(HERE.parent / "common-data" / "providers.json", root / "common-data" / "providers.json")  # 947: the list add-key.sh reads
     return subprocess.run(["sh", "scripts/add-key.sh", "gemini"], cwd=root, input=stdin, text=True, capture_output=True,
                           env={**os.environ, "HOME": str(root)})
 
@@ -92,8 +94,10 @@ def _at_a_terminal(root: Path, answers: list[str]) -> str:
     import select
     import time
     (root / "scripts").mkdir(exist_ok=True)
-    for f in ("add-key.sh", "gemini_choice.py"):
+    for f in ("add-key.sh", "gemini_choice.py", "setup-check.py"):
         shutil.copy(HERE / f, root / "scripts" / f)
+    (root / "common-data").mkdir(exist_ok=True)
+    shutil.copy(HERE.parent / "common-data" / "providers.json", root / "common-data" / "providers.json")  # 947: the list add-key.sh reads
     pid, fd = pty.fork()
     if pid == 0:
         os.chdir(root)

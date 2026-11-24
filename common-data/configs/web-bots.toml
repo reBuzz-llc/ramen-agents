@@ -89,8 +89,8 @@ calls_per_day = 50
 cooldown_minutes = 60
 
 [model.providers.mistral]
-# Not in the default chain: Mistral's API now needs billing activation and pay-as-you-go (its docs, 2026-11-21).
-# A key file alone never adds it. If you pay for it, add "mistral" to provider_chain in common-data/configs/local.toml.
+# Not in the default chain. Its free plan is switched on in Mistral's console (2026-11-24; on 2026-11-21 its docs said billing).
+# A key file alone never adds it: add "mistral" to provider_chain in common-data/configs/local.toml to use it.
 base_url = "https://api.mistral.ai/v1"
 model = "mistral-small-latest"
 api_key_file = "~/bots/common-data/keys/mistral.key"
