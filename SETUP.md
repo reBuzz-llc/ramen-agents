@@ -10,14 +10,14 @@ npm run build
 npm run local
 ```
 
-Open http://127.0.0.1:3100. The first visit shows a short notice about what the app records; read it and continue.
-You are the owner of a company called "My team": rename it in **Settings → Company**.
+Open http://127.0.0.1:3100. The first visit shows a short notice about what the app records: read it and continue.
+You are the owner of a company called "My team". Rename it in **Settings → Company**.
 
-Sign-in is off, so the portal answers only on this computer. Stop it with Ctrl+C.
+Sign-in is off, so the portal answers only on this computer. Stop it any time with Ctrl+C.
 
 ## 2. Give your agents their keys
 
-Each agent gets its own key. Stop the portal first (the local database opens in one program at a time), then:
+Each agent gets its own key. Stop the portal first, because the local database opens in one program at a time. Then run:
 
 ```sh
 node scripts/api-key.mjs engine --pglite .data/pglite
@@ -36,7 +36,7 @@ Everything is in `.data/`. To back it up, stop the portal and copy that folder.
 
 ## Sign in with Google (optional)
 
-Turn this on before anyone opens the portal from another device.
+Turn this on before anyone opens the portal from another device. Without it, only this computer can open it.
 
 1. In Google Cloud, create an OAuth client of the type **Web application**. Add your address followed by
    `/api/google-signin/callback` as an authorized redirect URI, for example
