@@ -8,7 +8,8 @@ A number fails when it is:
 - on a dial code the maintainers must not show, in any written form (a "dial" line in their private public-numbers file);
 - the target of a wa.me, WhatsApp, tel:, sms: or callto: link;
 - any other phone number that is not on the maintainers' public-number list (sha256:<hash of its digits> | file globs | reason). The list holds a
-  hash, so it never carries the number, and each entry is good only in the files it names.
+  hash, so it never carries the number, and each entry is good only in the files it names. A number on the dial code passes only on a line
+  with a fifth field, "dial-ok | <who, date>", recording the maintainers' decision that names the dial code itself.
 
 The lists stay out of the public repository: beside RAMEN_PRIVATE_WORDS, else in common-data/public-text, else in ~/.config/ramen-agents.
 The ranges reserved for fiction (555-0100 to 555-0199, and the UK's 020 7946 0xxx) cannot belong to anyone: they are counted apart and pass.
@@ -77,9 +78,12 @@ def number_key(digits_only: str) -> str:
 
 
 def load_public(path: Path | None = None) -> list[tuple[str, list[str]]]:
-    """The public numbers: sha256:<hash of the digits> | file globs | reason. No file, or no line, means none."""
+    """The public numbers: sha256:<hash of the digits> | file globs | reason [| dial-ok | <who, date: the maintainers' decision
+    that names the dial code>]. No file, or no line, means none. A line without the dial-ok field never lets a number on a dial code
+    through: the dial rule wins unless the maintainers' decision named the dial code itself."""
     p = path or lists_dir() / "public-numbers.txt"
     out: list[tuple[str, list[str]]] = []
+    DIAL_OK.clear()
     if not p.is_file():
         return out
     for n, raw in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
@@ -89,22 +93,45 @@ def load_public(path: Path | None = None) -> list[tuple[str, list[str]]]:
         parts = [x.strip() for x in line.split("|")]
         if len(parts) == 3 and parts[0] == "dial" and parts[1].isdigit():
             continue
-        if len(parts) != 3 or not re.fullmatch(r"sha256:[0-9a-f]{64}", parts[0]) or not all(parts):
-            raise SystemExit(f"{p.name}:{n}: expected sha256:<hash of the digits> | file globs | reason")
+        dial_ok = len(parts) == 5 and parts[3] == "dial-ok" and bool(parts[4])
+        if len(parts) not in (3, 5) or (len(parts) == 5 and not dial_ok) or not re.fullmatch(r"sha256:[0-9a-f]{64}", parts[0]) or not all(parts):
+            raise SystemExit(f"{p.name}:{n}: expected sha256:<hash of the digits> | file globs | reason [| dial-ok | <who, date>]")
         out.append((parts[0], [g.strip() for g in parts[1].split(",")]))
+        if dial_ok:
+            DIAL_OK.add(parts[0])
     return out
+
+
+DIAL_OK: set[str] = set()       # the hashes whose line carries "dial-ok | <who, date>"
+
+
+def on_dial_code(value: str) -> bool:
+    return bool(DIAL.search(value)) or bool(DIAL.search("+" + digits(value)))
 
 
 def is_public(value: str, path: str, public: list[tuple[str, list[str]]]) -> bool:
     key = number_key(digits(value))
+    if on_dial_code(value) and key not in DIAL_OK:
+        return False                # the dial rule wins unless the maintainers' decision named the dial code
     return any(key == n and any(fnmatch.fnmatch(path, g) for g in globs) for n, globs in public)
 
 
+WA_LINK = re.compile(r"(?i)wa\.me/\s*$")
+
+
+def _link_kinds(line: str) -> list[tuple[int, int, bool]]:
+    """(start, end, is a wa.me link) of each phone link target on the line."""
+    return [(m.start(1), m.end(1), bool(WA_LINK.search(line[m.start():m.start(1)]))) for m in TARGET.finditer(line)]
+
+
 def number_hits(text: str, path: str, public: list[tuple[str, list[str]]]) -> tuple[list[tuple[int, str]], int]:
-    """([(line, kind)], how many fictional numbers). A number found by a stronger rule is not counted again."""
+    """([(line, kind)], how many fictional numbers). A number found by a stronger rule is not counted again. A public number
+    passes in its own files as printed text or as a wa.me link only: as a tel:, sms:, callto: or other WhatsApp target it
+    still fails: an allowed number is allowed as text or a wa.me link, nothing else."""
     out: list[tuple[int, str]] = []
     made_up = 0
     for n, line in enumerate(text.splitlines(), 1):
+        links = _link_kinds(line)
         taken: list[tuple[int, int]] = []
         for kind, rx in (("a number on the dial code", DIAL), ("a phone link target", TARGET), ("a phone number", PHONE)):
             for m in rx.finditer(line):
@@ -112,9 +139,11 @@ def number_hits(text: str, path: str, public: list[tuple[str, list[str]]]) -> tu
                     continue
                 taken.append(m.span())
                 value = m.group(1) if rx is TARGET else m.group(0)
+                a, b = m.span(1) if rx is TARGET else m.span()
+                other_link = any(s < b and a < e and not wa for s, e, wa in links)
                 if fictional(value):
                     made_up += 1
-                elif not is_public(value, path, public):
+                elif other_link or not is_public(value, path, public):
                     out.append((n, kind))
     return out, made_up
 

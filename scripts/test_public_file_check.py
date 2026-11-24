@@ -19,8 +19,15 @@ needs_gs = pytest.mark.skipif(not (shutil.which("gs") or shutil.which("/opt/home
 @pytest.fixture(autouse=True)
 def dial_code():
     c.use_dial_codes([CODE])
+    c.DIAL_OK.clear()
     yield
     c.use_dial_codes([])
+    c.DIAL_OK.clear()
+
+
+def _dial_ok():
+    """FAKE is on the test's dial code; the tests of file scope and link kind take it as a number the maintainers named with its code."""
+    c.DIAL_OK.add(c.number_key(c.digits(FAKE)))
 
 
 def _pdf(text: str, uri: str = "", compress_annot: bool = False, hex_uri: bool = False) -> bytes:
@@ -78,6 +85,7 @@ def test_what_is_no_phone_number_passes(line):
 
 
 def test_a_public_number_passes_only_in_its_own_file():
+    _dial_ok()
     public = [(c.number_key(c.digits(FAKE)), ["docs/brochure.pdf"])]
     assert c.number_hits(FAKE, "docs/brochure.pdf", public)[0] == []
     assert c.number_hits(FAKE, "README.md", public)[0] != []
@@ -85,6 +93,7 @@ def test_a_public_number_passes_only_in_its_own_file():
 
 @needs_gs
 def test_a_second_number_in_the_allowed_file_still_fails():
+    _dial_ok()
     public = [(c.number_key(c.digits(FAKE)), ["docs/b.pdf"])]
     assert _check("docs/b.pdf", _pdf(f"{NOTE} {FAKE}"), public=public).hits == []
     assert len(_check("docs/b.pdf", _pdf(f"{FAKE} and +{CODE} 981-1111111"), public=public).hits) == 1
@@ -170,3 +179,66 @@ def test_pictures_are_listed_and_no_value_is_printed(capsys, tmp_path, monkeypat
 def test_a_folder_that_is_not_there_is_no_pass(tmp_path):
     with pytest.raises(SystemExit):
         c.main(["--dir", str(tmp_path / "none")])
+
+
+# ---- an allowed public number: exact, and only in the files that carry it -------------------------------------------------
+
+PUB_FILES = ["README.md", "docs/faq.md", "docs/set-up-for-you.md", "docs/_includes/jsonld.html", "llms.txt", "llms-full.txt",
+             "docs/llms.txt", "docs/llms-full.txt"]
+
+
+def _pub():
+    return [(c.number_key(c.digits(FAKE)), PUB_FILES), (c.number_key(c.digits(FAKE)), ["docs/brochure.pdf"])]
+
+
+def test_an_allowed_public_link_passes_in_its_files_and_fails_in_any_other():
+    _dial_ok()
+    for f in PUB_FILES:
+        assert c.number_hits(f"Text us: {LINK}", f, _pub())[0] == [], f
+    for f in ("docs/other.md", "fleet/README.md", "SETUP.md"):
+        assert c.number_hits(f"Text us: {LINK}", f, _pub())[0] != [], f
+
+
+def test_934_any_other_target_or_number_still_fails_in_those_files():
+    _dial_ok()
+    other = f"https://wa.me/{CODE}9811111111"
+    assert c.number_hits(f"Text us: {other}", "README.md", _pub())[0] != []                    # another wa.me target
+    for scheme in ("tel:", "sms:", "callto:", "whatsapp://send?phone="):                      # the same number, another link
+        assert c.number_hits(f"<a href=\"{scheme}+{CODE}9800000000\">call</a>", "README.md", _pub())[0] != [], scheme
+    assert c.number_hits(f"Call +{CODE} 981-1111111", "docs/faq.md", _pub())[0] != []         # any other number
+    assert c.number_hits(f"{NOTE}: {FAKE}", "docs/brochure.pdf", _pub())[0] == []              # the brochure's printed number
+    assert c.number_hits(f"tel:+{CODE}9800000000", "docs/brochure.pdf", _pub())[0] != []       # but not as a call link
+
+
+# ---- the dial rule wins unless the maintainers' decision named the dial code itself ---------------------------------------
+
+def test_941_a_hash_line_without_the_marker_never_passes_a_number_on_the_dial_code(tmp_path):
+    other = "+1 212 555 0123".replace("555 0123", "555 0199")          # fictional, so a second number on another code
+    lst = tmp_path / "public-numbers.txt"
+    lst.write_text(f"dial | {CODE} | the code\n{c.number_key(c.digits(FAKE))} | docs/brochure.pdf | the maintainers' choice\n")
+    pub = c.load_public(lst)
+    assert c.number_hits(f"{NOTE}: {FAKE}", "docs/brochure.pdf", pub)[0] != []          # on the dial code, no marker: fails
+    assert c.number_hits(f"Text us: {LINK}", "docs/brochure.pdf", pub)[0] != []
+    lst.write_text(f"dial | {CODE} | the code\n{c.number_key(c.digits(FAKE))} | docs/brochure.pdf | the maintainers' choice | dial-ok | the maintainers, 2026-01-01, naming the code\n")
+    pub = c.load_public(lst)
+    assert c.number_hits(f"{NOTE}: {FAKE}", "docs/brochure.pdf", pub)[0] == []          # with the marker: passes, in its file only
+    assert c.number_hits(f"Text us: {LINK}", "docs/brochure.pdf", pub)[0] == []
+    assert c.number_hits(f"{NOTE}: {FAKE}", "README.md", pub)[0] != []
+    assert other
+
+
+def test_941_a_listed_number_not_on_the_dial_code_is_unaffected(tmp_path):
+    sales = "+1 " + "-".join((A, B[:3], D + "4"))                                         # a made-up US number, not on the code
+    lst = tmp_path / "public-numbers.txt"
+    lst.write_text(f"dial | {CODE} | the code\n{c.number_key(c.digits(sales))} | README.md | an allowed number\n")
+    pub = c.load_public(lst)
+    assert not c.on_dial_code(sales)
+    assert c.number_hits(f"Call {sales}", "README.md", pub)[0] == [] and c.number_hits(f"Call {sales}", "docs/x.md", pub)[0] != []
+
+
+def test_941_a_bad_marker_stops_the_check(tmp_path):
+    lst = tmp_path / "public-numbers.txt"
+    lst.write_text(f"{c.number_key(c.digits(FAKE))} | docs/b.pdf | why | dial-yes | someone\n")
+    import pytest as _p
+    with _p.raises(SystemExit):
+        c.load_public(lst)
