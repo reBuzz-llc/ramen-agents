@@ -23,7 +23,9 @@ Follow [SETUP.md](SETUP.md). A few minutes: install, build, start, and give your
 The agents themselves, and how the parts fit together, are in the
 [ramen-agents README](https://github.com/reBuzz-llc/ramen-agents#readme).
 
-## Coming from the November portal?
+## Upgrading an earlier portal?
 
-Keep your `.env.local` with its database address, take the new version and run `npm run migrate` once, then start
-as before. Your board moves over with every row kept.
+If you set up the portal before it ran on your own computer, your `.env.local` holds a database address. Keep it,
+take the new version, run `npm run migrate` once, then start as before. Your board moves over with every row kept.
+
+This upgrade is tested on a local copy of such a database, not yet on a hosted one, so make a backup first.
