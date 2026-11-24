@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- A Cloudflare quick tunnel to the portal in local mode; its address goes to common-data/shared-state/portal-local.json (scripts/portal-tunnel.sh). Load only in local mode: sh scripts/install-launchd.sh portal-tunnel -->
+  <!-- A Cloudflare quick tunnel to Peek on this computer; its address goes to common-data/shared-state/portal-local.json (scripts/portal-tunnel.sh). Load only once Google sign-in is on (docs/peek.md): sh scripts/install-launchd.sh portal-tunnel -->
   <key>Label</key><string>com.ramen-agents.portal-tunnel</string>
   <key>ProgramArguments</key>
   <array>

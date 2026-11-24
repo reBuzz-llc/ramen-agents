@@ -28,6 +28,15 @@ never printed.
 
 ## Later: sign-in and other devices
 
-With sign-in off, Peek answers only on this Mac. To open it from a phone or another computer, turn on Google sign-in
-first, then reach it through the tunnel (`scripts/portal-tunnel.sh`); with sign-in off, Peek refuses anything that comes
-through the tunnel. The steps are in `~/Projects/portal/README.md`.
+With sign-in off, Peek answers only on this Mac. To open it from a phone or another computer:
+
+1. Turn on Google sign-in, as in "Sign in with Google (optional)" in `~/Projects/portal/SETUP.md`: make the OAuth
+   client, give your owner account your Google address once (`PEEK_OWNER_EMAIL=you@example.com npm run local` in
+   `~/Projects/portal`, then stop it), and put the client's two values in `~/Projects/portal/.env.local` as
+   `GOOGLE_CLIENT_ID=...` and `GOOGLE_CLIENT_SECRET=...` (mode 600).
+2. Restart Peek: `launchctl kickstart -k gui/$(id -u)/com.ramen-agents.portal-local`. With both values there, Peek starts
+   with sign-in on, and every page asks for Google sign-in; only the people you add in **Settings → People** get in.
+3. Reach it through the tunnel: `sh scripts/install-launchd.sh portal-tunnel`. With sign-in off, Peek refuses anything
+   that comes through the tunnel, so this step works only after the first two.
+
+To turn sign-in off again, remove the two lines from `.env.local` and restart Peek.

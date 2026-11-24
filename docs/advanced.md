@@ -29,8 +29,8 @@ are accounts of yours, made by you; no agent signs up for anything.
    From then on the agents, the Validator and the dashboard read and write the boards in the portal. The dashboard's
    Boards pages say so and link there. `python3 scripts/setup-check.py --probe` tests each key.
 4. Move what is already on the local board: export each board as CSV from its page and import it in the portal.
-5. The database's safety net (a nightly standby copy to a second free database, local mode for an outage, and the
-   dashboard's warnings before a quota runs out): [portal-database.md](portal-database.md).
+5. A hosted portal's safety net (a nightly standby copy to a second free database, and the dashboard's warnings
+   before a quota runs out): [portal-database.md](portal-database.md). Peek on this computer needs neither.
 
 To go back, remove `portal_url` from `local.toml` and restart the dashboard; the local board is where you left it.
 

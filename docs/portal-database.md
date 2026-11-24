@@ -1,17 +1,14 @@
-# The portal's database: a standby, local mode, and what to do in an outage
+# A hosted portal's database: a nightly standby and what to do in an outage
 
-The team portal (the `portal` branch) keeps its data in one Postgres database. Once `common-data/configs/local.toml` names the
-portal (`[leads] portal_url`, [advanced.md](advanced.md)), the agents read and write their leads there, so that database is the
-family's Leads board. Free database plans have quotas, and
-when one runs out the portal stops answering until the quota resets. Three tools in this folder keep that from costing
-you the data or the week:
+By default Peek, the team's board, runs on this computer with its own local database ([peek.md](peek.md)), and nothing
+on this page applies. This page is for a portal you host yourself on a Postgres database (a `DATABASE_URL` in the
+portal's `.env.local`). Free database plans have quotas, and when one runs out the portal stops answering until the
+quota resets. Two tools keep that from costing you the data or the week:
 
 - **A nightly standby copy** to a second free database on another provider.
-- **Local mode:** the portal on this Mac, against Postgres on this Mac, reached by the team through a free tunnel.
 - **An "Other free tiers" table** on the dashboard that warns before a quota runs out.
 
-All three need Homebrew's Postgres tools: `brew install postgresql@17` (local mode also needs
-`brew install cloudflared`).
+The copy needs Homebrew's Postgres tools: `brew install postgresql@17`.
 
 ## The addresses
 
@@ -38,39 +35,16 @@ Each copy dumps the primary's tables and restores them into the standby **in one
 table's row count with the dump. If anything differs or fails, the transaction rolls back and the standby stays as it
 was. The result is one line in `common-data/shared-state/db-standby.json`, including the primary's size (`db_mb`),
 which the dashboard can show against your plan's limit. The newest dump is also kept at
-`common-data/backups/portal-latest.sql` (git-ignored, mode 600) as a last resort.
+`common-data/backups/portal-latest.sql` (git-ignored, mode 600).
 
-**Failing over:** point the portal's hosting at the standby's addresses (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`),
-redeploy, and swap the two key files so the nightly copy runs from the new primary. If the hosted sign-in lived with
-the old database, turn on sign-in codes on the hosting (`PEEK_OUTAGE_SIGNIN=1`) and give yourself the first one with
-`DATABASE_URL=<standby> node scripts/local-code.mjs <your email> --remote` in the portal's checkout. When the old
-provider is back and you want to move home: `sh ~/bots/scripts/db-standby.sh --reverse --yes-overwrite-primary`.
+**Failing over:** point the portal's hosting at the standby's address (`DATABASE_URL`), restart it, and swap the two
+key files so the nightly copy runs from the new primary. When the old provider is back and you want to move home:
+`sh ~/bots/scripts/db-standby.sh --reverse --yes-overwrite-primary`. A copy by hand refuses to put fewer leads over more
+(an empty database copied over a full one is the classic mistake); add `--yes-shrink` if that is really what you want.
 
-## 2. Local mode
+**Moving to Peek on this computer instead** ends the quota worry: `sh scripts/peek.sh setup` ([peek.md](peek.md)).
 
-When neither database answers, or you would rather not wait, the portal can run on this Mac:
-
-```sh
-cd ~/Projects/portal && npm run build                      # the portal's checkout (PORTAL_DIR to change it)
-sh ~/bots/scripts/portal-local-setup.sh                    # once: Postgres on 127.0.0.1, a database, the settings
-sh ~/bots/scripts/db-standby.sh --to-local                 # the newest copy: the primary, else the standby, else the saved dump
-sh ~/bots/scripts/install-launchd.sh portal-local portal-tunnel
-cat ~/bots/common-data/shared-state/portal-local.json      # the tunnel's https address: pass it to the team
-```
-
-The portal listens on `127.0.0.1:3100` only; the tunnel exposes that port and nothing else, never the database. Local
-mode signs people in with codes (Settings → People → sign-in code). The tunnel's address changes on every restart;
-a free Cloudflare account and a named tunnel keep one fixed address.
-
-`--to-local` refuses to copy fewer leads over more (an empty database copied over a full one is the classic mistake);
-add `--yes-shrink` if that is really what you want.
-
-**Leaving local mode:** stop the two jobs (`launchctl bootout gui/$(id -u)/com.ramen-agents.portal-local`, the same for
-`portal-tunnel`), then copy this Mac's data back:
-`sh ~/bots/scripts/db-standby.sh --from-local --yes-overwrite-primary` (or `--from-local --to-standby` to fill the
-standby first).
-
-## 3. Other free tiers on the dashboard
+## 2. Other free tiers on the dashboard
 
 `scripts/free-tiers.py` runs hourly (`com.ramen-agents.free-tiers`, installed with the rest) and writes
 `common-data/shared-state/free-tiers.json`; the dashboard's Allowance view shows it as **Other free tiers**, and a row
@@ -81,5 +55,5 @@ key; only this job reads them.
 
 ## What is installed when
 
-`sh scripts/install-launchd.sh` installs everything except `db-standby`, `portal-local` and `portal-tunnel`, which are
-installed only when you name them: the copy needs its two keys first, and local mode is for an outage.
+`sh scripts/install-launchd.sh` installs everything except `db-standby`, which is installed only when you name it: the
+copy needs its two keys first.

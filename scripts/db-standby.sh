@@ -6,23 +6,19 @@
 #
 #   sh ~/bots/scripts/db-standby.sh                        # nightly (launchd com.ramen-agents.db-standby, 02:30): primary -> standby
 #   sh ~/bots/scripts/db-standby.sh --reverse --yes-overwrite-primary     # after a failover: standby -> primary
-#   sh ~/bots/scripts/db-standby.sh --to-local [--dump FILE]              # local mode: the newest copy -> Postgres on this Mac
-#                                                          #   from the primary if it answers, else the standby, else the saved dump; or FILE
-#   sh ~/bots/scripts/db-standby.sh --from-local --yes-overwrite-primary  # leaving local mode: this Mac -> the primary
-#   sh ~/bots/scripts/db-standby.sh --from-local --to-standby             # this Mac -> the standby (a rebuild loaded locally first)
 #   add --dry-run to any of them: check the tools, the addresses and the plan; connect to nothing
 #
 # Addresses, one line each (the postgres:// connection string, the direct or session address: a dump needs a session),
 # mode 600, read here only (nothing is written to ~/.pgpass):
 #   common-data/keys/portal-primary.key   the database the portal uses (any Postgres: Neon, Supabase, your own)
 #   common-data/keys/portal-standby.key   a second, free database on another provider: the nightly copy's target
-#   common-data/keys/portal-local.key     Postgres on this Mac (scripts/portal-local-setup.sh writes it)
 # After a failover, swap the two key files: the copy always runs primary -> standby.
 # Each successful dump of the primary or the standby is also kept as common-data/backups/portal-latest.sql (mode 600,
-# git-ignored): the last resort for --to-local when neither answers.
+# git-ignored): the newest copy of the tables, kept on this computer.
 # Results, one JSON line each ({"at", "tables", "rows", "mb", "ok", "error", "from", "to", "db_mb"}: db_mb is the
 # primary's size after the copy, for the dashboard's "Other free tiers") in common-data/shared-state/: db-standby.json
-# (nightly), db-standby-reverse.json, portal-local-restore.json, db-from-local.json.
+# (nightly) and db-standby-reverse.json. (The local mode's --to-local and --from-local retired with Peek on this computer,
+# which needs no Postgres: docs/peek.md.)
 # Needs pg_dump and psql: Homebrew's postgresql@17 or libpq (both keg-only; looked for in /opt/homebrew/opt).
 # The guide: docs/portal-database.md.
 set -u
@@ -31,23 +27,18 @@ BOTS="${BOTS_DIR:-$HOME/bots}"
 KEYS="$BOTS/common-data/keys"
 PRIMARY_KEY="${PRIMARY_KEY:-$KEYS/portal-primary.key}"
 STANDBY_KEY="${STANDBY_KEY:-$KEYS/portal-standby.key}"
-LOCAL_KEY="${LOCAL_KEY:-$KEYS/portal-local.key}"
 SAVED="${SAVED_DUMP:-$BOTS/common-data/backups/portal-latest.sql}"
 SHARED="$BOTS/common-data/shared-state"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/db-standby.XXXXXX")"
 trap 'rm -rf "${WORK:?}"' EXIT
 
-DRY=0; MODE=standby; CONFIRMED=0; DUMP_IN=""; SHRINK=0; TO_STANDBY=0
+DRY=0; MODE=standby; CONFIRMED=0; SHRINK=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
     --reverse) MODE=reverse ;;
-    --to-local) MODE=to-local ;;
-    --from-local) MODE=from-local ;;
-    --to-standby) TO_STANDBY=1 ;;
     --yes-overwrite-primary) CONFIRMED=1 ;;
     --yes-shrink) SHRINK=1 ;;
-    --dump) shift; DUMP_IN="${1:-}" ;;
     *) echo "db-standby: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -55,8 +46,6 @@ done
 case "$MODE" in
   standby) STATE="$SHARED/db-standby.json" ;;
   reverse) STATE="$SHARED/db-standby-reverse.json" ;;
-  to-local) STATE="$SHARED/portal-local-restore.json" ;;
-  from-local) STATE="$SHARED/db-from-local.json" ;;
 esac
 
 now() { date +"%Y-%m-%dT%H:%M:%S"; }
@@ -95,15 +84,13 @@ key_url() {
   u="$(head -1 "$f" | tr -d '[:space:]')"
   case "$u" in postgres://*|postgresql://*) printf -v "$var" '%s' "$u" ;; *) fail "$f does not hold a postgres:// connection string" ;; esac
 }
-# reachable <url>: answers select 1 within ten seconds
-reachable() { PGCONNECT_TIMEOUT=10 psql "$(with_ssl "$1")" --no-psqlrc -tAc "select 1" >/dev/null 2>&1; }
 
 # --- the tools -----------------------------------------------------------------------------------------------------
 for d in /opt/homebrew/opt/postgresql@17/bin /opt/homebrew/opt/libpq/bin /usr/local/opt/libpq/bin; do [ -x "$d/pg_dump" ] && PATH="$d:$PATH" && break; done
 command -v pg_dump >/dev/null && command -v psql >/dev/null || fail "pg_dump and psql not found: brew install postgresql@17 (or libpq)"
 
 # --- source and target by mode -------------------------------------------------------------------------------------
-SRC=""; DST=""; FROM_FILE=""
+SRC=""; DST=""
 case "$MODE" in
   standby)
     key_url SRC "$PRIMARY_KEY" "the primary"; FROM_LABEL="primary"
@@ -112,39 +99,6 @@ case "$MODE" in
     [ "$CONFIRMED" = 1 ] || fail "--reverse replaces the primary's tables with the standby's: add --yes-overwrite-primary"
     key_url SRC "$STANDBY_KEY" "the standby"; FROM_LABEL="standby"
     key_url DST "$PRIMARY_KEY" "the primary"; TO_LABEL="primary" ;;
-  from-local)
-    key_url SRC "$LOCAL_KEY" "the portal's database on this Mac"; FROM_LABEL="local"
-    if [ "$TO_STANDBY" = 1 ]; then
-      key_url DST "$STANDBY_KEY" "the standby"; TO_LABEL="standby"
-    else
-      [ "$CONFIRMED" = 1 ] || fail "--from-local replaces the primary's tables with this Mac's: add --yes-overwrite-primary (or --to-standby)"
-      key_url DST "$PRIMARY_KEY" "the primary"; TO_LABEL="primary"
-    fi ;;
-  to-local)
-    TO_LABEL="local"
-    key_url DST "$LOCAL_KEY" "the portal's database on this Mac"
-    if [ -n "$DUMP_IN" ]; then
-      [ -r "$DUMP_IN" ] || fail "no dump file $DUMP_IN"
-      FROM_FILE="$DUMP_IN"; FROM_LABEL="file $DUMP_IN"
-    elif [ "$DRY" = 1 ]; then
-      FROM_LABEL="the primary if it answers, else the standby ($([ -r "$STANDBY_KEY" ] && echo "key on file" || echo "no key")), else $SAVED ($([ -r "$SAVED" ] && echo "on file" || echo "none yet"))"
-    else
-      P=""; S=""
-      [ -r "$PRIMARY_KEY" ] && key_url P "$PRIMARY_KEY" "the primary"
-      if [ -n "$P" ] && reachable "$P"; then
-        SRC="$P"; FROM_LABEL="primary"
-      else
-        [ -r "$STANDBY_KEY" ] && key_url S "$STANDBY_KEY" "the standby"
-        if [ -n "$S" ] && reachable "$S"; then
-          SRC="$S"; FROM_LABEL="standby"
-        elif [ -r "$SAVED" ]; then
-          FROM_FILE="$SAVED"; FROM_LABEL="saved dump $(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$SAVED")"
-        else
-          fail "nothing to copy from: the primary and the standby do not answer and there is no saved dump ($SAVED); give one with --dump FILE"
-        fi
-      fi
-    fi
-    [ -n "$DST" ] && ! is_local "$DST" && fail "$LOCAL_KEY must point at this Mac (127.0.0.1 or localhost), not $(host_of "$DST")" ;;
 esac
 [ -n "$SRC" ] && [ -n "$DST" ] && [ "$SRC" = "$DST" ] && fail "the source and the target are the same database: refusing"
 
@@ -160,16 +114,11 @@ fi
 
 # --- 1. the dump --------------------------------------------------------------------------------------------------------
 DUMP="$WORK/portal.sql"
-if [ -n "$FROM_FILE" ]; then
-  cp "$FROM_FILE" "$DUMP" || fail "cannot read $FROM_FILE"
-else
-  pg_dump "$(with_ssl "$SRC")" --schema=public --schema=drizzle --no-owner --no-privileges --no-comments --format=plain --file="$DUMP" 2>"$WORK/dump.err" \
+pg_dump "$(with_ssl "$SRC")" --schema=public --schema=drizzle --no-owner --no-privileges --no-comments --format=plain --file="$DUMP" 2>"$WORK/dump.err" \
     || fail "pg_dump from $FROM_LABEL failed: $(tr '\n' ' ' <"$WORK/dump.err" | cut -c1-240)"
-  if [ "$FROM_LABEL" = "primary" ] || [ "$FROM_LABEL" = "standby" ]; then   # the last resort for --to-local: the newest cloud dump, kept on this Mac
-    mkdir -p "$(dirname "$SAVED")" && chmod 700 "$(dirname "$SAVED")"
-    (umask 077 && cp "$DUMP" "$SAVED.tmp" && mv "$SAVED.tmp" "$SAVED")
-  fi
-fi
+# the newest copy of the tables, kept on this computer
+mkdir -p "$(dirname "$SAVED")" && chmod 700 "$(dirname "$SAVED")"
+(umask 077 && cp "$DUMP" "$SAVED.tmp" && mv "$SAVED.tmp" "$SAVED")
 MB="$(/usr/bin/python3 -c "import os,sys; print(round(os.path.getsize(sys.argv[1]) / 1048576, 1))" "$DUMP")"
 
 # The rows per table in the dump: the lines between "COPY <table> (...) FROM stdin;" and "\.".

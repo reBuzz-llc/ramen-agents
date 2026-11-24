@@ -1,5 +1,6 @@
 #!/bin/bash
-# The team's way to the portal in local mode: a Cloudflare quick tunnel (free, no account) from a random
+# The team's way to Peek on this computer from other devices, once Google sign-in is on (docs/peek.md; with sign-in
+# off Peek refuses anything that comes through a tunnel): a Cloudflare quick tunnel (free, no account) from a random
 # https://<words>.trycloudflare.com to the portal on 127.0.0.1:3100. launchd: com.ramen-agents.portal-tunnel (KeepAlive;
 # installed only by name: sh scripts/install-launchd.sh portal-tunnel). The address changes on every start, so each one
 # is written to common-data/shared-state/portal-local.json {"url", "since", "port"} for you to pass on to the team. With

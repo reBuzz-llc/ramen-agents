@@ -58,6 +58,8 @@ reinstall() {
   sh scripts/install.sh | sed -n '/STOP/p;/done/p' || true
   # Peek, the team's board, when it runs on this Mac (nothing without its checkout); a failed update puts it back as it was
   if [ -f scripts/peek.sh ]; then sh scripts/peek.sh update || echo "  !!       Peek stays on its previous version: the line above says why"; fi
+  # the old local mode (Postgres on this Mac) retired with Peek on this computer: an install still on it is told once per update
+  if [ -f common-data/keys/portal-local.env ]; then echo "  note     Your board runs in the old local mode; sh scripts/peek.sh setup moves it to Peek"; fi
   launchctl kickstart -k "gui/$(id -u)/com.ramen-agents.bot-dashboard" 2>/dev/null && echo "  ok       the dashboard restarted" || echo "  note     the dashboard is not installed as a launch agent: sh scripts/setup.sh starts it"
   if [ -s common-data/local/members.txt ]; then
     for m in $(cat common-data/local/members.txt); do
