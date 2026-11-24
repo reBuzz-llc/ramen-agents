@@ -67,7 +67,8 @@ only what they tell you: never invent a company detail, a person or a figure.
   After a 2, or a STOP once the pull ran, `sh scripts/update.sh --rollback` goes back. Each run is recorded in
   `common-data/local/last-update.json`. What is new is in `docs/updates.json` (the lines
   `git diff HEAD starter/fleet -- docs/updates.json` adds), and every provider with its key in
-  `common-data/providers.json`. The monthly prompt in the README ("Keep it set up and up to date") is the whole routine.
+  `common-data/providers.json`. The README's prompt ("Finish setup and stay up to date with one prompt") is the
+  whole routine.
 
 ## What is never yours to do
 
