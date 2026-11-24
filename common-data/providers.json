@@ -814,10 +814,10 @@
    "card": "No Bedrock free tier on its pricing page; a new AWS Free Tier account gets \"$100 in credits immediately\" (aws.amazon.com/free). Whether a card is needed: the page does not say. Read 2026-11-24.",
    "added": "2026-11-24",
    "changed": "2026-11-24",
-   "mark": null,
-   "mark_by": "",
-   "mark_date": "",
-   "mark_note": "",
+   "mark": "rejected",
+   "mark_by": "maintainers",
+   "mark_date": "2026-11-24",
+   "mark_note": "No free tier: it is paid per use.",
    "test": {
     "kind": "none"
    }
@@ -856,10 +856,10 @@
    "card": "No free tier stated; \"Your API requests will be automatically rejected once your prepaid credits are depleted\" (its billing docs). Read 2026-11-24.",
    "added": "2026-11-24",
    "changed": "2026-11-24",
-   "mark": null,
-   "mark_by": "",
-   "mark_date": "",
-   "mark_note": "",
+   "mark": "rejected",
+   "mark_by": "maintainers",
+   "mark_date": "2026-11-24",
+   "mark_note": "No free tier: its API runs on prepaid credit.",
    "test": {
     "kind": "none"
    }
@@ -876,10 +876,10 @@
    "card": "\"Every new API key comes with 10M free tokens!\" Whether a card is needed: the page does not say. Read 2026-11-24.",
    "added": "2026-11-24",
    "changed": "2026-11-24",
-   "mark": null,
-   "mark_by": "",
-   "mark_date": "",
-   "mark_note": "",
+   "mark": "usable",
+   "mark_by": "maintainers",
+   "mark_date": "2026-11-24",
+   "mark_note": "Its embeddings answered free; its terms say inputs are not used to train. No member calls it yet.",
    "test": {
     "kind": "none"
    }
@@ -896,10 +896,10 @@
    "card": "\"Free registration — no credit card required\", \"550 messages/day (eligible models only)\". Read 2026-11-24.",
    "added": "2026-11-24",
    "changed": "2026-11-24",
-   "mark": null,
-   "mark_by": "",
-   "mark_date": "",
-   "mark_note": "",
+   "mark": "usable",
+   "mark_by": "maintainers",
+   "mark_date": "2026-11-24",
+   "mark_note": "A free model answered with no card on file.",
    "test": {
     "kind": "models",
     "url": "https://api.meganova.ai/v1/models",
@@ -979,11 +979,11 @@
    "free": false,
    "card": "$5 of free credit a month with a card on file (its page), then it bills per use. Out of the default search path since 2026-11-21.",
    "added": "2026-11-14",
-   "changed": "2026-11-21",
-   "mark": null,
-   "mark_by": "",
-   "mark_date": "",
-   "mark_note": "",
+   "changed": "2026-11-24",
+   "mark": "rejected",
+   "mark_by": "maintainers",
+   "mark_date": "2026-11-24",
+   "mark_note": "Its free credit needs a card on file.",
    "test": {
     "kind": "none"
    }

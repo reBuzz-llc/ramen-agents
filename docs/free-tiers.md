@@ -129,6 +129,8 @@ Optional; none is needed.
 | [Sniffmail](https://sniffmail.io) | Email check | Optional: the backup email check. | usable (maintainers, 2026-11-06): The backup when QuickEmailVerification's daily credits run out. |
 | [Tavily](https://tavily.com) | Search | 1,000 credits a month; its pricing page: "No credit card required". The CEO only, for special searches. | usable (maintainers, 2026-11-06): For special searches: only the CEO calls it, never as an automatic fallback. |
 | [LangSearch](https://langsearch.com) | Search | Free plan; its page does not state whether a card is needed. The first backup when the local search fails or finds nothing. | usable (maintainers, 2026-11-24): The first backup when the local search fails or finds nothing. |
+| [Jina AI](https://jina.ai) | Tool | "Every new API key comes with 10M free tokens!" Whether a card is needed: the page does not say. Read 2026-11-24. | usable (maintainers, 2026-11-24): Its embeddings answered free; its terms say inputs are not used to train. No member calls it yet. |
+| [MegaNova AI](https://www.meganova.ai) | AI model | "Free registration — no credit card required", "550 messages/day (eligible models only)". Read 2026-11-24. | usable (maintainers, 2026-11-24): A free model answered with no card on file. |
 
 ### Only if you pay
 
@@ -144,15 +146,10 @@ What each provider's own page says, and the day we read it. Nobody has tested th
 
 | Provider | Use | Free tier and card | Mark |
 |---|---|---|---|
-| [Amazon Bedrock](https://aws.amazon.com/bedrock/) | AI model | No Bedrock free tier on its pricing page; a new AWS Free Tier account gets "$100 in credits immediately" (aws.amazon.com/free). Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
 | [Bytez](https://bytez.com) | AI model | "$0 / month - Get $1 in free credits", "Credits refresh every 4 weeks". Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
-| [xAI (Grok)](https://docs.x.ai) | AI model | No free tier stated; "Your API requests will be automatically rejected once your prepaid credits are depleted" (its billing docs). Read 2026-11-24. | not judged yet |
-| [Jina AI](https://jina.ai) | Tool | "Every new API key comes with 10M free tokens!" Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
-| [MegaNova AI](https://www.meganova.ai) | AI model | "Free registration — no credit card required", "550 messages/day (eligible models only)". Read 2026-11-24. | not judged yet |
 | [EzVerify](https://ezverify.app) | Email check | "200 free credits every month · No credit card". Read 2026-11-24. | not judged yet |
 | [Microlink](https://microlink.io) | Tool | "25 requests / day", "Free forever plan, no credit card." Read 2026-11-24. | not judged yet |
 | [TextPerfector](https://textperfector.com) | Tool | "Free plan alone includes 100 requests every month". Whether a card is needed: the page does not say. Read 2026-11-24. | not judged yet |
-| [Parallel](https://parallel.ai) | Search | $5 of free credit a month with a card on file (its page), then it bills per use. Out of the default search path since 2026-11-21. | not judged yet |
 
 ### Unusable
 
@@ -192,6 +189,9 @@ Judged on paper, not tested, with the date of that judgement.
 | GitHub Models | AI model | Free. | rejected (2026-11-12): Retired on 30 July 2026: its inference API, catalog and playground are gone. |
 | Gonka Broker | AI model | Free. | rejected (2026-11-06): Its own pages call it “free or trial”, so the allowance may not last. |
 | ModelScope | AI model | Free. | rejected (2026-11-23): Needs a real-name Alibaba Cloud account binding, and its docs point commercial users to commercial platforms. |
+| [Amazon Bedrock](https://aws.amazon.com/bedrock/) | AI model | No Bedrock free tier on its pricing page; a new AWS Free Tier account gets "$100 in credits immediately" (aws.amazon.com/free). Whether a card is needed: the page does not say. Read 2026-11-24. | rejected (2026-11-24): No free tier: it is paid per use. |
+| [xAI (Grok)](https://docs.x.ai) | AI model | No free tier stated; "Your API requests will be automatically rejected once your prepaid credits are depleted" (its billing docs). Read 2026-11-24. | rejected (2026-11-24): No free tier: its API runs on prepaid credit. |
+| [Parallel](https://parallel.ai) | Search | $5 of free credit a month with a card on file (its page), then it bills per use. Out of the default search path since 2026-11-21. | rejected (2026-11-24): Its free credit needs a card on file. |
 
 ### No longer used
 
