@@ -62,7 +62,13 @@ only what they tell you: never invent a company detail, a person or a figure.
   Change rows through those pages or the board API, never with SQL.
 - **Start, stop, restart:** the dashboard's Stop and Start, or `sh scripts/restart-bot.sh <slug>`. A member with a
   STOP file was stopped by the person: never start it without their word, and never `launchctl kickstart -k` a member.
-- **Updating:** `sh scripts/update.sh`.
+- **Updating:** `sh scripts/update.sh --check` shows what would change and changes nothing; `sh scripts/update.sh`
+  updates (exit 0: done; 1: STOP, read what it printed; 2: updated, but the setup check found something new missing).
+  After a 2, or a STOP once the pull ran, `sh scripts/update.sh --rollback` goes back. Each run is recorded in
+  `common-data/local/last-update.json`. What is new is in `docs/updates.json` (the lines
+  `git diff HEAD starter/fleet -- docs/updates.json` adds), and every provider with its key in
+  `common-data/providers.json`. The README's prompt ("Finish setup and stay up to date with one prompt") is the
+  whole routine.
 
 ## What is never yours to do
 

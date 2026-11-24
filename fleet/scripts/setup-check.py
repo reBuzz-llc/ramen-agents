@@ -18,21 +18,27 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent  # this repository (the fleet branch, normally ~/bots)
+# this repository (the fleet branch, normally ~/bots); RAMEN_ROOT when update.sh runs the new version's copy against it
+ROOT = Path(os.environ.get("RAMEN_ROOT") or Path(__file__).resolve().parent.parent)
 HOME = Path.home()
 ENGINE = Path(os.environ.get("RAMEN_ENGINE", HOME / "Projects" / "bot"))
 KEYS = ROOT / "common-data" / "keys"
 
-# Model providers: file name, who, where you make the key. At least one is needed (docs/free-tiers.md).
+# Model providers: file name, who, where you make the key. At least one is needed (docs/free-tiers.md). The steps named in
+# the lines below are AGENTS.md's: 1 install, 2 a model key, 3 the answers and setup, 4 this check.
 MODEL_KEYS = [
     ("zai", "Z.ai", "https://z.ai"),
     ("gemini", "Google AI Studio", "https://aistudio.google.com/apikey"),
     ("groq", "Groq", "https://console.groq.com/keys"),
     ("openrouter", "OpenRouter (free models only)", "https://openrouter.ai/keys"),
 ]
+FIRST_KEYS = ("zai", "groq", "openrouter")    # the FAQ's first keys; Gemini asks first (sh scripts/add-key.sh gemini)
 OPTIONAL_KEYS = [
     ("quickemailverification", "QuickEmailVerification (Lead Gen checks an email before listing it)", "https://quickemailverification.com"),
     ("sniffmail", "Sniffmail (the backup email check)", "https://sniffmail.io"),
+    # search keys: optional, never required (the local search needs no key and stays the default)
+    ("langsearch", "LangSearch (the first backup search, only when the local search fails or finds nothing)", "https://langsearch.com"),
+    ("tavily", "Tavily (The CEO's special searches, never automatic)", "https://tavily.com"),
 ]
 # The board's keys, one per reader (the dashboard's local board; setup writes them, or for the hosted portal
 # they are minted in its checkout with node --env-file=.env.local scripts/api-key.mjs <name> <scopes>)
@@ -77,13 +83,13 @@ def portal_url() -> str:
 
 def family_missing() -> list[str]:
     """What the first-run answers still lack: common-data/local/family.toml needs [company] name, sells and
-    buyers and [target] market. Written by sh scripts/setup.sh (step 2) or the dashboard's first-run page."""
+    buyers and [target] market. Written by sh scripts/setup.sh (step 3) or the dashboard's first-run page."""
     import tomllib
     f = ROOT / "common-data" / "local" / "family.toml"
     try:
         data = tomllib.loads(f.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return ["common-data/local/family.toml (step 2: sh scripts/setup.sh, or the dashboard's first-run page)"]
+        return ["common-data/local/family.toml (step 3: sh scripts/setup.sh, or the dashboard's first-run page)"]
     company = data.get("company") if isinstance(data.get("company"), dict) else {}
     target = data.get("target") if isinstance(data.get("target"), dict) else {}
     return [f"[company] {k}" for k in ("name", "sells", "buyers") if not str(company.get(k) or "").strip()] + \
@@ -116,7 +122,9 @@ def checks() -> tuple[list[str], list[str], int]:
     if key_ok("gemini") and gemini_closed():
         optional.append("common-data/keys/gemini.key is on file but closed to lead data until you choose: sh scripts/add-key.sh gemini")
     if not have:
-        missing.append("at least one model key, sh scripts/add-key.sh <provider> (step 3): " + "; ".join(f"{n}.key from {link}" for n, _, link in MODEL_KEYS[:3]) + " (more are optional)")
+        first = [k for k in MODEL_KEYS if k[0] in FIRST_KEYS]
+        missing.append("at least one model key (step 2): Z.ai, Groq or OpenRouter first, sh scripts/add-key.sh zai (or groq, openrouter): "
+                       + "; ".join(f"{n}.key from {link}" for n, _, link in first) + ". Gemini asks first: sh scripts/add-key.sh gemini")
     else:
         done += 1
         for n, who, link in MODEL_KEYS:
@@ -138,15 +146,15 @@ def checks() -> tuple[list[str], list[str], int]:
             optional.append(f"common-data/keys/{n}.key: {who}, {link}")
     # 5. the company, in your words
     left = family_missing()
-    need(not left, "your family (step 2): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
+    need(not left, "your family (step 3): " + ", ".join(left) + " -- sh scripts/setup.sh asks for them")
     # 6. search
-    need(local_answers("http://127.0.0.1:8888/config"), "the local search (SearXNG) does not answer on 127.0.0.1:8888 (SETUP.md step 4; it starts with the launch agents)")
+    need(local_answers("http://127.0.0.1:8888/config"), "the local search (SearXNG) does not answer on 127.0.0.1:8888 (it starts with the launch agents, step 3: sh scripts/setup.sh)")
     # 7. the dashboard
     need((ROOT / "webapp" / ".next" / "BUILD_ID").is_file(), "the dashboard is not built: sh scripts/install.sh builds it (step 1)")
     # 8. always on
     agents = HOME / "Library" / "LaunchAgents"
     installed = sorted(p.name for p in agents.glob("com.ramen-agents.*.plist")) if agents.is_dir() else []
-    need(bool(installed), "the launch agents: sh scripts/setup.sh starts the members you choose (step 4)")
+    need(bool(installed), "the launch agents: sh scripts/setup.sh starts the members you choose (step 3)")
     need(local_answers("http://127.0.0.1:3000/"), "the dashboard does not answer on http://127.0.0.1:3000 (it starts with the launch agents)")
     return missing, optional, done
 

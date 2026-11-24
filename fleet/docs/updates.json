@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "about": "What changed in ramen-agents, newest first, one entry per line. kind: key (a key worth adding), provider (a provider joined, left or changed terms), feature (something new or better), removed (something gone), your-step (something only you can do). step: the command you run, or empty. To see what is new since your copy: git fetch starter && git diff HEAD starter/fleet -- docs/updates.json (the added lines). Dates are when the change was made.",
+  "entries": [
+    {"date": "2026-11-24", "kind": "feature", "line": "sh scripts/update.sh --check shows what an update would change and changes nothing; --rollback goes back to the version before the last update; an edit you made to a persona is re-applied after the pull, and one that no longer applies stays in common-data/local/before-update/ and is named.", "step": ""},
+    {"date": "2026-11-24", "kind": "key", "line": "Two optional search keys, both free with no card: LangSearch (the first backup when the local search finds nothing) and Tavily (the CEO's special searches). Keyless search stays the default; neither is needed.", "step": "sh scripts/add-key.sh langsearch"},
+    {"date": "2026-11-24", "kind": "feature", "line": "docs/updates.json (this file) and common-data/providers.json: what is new and every provider with its key, for you or your code agent to read.", "step": ""},
+    {"date": "2026-11-23", "kind": "removed", "line": "The mailer settings ([send]), the chat partner and the developer tools (the file, shell and self-upgrade actions) are gone. An old config with these sections still loads and says once that each is ignored.", "step": ""},
+    {"date": "2026-11-23", "kind": "removed", "line": "The supervisor no longer rolls back or changes the checkout by itself: updates come only from sh scripts/update.sh.", "step": ""},
+    {"date": "2026-11-23", "kind": "removed", "line": "Unused dashboard code and two unused scripts (family_graph.py, sync-launchd.sh) are gone.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "The Research Analyst is on the family card.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "No local model by default: the family runs on free remote providers, and a local model runs only if you name one in fallback_provider.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "Lead data is masked by default: a lead's email, phone and contact name reach remote models as stand-ins, and the Validator's review uses the same mask.", "step": ""},
+    {"date": "2026-11-23", "kind": "your-step", "line": "Gemini takes no lead data until you say yes, with Google's terms in front of you. Only if you have a Gemini key:", "step": "sh scripts/add-key.sh gemini"},
+    {"date": "2026-11-23", "kind": "feature", "line": "One model key is enough: bot check passes with one provider that answers, and a key that is rate limited at setup still counts.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "Setup is clearer: install asks before using Homebrew, setup asks before loading launch agents, waits for the board and says plainly when no member started.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "The write gate fails closed: a check that cannot load, run or give a verdict holds the write.", "step": ""},
+    {"date": "2026-11-23", "kind": "feature", "line": "Automated reads say what they are, and a page that refuses a read is not used as evidence.", "step": ""},
+    {"date": "2026-11-21", "kind": "provider", "line": "Mistral, Ollama Cloud and Speka left the default model chain: they need billing or are pay per token. A key file alone never adds them back.", "step": ""},
+    {"date": "2026-11-21", "kind": "provider", "line": "Parallel left the default search path: its free credit needs a card on file.", "step": ""},
+    {"date": "2026-11-21", "kind": "feature", "line": "Nothing installs or runs from the read-only copy on the main branch.", "step": ""},
+    {"date": "2026-11-21", "kind": "feature", "line": "A keyed search's daily budget of 0 means no call.", "step": ""},
+    {"date": "2026-11-20", "kind": "feature", "line": "docs/claude-team: a template for running ramen-agents with a team of Claude Code sessions.", "step": ""},
+    {"date": "2026-11-18", "kind": "removed", "line": "The desktop control, the Tor reader and the blog-post action are gone from the engine.", "step": ""},
+    {"date": "2026-11-16", "kind": "feature", "line": "The local board: Leads, Tasks and Packages in one file on your Mac, on the dashboard, with Import CSV and Export CSV.", "step": ""},
+    {"date": "2026-11-16", "kind": "feature", "line": "Three commands from an empty Mac: install.sh, setup.sh (a few questions and one free key) and the dashboard's first-run page; add-key.sh and update.sh; your values in git-ignored files.", "step": ""},
+    {"date": "2026-11-16", "kind": "removed", "line": "Notion is no longer used anywhere. To bring old leads over, export the Leads board from Notion as CSV, then on the dashboard: Boards, Leads, Import CSV. common-data/keys/notion.key can be deleted.", "step": ""},
+    {"date": "2026-11-14", "kind": "key", "line": "One free model key starts the family: Z.ai, Groq or OpenRouter. Gemini is a fourth, and it asks first.", "step": "sh scripts/add-key.sh zai"},
+    {"date": "2026-11-14", "kind": "feature", "line": "The first release: the engine, five agents, the Validator, the fence in code, and the dashboard.", "step": ""}
+  ]
+}
