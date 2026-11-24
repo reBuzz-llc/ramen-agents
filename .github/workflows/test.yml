@@ -22,7 +22,7 @@ jobs:
       - run: pip install pytest httpx ./.engine-for-tests
       - run: python -m pytest -q tests
         working-directory: validator
-      - run: python -m pytest -q scripts/test_read_only_copy.py scripts/test_free_tiers.py scripts/test_family_week.py scripts/test_check_private_words.py scripts/test_asks_before_changing_the_mac.py scripts/test_family_answers.py scripts/test_gemini_choice.py scripts/test_migrate_local.py scripts/test_no_local_by_default.py scripts/test_public_file_check.py scripts/test_providers_list.py
+      - run: python -m pytest -q scripts/test_read_only_copy.py scripts/test_free_tiers.py scripts/test_family_week.py scripts/test_check_private_words.py scripts/test_asks_before_changing_the_mac.py scripts/test_family_answers.py scripts/test_gemini_choice.py scripts/test_migrate_local.py scripts/test_no_local_by_default.py scripts/test_public_file_check.py scripts/test_providers_list.py scripts/test_update.py
   dashboard:
     runs-on: ubuntu-latest
     steps:

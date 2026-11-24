@@ -75,7 +75,9 @@ def test_the_key_script_takes_exactly_the_listed_commands():
 def test_the_setup_check_names_the_same_keys():
     lists = _setup_check_lists()
     assert set(lists["MODEL_KEYS"]) == _names(status="chain")
-    assert set(lists["OPTIONAL_KEYS"]) == _names(use="email-check")
+    # the optional keys: every free email check and search key that add-key.sh takes, never a paid one
+    optional = {p["name"] for p in PROVIDERS if p["use"] in ("email-check", "search") and p["add_key"] and p["free"]}
+    assert set(lists["OPTIONAL_KEYS"]) == optional
 
 
 def test_updates_are_one_entry_per_line_newest_first():
