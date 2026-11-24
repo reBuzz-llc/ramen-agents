@@ -135,6 +135,32 @@ class Peek(unittest.TestCase):
         self.assertEqual(self.head(), old)
         self.assertEqual((self.portal / ".next" / "BUILD_ID").read_text(), "old\n")
 
+    def last_launchctl(self) -> str:
+        lines = [l for l in self.log.read_text().splitlines() if l.startswith("launchctl boot")] if self.log.exists() else []
+        return lines[-1] if lines else ""
+
+    def test_no_room_for_the_copy_stops_before_peek_stops(self) -> None:
+        old = self.head()
+        self.new_version()
+        r = self.run_peek("update", PEEK_FREE_KB="1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not enough room for a copy of Peek's data", r.stdout)
+        self.assertNotIn("launchctl bootout", self.log.read_text() if self.log.exists() else "", "Peek was never stopped")
+        self.assertEqual(self.head(), old)
+
+    def test_a_failed_copy_starts_peek_again_and_says_so(self) -> None:
+        old = self.head()
+        self.new_version()
+        cp = self.bin / "cp"
+        cp.write_text('#!/bin/sh\ncase "$*" in *backups*) exit 1;; esac\nexec /bin/cp "$@"\n')
+        cp.chmod(0o755)
+        r = self.run_peek("update")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the copy of Peek's data failed", r.stdout)
+        self.assertTrue(self.last_launchctl().startswith("launchctl bootstrap"), "Peek started again")
+        self.assertEqual(self.head(), old, "nothing updated")
+        self.assertEqual(list(self.backups.iterdir()), [], "the half copy is removed")
+
     def test_no_peek_here_is_skipped(self) -> None:
         r = self.run_peek("update", PORTAL_DIR=str(Path(self.t.name) / "none"))
         self.assertEqual(r.returncode, 0)

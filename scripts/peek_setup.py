@@ -3,6 +3,7 @@
 
     python3 scripts/peek_setup.py local-rows [--board FILE]            # rows on the dashboard's local board (0: none)
     python3 scripts/peek_setup.py expected --dir DIR --stamp STAMP     # what the move's files hold, as counts
+    python3 scripts/peek_setup.py check-export --dir DIR --stamp STAMP # exit 1 when the files hold fewer leads and tasks than the board
     python3 scripts/peek_setup.py readback --dir DIR --stamp STAMP [--url URL] [--key FILE]
                                                                        # the same counts read back from Peek; exit 1 on a mismatch
     python3 scripts/peek_setup.py set-url URL                          # [leads] portal_url in common-data/configs/local.toml
@@ -30,11 +31,15 @@ KEY = ROOT / "common-data" / "keys" / "portal-dashboard.key"
 PEEK = "http://127.0.0.1:3100"
 
 
-def local_rows(board: Path = BOARD) -> int:
+def local_rows(board: Path = BOARD, boards: tuple[str, ...] = ()) -> int:
+    """Rows on the dashboard's local board (only the named boards when given); 0 with no board file."""
     if not board.exists():
         return 0
     con = sqlite3.connect(f"file:{board}?mode=ro", uri=True)
     try:
+        if boards:
+            q = f"SELECT count(*) FROM rows WHERE board IN ({','.join('?' * len(boards))})"
+            return int(con.execute(q, boards).fetchone()[0])
         return int(con.execute("SELECT count(*) FROM rows").fetchone()[0])
     except sqlite3.Error:
         return 0
@@ -52,6 +57,14 @@ def expected(folder: Path, stamp: str) -> dict:
     assets = _lines(folder / f"assets-rebuild-{stamp}.jsonl")
     return {"leads": {x["id"] for x in leads if x.get("id")}, "tasks": {x["id"] for x in tasks if x.get("id")},
             "rates": sum(1 for a in assets if a.get("kind") == "rate"), "packages": sum(1 for a in assets if a.get("kind") == "package")}
+
+
+def check_export(folder: Path, stamp: str, board: Path = BOARD) -> tuple[str, bool]:
+    """The local board's leads and tasks against the move's files: a line with both numbers, and whether none is missing."""
+    have = local_rows(board, ("leads", "tasks"))
+    w = expected(folder, stamp)
+    files = len(w["leads"]) + len(w["tasks"])
+    return f"local board {have} leads and tasks; in the move's files {files}", files >= have
 
 
 def _get(url: str, key: str) -> dict:
@@ -133,7 +146,7 @@ def main(argv: list[str]) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("local-rows")
     s.add_argument("--board", type=Path, default=BOARD)
-    for name in ("expected", "readback"):
+    for name in ("expected", "readback", "check-export"):
         s = sub.add_parser(name)
         s.add_argument("--dir", type=Path, required=True)
         s.add_argument("--stamp", required=True)
@@ -154,6 +167,10 @@ def main(argv: list[str]) -> int:
         for line in news(a.portal, a.old):
             print(f"  new      {line}")
         return 0
+    if a.cmd == "check-export":
+        line, ok = check_export(a.dir, a.stamp)
+        print(f"  {'ok' if ok else 'STOP':<8} {line}")
+        return 0 if ok else 1
     if a.cmd == "expected":
         w = expected(a.dir, a.stamp)
         print(f"  to move  {len(w['leads'])} leads, {len(w['tasks'])} tasks, {w['rates']} rates, {w['packages']} packages")

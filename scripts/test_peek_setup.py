@@ -51,13 +51,15 @@ class Fake(BaseHTTPRequestHandler):
 
 
 STUBS = {
-    "launchctl": 'echo "launchctl $*" >> "$LOG"',
+    # `print` answers for the members named in RUNNING; everything else is noted
+    "launchctl": 'echo "launchctl $*" >> "$LOG"; if [ "$1" = print ]; then case " $RUNNING " in *" ${2##*.} "*) exit 0;; *) exit 1;; esac; fi',
     "lsof": "exit 1",
     "sleep": "exit 0",
     "openssl": "echo 00ff",
     "npm": 'echo "npm $*" >> "$LOG"; if [ "$1 $2" = "run build" ]; then mkdir -p .next && echo b > .next/BUILD_ID; fi',
     "curl": 'for a in "$@"; do case "$a" in */api/health) exit 0;; esac; done; exit 1',
-    "node": 'echo "node $*" >> "$LOG"',
+    # Peek's own count of its rows (PEEK_ROWS, "<leads> <tasks>"), or its loader, noted
+    "node": 'case "$*" in *--input-type=module*) echo "${PEEK_ROWS:-0 0}"; exit 0;; esac; echo "node $*" >> "$LOG"',
 }
 
 
@@ -82,7 +84,7 @@ class Setup(unittest.TestCase):
         (cd / "keys" / "portal-dashboard.key").write_text(KEY + "\n")
         self.toml = cd / "configs" / "local.toml"
         self.toml.write_text('[agent]\nname = "x"\n')
-        (cd / "local" / "members.txt").write_text("lead-gen\n")
+        (cd / "local" / "members.txt").write_text("lead-gen\nscout\n")
         tm.board(cd)  # the dashboard's local board with 2 leads, 1 task, 1 rate, 1 package
         (self.bots / "agent.plist").write_text("<plist/>")  # what install-launchd.sh writes
         self.portal = t / "portal"
@@ -101,7 +103,8 @@ class Setup(unittest.TestCase):
 
     def env(self) -> dict:
         return {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "PEEK_KEEP_PATH": "1", "LOG": str(self.log), "BOTS_DIR": str(self.bots),
-                "PORTAL_DIR": str(self.portal), "PEEK_PORT": str(self.port), "PEEK_HEALTH_WAIT": "5", "PEEK_PLIST": str(self.bots / "agent.plist"), "HOME": self.t.name}
+                "PORTAL_DIR": str(self.portal), "PEEK_PORT": str(self.port), "PEEK_HEALTH_WAIT": "5", "PEEK_PLIST": str(self.bots / "agent.plist"), "HOME": self.t.name,
+                "RUNNING": "lead-gen", **getattr(self, "extra", {})}
 
     def setup_with(self, answer: str) -> tuple[int, str]:
         """Run setup in a terminal, typing `answer` when it asks."""
@@ -120,7 +123,7 @@ class Setup(unittest.TestCase):
                     break
                 out += chunk
             if not typed and b"Type yes" in out:
-                os.write(fd, (answer + "\n").encode()); typed = True
+                os.write(fd, b"\x04" if answer == "<EOF>" else (answer + "\n").encode()); typed = True
         _, status = os.waitpid(pid, 0)
         return os.waitstatus_to_exitcode(status), out.decode(errors="replace")
 
@@ -156,6 +159,63 @@ class Setup(unittest.TestCase):
         self.assertTrue(Fake.seen_auth and all(a == f"Bearer {KEY}" for a in Fake.seen_auth))
         self.assertNotIn(KEY, out, "the key is never printed")
         self.assertEqual(tm.sqlite3.connect(self.bots / "common-data" / "local-board.sqlite3").execute("select count(*) from rows").fetchone()[0], 5, "the local board as it was")
+
+    def started_again(self) -> bool:
+        """Peek's last word from launchctl was a start: it is not left stopped."""
+        lines = [l for l in self.calls().splitlines() if l.startswith("launchctl boot")]
+        return bool(lines) and lines[-1].startswith("launchctl bootstrap")
+
+    def test_only_running_members_restart(self) -> None:
+        code, out = self.setup_with("yes")
+        self.assertEqual(code, 0, out)
+        self.assertIn("restart lead-gen", self.calls())
+        self.assertNotIn("restart scout", self.calls())
+        self.assertIn("scout is stopped: it reads the new board when you start it", out)
+
+    def test_a_failed_export_stops_with_its_error(self) -> None:
+        (self.bots / "scripts" / "move_to_peek.py").write_text('raise SystemExit("could not write the move files: disk full")\n')
+        code, out = self.setup_with("yes")
+        self.assertEqual(code, 1, out)
+        self.assertIn("disk full", out)
+        self.assertIn("could not be written out", out)
+        self.assertNotIn("rebuild-load", self.calls(), "nothing loaded, not even a dry run")
+        self.assertNotIn("portal_url", self.toml.read_text())
+        self.assertTrue(self.started_again(), out)
+
+    def test_files_with_fewer_rows_than_the_board_stop(self) -> None:
+        (self.bots / "scripts" / "move_to_peek.py").write_text(
+            "import sys, pathlib\na = sys.argv\nout = pathlib.Path(a[a.index('--out') + 1]); s = a[a.index('--stamp') + 1]\nout.mkdir(parents=True)\n"
+            "(out / f'leads-rebuild-{s}.jsonl').write_text('{\"id\": \"00000000-0000-4000-8000-000000000001\"}\\n')\n")
+        code, out = self.setup_with("yes")
+        self.assertEqual(code, 1, out)
+        self.assertIn("local board 3 leads and tasks; in the move's files 1", out)
+        self.assertNotIn("rebuild-load", self.calls())
+        self.assertNotIn("portal_url", self.toml.read_text())
+
+    def test_peek_with_rows_is_never_loaded_over(self) -> None:
+        self.extra = {"PEEK_ROWS": "4 2"}
+        code, out = self.setup_with("no")
+        self.assertEqual(code, 1, out)
+        self.assertIn("Peek already holds 4 leads and 2 tasks", out)
+        self.assertNotIn("rebuild-load", self.calls())
+        self.assertNotIn("portal_url", self.toml.read_text())
+        self.assertTrue(self.started_again(), out)
+
+    def test_peek_with_rows_can_be_the_board_again_on_yes(self) -> None:
+        self.extra = {"PEEK_ROWS": "4 2"}
+        code, out = self.setup_with("yes")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("rebuild-load", self.calls(), "pointing at Peek again loads nothing")
+        self.assertIn(f'portal_url = "http://127.0.0.1:{self.port}"', self.toml.read_text())
+
+    def test_end_of_input_at_the_prompt_moves_nothing_and_starts_peek(self) -> None:
+        code, out = self.setup_with("<EOF>")
+        self.assertEqual(code, 1, out)
+        self.assertIn("nothing moved", out)
+        loads = [l for l in self.calls().splitlines() if "rebuild-load" in l]
+        self.assertTrue(loads and all("--dry-run" in l for l in loads))
+        self.assertNotIn("portal_url", self.toml.read_text())
+        self.assertTrue(self.started_again(), out)
 
     def test_a_row_missing_on_peek_keeps_the_local_board(self) -> None:
         Fake.holds["leads"] = Fake.holds["leads"][:1]
@@ -214,7 +274,12 @@ class Helpers(unittest.TestCase):
     def test_local_rows(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             self.assertEqual(ps.local_rows(Path(t) / "none.sqlite3"), 0)
-            self.assertEqual(ps.local_rows(tm.board(Path(t))), 5)
+            b = tm.board(Path(t))
+            self.assertEqual(ps.local_rows(b), 5)
+            self.assertEqual(ps.local_rows(b, ("leads", "tasks")), 3)
+            out = Path(t) / "out"
+            tm.m.export(b, out, "x")
+            self.assertEqual(ps.check_export(out, "x", b), ("local board 3 leads and tasks; in the move's files 3", True))
 
 
 if __name__ == "__main__":

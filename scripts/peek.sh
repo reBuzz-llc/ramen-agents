@@ -39,16 +39,30 @@ say() { printf '  %-8s %s\n' "$1" "$2"; }
 short() { git -C "$PORTAL" rev-parse --short "$1"; }
 PY="${PYTHON:-python3}"
 PEEK_URL="http://127.0.0.1:$PORT"
-restart_team() {  # the dashboard and every member, so each reads the board's address again
+running() {  # $1 = a member: its launch agent is loaded, it has no STOP file, and the owner's last word was not Stop
+  [ -f "$BOTS/$1/workspace/STOP" ] && return 1
+  last=$(grep -s "\"bot\":\"$1\"" "$BOTS/common-data/shared-state/owner-controls.jsonl" | grep -E '"action":"(stop|start|bringback)"' | tail -1)
+  case "$last" in *'"action":"stop"'*) return 1 ;; esac
+  launchctl print "gui/$UID_N/com.ramen-agents.bot.$1" >/dev/null 2>&1
+}
+restart_team() {  # the dashboard and the members running now, so each reads the board's address again; a stopped one is left stopped
   launchctl kickstart -k "gui/$UID_N/com.ramen-agents.bot-dashboard" 2>/dev/null && say "ok" "the dashboard restarted" || say "note" "the dashboard is not a launch agent: start it as you usually do"
   if [ -s "$BOTS/common-data/local/members.txt" ]; then
     for m in $(cat "$BOTS/common-data/local/members.txt"); do
-      sh "$BOTS/scripts/restart-bot.sh" "$m" >/dev/null 2>&1 && say "ok" "$m restarted" || say "!!" "$m: sh scripts/restart-bot.sh $m"
+      if running "$m"; then
+        sh "$BOTS/scripts/restart-bot.sh" "$m" >/dev/null 2>&1 && say "ok" "$m restarted" || say "!!" "$m: sh scripts/restart-bot.sh $m"
+      else
+        say "note" "$m is stopped: it reads the new board when you start it"
+      fi
     done
   fi
 }
 
+# Whenever a run stops Peek, Peek starts again before the run ends, whatever ends it (a failed step, the end of input at
+# a prompt, a full disk): PEEK_DOWN is 1 from a stop until the next start, and the EXIT trap below looks at it.
+PEEK_DOWN=0
 stop_peek() {
+  PEEK_DOWN=1
   launchctl bootout "gui/$UID_N/$LABEL" 2>/dev/null || true
   # wait for the port to close, so the database is closed before it is copied
   n=0
@@ -57,6 +71,16 @@ stop_peek() {
 start_peek() {
   [ -f "$PLIST" ] || { say "note" "no launch agent at $PLIST: start Peek with sh scripts/peek.sh run"; return 1; }
   launchctl bootstrap "gui/$UID_N" "$PLIST" 2>/dev/null || launchctl kickstart -k "gui/$UID_N/$LABEL" 2>/dev/null || true
+  PEEK_DOWN=0
+}
+on_exit() {
+  if [ "$PEEK_DOWN" = 1 ]; then
+    start_peek >/dev/null 2>&1 && say "note" "Peek was started again: the run ended while Peek was stopped" || say "!!" "Peek is stopped: sh $BOTS/scripts/install-launchd.sh portal-local starts it"
+  fi
+}
+trap on_exit EXIT
+peek_rows() {  # "<leads> <tasks>" in Peek's own database (archived ones too), read with Peek's database library while it is stopped
+  (cd "$PORTAL" && node --input-type=module -e "import { PGlite } from '@electric-sql/pglite'; const db = new PGlite('.data/pglite'); const r = await db.query('select (select count(*) from leads)::int as l, (select count(*) from tasks)::int as t'); console.log(r.rows[0].l + ' ' + r.rows[0].t); await db.close();")
 }
 healthy() {
   n=0
@@ -67,11 +91,22 @@ healthy() {
   return 1
 }
 
-backup() {  # prints the folder the data went to
-  dest="$BACKUPS/$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$dest"
+room_for_backup() {  # room for one more copy of Peek's data (with a fifth to spare and 100 MB), checked before Peek stops
+  mkdir -p "$BACKUPS"
+  need=0
   for d in pglite files; do
-    if [ -d "$PORTAL/.data/$d" ]; then cp -Rp "$PORTAL/.data/$d" "$dest/$d"; fi
+    if [ -d "$PORTAL/.data/$d" ]; then need=$((need + $(du -sk "$PORTAL/.data/$d" | awk '{print $1}'))); fi
+  done
+  free="${PEEK_FREE_KB:-$(df -Pk "$BACKUPS" | awk 'NR==2 {print $4}')}"
+  [ "$free" -ge $((need + need / 5 + 102400)) ] && return 0
+  say "STOP" "not enough room for a copy of Peek's data in $BACKUPS ($((need / 1024)) MB needed, $((free / 1024)) MB free): nothing was changed, Peek runs on as it was"
+  return 1
+}
+backup() {  # prints the folder the data went to; a copy that fails is removed and the step fails
+  dest="$BACKUPS/$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$dest" || return 1
+  for d in pglite files; do
+    if [ -d "$PORTAL/.data/$d" ]; then cp -Rp "$PORTAL/.data/$d" "$dest/$d" || { rm -rf "${dest:?}"; return 1; }; fi
   done
   echo "$dest"
 }
@@ -139,8 +174,9 @@ update)
   fi
   need_ci=0
   git -C "$PORTAL" diff --quiet "$old" "$new" -- package-lock.json || need_ci=1
+  room_for_backup || exit 1
   stop_peek
-  saved=$(backup)
+  saved=$(backup) || { start_peek || true; say "STOP" "the copy of Peek's data failed (is the disk full?): nothing was updated, Peek runs on $(short "$old") as before"; exit 1; }
   rm -rf "${PORTAL:?}/.next.prev"
   if [ -d "$PORTAL/.next" ]; then mv "$PORTAL/.next" "$PORTAL/.next.prev"; fi
 
@@ -189,21 +225,46 @@ setup)
   healthy || { say "STOP" "Peek did not answer $HEALTH within $WAIT s: common-data/logs/portal-local.err; sh scripts/peek.sh back undoes the agents"; exit 1; }
   stop_peek
 
+  # what Peek already holds, read from its own database while it is stopped: setup never loads over rows that are there
+  held=$(peek_rows) || { start_peek || true; say "STOP" "could not count what Peek holds: nothing moved, your board is still the local one"; exit 1; }
+  held_leads=${held% *}; held_tasks=${held#* }
+  if [ $((held_leads + held_tasks)) -gt 0 ]; then
+    start_peek; healthy || true
+    say "note" "Peek already holds $held_leads leads and $held_tasks tasks. Setup never loads into a Peek that has rows, so nothing is moved."
+    printf "  Type yes to make Peek, as it is, the team's board again (nothing is loaded; the local board stays as it is): "
+    read -r answer || answer=""
+    [ "$answer" = yes ] || { say "stop" "nothing changed; your board is still the local one"; exit 1; }
+    "$PY" "$BOTS/scripts/peek_setup.py" set-url "$PEEK_URL"
+    say "ok" "[leads] portal_url = $PEEK_URL (common-data/configs/local.toml)"
+    restart_team
+    say "done" "your board is Peek again, with what it held: $PEEK_URL. To go back: sh scripts/peek.sh back"
+    exit 0
+  fi
+
   echo "3. Your board"
   stamp=$(date +%Y%m%d-%H%M%S)
   out="$BOTS/common-data/local/move-$stamp"
   rows=$("$PY" "$BOTS/scripts/peek_setup.py" local-rows)
-  "$PY" "$BOTS/scripts/move_to_peek.py" --out "$out" --stamp "$stamp" >/dev/null 2>&1 || mkdir -p "$out"
+  if ! export_out=$("$PY" "$BOTS/scripts/move_to_peek.py" --out "$out" --stamp "$stamp" 2>&1); then
+    if [ "$rows" -gt 0 ]; then
+      printf '%s\n' "$export_out" | sed 's/^/           /'
+      say "STOP" "the board could not be written out for Peek (above): nothing moved, your board is still the local one"; exit 1
+    fi
+    mkdir -p "$out"   # an empty board: nothing to write, the keys still go in
+  fi
+  # every lead and task on the local board must be in the files, or the move stops here
+  "$PY" "$BOTS/scripts/peek_setup.py" check-export --dir "$out" --stamp "$stamp" \
+    || { say "STOP" "the files hold fewer leads and tasks than the local board: nothing moved, your board is still the local one"; exit 1; }
   load() { (cd "$PORTAL" && node scripts/rebuild-load.mjs --pglite .data/pglite --dir "$out" --stamp "$stamp" --keys-prefix portal "$@"); }
   if [ "$rows" -gt 0 ]; then
-    load --dry-run || { start_peek || true; say "STOP" "the dry run failed: nothing moved, your board is still the local one"; exit 1; }
+    load --dry-run || { say "STOP" "the dry run failed: nothing moved, your board is still the local one"; exit 1; }
     "$PY" "$BOTS/scripts/peek_setup.py" expected --dir "$out" --stamp "$stamp"
     printf '  Type yes to move these rows to Peek (anything else stops; nothing changes): '
-    read -r answer
-    if [ "$answer" != yes ]; then start_peek || true; say "stop" "nothing moved; your board is still the local one"; exit 1; fi
+    read -r answer || answer=""
+    [ "$answer" = yes ] || { say "stop" "nothing moved; your board is still the local one"; exit 1; }
   fi
   # the agents' keys go in either way (an empty move registers them); the rows only after the yes above
-  load >/dev/null || { start_peek || true; say "STOP" "the load failed: your board is still the local one (portal_url unchanged); sh scripts/peek.sh back"; exit 1; }
+  load >/dev/null || { say "STOP" "the load failed: your board is still the local one (portal_url unchanged); sh scripts/peek.sh back"; exit 1; }
   start_peek || { say "STOP" "Peek's launch agent is not installed, so Peek cannot start: your board is still the local one; sh scripts/install-launchd.sh portal-local, then setup again"; exit 1; }
   healthy || { say "STOP" "Peek did not start after the load: your board is still the local one; sh scripts/peek.sh back"; exit 1; }
 
