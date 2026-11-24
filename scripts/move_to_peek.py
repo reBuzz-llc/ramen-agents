@@ -9,7 +9,8 @@ Reads common-data/local-board.sqlite3 read-only and writes, in --out (default co
   tasks-rebuild-<stamp>.jsonl   the same for the task board
   assets-rebuild-<stamp>.jsonl  {kind: rate | package, position, ...}
 Each cell says who wrote it last (`by`: "person" or "bot"), so that on Peek a cell a person set stays a person's and the
-agents still leave it alone. The derived cells (domain, city, state) are left out: Peek works them out again. Then Peek's
+agents still leave it alone. A lead's Status list goes into Peek's email and WhatsApp status cells; a value Peek has no
+place for is left out, counted and named (it stays on the local board). The derived cells (domain, city, state) are left out: Peek works them out again. Then Peek's
 own loader takes the folder, first with --dry-run (the command is printed at the end). Nothing on the local board is
 changed or deleted. Standard library only (Python 3.11+).
 """
@@ -25,15 +26,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DERIVED = {"domain", "city", "state"}
 SOURCE = "the local board"
+# Peek's own values (lib/lead-workflow.ts). A lead on Peek has no "status": the local board's Status list holds these
+# values, and each goes to the cell Peek keeps it in.
+EMAIL_STATUSES = ["Ready to Send Email", "Email Sent"]
+WHATSAPP_STATUSES = ["WhatsApp msg sent", "False Whatsapp Number", "WhatsApp Verified", "Waiting response for WhatsApp verification"]
+RESULTS = ["Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not interested", "Bounced"]
 
 
 def cell(value: object, at: str, by: str) -> dict:
     return {"value": value, "source": SOURCE, "at": at, "by": "person" if by == "person" else "bot"}
 
 
-def row_line(r: sqlite3.Row) -> dict:
+def lead_cells(cells: dict, last_by: dict) -> tuple[dict, dict, list[str]]:
+    """A lead's cells as Peek keeps them: the Status list's values into email_status and whatsapp_status (never over a value
+    already there), an email status "Bounced" into the result; the writer of each moved value is the writer of the cell it
+    came from. Returns the cells, their writers and what Peek has no place for ("status: Contacted")."""
+    cells, by, unplaced = dict(cells), dict(last_by), []
+    statuses = cells.pop("status", None)
+    status_by = by.pop("status", "bot")
+    for v in statuses if isinstance(statuses, list) else ([statuses] if statuses else []):
+        key = "email_status" if v in EMAIL_STATUSES else "whatsapp_status" if v in WHATSAPP_STATUSES else ""
+        if key and not cells.get(key):
+            cells[key], by[key] = v, status_by
+        elif not key:
+            unplaced.append(f"status: {v}")
+    if cells.get("email_status") == "Bounced":
+        if not cells.get("result"):
+            cells["result"], by["result"] = "Bounced", by.get("email_status", "bot")
+        del cells["email_status"]
+    for key, allowed in (("email_status", EMAIL_STATUSES), ("whatsapp_status", WHATSAPP_STATUSES), ("result", RESULTS)):
+        if cells.get(key) and cells[key] not in allowed:
+            unplaced.append(f"{key}: {cells.pop(key)}")
+    return cells, by, unplaced
+
+
+def row_line(r: sqlite3.Row, lead: bool = False, unplaced: list[str] | None = None) -> dict:
     cells = json.loads(r["cells"] or "{}")
     last_by = json.loads(r["last_by"] or "{}")
+    if lead:
+        cells, last_by, missed = lead_cells(cells, last_by)
+        if unplaced is not None:
+            unplaced.extend(missed)
     fields = {k: cell(v, r["updated_at"], last_by.get(k, "bot")) for k, v in cells.items() if k not in DERIVED}
     return {"id": r["id"], "created_at": r["created_at"], "archived": bool(r["archived"]), "fields": fields}
 
@@ -66,8 +99,9 @@ def export(board: Path, out: Path, stamp: str) -> dict[str, int]:
     rows = {b: con.execute("SELECT * FROM rows WHERE board = ? ORDER BY rev", (b,)).fetchall() for b in ("leads", "tasks", "rates", "packages")}
     con.close()
     out.mkdir(parents=True, exist_ok=True)
+    unplaced: list[str] = []
     files = {
-        f"leads-rebuild-{stamp}.jsonl": [row_line(r) for r in rows["leads"]],
+        f"leads-rebuild-{stamp}.jsonl": [row_line(r, lead=True, unplaced=unplaced) for r in rows["leads"]],
         f"tasks-rebuild-{stamp}.jsonl": [row_line(r) for r in rows["tasks"]],
         f"assets-rebuild-{stamp}.jsonl": asset_lines(rows["rates"], rows["packages"]),
     }
@@ -75,7 +109,8 @@ def export(board: Path, out: Path, stamp: str) -> dict[str, int]:
         (out / name).write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines), encoding="utf-8")
     return {"leads": len(files[f"leads-rebuild-{stamp}.jsonl"]), "tasks": len(files[f"tasks-rebuild-{stamp}.jsonl"]),
             "assets": len(files[f"assets-rebuild-{stamp}.jsonl"]),
-            "person cells": sum(1 for b in ("leads", "tasks") for r in rows[b] for v in json.loads(r["last_by"] or "{}").values() if v == "person")}
+            "person cells": sum(1 for b in ("leads", "tasks") for r in rows[b] for v in json.loads(r["last_by"] or "{}").values() if v == "person"),
+            "not placed": len(unplaced), "not placed values": sorted(set(unplaced))}
 
 
 def main(argv: list[str]) -> int:
@@ -87,6 +122,8 @@ def main(argv: list[str]) -> int:
     out = a.out or ROOT / "common-data" / "local" / f"move-{a.stamp}"
     n = export(a.board, out, a.stamp)
     print(f"Written to {out}: {n['leads']} leads, {n['tasks']} tasks, {n['assets']} rates and packages; {n['person cells']} cells a person set last.")
+    if n["not placed"]:
+        print(f"Left out, Peek has no place for them ({n['not placed']}): {'; '.join(n['not placed values'])}. They stay on the local board.")
     print(f"Next, in Peek's folder: node scripts/rebuild-load.mjs --pglite .data/db --dir {out} --stamp {a.stamp} --dry-run")
     return 0
 

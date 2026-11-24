@@ -22,7 +22,7 @@ def board(tmp: Path) -> Path:
     con.executescript(SCHEMA)
     add = lambda *v: con.execute("INSERT INTO rows VALUES (?,?,?,?,?,?,?,?,?)", v)  # noqa: E731
     add("0b3c1a2e-1111-4222-8333-444455556661", "leads", 1, "2026-01-10T09:00:00Z", "2026-01-11T09:00:00Z", 0,
-        json.dumps({"business": "Sunrise Bakery", "website": "https://sunrisebakery.example", "domain": "sunrisebakery.example", "city": "Springfield", "status": "Contacted"}),
+        json.dumps({"business": "Sunrise Bakery", "website": "https://sunrisebakery.example", "domain": "sunrisebakery.example", "city": "Springfield", "status": ["Email Sent", "Contacted"]}),
         json.dumps({"business": "bot", "website": "bot", "status": "person"}), "Sam")
     add("0b3c1a2e-1111-4222-8333-444455556662", "leads", 2, "2026-01-12T09:00:00Z", "2026-01-12T09:00:00Z", 1, json.dumps({"business": "Corner Deli"}), "{}", "Lead Gen")
     add("0b3c1a2e-1111-4222-8333-444455556663", "tasks", 3, "2026-01-12T08:00:00Z", "2026-01-12T08:30:00Z", 0, json.dumps({"title": "Check ten leads", "status": "Done"}), json.dumps({"title": "bot", "status": "person"}), "Sam")
@@ -34,17 +34,28 @@ def board(tmp: Path) -> Path:
 
 
 class MoveToPeek(unittest.TestCase):
+    def test_status_goes_where_peek_keeps_it(self) -> None:
+        cells, by, missed = m.lead_cells({"status": ["WhatsApp Verified", "Ready to Send Email"], "email_status": "Email Sent"}, {"status": "person", "email_status": "bot"})
+        self.assertEqual(cells, {"email_status": "Email Sent", "whatsapp_status": "WhatsApp Verified"}, "never over a value already there")
+        self.assertEqual(by, {"email_status": "bot", "whatsapp_status": "person"})
+        self.assertEqual(missed, [])
+        cells, by, missed = m.lead_cells({"email_status": "Bounced"}, {"email_status": "person"})
+        self.assertEqual((cells, by["result"]), ({"result": "Bounced"}, "person"), "a bounce is a result on Peek")
+        cells, _, missed = m.lead_cells({"whatsapp_status": "Maybe", "status": "Email Sent"}, {})
+        self.assertEqual((cells, missed), ({"email_status": "Email Sent"}, ["whatsapp_status: Maybe"]))
+
     def test_rows_cells_and_who_wrote_them(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             tmp = Path(t)
             n = m.export(board(tmp), tmp / "out", "x")
-            self.assertEqual(n, {"leads": 2, "tasks": 1, "assets": 2, "person cells": 2})
+            self.assertEqual(n, {"leads": 2, "tasks": 1, "assets": 2, "person cells": 2, "not placed": 1, "not placed values": ["status: Contacted"]})
             leads = [json.loads(x) for x in (tmp / "out" / "leads-rebuild-x.jsonl").read_text().splitlines()]
             self.assertEqual([l["id"][-1] for l in leads], ["1", "2"], "the board's own ids, kept")
             f = leads[0]["fields"]
             self.assertNotIn("domain", f, "derived cells are worked out again on Peek")
             self.assertNotIn("city", f)
-            self.assertEqual(f["status"], {"value": "Contacted", "source": "the local board", "at": "2026-01-11T09:00:00Z", "by": "person"})
+            self.assertNotIn("status", f, "Peek's leads have no Status cell")
+            self.assertEqual(f["email_status"], {"value": "Email Sent", "source": "the local board", "at": "2026-01-11T09:00:00Z", "by": "person"}, "moved with its writer")
             self.assertEqual(f["business"]["by"], "bot")
             self.assertTrue(leads[1]["archived"])
             self.assertEqual(leads[1]["fields"]["business"]["by"], "bot", "no record of who wrote it: an agent's")
