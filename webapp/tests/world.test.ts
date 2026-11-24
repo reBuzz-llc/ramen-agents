@@ -910,12 +910,12 @@ test("a member's HTML screen box by its width: full from 120 px, compact from 80
   assert.deepEqual(screenForm(70, 30), { form: "tiny", lines: 1 });
 });
 
-test("ticker: the portal in local mode leads the line with the team's address", async () => {
+test("ticker: Peek reached through the tunnel leads the line with the team's address", async () => {
   // @ts-ignore TS5097
   const { tickerText } = await import("../lib/world.ts");
-  assert.match(tickerText([], null, 0, [], { url: "https://brave-otter.trycloudflare.com" }), /^Portal \(local mode\): https:\/\/brave-otter\.trycloudflare\.com   ·   Leads today 0/);
-  assert.match(tickerText([], null, 0, [], { url: "" }), /^Portal \(local mode\): the tunnel is not up yet/);
-  assert.doesNotMatch(tickerText([], null, 0, [], null), /Portal/);
+  assert.match(tickerText([], null, 0, [], { url: "https://brave-otter.trycloudflare.com" }), /^Peek for the team: https:\/\/brave-otter\.trycloudflare\.com   ·   Leads today 0/);
+  assert.match(tickerText([], null, 0, [], { url: "" }), /^Leads today 0/, "no address, no line");
+  assert.doesNotMatch(tickerText([], null, 0, [], null), /Peek|Portal/);
 });
 
 test("screen feed: the header, a resting or stuck first line, then the activity newest first", async () => {

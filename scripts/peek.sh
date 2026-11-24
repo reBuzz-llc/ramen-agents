@@ -1,7 +1,8 @@
 #!/bin/bash
 # Peek, the team's board, on this Mac (127.0.0.1:3100, sign-in off, its database and files in the checkout's .data/).
 #
-#   sh scripts/peek.sh run            # what the launch agent runs (com.ramen-agents.portal-local): npm run local
+#   sh scripts/peek.sh run            # what the launch agent runs (com.ramen-agents.portal-local): npm run local (sign-in
+#                                     # off), or sign-in on once Google sign-in's two values are in its .env.local
 #   sh scripts/peek.sh update         # take Peek's newest version; update.sh runs it
 #   sh scripts/peek.sh update --check # say what an update would bring; change nothing
 #   sh scripts/peek.sh jobs           # the two daily jobs: stale tasks, and old sample copies and unused photos
@@ -129,6 +130,11 @@ case "$cmd" in
 run)
   cd "$PORTAL"
   [ -f .next/BUILD_ID ] || { echo "peek: no build in $PORTAL: sh $BOTS/scripts/peek.sh update"; exit 1; }
+  # with Google sign-in set up (both values in .env.local, which Next reads itself), Peek signs people in and the tunnel
+  # can reach it; otherwise sign-in is off. Either way it listens on this computer only.
+  if grep -q '^GOOGLE_CLIENT_ID=.' .env.local 2>/dev/null && grep -q '^GOOGLE_CLIENT_SECRET=.' .env.local 2>/dev/null; then
+    FILES_LOCAL=1 exec ./node_modules/.bin/next start -H 127.0.0.1 -p "$PORT"
+  fi
   exec npm run local
   ;;
 

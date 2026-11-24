@@ -161,6 +161,20 @@ class Peek(unittest.TestCase):
         self.assertEqual(self.head(), old, "nothing updated")
         self.assertEqual(list(self.backups.iterdir()), [], "the half copy is removed")
 
+    def test_run_turns_sign_in_on_only_with_both_google_values(self) -> None:
+        nb = self.portal / "node_modules" / ".bin"
+        nb.mkdir(parents=True)
+        (nb / "next").write_text('#!/bin/sh\necho "next $* FILES_LOCAL=$FILES_LOCAL" >> "$LOG"\n')
+        (nb / "next").chmod(0o755)
+        (self.bin / "npm").write_text('#!/bin/sh\necho "npm $*" >> "$LOG"\n')
+        env = self.portal / ".env.local"
+        env.write_text("CRON_SECRET=x\nGOOGLE_CLIENT_ID=abc\n")
+        self.run_peek("run")
+        self.assertEqual(self.log.read_text().splitlines()[-1], "npm run local", "one value only: sign-in stays off")
+        env.write_text("CRON_SECRET=x\nGOOGLE_CLIENT_ID=abc\nGOOGLE_CLIENT_SECRET=def\n")
+        self.run_peek("run")
+        self.assertEqual(self.log.read_text().splitlines()[-1], "next start -H 127.0.0.1 -p 3100 FILES_LOCAL=1")
+
     def test_no_peek_here_is_skipped(self) -> None:
         r = self.run_peek("update", PORTAL_DIR=str(Path(self.t.name) / "none"))
         self.assertEqual(r.returncode, 0)

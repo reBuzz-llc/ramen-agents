@@ -37,9 +37,9 @@ test("portal_url under [leads] (only there) moves the board to the portal", asyn
   assert.deepEqual(await leadsSource(dir), { store: "portal", url: "https://portal.example" });
 });
 
-test("local mode: the tunnel's address once it is up", async () => {
+test("Peek on this Mac: the tunnel's address once it is up, nothing before (sign-in off is this Mac's alone)", async () => {
   const before = fleet('[leads]\nportal_url = "http://127.0.0.1:3100"\n');
-  assert.deepEqual(await portalLocal(before), { url: "", since: "" });
+  assert.equal(await portalLocal(before), null);
   const up = fleet('[leads]\nportal_url = "http://127.0.0.1:3100"\n', { "portal-local.json": { url: "https://a-b-c.trycloudflare.com", since: "2026-11-06T21:00:00" } });
   assert.deepEqual(await portalLocal(up), { url: "https://a-b-c.trycloudflare.com", since: "2026-11-06T21:00:00" });
 });

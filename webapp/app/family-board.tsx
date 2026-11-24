@@ -86,15 +86,11 @@ export default function FamilyBoard({ initial, below }: { initial: Board | null;
       </div>
       {data.portalLocal ? (
         <p role="status" className="mt-2 rounded-xl bg-sys-orange/15 px-4 py-2.5 text-sm text-ink">
-          <span className="font-semibold">Portal (local mode):</span>{" "}
-          {data.portalLocal.url ? (
-            <a href={data.portalLocal.url} target="_blank" rel="noreferrer" className="break-all underline">
-              {data.portalLocal.url}
-            </a>
-          ) : (
-            "the tunnel is not up yet"
-          )}{" "}
-          <span className="text-muted">· running on this Mac while Neon is out; the address changes when the tunnel restarts.</span>
+          <span className="font-semibold">Peek for the team:</span>{" "}
+          <a href={data.portalLocal.url} target="_blank" rel="noreferrer" className="break-all underline">
+            {data.portalLocal.url}
+          </a>{" "}
+          <span className="text-muted">· Peek runs on this Mac and the team signs in through this address; it changes when the tunnel restarts.</span>
         </p>
       ) : null}
       {view === "world" ? <World data={data} below={below} /> : null}

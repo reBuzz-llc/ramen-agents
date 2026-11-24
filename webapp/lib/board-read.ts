@@ -66,7 +66,7 @@ export type Board = {
   outage: boolean;
   // providers dead or above 90% of today's allowance, for the ticker's link to the Allowance list
   allowance: string[];
-  // the team portal in local mode, the team's address over the tunnel ("" until the tunnel is up); null in cloud mode
+  // Peek on this Mac with sign-in on: the address the team uses, over the tunnel; null otherwise
   portalLocal?: { url: string; since: string } | null;
 };
 

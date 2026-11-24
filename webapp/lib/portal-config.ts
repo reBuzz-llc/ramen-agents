@@ -1,8 +1,7 @@
 // Where the boards live, Node imports only (the tests load it with Node's own runner): common.toml's `[leads] portal_url`.
 // It points at this dashboard by default ("http://127.0.0.1:3000"): the local board in common-data/local-board.sqlite3
 // (lib/local-board.ts), read here straight from the file. Any other address is the hosted portal, read over
-// its API with the dashboard's key (lib/portal.ts); while that portal runs on this Mac (its own local mode, port 3100),
-// the tunnel's address. docs/boards.md.
+// its API with the dashboard's key (lib/portal.ts): Peek on this Mac (port 3100, scripts/peek.sh), or a hosted portal. docs/boards.md.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -49,15 +48,16 @@ export async function leadsSource(bots = BOTS_DIR): Promise<{ store: "local" | "
 
 export type PortalLocal = { url: string; since: string } | null;
 
-/** The team's address while the portal runs on this Mac (local mode: portal_url points here and scripts/portal-tunnel.sh
- *  writes shared-state/portal-local.json); null otherwise, "" before the tunnel has come up. */
+/** The address the team uses for Peek on this Mac, once Google sign-in is on and scripts/portal-tunnel.sh has written
+ *  it to shared-state/portal-local.json; null otherwise (Peek with sign-in off is this Mac's alone, and the dashboard's
+ *  own board has no tunnel). */
 export async function portalLocal(bots = BOTS_DIR): Promise<PortalLocal> {
   const url = await portalUrl(bots);
-  if (!LOCAL.test(url) || SELF.test(url)) return null; // this dashboard's own board is not the portal's local mode
+  if (!LOCAL.test(url) || SELF.test(url)) return null; // the dashboard's own board, or a hosted portal: no tunnel
   try {
     const d = JSON.parse(await readFile(/*turbopackIgnore: true*/ path.join(bots, "common-data", "shared-state", "portal-local.json"), "utf8")) as { url?: unknown; since?: unknown };
-    return typeof d.url === "string" && /^https:\/\//.test(d.url) ? { url: d.url, since: String(d.since ?? "") } : { url: "", since: "" };
+    return typeof d.url === "string" && /^https:\/\//.test(d.url) ? { url: d.url, since: String(d.since ?? "") } : null;
   } catch {
-    return { url: "", since: "" };
+    return null;
   }
 }

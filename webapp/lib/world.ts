@@ -1610,8 +1610,8 @@ export function tickerText(cards: { output: { label: string; today: number } | n
   const parts = [`Leads today ${sum("lead")}`, `Drafts today ${sum("draft")}`, `Pages opened ${opens ?? "-"}`, `Refused ${acts ? Math.round((100 * refused) / acts) : 0}% of actions`, `In the air ${inAir}`];
   // a provider dead or above 90% leads the line; a click on the ticker opens the Allowance list
   if (allowance.length) parts.unshift(`Allowance: ${allowance.join(", ")} (click for the list)`);
-  // the team portal running on this Mac leads the line, with the address the team uses
-  if (portalLocal) parts.unshift(`Portal (local mode): ${portalLocal.url || "the tunnel is not up yet"}`);
+  // Peek on this Mac, reached through the tunnel, leads the line with the address the team uses
+  if (portalLocal?.url) parts.unshift(`Peek for the team: ${portalLocal.url}`);
   return parts.join("   ·   ");
 }
 export const TICKER_H = 9;
