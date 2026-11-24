@@ -21,8 +21,8 @@ no leads, notes, packages, finds, memories or logs. Everything a bot learns from
 
 Research Analyst and Scout are off by default; `sh scripts/setup.sh` asks whether to start them ([docs/your-family.md](docs/your-family.md)). Each bot folder
 holds a `config.toml` (settings) and a `persona.md` (its instruction card). Shared settings and the handbook are under
-`common-data/`. The dashboard is `webapp/`, and it serves the local board: Leads, Tasks and Packages in one file on
-this Mac, with pages to sort, filter and edit them.
+`common-data/`. The dashboard is `webapp/`. The team's board (Leads, Tasks, Packages, Samples, Follow up) is Peek,
+running on this Mac at http://127.0.0.1:3100 with sign-in off; `sh scripts/setup.sh` sets it up on a new install.
 
 ## What is blank
 
@@ -89,7 +89,10 @@ Import CSV on the Leads page.
 - Restart a bot after changing its config or card: `sh scripts/restart-bot.sh <slug>`. It refuses a bot you stopped (a STOP file, or Stop as your last action on the dashboard), and says so when launchd does not have the bot instead of claiming it restarted. Never `launchctl kickstart -k` on a bot.
 - Stopped a bot for good (it has a STOP file)? `sh scripts/disable-bot.sh <slug>` unloads its launchd jobs and marks them disabled, so launchd stops relaunching it every 30 s and a reboot does not load it again. `sh scripts/enable-bot.sh <slug>` undoes that and leaves the STOP file; `restart-bot.sh` is still what runs the bot.
 - A day's review: `~/Projects/bot/.venv/bin/python scripts/review.py --date YYYY-MM-DD`.
-- Your boards: http://127.0.0.1:3000/boards (Export CSV on each page).
+- Your board: Peek, http://127.0.0.1:3100. An install from before Peek keeps the dashboard's board
+  (http://127.0.0.1:3000/boards, Export CSV on each page) until you move it: `sh scripts/peek.sh setup` shows what it
+  would move and moves it only when you type yes, then reads every row back from Peek before the agents switch over.
+  To go back: `sh scripts/peek.sh back` (the dashboard's board again, as you left it; Peek's data is kept).
 - Push both repositories to your own remotes: `sh scripts/push-all.sh`.
 
 Runs on macOS only: the bots are kept alive by launch agents.

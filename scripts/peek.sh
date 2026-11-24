@@ -6,6 +6,14 @@
 #   sh scripts/peek.sh update --check # say what an update would bring; change nothing
 #   sh scripts/peek.sh jobs           # the two daily jobs: stale tasks, and old sample copies and unused photos
 #   sh scripts/peek.sh secret         # make the jobs' CRON_SECRET once (install.sh runs it); it is never printed
+#   sh scripts/peek.sh setup          # make Peek your team's board (a new install, or a move from the local board)
+#   sh scripts/peek.sh back           # back to the dashboard's local board; Peek's data is kept
+#
+# setup clones and builds Peek, starts it once so its database exists, and registers the agents' keys. When the
+# dashboard's local board holds rows, it writes them as Peek's files, shows the dry run's counts, and moves them only
+# when you type yes at the prompt (no flag or setting answers it; without a terminal it stops). After the load it reads
+# the rows back from Peek and prints both counts; only when every row is there does [leads] portal_url point at Peek.
+# The local board's file is never changed: `sh scripts/peek.sh back` returns to it.
 #
 # Peek's checkout is PORTAL_DIR (default ~/Projects/portal), a clone of the starter's `portal` branch with the remote
 # named `starter`. An update stops Peek (its database must be closed), copies .data/pglite and .data/files to
@@ -29,6 +37,16 @@ UID_N=$(id -u)
 
 say() { printf '  %-8s %s\n' "$1" "$2"; }
 short() { git -C "$PORTAL" rev-parse --short "$1"; }
+PY="${PYTHON:-python3}"
+PEEK_URL="http://127.0.0.1:$PORT"
+restart_team() {  # the dashboard and every member, so each reads the board's address again
+  launchctl kickstart -k "gui/$UID_N/com.ramen-agents.bot-dashboard" 2>/dev/null && say "ok" "the dashboard restarted" || say "note" "the dashboard is not a launch agent: start it as you usually do"
+  if [ -s "$BOTS/common-data/local/members.txt" ]; then
+    for m in $(cat "$BOTS/common-data/local/members.txt"); do
+      sh "$BOTS/scripts/restart-bot.sh" "$m" >/dev/null 2>&1 && say "ok" "$m restarted" || say "!!" "$m: sh scripts/restart-bot.sh $m"
+    done
+  fi
+}
 
 stop_peek() {
   launchctl bootout "gui/$UID_N/$LABEL" 2>/dev/null || true
@@ -148,8 +166,72 @@ update)
   say "ok" "Peek $(short "$old") -> $(short "$new"); data copied to $saved"
   ;;
 
+setup)
+  # the yes is typed here, by a person: nothing else answers it
+  [ -t 0 ] || { say "STOP" "setup asks you to type yes: run it in Terminal: sh scripts/peek.sh setup"; exit 1; }
+  cd "$BOTS"
+  echo "1. Peek's checkout ($PORTAL)"
+  if [ ! -d "$PORTAL/.git" ]; then
+    from=$(git -C "$BOTS" remote get-url starter 2>/dev/null) || { say "STOP" "no remote named starter in $BOTS: git -C $BOTS remote -v"; exit 1; }
+    git clone -q -o starter -b portal "$from" "$PORTAL" || { say "STOP" "could not clone Peek from $from"; exit 1; }
+    say "ok" "cloned"
+  else
+    say "ok" "already here ($(short HEAD 2>/dev/null || echo "no commit yet"))"
+  fi
+  (cd "$PORTAL" && npm ci --no-audit --no-fund --loglevel=error >/dev/null && npm run build >"$BOTS/common-data/logs/peek-build.log" 2>&1) \
+    || { say "STOP" "the build failed: common-data/logs/peek-build.log; nothing else changed"; exit 1; }
+  say "ok" "built"
+  sh "$BOTS/scripts/peek.sh" secret
+
+  echo "2. Peek starts once (its database, its owner)"
+  sh "$BOTS/scripts/install-launchd.sh" portal-local peek-jobs >/dev/null || { say "STOP" "the launch agents did not load"; exit 1; }
+  healthy || { say "STOP" "Peek did not answer $HEALTH within $WAIT s: common-data/logs/portal-local.err; sh scripts/peek.sh back undoes the agents"; exit 1; }
+  stop_peek
+
+  echo "3. Your board"
+  stamp=$(date +%Y%m%d-%H%M%S)
+  out="$BOTS/common-data/local/move-$stamp"
+  rows=$("$PY" "$BOTS/scripts/peek_setup.py" local-rows)
+  "$PY" "$BOTS/scripts/move_to_peek.py" --out "$out" --stamp "$stamp" >/dev/null 2>&1 || mkdir -p "$out"
+  load() { (cd "$PORTAL" && node scripts/rebuild-load.mjs --pglite .data/pglite --dir "$out" --stamp "$stamp" --keys-prefix portal "$@"); }
+  if [ "$rows" -gt 0 ]; then
+    load --dry-run || { start_peek || true; say "STOP" "the dry run failed: nothing moved, your board is still the local one"; exit 1; }
+    "$PY" "$BOTS/scripts/peek_setup.py" expected --dir "$out" --stamp "$stamp"
+    printf '  Type yes to move these rows to Peek (anything else stops; nothing changes): '
+    read -r answer
+    if [ "$answer" != yes ]; then start_peek || true; say "stop" "nothing moved; your board is still the local one"; exit 1; fi
+  fi
+  # the agents' keys go in either way (an empty move registers them); the rows only after the yes above
+  load >/dev/null || { start_peek || true; say "STOP" "the load failed: your board is still the local one (portal_url unchanged); sh scripts/peek.sh back"; exit 1; }
+  start_peek || { say "STOP" "Peek's launch agent is not installed, so Peek cannot start: your board is still the local one; sh scripts/install-launchd.sh portal-local, then setup again"; exit 1; }
+  healthy || { say "STOP" "Peek did not start after the load: your board is still the local one; sh scripts/peek.sh back"; exit 1; }
+
+  echo "4. Read back from Peek"
+  "$PY" "$BOTS/scripts/peek_setup.py" readback --dir "$out" --stamp "$stamp" --url "$PEEK_URL" \
+    || { say "STOP" "Peek does not hold everything that was moved: your board is still the local one (portal_url unchanged). To go back: sh scripts/peek.sh back"; exit 1; }
+
+  echo "5. The team's board is Peek"
+  "$PY" "$BOTS/scripts/peek_setup.py" set-url "$PEEK_URL"
+  say "ok" "[leads] portal_url = $PEEK_URL (common-data/configs/local.toml)"
+  restart_team
+  say "done" "your board is Peek: $PEEK_URL. The local board's file is as it was; to go back: sh scripts/peek.sh back"
+  ;;
+
+back)
+  cd "$BOTS"
+  "$PY" "$BOTS/scripts/peek_setup.py" unset-url
+  say "ok" "[leads] portal_url taken out: the board is the dashboard's local one again"
+  for l in portal-local peek-jobs; do
+    launchctl bootout "gui/$UID_N/com.ramen-agents.$l" 2>/dev/null || true
+    rm -f "$HOME/Library/LaunchAgents/com.ramen-agents.$l.plist"
+  done
+  say "ok" "Peek's two launch agents removed"
+  restart_team
+  say "done" "back on the local board (http://127.0.0.1:3000/boards). Peek's data stays in $PORTAL/.data; what was written on Peek since the move is there, not on the local board"
+  ;;
+
 *)
-  echo "usage: sh scripts/peek.sh run | update [--check] | jobs | secret" >&2
+  echo "usage: sh scripts/peek.sh run | update [--check] | jobs | secret | setup | back" >&2
   exit 2
   ;;
 esac

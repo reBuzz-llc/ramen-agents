@@ -21,13 +21,13 @@ def board(tmp: Path) -> Path:
     con = sqlite3.connect(f)
     con.executescript(SCHEMA)
     add = lambda *v: con.execute("INSERT INTO rows VALUES (?,?,?,?,?,?,?,?,?)", v)  # noqa: E731
-    add("0b3c1a2e-1111-4222-8333-444455556661", "leads", 1, "2026-01-10T09:00:00Z", "2026-01-11T09:00:00Z", 0,
+    add("00000000-0000-4000-8000-000000000001", "leads", 1, "2026-01-10T09:00:00Z", "2026-01-11T09:00:00Z", 0,
         json.dumps({"business": "Sunrise Bakery", "website": "https://sunrisebakery.example", "domain": "sunrisebakery.example", "city": "Springfield", "status": ["Email Sent", "Contacted"]}),
         json.dumps({"business": "bot", "website": "bot", "status": "person"}), "Sam")
-    add("0b3c1a2e-1111-4222-8333-444455556662", "leads", 2, "2026-01-12T09:00:00Z", "2026-01-12T09:00:00Z", 1, json.dumps({"business": "Corner Deli"}), "{}", "Lead Gen")
-    add("0b3c1a2e-1111-4222-8333-444455556663", "tasks", 3, "2026-01-12T08:00:00Z", "2026-01-12T08:30:00Z", 0, json.dumps({"title": "Check ten leads", "status": "Done"}), json.dumps({"title": "bot", "status": "person"}), "Sam")
-    add("0b3c1a2e-1111-4222-8333-444455556664", "rates", 4, "2026-01-12T08:00:00Z", "2026-01-12T08:00:00Z", 0, json.dumps({"line": "Starter Website", "price": "$500 one-time"}), "{}", "Owner")
-    add("0b3c1a2e-1111-4222-8333-444455556665", "packages", 5, "2026-01-12T08:00:00Z", "2026-01-12T08:00:00Z", 0, json.dumps({"name": "Starter Website", "price": "$500", "deliverables": ["one page"], "status": "draft", "by": "Package Designer"}), "{}", "Package Designer")
+    add("00000000-0000-4000-8000-000000000002", "leads", 2, "2026-01-12T09:00:00Z", "2026-01-12T09:00:00Z", 1, json.dumps({"business": "Corner Deli"}), "{}", "Lead Gen")
+    add("00000000-0000-4000-8000-000000000003", "tasks", 3, "2026-01-12T08:00:00Z", "2026-01-12T08:30:00Z", 0, json.dumps({"title": "Check ten leads", "status": "Done"}), json.dumps({"title": "bot", "status": "person"}), "Sam")
+    add("00000000-0000-4000-8000-000000000004", "rates", 4, "2026-01-12T08:00:00Z", "2026-01-12T08:00:00Z", 0, json.dumps({"line": "Starter Website", "price": "$500 one-time"}), "{}", "Owner")
+    add("00000000-0000-4000-8000-000000000005", "packages", 5, "2026-01-12T08:00:00Z", "2026-01-12T08:00:00Z", 0, json.dumps({"name": "Starter Website", "price": "$500", "deliverables": ["one page"], "status": "draft", "by": "Package Designer"}), "{}", "Package Designer")
     con.commit()
     con.close()
     return f

@@ -132,6 +132,11 @@ echo "Starting: the dashboard, search, the Validator, then $MEMBERS"
 sh scripts/install-launchd.sh >/dev/null && echo "  ok       the always-on services (launchd)"
 # a member's check reads the board, so give the dashboard time to come up first
 i=0; until curl -s -o /dev/null -m 2 http://127.0.0.1:3000/ || [ "$i" -ge 45 ]; do i=$((i+1)); sleep 1; done
+# a new family's board is Peek on this Mac; a board that already holds rows moves only on your yes (sh scripts/peek.sh setup)
+if ! grep -q '^portal_url' common-data/configs/local.toml 2>/dev/null && [ "$(python3 scripts/peek_setup.py local-rows)" = 0 ]; then
+  if sh scripts/peek.sh setup >common-data/logs/peek-setup.log 2>&1; then echo "  ok       the board: Peek (http://127.0.0.1:3100)"
+  else echo "  note     the board is the dashboard's for now (http://127.0.0.1:3000/boards); Peek: common-data/logs/peek-setup.log, then sh scripts/peek.sh setup"; fi
+fi
 STARTED=0
 for m in $MEMBERS; do
   if "$ENGINE/.venv/bin/bot" --config "$ROOT/$m/config.toml" check >/dev/null 2>&1; then
