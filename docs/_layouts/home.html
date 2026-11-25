@@ -54,7 +54,7 @@ step 6: open fake://login.html -&gt; <b>refused</b>
 <span class="t-dim">  (URL path segment 'login.html' is on the denylist)</span></pre>
       <figcaption>From the quickstart demo: a login page is refused before it opens.</figcaption>
       {%- elsif p.figure == "apis" %}
-      {%- assign rows = site.data.free_apis.in_use_table %}
+      {%- assign rows = site.data.free_apis.in_use %}
       <table class="mini">
         <thead><tr><th scope="col">Provider</th><th scope="col">Card</th><th scope="col">Checked</th></tr></thead>
         <tbody>

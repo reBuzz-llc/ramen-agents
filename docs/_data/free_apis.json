@@ -1,28 +1,28 @@
 {
- "generated": "2026-11-25",
- "next_review_due": "2026-12-09",
- "in_use_table": [
+ "reviewed": "2026-11-25",
+ "next_review": "2026-12-09",
+ "in_use": [
   {
-   "slug": "groq",
-   "name": "Groq",
-   "link": "https://console.groq.com/docs/rate-limits",
+   "slug": "freeai",
+   "name": "Free.ai",
+   "link": "https://free.ai/pricing/",
    "allowance": {
-    "value": "gpt-oss-120b: 1,000 requests a day, 200,000 tokens a day; 30 requests and 8,000 tokens a minute",
+    "value": "30,000 tokens a day for email-confirmed accounts; we saw about 33,000 on a day",
     "kind": "stated"
    },
    "recycle": {
-    "value": "the daily token limit is rolling: a refusal says how long to wait",
+    "value": "rolling 24 hours",
     "kind": "stated"
    },
    "request": {
-    "value": "8,000 tokens: a larger request is refused outright",
-    "kind": "stated"
-   },
-   "card": {
     "value": "not published",
     "kind": "not published"
    },
-   "note": "Token limits bind long before request limits. Groq prints no card statement for the Free plan.",
+   "card": {
+    "value": "no card",
+    "kind": "stated"
+   },
+   "note": "API access works on the free tier through its OpenAI-style endpoint. When the day's free pool is spent, it says to wait for tomorrow's.",
    "checked": "2026-11-25"
   },
   {
@@ -49,49 +49,26 @@
    "checked": "2026-11-25"
   },
   {
-   "slug": "zai",
-   "name": "Z.ai (GLM Flash models)",
-   "link": "https://docs.z.ai/guides/overview/pricing",
+   "slug": "groq",
+   "name": "Groq",
+   "link": "https://console.groq.com/docs/rate-limits",
    "allowance": {
-    "value": "GLM-4.7-Flash, GLM-4.5-Flash and GLM-4.6V-Flash are listed at $0; no token or call amount is published",
-    "kind": "not published"
+    "value": "gpt-oss-120b: 1,000 requests a day, 200,000 tokens a day; 30 requests and 8,000 tokens a minute",
+    "kind": "stated"
    },
    "recycle": {
-    "value": "not published",
-    "kind": "not published"
+    "value": "the daily token limit is rolling: a refusal says how long to wait",
+    "kind": "stated"
    },
    "request": {
-    "value": "not published",
-    "kind": "not published"
+    "value": "8,000 tokens: a larger request is refused outright",
+    "kind": "stated"
    },
    "card": {
     "value": "not published",
     "kind": "not published"
    },
-   "note": "Replies carry no rate-limit header, so you learn your limit by using it.",
-   "checked": "2026-11-25"
-  },
-  {
-   "slug": "openrouter",
-   "name": "OpenRouter (:free models)",
-   "link": "https://openrouter.ai/docs/api-reference/limits",
-   "allowance": {
-    "value": "20 requests a minute and 50 requests a day on :free models; 1,000 a day after buying 10 credits",
-    "kind": "stated"
-   },
-   "recycle": {
-    "value": "daily, counted per UTC day (midnight UTC)",
-    "kind": "stated"
-   },
-   "request": {
-    "value": "not published",
-    "kind": "not published"
-   },
-   "card": {
-    "value": "no card",
-    "kind": "stated"
-   },
-   "note": "Counted in requests, not tokens. No card is needed for the :free models.",
+   "note": "Token limits bind long before request limits. Groq prints no card statement for the Free plan.",
    "checked": "2026-11-25"
   },
   {
@@ -118,29 +95,6 @@
    "checked": "2026-11-25"
   },
   {
-   "slug": "freeai",
-   "name": "Free.ai",
-   "link": "https://free.ai/pricing/",
-   "allowance": {
-    "value": "30,000 tokens a day for email-confirmed accounts; we saw about 33,000 on a day",
-    "kind": "stated"
-   },
-   "recycle": {
-    "value": "rolling 24 hours",
-    "kind": "stated"
-   },
-   "request": {
-    "value": "not published",
-    "kind": "not published"
-   },
-   "card": {
-    "value": "no card",
-    "kind": "stated"
-   },
-   "note": "API access works on the free tier through its OpenAI-style endpoint. When the day's free pool is spent, it says to wait for tomorrow's.",
-   "checked": "2026-11-25"
-  },
-  {
    "slug": "mistral",
    "name": "Mistral (La Plateforme, Free mode)",
    "link": "https://docs.mistral.ai",
@@ -161,6 +115,29 @@
     "kind": "stated"
    },
    "note": "Mistral's docs, as we read them on 21 Nov, say Free mode has no API access, while our older account still answers, with 2 requests a minute (that figure has moved before: it was 30 on 6 Nov). Do not count on API access on Mistral's free mode as a new reader.",
+   "checked": "2026-11-25"
+  },
+  {
+   "slug": "openrouter",
+   "name": "OpenRouter (:free models)",
+   "link": "https://openrouter.ai/docs/api-reference/limits",
+   "allowance": {
+    "value": "20 requests a minute and 50 requests a day on :free models; 1,000 a day after buying 10 credits",
+    "kind": "stated"
+   },
+   "recycle": {
+    "value": "daily, counted per UTC day (midnight UTC)",
+    "kind": "stated"
+   },
+   "request": {
+    "value": "not published",
+    "kind": "not published"
+   },
+   "card": {
+    "value": "no card",
+    "kind": "stated"
+   },
+   "note": "Counted in requests, not tokens. No card is needed for the :free models.",
    "checked": "2026-11-25"
   },
   {
@@ -185,340 +162,321 @@
    },
    "note": "Two free models: DeepSeek V4.1 Flash and MiMo V2.6 Flash.",
    "checked": "2026-11-25"
+  },
+  {
+   "slug": "zai",
+   "name": "Z.ai (GLM Flash models)",
+   "link": "https://docs.z.ai/guides/overview/pricing",
+   "allowance": {
+    "value": "GLM-4.7-Flash, GLM-4.5-Flash and GLM-4.6V-Flash are listed at $0; no token or call amount is published",
+    "kind": "not published"
+   },
+   "recycle": {
+    "value": "not published",
+    "kind": "not published"
+   },
+   "request": {
+    "value": "not published",
+    "kind": "not published"
+   },
+   "card": {
+    "value": "not published",
+    "kind": "not published"
+   },
+   "note": "Replies carry no rate-limit header, so you learn your limit by using it.",
+   "checked": "2026-11-25"
   }
  ],
- "entries": [
-  {
-   "slug": "quickemailverification",
-   "name": "QuickEmailVerification",
-   "link": "https://quickemailverification.com/email-verification-api",
-   "group": "usable",
-   "free_allowance": "100 verification credits a day",
-   "allowance_kind": "stated",
-   "recycle": "daily",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "QuickEmailVerification gives 100 free email verifications a day, resetting daily, with no card. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
-  },
-  {
-   "slug": "sniffmail",
-   "name": "Sniffmail",
-   "link": "https://sniffmail.io/",
-   "group": "usable",
-   "free_allowance": "500 basic verifications a month (syntax, MX, disposable); deep SMTP checks paid",
-   "allowance_kind": "stated",
-   "recycle": "monthly",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "Sniffmail gives 500 free basic email checks a month (syntax, MX, disposable detection) with no card. Deep mailbox checks are paid. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
-  },
-  {
-   "slug": "tavily",
-   "name": "Tavily",
-   "link": "https://www.tavily.com/pricing",
-   "group": "usable",
-   "free_allowance": "1,000 API credits a month on the Free Researcher plan",
-   "allowance_kind": "stated",
-   "recycle": "monthly",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "Tavily's free plan gives 1,000 API credits a month for search, with no card. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
-  },
-  {
-   "slug": "freeserp",
-   "name": "FreeSerp",
-   "link": "https://freeserp.ai/",
-   "group": "unjudged",
-   "free_allowance": "Free search API, no key, no signup, no rate plan",
-   "allowance_kind": "stated",
-   "recycle": "not applicable (no rate limit published)",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "FreeSerp is a free web search API that needs no key or signup and publishes no rate limit; it asks users to cache results. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
-  },
+ "not_in_use": [],
+ "left_off": [
   {
    "slug": "aion-labs",
    "name": "Aion Labs",
    "link": "https://aionlabs.ai/pricing",
-   "group": "unusable",
    "free_allowance": "A daily credit allowance (size not published) for agent jobs, the API and browser chat",
    "allowance_kind": "stated",
    "recycle": "daily (exact reset not published)",
-   "request_limit": null,
+   "request_limit": "",
    "card": "card needed",
-   "public_note": "Aion Labs lists a free tier with a daily credit allowance, but API access is activated by verifying a payment card (stated as never charged). Checked 25 Nov 2026.",
+   "public_note": "Aion Labs lists a free tier with a daily credit allowance, but API access is activated by verifying a payment card (stated as never charged).",
    "checked": "2026-11-25"
-  },
-  {
-   "slug": "apify",
-   "name": "Apify",
-   "link": "https://apify.com/pricing",
-   "group": "unusable",
-   "free_allowance": "$5 of platform usage a month",
-   "allowance_kind": "stated",
-   "recycle": "monthly",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "Apify is a web-scraping platform, not an AI model API. Its free plan gives $5 of usage a month with no credit card. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
   },
   {
    "slug": "cerebras",
    "name": "Cerebras",
    "link": "https://inference-docs.cerebras.ai/support/rate-limits",
-   "group": "unusable",
    "free_allowance": "Free Trial: $5 credit for 30 days; gpt-oss-120b 5 requests a minute, 1M tokens a day",
    "allowance_kind": "stated",
    "recycle": "daily; credits expire 30 days after grant",
-   "request_limit": null,
+   "request_limit": "",
    "card": "card needed",
-   "public_note": "Cerebras gives $5 of trial credit for 30 days (gpt-oss-120b: 5 requests a minute, 1M tokens a day), but API access stays inactive until a payment method is added. Checked 25 Nov 2026.",
+   "public_note": "Cerebras gives $5 of trial credit for 30 days (gpt-oss-120b: 5 requests a minute, 1M tokens a day), but API access stays inactive until a payment method is added.",
    "checked": "2026-11-25"
-  },
-  {
-   "slug": "exa",
-   "name": "Exa",
-   "link": "https://docs.exa.ai/reference/pricing",
-   "group": "unusable",
-   "free_allowance": "$10 in credits (up to 2,500 Lite searches), refilled each month",
-   "allowance_kind": "stated",
-   "recycle": "monthly",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "Exa is a search API, not an AI model API. Its free Starter plan gives $10 of credit (about 2,500 Lite searches) a month, no payment method. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
   },
   {
    "slug": "github-copilot",
    "name": "GitHub Copilot Free",
    "link": "https://docs.github.com/en/copilot/get-started/plans",
-   "group": "unusable",
    "free_allowance": "2,000 inline completions a month; limited chat and agent use; AI credits allowance (size not stated)",
    "allowance_kind": "stated",
    "recycle": "monthly",
-   "request_limit": null,
+   "request_limit": "",
    "card": "no card",
-   "public_note": "GitHub Copilot Free is an editor and chat feature, not an API: it gives 2,000 completions a month, and the plans page mentions no API key. Checked 25 Nov 2026.",
+   "public_note": "GitHub Copilot Free is an editor and chat feature, not an API: it gives 2,000 completions a month, and the plans page mentions no API key.",
    "checked": "2026-11-25"
   },
   {
    "slug": "github-models",
    "name": "GitHub Models",
    "link": "https://docs.github.com/en/rest/models",
-   "group": "unusable",
    "free_allowance": "None; retired",
    "allowance_kind": "stated",
    "recycle": "not published",
-   "request_limit": null,
+   "request_limit": "",
    "card": "not stated",
-   "public_note": "GitHub Models was fully retired on 30 July 2026, so there is no free inference API there any more. Checked 25 Nov 2026.",
+   "public_note": "GitHub Models was fully retired on 30 July 2026, so there is no free inference API there any more.",
    "checked": "2026-11-25"
   },
   {
    "slug": "hugging-face-inference-api",
    "name": "Hugging Face Inference API",
    "link": "https://huggingface.co/docs/inference-providers/pricing",
-   "group": "unusable",
    "free_allowance": "No included monthly credits for free users; PRO gets $2.00 a month.",
    "allowance_kind": "stated",
    "recycle": "monthly (PRO credits)",
-   "request_limit": null,
+   "request_limit": "",
    "card": "card needed",
-   "public_note": "Hugging Face's Inference Providers give free accounts no included credits; you buy credits or go PRO ($2 a month in credits). Checked 25 Nov 2026.",
+   "public_note": "Hugging Face's Inference Providers give free accounts no included credits; you buy credits or go PRO ($2 a month in credits).",
    "checked": "2026-11-25"
   },
   {
    "slug": "mixedbread",
    "name": "Mixedbread",
    "link": "https://www.mixedbread.com/pricing",
-   "group": "unusable",
    "free_allowance": "$5 in one-time credits on the free Starter plan; 100 queries a minute.",
    "allowance_kind": "stated",
    "recycle": "one-off credit",
    "request_limit": "100 queries per minute",
    "card": "no card",
-   "public_note": "Mixedbread's free Starter plan gives $5 in one-time credit for embeddings, reranking and search, no card needed. After that you upgrade to keep going. Checked 25 Nov 2026.",
+   "public_note": "Mixedbread's free Starter plan gives $5 in one-time credit for embeddings, reranking and search, no card needed. After that you upgrade to keep going.",
    "checked": "2026-11-25"
   },
   {
    "slug": "moonshot",
    "name": "Moonshot (Kimi)",
    "link": "https://platform.kimi.ai/docs/pricing/limits",
-   "group": "unusable",
    "free_allowance": "No free tier; a minimum $1 recharge is needed to use the API ($5 voucher at $5 cumulative recharge).",
    "allowance_kind": "stated",
    "recycle": "one-off credit",
-   "request_limit": null,
+   "request_limit": "",
    "card": "card needed",
-   "public_note": "Kimi's API has no free tier: a minimum $1 recharge is required to start, and a $5 voucher comes at $5 total recharge. Checked 25 Nov 2026.",
+   "public_note": "Kimi's API has no free tier: a minimum $1 recharge is required to start, and a $5 voucher comes at $5 total recharge.",
    "checked": "2026-11-25"
-  },
-  {
-   "slug": "parallel",
-   "name": "Parallel (also Parallel Search, Parallel Search API)",
-   "link": "https://parallel.ai/pricing",
-   "group": "unusable",
-   "free_allowance": "Launch: free hosted web-search MCP server, no account, variable limits. Build: $5 free each month with a card on file, plus up to $80 signup credit.",
-   "allowance_kind": "stated",
-   "recycle": "monthly (the $5 credit)",
-   "request_limit": null,
-   "card": "card needed",
-   "public_note": "Parallel's free search MCP server needs no account or card, with variable limits. The $5 monthly API credit needs a card on file. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "slugs": [
-    "parallel",
-    "parallel-search",
-    "parallel-search-api"
-   ]
   },
   {
    "slug": "plugsky",
    "name": "Plugsky",
    "link": "https://plugsky.com/pricing",
-   "group": "unusable",
    "free_allowance": "Free plan: 30 requests a minute; new accounts (after 2 Nov 2026) 100 requests and 50,000 tokens a day, 1 concurrent request; older accounts 500 requests and 250,000 tokens a day.",
    "allowance_kind": "stated",
    "recycle": "rolling window (about 5 hours as shown on its page; daily figures given)",
-   "request_limit": null,
+   "request_limit": "",
    "card": "no card",
-   "public_note": "Plugsky's free plan needs no card: 30 requests a minute, and new accounts get 100 requests and 50,000 tokens a day. Checked 25 Nov 2026.",
+   "public_note": "Plugsky's free plan needs no card: 30 requests a minute, and new accounts get 100 requests and 50,000 tokens a day.",
    "checked": "2026-11-25"
   },
   {
    "slug": "replicate",
    "name": "Replicate",
    "link": "https://replicate.com/pricing",
-   "group": "unusable",
-   "free_allowance": null,
+   "free_allowance": "",
    "allowance_kind": "not published",
-   "recycle": null,
-   "request_limit": null,
+   "recycle": "",
+   "request_limit": "",
    "card": "not stated",
-   "public_note": "Replicate bills for what you use, per second or per token. Its pricing page lists no free tier. Checked 25 Nov 2026.",
+   "public_note": "Replicate bills for what you use, per second or per token. Its pricing page lists no free tier.",
    "checked": "2026-11-25"
   },
   {
    "slug": "sambanova",
    "name": "SambaNova Cloud",
    "link": "https://docs.sambanova.ai/docs/en/models/rate-limits",
-   "group": "unusable",
    "free_allowance": "Free tier (no payment method linked) on gpt-oss-120b and gemma-4-31B-it: 20 requests a minute, 20 requests a day, 200,000 tokens a day. Preview models, may be removed at short notice.",
    "allowance_kind": "stated",
    "recycle": "daily (reset time not stated)",
-   "request_limit": null,
+   "request_limit": "",
    "card": "no card",
-   "public_note": "SambaNova has a free tier with no payment method: 20 requests a minute, 20 a day and 200,000 tokens a day on preview models. Checked 25 Nov 2026.",
+   "public_note": "SambaNova has a free tier with no payment method: 20 requests a minute, 20 a day and 200,000 tokens a day on preview models.",
    "checked": "2026-11-25"
-  },
-  {
-   "slug": "summarizeapi",
-   "name": "SummarizeAPI",
-   "link": "https://summarizeapi.com/",
-   "group": "unusable",
-   "free_allowance": "100 summaries a month on the free plan.",
-   "allowance_kind": "stated",
-   "recycle": "monthly",
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "SummarizeAPI's free plan gives 100 summaries a month with no credit card. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
-  },
-  {
-   "slug": "supabase-s3",
-   "name": "supabase-s3",
-   "link": "https://supabase.com/pricing",
-   "group": "unusable",
-   "free_allowance": null,
-   "allowance_kind": "not published",
-   "recycle": null,
-   "request_limit": null,
-   "card": "no card",
-   "public_note": "Supabase's free plan is a database, storage and auth platform (500 MB database, 1 GB storage). It has no AI model API. Checked 25 Nov 2026.",
-   "checked": "2026-11-25",
-   "kind": "tool"
   },
   {
    "slug": "together",
    "name": "Together AI",
    "link": "https://docs.together.ai/docs/billing",
-   "group": "unusable",
-   "free_allowance": null,
+   "free_allowance": "",
    "allowance_kind": "stated",
-   "recycle": null,
-   "request_limit": null,
+   "recycle": "",
+   "request_limit": "",
    "card": "not stated",
-   "public_note": "Together AI has no free trial: you must buy at least $15 in credits before using the platform or creating keys. Checked 25 Nov 2026.",
+   "public_note": "Together AI has no free trial: you must buy at least $15 in credits before using the platform or creating keys.",
    "checked": "2026-11-25"
   },
   {
    "slug": "zsky-ai",
    "name": "ZSky.ai",
    "link": "https://zsky.ai/",
-   "group": "unusable",
    "free_allowance": "Free plan: unlimited image/video generation in its web app, small watermark plate, no credits. API + MCP only on Max ($99/month) and Enterprise.",
    "allowance_kind": "stated",
    "recycle": "no credits to run out",
-   "request_limit": null,
+   "request_limit": "",
    "card": "no card",
-   "public_note": "ZSky.ai's free plan needs no card, but it is for its web app: API access starts at the $99 Max plan. Checked 25 Nov 2026.",
+   "public_note": "ZSky.ai's free plan needs no card, but it is for its web app: API access starts at the $99 Max plan.",
    "checked": "2026-11-25"
+  }
+ ],
+ "tools": [
+  {
+   "slug": "apify",
+   "name": "Apify",
+   "link": "https://apify.com/pricing",
+   "free_allowance": "$5 of platform usage a month",
+   "allowance_kind": "stated",
+   "recycle": "monthly",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "Apify is a web-scraping platform, not an AI model API. Its free plan gives $5 of usage a month with no credit card.",
+   "checked": "2026-11-25",
+   "left_off": true
   },
   {
    "slug": "checkmail1",
    "name": "CheckMail1",
    "link": "https://checkmail1.com",
-   "group": "unusable",
-   "kind": "tool",
    "free_allowance": "100 credits on a new account",
    "allowance_kind": "stated",
    "recycle": "not confirmed",
-   "request_limit": null,
+   "request_limit": "",
    "card": "not stated",
-   "public_note": "CheckMail1 is an email verification API with no company or country named. Its pages disagree on the free allowance (\"100 free verifications every month\" and \"never expire\"), on prices and on how to pay, and its documentation's way of sending the key is rejected by its own API. Checked 25 Nov 2026.",
-   "checked": "2026-11-25"
+   "public_note": "CheckMail1 is an email verification API with no company or country named. Its pages disagree on the free allowance (\"100 free verifications every month\" and \"never expire\"), on prices and on how to pay, and its documentation's way of sending the key is rejected by its own API.",
+   "checked": "2026-11-25",
+   "left_off": true
   },
   {
    "slug": "emailverify-io",
    "name": "EmailVerify.io",
    "link": "https://emailverify.io",
-   "group": "usable",
-   "kind": "tool",
    "free_allowance": "100 free credits, no card",
    "allowance_kind": "stated",
    "recycle": "not confirmed: \"every month\" on the pricing page, \"on sign up\" elsewhere",
-   "request_limit": null,
+   "request_limit": "",
    "card": "no card",
-   "public_note": "EmailVerify.io (Clustox LLC, Delaware) gives 100 free credits with no card. Its pricing page says every month and another page says on sign up, so the refill is not confirmed. It refuses at zero and says it never charges retroactively; a check covers syntax, mail records and a live handshake and sends no email, at up to 600 requests a minute. Checked 25 Nov 2026.",
-   "checked": "2026-11-25"
+   "public_note": "EmailVerify.io (Clustox LLC, Delaware) gives 100 free credits with no card. Its pricing page says every month and another page says on sign up, so the refill is not confirmed. It refuses at zero and says it never charges retroactively; a check covers syntax, mail records and a live handshake and sends no email, at up to 600 requests a minute.",
+   "checked": "2026-11-25",
+   "left_off": false
+  },
+  {
+   "slug": "exa",
+   "name": "Exa",
+   "link": "https://docs.exa.ai/reference/pricing",
+   "free_allowance": "$10 in credits (up to 2,500 Lite searches), refilled each month",
+   "allowance_kind": "stated",
+   "recycle": "monthly",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "Exa is a search API, not an AI model API. Its free Starter plan gives $10 of credit (about 2,500 Lite searches) a month, no payment method.",
+   "checked": "2026-11-25",
+   "left_off": true
+  },
+  {
+   "slug": "freeserp",
+   "name": "FreeSerp",
+   "link": "https://freeserp.ai/",
+   "free_allowance": "Free search API, no key, no signup, no rate plan",
+   "allowance_kind": "stated",
+   "recycle": "not applicable (no rate limit published)",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "FreeSerp is a free web search API that needs no key or signup and publishes no rate limit; it asks users to cache results.",
+   "checked": "2026-11-25",
+   "left_off": false
   },
   {
    "slug": "ocr-space",
    "name": "OCR.space",
    "link": "https://ocr.space/ocrapi",
-   "group": "usable",
-   "kind": "tool",
    "free_allowance": "25,000 requests a month, 500 a day per IP address, 1 MB a file, 3 PDF pages",
    "allowance_kind": "stated",
    "recycle": "monthly and daily",
    "request_limit": "1 MB a file, 3 PDF pages",
    "card": "no card",
-   "public_note": "OCR.space (a9t9 software GmbH, Germany) reads text from images and PDFs: 25,000 requests a month, 500 a day per IP address, 1 MB a file and 3 PDF pages, with no card. Searchable PDFs carry a watermark, and uploads are \"deleted after processing\". Checked 25 Nov 2026.",
-   "checked": "2026-11-25"
+   "public_note": "OCR.space (a9t9 software GmbH, Germany) reads text from images and PDFs: 25,000 requests a month, 500 a day per IP address, 1 MB a file and 3 PDF pages, with no card. Searchable PDFs carry a watermark, and uploads are \"deleted after processing\".",
+   "checked": "2026-11-25",
+   "left_off": false
+  },
+  {
+   "slug": "quickemailverification",
+   "name": "QuickEmailVerification",
+   "link": "https://quickemailverification.com/email-verification-api",
+   "free_allowance": "100 verification credits a day",
+   "allowance_kind": "stated",
+   "recycle": "daily",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "QuickEmailVerification gives 100 free email verifications a day, resetting daily, with no card.",
+   "checked": "2026-11-25",
+   "left_off": false
+  },
+  {
+   "slug": "sniffmail",
+   "name": "Sniffmail",
+   "link": "https://sniffmail.io/",
+   "free_allowance": "500 basic verifications a month (syntax, MX, disposable); deep SMTP checks paid",
+   "allowance_kind": "stated",
+   "recycle": "monthly",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "Sniffmail gives 500 free basic email checks a month (syntax, MX, disposable detection) with no card. Deep mailbox checks are paid.",
+   "checked": "2026-11-25",
+   "left_off": false
+  },
+  {
+   "slug": "summarizeapi",
+   "name": "SummarizeAPI",
+   "link": "https://summarizeapi.com/",
+   "free_allowance": "100 summaries a month on the free plan.",
+   "allowance_kind": "stated",
+   "recycle": "monthly",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "SummarizeAPI's free plan gives 100 summaries a month with no credit card.",
+   "checked": "2026-11-25",
+   "left_off": true
+  },
+  {
+   "slug": "supabase",
+   "name": "Supabase",
+   "link": "https://supabase.com/pricing",
+   "free_allowance": "",
+   "allowance_kind": "not published",
+   "recycle": "",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "Supabase's free plan is a database, storage and auth platform (500 MB database, 1 GB storage). It has no AI model API.",
+   "checked": "2026-11-25",
+   "left_off": true
+  },
+  {
+   "slug": "tavily",
+   "name": "Tavily",
+   "link": "https://www.tavily.com/pricing",
+   "free_allowance": "1,000 API credits a month on the Free Researcher plan",
+   "allowance_kind": "stated",
+   "recycle": "monthly",
+   "request_limit": "",
+   "card": "no card",
+   "public_note": "Tavily's free plan gives 1,000 API credits a month for search, with no card.",
+   "checked": "2026-11-25",
+   "left_off": false
   }
- ],
- "notes": {
-  "cell_kinds": "stated = the provider's own page says it; measured by us = we saw it run out and the provider prints no number; estimate = 'about ..., estimated' from our measurement or the provider's nearest stated figure; not published = could not find or estimate honestly",
-  "estimates_line": "An estimate is written 'about ..., estimated' and comes from our measurement or from the provider's nearest stated figure."
- }
+ ]
 }

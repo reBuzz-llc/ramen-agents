@@ -5,8 +5,8 @@ h1: "Free AI APIs that work without a credit card"
 description: "Which free AI APIs really work without a card? Allowances in tokens and calls, when each resets, and why others did not make the list. Every entry checked against the provider's own page."
 permalink: /free-ai-apis.html
 eyebrow: "Free AI APIs"
-# Words: the page shape of 2026-11-25. Data: _data/free_apis.json, the public part of the newest checked list
-# (copied in whole, never edited by hand).
+# Words: the page shape of 2026-11-25. Data: _data/free_apis.json, the list builder's filtered output
+# (held entries already removed; never edited by hand).
 sections:
   in_use: "Free AI APIs we run on today"
   usable: "Free tiers that work, but we do not run on"
