@@ -8,7 +8,7 @@
   --color-ink: rgb(24 22 20);
   --color-muted: rgb(104 98 92);
   --color-line: rgb(229 225 220);
-  /* The brand: one colour, #ff6600. Fills use it; text on it is near-black (white fails contrast,
+  /* The brand: one colour, #ff6600 (owner, 2026-10-14). Fills use it; text on it is near-black (white fails contrast,
      2.9:1); orange text on a light page uses a deeper shade (#ff6600 there is 2.8:1, #b34700 is 5.2:1). */
   --color-accent: #ff6600;
   --color-on-accent: #1a0d00;
@@ -119,3 +119,23 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   from { opacity: 0; transform: scale(0.96) translateY(-4px); }
   to { opacity: 1; transform: none; }
 }
+
+/* A pasted Google Doc (owner 11-23): the page's reset takes lists, headings and tables apart, so they are put back here. The
+   document's own inline styles still decide fonts, sizes, colours and spacing. */
+.rich-doc { white-space: normal; overflow-wrap: anywhere; font-size: 11pt; line-height: 1.38; }
+.rich-doc:focus { outline: none; }
+.rich-doc h1 { font-size: 20pt; font-weight: 400; }
+.rich-doc h2 { font-size: 16pt; font-weight: 400; }
+.rich-doc h3 { font-size: 14pt; font-weight: 400; }
+.rich-doc h4 { font-size: 12pt; font-weight: 400; }
+.rich-doc h5, .rich-doc h6 { font-size: 11pt; font-weight: 400; }
+.rich-doc ul, .rich-doc ol { padding-left: 2em; }
+.rich-doc ul { list-style: disc; }
+.rich-doc ol { list-style: decimal; }
+.rich-doc li { display: list-item; }
+.rich-doc li > p { display: inline; }
+.rich-doc a { color: #1155cc; text-decoration: underline; }
+.rich-doc b, .rich-doc strong { font-weight: 700; }
+.rich-doc table { border-collapse: collapse; max-width: none; }
+.rich-doc td, .rich-doc th { border: 1px solid #9e9e9e; padding: 5pt; vertical-align: top; }
+.rich-doc blockquote { margin-left: 2em; }

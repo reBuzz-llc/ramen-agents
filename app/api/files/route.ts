@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { sessionHint } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { publicReason } from "@/lib/errors";
 import { listFiles, startUpload } from "@/lib/files";
 import { guard } from "@/lib/guard";
 import { sameOrigin } from "@/lib/same-origin";
+import { readsWith } from "@/lib/session-hint";
 import { NOT_SET_UP, storage } from "@/lib/storage";
 import { displayName } from "@/lib/display-name";
 
@@ -27,8 +29,19 @@ export async function POST(req: Request) {
 
 // GET: the company's files for a picker (the lead drawer's "Attach a file").
 export async function GET() {
-  const g = await guard("queue.work");
-  if ("res" in g) return g.res;
-  const rows = await listFiles(await db(), g.who.tenantId);
+  const d = await db();
+  let refused: NextResponse | undefined;
+  // read alongside the sign-in check; nothing is answered unless the check passes
+  const got = await readsWith(
+    await sessionHint(),
+    async () => {
+      const g = await guard("queue.work");
+      if ("res" in g) refused = g.res;
+      return "res" in g ? null : g.who;
+    },
+    ({ tenantId }) => listFiles(d, tenantId),
+  );
+  if (!got) return refused ?? NextResponse.json({ error: "sign in first" }, { status: 401 });
+  const rows = got.data;
   return NextResponse.json({ files: rows.map((f) => ({ id: f.id, name: f.name, tag: f.tag })) }, { headers: { "Cache-Control": "no-store" } });
 }

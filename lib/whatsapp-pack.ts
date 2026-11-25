@@ -1,16 +1,18 @@
-// The WhatsApp side of the send pack: its WhatsApp tab does the checking and the sending in one place. "Check
-// numbers": twenty unchecked numbers taken for the person, best lead score first, each with its wa.me link and Verified / Asked to verify / False number in place.
+// The WhatsApp side of the send pack: most leads have a WhatsApp number and none was checked, so the
+// pack's WhatsApp tab does the checking and the sending in one place. "Check numbers": twenty unchecked numbers taken for
+// the person, best lead score first, each with its wa.me link and Verified / Asked to verify / False number in place.
 // "Send on WhatsApp": the person's verified leads (and verified leads nobody holds) with their WhatsApp draft and its open
 // flags, Copy, Open in WhatsApp, Mark WhatsApp sent; a verified lead with no draft yet shows "draft coming" (the
 // Outreach Writer drafts verified leads first). Every status is set as the person (History); a False number is let go
-// (the Validator clears it as before). Nothing is ever sent by the portal. Claims of kind "whatsapp" (the email pack's are "email").
+// (the Validator clears it as before). Peek never sends anything. Claims of kind "whatsapp" (the email pack's are "email").
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { withFirstLink } from "./lead-sends";
 import { accept, closeClaim } from "./claims";
 import { changedSince, lastPersonEdit } from "./draft-edits";
 import type { Db } from "./db";
 import { claims, leadFlags, leads } from "./db/schema";
+import { isHeld, notHeld, type HeldLead } from "./held-drafts";
 import { WHATSAPP_SENT, writeLead, type Actor } from "./leads";
-import { overGoal, todayOf } from "./send-goals-db";
 
 export const CHECK = 20;
 export const SEND = 10;
@@ -31,6 +33,8 @@ export type WaLead = {
   draft: string | null;
   /** The sample site the team made: Copy message ends with it. */
   sample: string | null;
+  /** A cold WhatsApp never carries the link; it goes after a reply. */
+  sampleHeld: boolean;
   flags: { rule: string; detail: string; changed: boolean }[];
   mine: boolean;
 };
@@ -58,13 +62,13 @@ async function withFlags(db: Db, tenantId: string, rows: Row[], mine: Set<string
       .where(and(eq(leadFlags.tenantId, tenantId), inArray(leadFlags.leadId, ids), eq(leadFlags.status, "open"))),
     lastPersonEdit(db, tenantId, ids, "draft_whatsapp"),
   ]);
-  return rows.map((r) => ({
+  return withFirstLink(db, tenantId, "whatsapp", rows.map((r) => ({
     ...r,
     draft: r.draft && !/^skip\s*:/i.test(r.draft.trim()) ? r.draft : null,
     link: waLink(r.whatsapp, r.phone),
     flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail, changed: changedSince(f.firstSeen, edited.get(r.id)) })),
     mine: mine.has(r.id),
-  }));
+  })));
 }
 
 const mineJoin = (tenantId: string, userId: string) =>
@@ -81,17 +85,15 @@ export async function checkList(db: Db, tenantId: string, userId: string): Promi
   return withFlags(db, tenantId, rows, new Set(rows.map((r) => r.id)));
 }
 
-/** The person's verified leads to send, then verified leads nobody holds: up to ten and never more than the WhatsApp
- *  messages they may still send today (3 a day unless the owner changes it); drafts first, the rest "draft
- *  coming". Checking numbers is not capped. */
-export async function sendList(db: Db, tenantId: string, userId: string, now = new Date()): Promise<WaLead[]> {
-  const size = Math.min(SEND, (await todayOf(db, tenantId, userId, now)).whatsapp.left);
-  if (size <= 0) return [];
+/** The person's verified leads to send, then verified leads nobody holds: up to ten, whatever they sent today (the
+ *  goal is a target, not a limit); drafts first, the rest "draft coming". */
+export async function sendList(db: Db, tenantId: string, userId: string): Promise<WaLead[]> {
+  const size = SEND;
   const mine = await db
     .select(leadCols)
     .from(claims)
     .innerJoin(leads, mineJoin(tenantId, userId))
-    .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED)))
+    .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), notHeld))
     .orderBy(asc(claims.at));
   const free =
     mine.length >= size
@@ -100,13 +102,29 @@ export async function sendList(db: Db, tenantId: string, userId: string, now = n
           .select(leadCols)
           .from(leads)
           .leftJoin(claims, and(eq(claims.tenantId, leads.tenantId), eq(claims.pageId, sql`${leads.id}::text`)))
-          .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), isNull(claims.userId)))
+          .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), isNull(claims.userId), notHeld))
           .orderBy(sql`(${leads.draftWhatsapp} is not null and ${leads.draftWhatsapp} not ilike 'skip:%') desc`, desc(leads.leadScore), asc(leads.createdAt))
           .limit(size - mine.length);
   const ids = new Set(mine.map((r) => r.id));
   const list = await withFlags(db, tenantId, [...mine, ...free], ids);
-  // drafts first, then only as many as are left today
+  // drafts first
   return list.sort((a, b) => Number(!!b.draft) - Number(!!a.draft)).slice(0, size);
+}
+
+/** The verified leads sendList leaves out because their draft is on hold, the person's and those nobody holds. */
+export async function heldSendList(db: Db, tenantId: string, userId: string): Promise<HeldLead[]> {
+  const cols = { id: leads.id, business: leads.business };
+  const [mine, free] = await Promise.all([
+    db.select(cols).from(claims).innerJoin(leads, mineJoin(tenantId, userId)).where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), isHeld)).orderBy(asc(claims.at)),
+    db
+      .select(cols)
+      .from(leads)
+      .leftJoin(claims, and(eq(claims.tenantId, leads.tenantId), eq(claims.pageId, sql`${leads.id}::text`)))
+      .where(and(eq(leads.tenantId, tenantId), open, eq(leads.whatsappStatus, VERIFIED), isNull(claims.userId), isHeld))
+      .orderBy(asc(leads.business))
+      .limit(SEND),
+  ]);
+  return [...mine, ...free];
 }
 
 /** Top the person's numbers to check up to twenty: unchecked numbers nobody holds, best lead score first. */
@@ -149,8 +167,6 @@ export async function markWhatsappSent(db: Db, tenantId: string, leadId: string,
   const [l] = await db.select({ status: leads.whatsappStatus }).from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, leadId)));
   if (!l) return { ok: false, error: "No such lead." };
   if (l.status !== VERIFIED) return { ok: false, error: "Check the number first: only a verified number is sent to." };
-  const over = await overGoal(db, tenantId, who.userId, ["whatsapp"], leadId);
-  if (over) return { ok: false, error: over };
   const r = await writeLead(db, tenantId, { id: leadId }, { whatsapp_status: WHATSAPP_SENT }, actorOf(who));
   if (!r.ok) return { ok: false, error: r.message };
   await closeClaim(db, tenantId, leadId);

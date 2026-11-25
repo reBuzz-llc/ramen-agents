@@ -32,7 +32,6 @@ const row = (
   takenBy: null,
   mine: false,
   corrected: false,
-  openFlags: 0,
   updatedAt: "2026-11-05T00:00:00.000Z",
 });
 

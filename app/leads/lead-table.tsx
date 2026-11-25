@@ -1,10 +1,14 @@
 "use client";
-// The Table tab: every cell of every lead
-// as a grid, one line per lead. Click a header to sort (again for the other way, a third time for the board's order);
+// The Table tab (a table view, like in Notion): every cell of every lead
+// as a grid, one line per lead. Click a header for its menu: sort, wrap; drag a header's edge to resize it;
 // the business stays in view while the grid scrolls sideways, the headers while it scrolls down. A row opens the same
 // drawer as the Board, where cells are edited. Long text shows its first line; the full cell is in the drawer.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { agentName } from "@/lib/agent-names";
 import { telHref } from "@/lib/phone";
+import { siteHealthShort } from "@/lib/site-health-short";
+import { clampColumn, COLUMN_WIDTH, columnMenu, columnWidth, fieldOfColumn, isCutCell, withWidth, withWrap, type MenuAction, type TableColumns } from "@/lib/table-columns";
+import ColumnMenu, { FullCell } from "./column-menu";
 import { Chip } from "./chip";
 import type { BoardRow } from "./leads-view";
 
@@ -171,7 +175,8 @@ export const COLUMNS: Col[] = [
     key: "siteHealth",
     label: "Site health",
     kind: "long",
-    get: (r) => r.siteHealth ?? null,
+    // the year and the load time; the stored text is untouched
+    get: (r) => siteHealthShort(r.siteHealth) || null,
   },
   {
     key: "resultDate",
@@ -185,7 +190,7 @@ export const COLUMNS: Col[] = [
     key: "foundBy",
     label: "Found by",
     kind: "text",
-    get: (r) => r.foundBy ?? null,
+    get: (r) => (r.foundBy ? agentName(r.foundBy) : null),
   },
   { key: "notes", label: "Notes", kind: "long", get: (r) => r.notes ?? null },
   {
@@ -291,7 +296,9 @@ const WIDTH: Record<Kind, string> = {
   phone: "",
 };
 
-function Cell({ col, row }: { col: Col; row: TableRow }) {
+const WRAPS: Kind[] = ["text", "long", "link"];
+
+function Cell({ col, row, wrapped, sized }: { col: Col; row: TableRow; wrapped: boolean; sized: boolean }) {
   const v = col.get(row);
   if (v === null || v === "") return <span className="text-muted">–</span>;
   if (col.kind === "status") return <Chip status={String(v)} />;
@@ -315,15 +322,23 @@ function Cell({ col, row }: { col: Col; row: TableRow }) {
         rel="noreferrer"
         onClick={(e) => e.stopPropagation()}
         title={text}
-        className={`block truncate text-accent-ink hover:underline ${WIDTH.link}`}
+        className={`text-accent-ink hover:underline ${wrapped ? "line-clamp-3 break-all whitespace-normal" : `block truncate ${sized ? "" : WIDTH.link}`}`}
       >
         {text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
       </a>
     );
+  // up to three lines, ending in "…"; a click on one with more shows all of it
+  if (wrapped)
+    return (
+      <span data-wrap-text={col.key} className="line-clamp-3 break-words whitespace-pre-line">
+        {text}
+        {col.kind === "long" && isCutCell(col.key, text) ? "…" : ""}
+      </span>
+    );
   return (
     <span
       title={text.length > 40 ? text : undefined}
-      className={`block truncate ${WIDTH[col.kind]}`}
+      className={`block truncate ${sized ? "" : WIDTH[col.kind]}`}
     >
       {col.kind === "long" ? text.split("\n")[0] : text}
     </span>
@@ -333,12 +348,18 @@ function Cell({ col, row }: { col: Col; row: TableRow }) {
 export default function LeadTable({
   rows,
   onOpen,
+  onOrder,
+  columnPrefs,
 }: {
   rows: TableRow[];
   onOpen: (id: string) => void;
+  /** The rows as sorted on screen, for the lead panel's up and down arrows. */
+  onOrder?: (ids: string[]) => void;
+  /** This person's wrap and width per column. */
+  columnPrefs?: TableColumns;
 }) {
   const [sort, setSort] = useState<Sort>(null);
-  // how many rows are drawn ("how to see more"): 500 at a time, or all
+  // how many rows are drawn, so a person can see more: 500 at a time, or all
   const [limit, setLimit] = useState(500);
   // The arrangement lives in this browser (localStorage), read after the first render so the server's HTML matches.
   const [arr, setArr] = useState<Arrangement | null>(null);
@@ -369,14 +390,76 @@ export default function LeadTable({
   const move = (from: string, to: string) =>
     save({ order: moveKey(order, from, to), hidden });
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort]);
-  const next = (key: string) =>
-    setSort(
-      !sort || sort.key !== key
-        ? { key, dir: 1 }
-        : sort.dir === 1
-          ? { key, dir: -1 }
-          : null,
-    );
+  useEffect(() => onOrder?.(sorted.map((r) => r.id)), [sorted, onOrder]);
+  // the heading's menu, wrap and width, kept on the person
+  const [columns, setColumns] = useState<TableColumns>(columnPrefs ?? {});
+  const columnsNow = useRef<TableColumns>(columnPrefs ?? {});
+  const [menu, setMenu] = useState<{ key: string; label: string; x: number; y: number } | null>(null);
+  const [full, setFull] = useState<{ id: string; text: string; x: number; y: number } | null>(null);
+  const table = useRef<HTMLTableElement>(null);
+  const resize = useRef<{ key: string; x: number; from: number; w: number; before: TableColumns } | null>(null);
+  const closeMenu = () => setMenu(null);
+  const closeFull = () => setFull(null);
+  const holdColumns = (next: TableColumns) => {
+    columnsNow.current = next;
+    setColumns(next);
+  };
+  const saveColumns = (next: TableColumns) => {
+    holdColumns(next);
+    void fetch("/api/view-prefs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table_columns: next }) }).catch(() => undefined);
+  };
+  const pick = (key: string, a: MenuAction) => {
+    setMenu(null);
+    if (a === "sort-asc") setSort({ key, dir: 1 });
+    else if (a === "sort-desc") setSort({ key, dir: -1 });
+    else if (a === "sort-clear") setSort(null);
+    else if (a === "wrap") saveColumns(withWrap(columnsNow.current, key, !columnsNow.current[key]?.wrap));
+    else saveColumns(withWidth(columnsNow.current, key, null));
+  };
+  // the width follows the pointer through one CSS variable, so a drag does not redraw thousands of cells
+  const startResize = (e: React.PointerEvent<HTMLButtonElement>, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const from = e.currentTarget.closest("th")?.getBoundingClientRect().width ?? COLUMN_WIDTH.wrapped;
+    resize.current = { key, x: e.clientX, from, w: clampColumn(from), before: columnsNow.current };
+    holdColumns(withWidth(columnsNow.current, key, from));
+  };
+  const moveResize = (e: React.PointerEvent) => {
+    const d = resize.current;
+    if (!d) return;
+    d.w = clampColumn(d.from + e.clientX - d.x);
+    table.current?.style.setProperty(`--col-${d.key}`, `${d.w}px`);
+  };
+  const endResize = (e: React.PointerEvent) => {
+    const d = resize.current;
+    if (!d) return;
+    resize.current = null;
+    // a press with no drag changes nothing
+    if (Math.abs(e.clientX - d.x) < 2) holdColumns(d.before);
+    else saveColumns(withWidth(d.before, d.key, d.w));
+  };
+  const tableVars = useMemo(() => Object.fromEntries(Object.entries(columns).map(([k, p]) => [`--col-${k}`, `${columnWidth(p)}px`])) as React.CSSProperties, [columns]);
+  const sizeOf = (k: string): React.CSSProperties | undefined => (columnWidth(columns[k]) ? { width: `var(--col-${k})`, minWidth: `var(--col-${k})`, maxWidth: `var(--col-${k})` } : undefined);
+  // a click on a wrapped cell with more than it shows opens the whole text; any other click opens the lead
+  const rowClick = (e: React.MouseEvent, id: string) => {
+    const el = (e.target as Element).closest?.<HTMLElement>("[data-wrap-text]");
+    const text = el?.textContent ?? "";
+    const key = el?.dataset.wrapText ?? "";
+    const cut = !!el && text.endsWith("…") && isCutCell(key, text.slice(0, -1));
+    if (!el || !(cut || el.scrollHeight > el.clientHeight + 1)) return onOpen(id);
+    const at = el.getBoundingClientRect();
+    setFull({ id, text: cut ? text.slice(0, -1) : text, x: at.left, y: at.bottom + 4 });
+    if (!cut) return;
+    void fetch(`/api/leads/${id}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ lead: Record<string, unknown> }>) : null))
+      .then((d) => {
+        const v = d?.lead?.[fieldOfColumn(key)];
+        const whole = Array.isArray(v) ? v.join(", ") : typeof v === "string" ? v : "";
+        if (whole) setFull((f) => (f?.id === id ? { ...f, text: whole } : f));
+      })
+      .catch(() => undefined);
+  };
   const aria = (key: string) =>
     sort?.key === key
       ? sort.dir === 1
@@ -388,8 +471,11 @@ export default function LeadTable({
       key={k}
       scope="col"
       aria-sort={aria(k)}
+      style={sizeOf(k)}
       draggable={k !== "business"}
       onDragStart={(e) => {
+        if (resize.current) return e.preventDefault(); // dragging the edge resizes; it does not move the column
+        setMenu(null);
         setDragging(k);
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", k);
@@ -414,17 +500,43 @@ export default function LeadTable({
     >
       <button
         type="button"
-        onClick={() => next(k)}
+        aria-haspopup="menu"
+        aria-expanded={menu?.key === k}
+        onClick={(e) => {
+          const at = e.currentTarget.getBoundingClientRect();
+          setMenu((m) => (m?.key === k ? null : { key: k, label, x: at.left, y: at.bottom }));
+        }}
+        data-column-head={k}
         title={
           k === "business"
-            ? `Sort by ${label}`
-            : `Sort by ${label}; drag to move the column`
+            ? `${label}: sort and wrap`
+            : `${label}: sort and wrap; drag to move the column`
         }
         className={`group/sort inline-flex min-h-11 w-full items-center gap-1.5 px-3 whitespace-nowrap hover:bg-bg hover:text-ink ${sort?.key === k ? "font-semibold text-ink" : ""}`}
       >
-        {label}
+        <span className="min-w-0 truncate">{label}</span>
         <SortIcon dir={sort?.key === k ? sort.dir : 0} />
       </button>
+      {/* desktop only: on a phone the column keeps its own width */}
+      <button
+        type="button"
+        draggable={false}
+        aria-label={`Resize ${label}: drag, or use the arrow keys; double-click for the default`}
+        title="Drag to resize · double-click for the default width"
+        data-column-resize={k}
+        onPointerDown={(e) => startResize(e, k)}
+        onPointerMove={moveResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onDoubleClick={() => saveColumns(withWidth(columnsNow.current, k, null))}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const from = e.currentTarget.closest("th")?.getBoundingClientRect().width ?? COLUMN_WIDTH.wrapped;
+          saveColumns(withWidth(columnsNow.current, k, from + (e.key === "ArrowRight" ? 16 : -16)));
+        }}
+        className="absolute inset-y-0 right-0 z-10 hidden w-2 cursor-col-resize touch-none hover:bg-accent/50 focus-visible:bg-accent md:block"
+      />
     </th>
   );
   // how many leads have the sorted column empty: the note says where they are
@@ -468,8 +580,8 @@ export default function LeadTable({
             </>
           ) : (
             <span>
-              Click a heading to sort by it. To move a column, drag its heading
-              or use Columns.
+              Click a heading to sort or wrap it. Drag its edge to resize it,
+              and the heading itself to move it, or use Columns.
             </span>
           )}
         </p>
@@ -500,10 +612,16 @@ export default function LeadTable({
           ) : null}
         </div>
       </div>
-      <div className="relative max-h-[calc(100dvh-10rem)] overflow-auto rounded-xl border border-line bg-panel">
-        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+      <div
+        onScroll={() => {
+          setMenu(null);
+          setFull(null);
+        }}
+        className="relative max-h-[calc(100dvh-10rem)] overflow-auto rounded-xl border border-line bg-panel"
+      >
+        <table ref={table} style={tableVars} className="w-max min-w-full border-separate border-spacing-0 text-sm">
           <caption className="sr-only">
-            Every lead with every cell; a header sorts, a row opens the lead.
+            Every lead with every cell; a header opens its menu, a row opens the lead.
           </caption>
           <thead className="text-xs text-muted">
             <tr>
@@ -518,37 +636,37 @@ export default function LeadTable({
               <tr
                 key={r.id}
                 data-lead={r.id}
-                onClick={() => onOpen(r.id)}
+                onClick={(e) => rowClick(e, r.id)}
                 className="group cursor-pointer"
               >
                 <th
                   scope="row"
-                  className="sticky left-0 z-[5] max-w-64 border-r border-b border-line bg-panel px-3 py-2 text-left font-medium group-hover:bg-accent-tint"
+                  style={sizeOf("business")}
+                  className={`sticky left-0 z-[5] border-r border-b border-line bg-panel px-3 py-2 text-left font-medium group-hover:bg-[color-mix(in_srgb,var(--color-accent)_14%,var(--color-panel))] ${columnWidth(columns.business) ? "" : "max-w-64"}`}
                 >
                   {/* the row's number in the order shown (to know which row you are on under a sort) */}
                   <span className="flex items-baseline gap-2">
                     <span className="w-10 shrink-0 text-right text-xs font-normal text-muted tabular-nums">{i + 1}</span>
                     <button
                       type="button"
-                      onClick={() => onOpen(r.id)}
-                      className="block max-w-52 truncate text-left hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen(r.id);
+                      }}
+                      className={`min-w-0 text-left hover:underline ${columns.business?.wrap ? "line-clamp-3 break-words whitespace-normal" : `block truncate ${columnWidth(columns.business) ? "" : "max-w-52"}`}`}
                       title={r.business}
                     >
                       {r.business}
                     </button>
                   </span>
-                  {r.openFlags ? (
-                    <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-2 text-xs font-normal text-bad">
-                      {r.openFlags === 1 ? "1 flag" : `${r.openFlags} flags`}
-                    </span>
-                  ) : null}
                 </th>
                 {cols.map((c) => (
                   <td
                     key={c.key}
-                    className={`border-b border-line px-3 py-2 align-top whitespace-nowrap group-hover:bg-accent-tint ${c.kind === "number" ? "text-right tabular-nums" : ""}`}
+                    style={sizeOf(c.key)}
+                    className={`overflow-hidden border-b border-line px-3 py-2 align-top whitespace-nowrap group-hover:bg-accent-tint ${c.kind === "number" ? "text-right tabular-nums" : ""}`}
                   >
-                    <Cell col={c} row={r} />
+                    <Cell col={c} row={r} wrapped={!!columns[c.key]?.wrap && WRAPS.includes(c.kind)} sized={!!columnWidth(columns[c.key])} />
                   </td>
                 ))}
               </tr>
@@ -571,6 +689,30 @@ export default function LeadTable({
           <p className="sticky left-0 p-3 text-xs text-muted">All {sorted.length.toLocaleString()} rows shown.</p>
         ) : null}
       </div>
+      {menu ? (
+        <ColumnMenu
+          label={menu.label}
+          x={menu.x}
+          y={menu.y}
+          items={columnMenu({ dir: sort?.key === menu.key ? sort.dir : 0, order: ORDER[kind(menu.key)], canWrap: WRAPS.includes(kind(menu.key)), wrap: !!columns[menu.key]?.wrap, hasWidth: columns[menu.key]?.w !== undefined })}
+          onPick={(a) => pick(menu.key, a)}
+          onClose={closeMenu}
+        />
+      ) : null}
+      {full ? (
+        <FullCell
+          x={full.x}
+          y={full.y}
+          onClose={closeFull}
+          onOpen={() => {
+            const id = full.id;
+            setFull(null);
+            onOpen(id);
+          }}
+        >
+          {full.text}
+        </FullCell>
+      ) : null}
     </>
   );
 }

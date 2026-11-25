@@ -1,5 +1,5 @@
 // Class names shared by server and client components (a "use client" module cannot hand plain values to a server page).
-// One scale for every page: controls 44 px, text in inputs 16 px (iOS Safari zooms
+// One scale for every page (applebrandkit.md): controls 44 px, text in inputs 16 px (iOS Safari zooms
 // below that), labels 13 px in sentence case, capsule buttons, and the brand orange only on the page's one primary action.
 
 /** Every form control: 44 px high, 16 px text, the same border and radius. */

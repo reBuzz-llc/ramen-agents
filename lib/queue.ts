@@ -1,11 +1,5 @@
-// "Our queue": the rows the team can finish today, from the company's Leads board (lib/lead-queue.ts reads them):
-//   - a Draft email that is not a "skip:" note;
-//   - Status empty, "WhatsApp Verified" or "Ready to Send Email" (a WhatsApp check is not an email decision);
-//   - no Result yet (Result is the team's);
-//   - best Lead score first, then by business name.
-// Each row is one kind of task: "review" (a draft nobody has approved yet) or "send" (approved, still to send). The only
-// writes are Status: "Ready to Send Email" (reviewed) and "Email Sent" (sent). Nothing is ever sent from here.
-// The open tasks of the task board are listed beside them.
+// The queue's row and task shapes (lib/lead-queue.ts builds the rows from Peek's own leads) and the team's open tasks,
+// ordered for the viewer (peekTasksOf). The Notion-era readers went with Notion.
 
 export type QueueKind = "review" | "send";
 
@@ -34,25 +28,23 @@ export type QueueRow = {
   attachments?: string[];
 };
 
-export const STATUS_REVIEWED = "Ready to Send Email";
-export const STATUS_SENT = "Email Sent";
-export const WRITABLE = [STATUS_REVIEWED, STATUS_SENT] as const;
-
-// ---- the task board ----------------------------------------------------------------------------------------------
+// ---- the task board, read only ------------------------------------------------------------------------------------
 
 export type TaskRow = {
   pageId: string;
+  url: string;
   task: string;
   status: string;
   priority: string;
   deadline: string;
   assignees: string[];
   mine: boolean;
-  /** "peek": the task lives on the board and is worked here. */
-  source?: "peek";
+  /** "peek": the task lives in Peek and is worked here; "notion" (or none): read only, from Notion. */
+  source?: "peek" | "notion";
   checklist?: { text: string; done: boolean }[];
   details?: string;
   standing?: boolean;
+  uid?: string;
   flags?: { rule: string; detail: string }[];
   takenBy?: { name: string; mine: boolean } | null;
 };
@@ -78,6 +70,7 @@ export function peekTasksOf(
       const c = taken.get(id);
       return {
         pageId: id,
+        url: String(t.notion_url ?? ""),
         task: String(t.title ?? "") || "Untitled task",
         status: String(t.status ?? ""),
         priority: String(t.priority ?? ""),
@@ -88,6 +81,7 @@ export function peekTasksOf(
         checklist: (t.checklist as { text: string; done: boolean }[] | null) ?? [],
         details: String(t.details ?? ""),
         standing: !!t.standing,
+        uid: String(t.notion_uid ?? ""),
         flags: flags.get(id) ?? [],
         takenBy: c ? { name: c.name, mine: c.userId === me.userId } : null,
       };

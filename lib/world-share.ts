@@ -1,6 +1,6 @@
-// The live office on the Family page: the agents' world runs on the machine that runs them (the fleet's
-// webapp/scripts/world-public.ts) and is reached through a tunnel address the owner pastes in Settings → Company. Each
-// page load signs a link for the signed-in person, good for two hours:
+// The live world on the Family page: the agent family's world runs on
+// the owner's Mac (the fleet's webapp/scripts/world-public.ts) and is reached through a Tailscale Funnel address the
+// owner pastes in Settings → Company. Each page load signs a link for the signed-in person, good for two hours:
 // t = base64url("<exp>.<person>") + "." + base64url(HMAC-SHA256(WORLD_SHARE_SECRET, "<exp>.<person>")), exp in Unix
 // seconds, as the fleet's lib/world-public.ts verifies it (a test on each side checks the same vector).
 import { createHmac } from "node:crypto";

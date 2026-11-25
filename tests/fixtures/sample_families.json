@@ -1,0 +1,155 @@
+{
+  "_about": "Trade (and listing kind) -> template family; the same file is in Peek's tests so the two pickers cannot drift",
+  "cases": [
+    [
+      "Mexican restaurant",
+      "",
+      "eat"
+    ],
+    [
+      "Bakery",
+      "",
+      "eat"
+    ],
+    [
+      "Coffee shop",
+      "",
+      "eat"
+    ],
+    [
+      "Pizza",
+      "",
+      "eat"
+    ],
+    [
+      "Bar",
+      "",
+      "eat"
+    ],
+    [
+      "Clothing store",
+      "",
+      "shop"
+    ],
+    [
+      "Shoe store",
+      "",
+      "shop"
+    ],
+    [
+      "Florist",
+      "",
+      "shop"
+    ],
+    [
+      "Computer and Computer Peripheral Equipment and Software Merchant Wholesalers",
+      "",
+      "shop"
+    ],
+    [
+      "Plumber",
+      "",
+      "services"
+    ],
+    [
+      "Commercial and Institutional Building Construction",
+      "",
+      "services"
+    ],
+    [
+      "Engineering Services",
+      "",
+      "services"
+    ],
+    [
+      "Painting and Wall Covering Contractors",
+      "",
+      "services"
+    ],
+    [
+      "Accounting firm",
+      "",
+      "services"
+    ],
+    [
+      "Law office",
+      "",
+      "services"
+    ],
+    [
+      "Dentist",
+      "",
+      "care"
+    ],
+    [
+      "Hair salon",
+      "",
+      "care"
+    ],
+    [
+      "Nail salon",
+      "",
+      "care"
+    ],
+    [
+      "Medical clinic",
+      "",
+      "care"
+    ],
+    [
+      "Gym",
+      "",
+      "care"
+    ],
+    [
+      "Elementary and Secondary Schools",
+      "",
+      "plain"
+    ],
+    [
+      "",
+      "",
+      "plain"
+    ],
+    [
+      "",
+      "Mexican restaurant",
+      "eat"
+    ],
+    [
+      "Clothing store",
+      "4.9★ (746 reviews), Tailor, Clothing store, open 6 days (closed Saturday), no website on the listing",
+      "services"
+    ],
+    [
+      "Tailor",
+      "",
+      "services"
+    ],
+    [
+      "Shoe repair shop",
+      "",
+      "services"
+    ],
+    [
+      "Dry cleaner",
+      "",
+      "services"
+    ],
+    [
+      "Alterations shop",
+      "",
+      "services"
+    ],
+    [
+      "Clothing store",
+      "4.5★ (281 reviews), Men's clothing store, Army & navy store, open 7 days",
+      "shop"
+    ],
+    [
+      "Korean barbecue restaurant",
+      "4.7★ (2,274 reviews), Korean barbecue restaurant, open 7 days",
+      "eat"
+    ]
+  ]
+}

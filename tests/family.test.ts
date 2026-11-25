@@ -15,7 +15,7 @@ describe("parseReport", () => {
   it("takes the three shapes", () => {
     expect(parseReport(TICK)).toEqual(TICK);
     expect(parseReport({ kind: "morning", lines: ["Drafts landed: 11-07 14, today so far 3"] })).toEqual({ kind: "morning", lines: ["Drafts landed: 11-07 14, today so far 3"] });
-    const week = { title: "This week in the family: 2 November to 8 November 2026", summary: "37 leads", url: "https://blog.example/our-week-2026-11-08" };
+    const week = { title: "This week in the family: 2 November to 8 November 2026", summary: "37 leads", url: "https://blog.example/family-week/2026-11-08" };
     expect(parseReport({ kind: "week", week })).toEqual({ kind: "week", week });
   });
 
@@ -24,8 +24,7 @@ describe("parseReport", () => {
     expect(() => parseReport({ ...TICK, members: [{ name: "Lead Gen", state: "working", line: "called +1 718 555 0100" }] })).toThrow(/a phone number/);
     expect(() => parseReport({ kind: "morning", lines: ["opened https://bakery.example/menu"] })).toThrow(/a web address/);
     expect(() => parseReport({ kind: "morning", lines: ["opened maplebakery.com"] })).toThrow(/a web address/);
-    expect(() => parseReport({ kind: "week", week: { title: "x", url: "http://blog.example/week" } })).toThrow(/week.url/);
-    expect(() => parseReport({ kind: "week", week: { title: "x", url: "javascript:alert(1)" } })).toThrow(/week.url/);
+    expect(() => parseReport({ kind: "week", week: { title: "x", url: "https://evil.example/phish" } })).toThrow(/week.url/);
     expect(unmasked("12 drafts, 33% with no website")).toBe("");
   });
 

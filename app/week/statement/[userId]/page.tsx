@@ -4,44 +4,58 @@ import { and, eq } from "drizzle-orm";
 import { pageMe } from "@/lib/page-me";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { canFixClock, longOpenInWeek, longOpenLine, shiftEditsOf } from "@/lib/open-clock";
 import { canSeePay } from "@/lib/rates";
 import { statementFor } from "@/lib/statements";
 import { hhmm } from "@/lib/timesheet";
 import { startDayOf, weekStart } from "@/lib/week";
+import { addDay, clockIn, dayStartOf, stampIn } from "@/lib/periods";
 import { displayName } from "@/lib/display-name";
+import ClockFix from "./clock-fix";
 
-export const metadata = { title: "Statement · ramen-agents" };
+export const metadata = { title: "Statement · Productive Peek" };
 
-const clock = (iso: string) => new Date(iso).toTimeString().slice(0, 5);
-const weekday = (day: string) => new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { weekday: "short" });
+const weekday = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
 const money = (n: number | null, c: string) => (n === null ? "owner sets the rate" : `${c} ${n.toFixed(2)}`);
 
 export default async function StatementPage(props: PageProps<"/week/statement/[userId]">) {
   const who = await pageMe();
   const { userId } = await props.params;
-  const week = String((await props.searchParams).week ?? weekStart(new Date(), startDayOf(who.settings)));
+  const tz = who.settings.timezone;
+  const clock = (iso: string) => clockIn(iso, tz);
+  const week = String((await props.searchParams).week ?? weekStart(new Date(), startDayOf(who.settings), tz));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) notFound();
   const d = await db();
-  const [person] = await d.select().from(users).where(and(eq(users.tenantId, who.tenantId), eq(users.id, userId)));
+  // a clock left running holds this statement until a person closes it
+  const weekFrom = dayStartOf(week, tz);
+  const weekTo = dayStartOf(addDay(week, 7), tz);
+  // read together; nothing is shown until the check on the person below has passed
+  const [[person], s, openNow, edits] = await Promise.all([
+    d.select().from(users).where(and(eq(users.tenantId, who.tenantId), eq(users.id, userId))),
+    statementFor(d, who.tenantId, userId, week),
+    longOpenInWeek(d, who.tenantId, userId, weekFrom, weekTo),
+    shiftEditsOf(d, who.tenantId, userId, new Date(weekFrom.getTime() - 86_400_000)),
+  ]);
   // Pay: yourself, the owner, and a manager for a member. Teammates never see each other's (the notice says so).
   if (!person || !canSeePay({ id: who.userId, role: who.role }, person)) notFound();
-  const s = await statementFor(d, who.tenantId, userId, week);
   if (!s) notFound();
   const st = s.statement;
+  const openClock = s.approved ? null : openNow;
+  const weekEdits = edits.filter((e) => new Date(e.startedAt) >= weekFrom && new Date(e.startedAt) < weekTo);
+  const canFix = canFixClock({ userId: who.userId, role: who.role }, { id: person.id, role: person.role });
   const rows: [string, string][] = [
     ["Hours clocked", hhmm(s.week.minutes)],
     ["Base (hours x hourly rate)", money(st.base, st.currency)],
-    ["Emails sent", String(s.week.sent)],
-    ["WhatsApp messages sent", String(s.week.whatsapp ?? 0)],
+    ["First emails sent", String(s.week.sent)],
+    ["First WhatsApp messages sent", String(s.week.whatsapp ?? 0)],
     ["Replies, meetings, clients", `${s.week.replies}, ${s.week.meetings}, ${s.week.clients}`],
     ["Outcome bonus", money(st.bonus, st.currency)],
-    ["Tasks done", String(s.week.tasksDone)],
     ["Total", money(st.total, st.currency)],
   ];
   return (
     <div className="max-w-xl">
       <Link href="/week" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent-ink hover:underline">
-        ← This week
+        ← Back to the period view
       </Link>
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Statement: {displayName(person.name, person.email)}</h1>
       <p className="mt-1 text-sm text-muted">Week of {week} · {s.approved ? `approved by ${s.approved.by} on ${s.approved.at.slice(0, 10)} (frozen)` : "draft: it changes until approved"}</p>
@@ -55,6 +69,7 @@ export default async function StatementPage(props: PageProps<"/week/statement/[u
           ))}
         </tbody>
       </table>
+      <p data-replies-rule className="mt-2 text-xs text-muted">Any answer counts as a reply, including &ldquo;not interested&rdquo;.</p>
       {st.lines?.length ? (
         <table className="mt-4 w-full text-xs">
           <thead className="text-muted">
@@ -98,10 +113,23 @@ export default async function StatementPage(props: PageProps<"/week/statement/[u
           </ul>
         </section>
       ) : null}
+      {openClock ? (
+        <div data-long-open role="alert" className="mt-4 rounded-xl border border-bad p-3 text-sm">
+          <p className="font-medium text-bad">{longOpenLine(openClock.hours)}</p>
+          <p className="mt-1 text-xs text-muted">Started {stampIn(openClock.startedAt, tz)}. {userId === who.userId ? "Close it from the prompt on your Clock page." : canFix ? "Ask the member when they stopped, then enter that time." : "The member closes it from their Clock page."}</p>
+          {canFix ? <ClockFix shiftId={openClock.shiftId} action="close" label="Close this clock" /> : null}
+        </div>
+      ) : null}
+      {weekEdits.map((e) => (
+        <div key={e.shiftId} data-clock-edit className="mt-3 rounded-xl border border-line p-3 text-xs">
+          <p>A clock from {stampIn(e.startedAt, tz)} was {e.action === "close" ? "closed" : "corrected"} to end {stampIn(e.endedAt, tz)} by {e.by} on {stampIn(e.at, tz).slice(0, 10)}, for the member.</p>
+          {canFix && !s.approved ? <ClockFix shiftId={e.shiftId} action="correct" label="Correct the end" /> : null}
+        </div>
+      ))}
       {st.missing.length ? <p className="mt-3 text-xs text-muted">Not yet computed: {st.missing.join(" and ")} (Settings → People, or the company defaults).</p> : null}
       <div className="mt-6 flex gap-2">
         <a href={`/api/statement?user=${userId}&week=${week}&format=pdf`} className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-semibold hover:border-accent">Download PDF</a>
-        {!s.approved && userId !== who.userId ? (
+        {!s.approved && !openClock && userId !== who.userId ? (
           <form action="/api/statement" method="post">
             <input type="hidden" name="user" value={userId} />
             <input type="hidden" name="week" value={week} />

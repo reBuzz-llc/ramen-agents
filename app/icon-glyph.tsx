@@ -3,7 +3,7 @@
 export function Glyph({ size }: { size: number }) {
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#ff6600", color: "#1a0d00", fontSize: size * 0.58, fontWeight: 700, fontFamily: "sans-serif" }}>
-      r
+      P
     </div>
   );
 }

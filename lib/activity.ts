@@ -1,6 +1,6 @@
 // The drawer's Activity strip: the records Peek writes itself when a person
 // works a lead (sent, followed up, the result, who holds it) and the Validator's email check, each as one short phrase
-// ("Email sent by Casey, 10 Nov"). Read-only: the steps, the result chips and Take it set them. Pure, so it is tested.
+// ("Email sent by Alex, 10 Nov"). Read-only: the steps, the result chips and Take it set them. Pure, so it is tested.
 // lib/leads.ts's WHATSAPP_SENT, repeated here so the drawer does not import the database side (a test keeps them equal)
 export const WHATSAPP_SENT_MARK = "WhatsApp msg sent";
 

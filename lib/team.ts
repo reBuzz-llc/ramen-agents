@@ -1,4 +1,5 @@
-// The team is added by Google address. The owner or a manager enters an email, a name and a role; Peek makes the person's row in the company
+// The team is added by Google address: the team signs in with Google, and the owner adds
+// their Gmail addresses. The owner or a manager enters an email, a name and a role; Peek makes the person's row in the company
 // and nothing else: no account, no password. Their first Google sign-in with exactly that address matches the row
 // (lib/bootstrap.ts) and they are in. Until then the row reads "invited, not signed in yet". A manager adds and removes
 // members only; nobody removes the owner or themselves here. Removing someone who never signed in deletes the row;

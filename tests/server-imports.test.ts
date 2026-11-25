@@ -1,6 +1,6 @@
 // A server component may import only components from a "use client" file: a plain value (an array, a constant) comes
 // across as a client reference, not the value. /leads read its filter names that way and ignored every filter in a link
-// (FILTER_KEYS.map is not a function, React error #441 in the browser).
+// (FILTER_KEYS.map is not a function, React error #441 in the browser; found in a dry run).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";

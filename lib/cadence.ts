@@ -1,4 +1,4 @@
-// Update cadence: while a person
+// Update cadence (some clients expect regular updates on what the team is working on): while a person
 // is clocked in on a project with a cadence, they post a "Now doing…" note once per window. Nothing is enforced or
 // deducted; it is a reminder and a visibility record ("4 of 5 updates"). Pure functions, tested.
 //

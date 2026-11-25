@@ -1,0 +1,122 @@
+{
+ "about": "The contact rules the engine (site_page.contact_problems, the email rule in html_problems) and Peek's lib/sample-page.ts must agree on. The contact/footer section starts at the first <footer> that is not inside a <blockquote> or <figure> (a quote's caption), or the first element whose id or class contains contact, visit, find, location or footer, and runs to the end of the page. There the business's own phone (text or tel:, compared on the last 10 digits), street (whitespace and case normalised), map link (no scheme, no www., no query or fragment, no end slash; a prefix of the row's is fine) and social profiles (the same normalising, equal) may appear; elsewhere the phone and street are refused, and anywhere a phone, street, map or profile not the lead's is refused. A wa.me link is never a phone. An email address is refused everywhere. 'refused' lists the kinds each page is refused for.",
+ "lead": {
+  "phone": "+17185550142",
+  "street": "120 Maple Avenue",
+  "map": "https://www.google.com/maps/place/Maple+Grill+House+BBQ/data=!4m7?authuser=0",
+  "socials": [
+   "https://www.instagram.com/maplegrillhouse/"
+  ],
+  "email": "hello@example.com"
+ },
+ "cases": [
+  {
+   "name": "a wa.me button equal to the phone, in the body",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><a href=\"https://wa.me/17185550142\">Message us on WhatsApp</a></section></body></html>",
+   "refused": []
+  },
+  {
+   "name": "the phone in the footer",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Korean barbecue.</p></section><footer>Call (718) 555-0142</footer></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a tel: link in a section with id contact",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><section id=\"contact\"><a href=\"tel:+17185550142\">Call us</a></section></body></html>",
+   "refused": []
+  },
+  {
+   "name": "the phone in the body is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Call 718-555-0142 to book.</p></section></body></html>",
+   "refused": [
+    "phone"
+   ]
+  },
+  {
+   "name": "another phone in the footer is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer>Call (212) 555-0147</footer></body></html>",
+   "refused": [
+    "phone"
+   ]
+  },
+  {
+   "name": "the street in the footer",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer>120 Maple Avenue, Flushing, NY</footer></body></html>",
+   "refused": []
+  },
+  {
+   "name": "the street in the body is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Find us at 120 Maple Avenue.</p></section></body></html>",
+   "refused": [
+    "street"
+   ]
+  },
+  {
+   "name": "another street in the footer is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer>12 Main Street, Flushing</footer></body></html>",
+   "refused": [
+    "street"
+   ]
+  },
+  {
+   "name": "the business's map link, query trimmed",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer><a href=\"https://www.google.com/maps/place/Maple+Grill+House+BBQ/data=!4m7\">Open in Maps</a></footer></body></html>",
+   "refused": []
+  },
+  {
+   "name": "another map link is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer><a href=\"https://www.google.com/maps/place/Other+Place\">Map</a></footer></body></html>",
+   "refused": [
+    "map"
+   ]
+  },
+  {
+   "name": "its own Instagram in the footer",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer><a href=\"https://instagram.com/maplegrillhouse\">Instagram</a></footer></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a profile not on the row is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer><a href=\"https://www.facebook.com/someoneelse\">Facebook</a></footer></body></html>",
+   "refused": [
+    "social"
+   ]
+  },
+  {
+   "name": "an email address is refused, even in the footer",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>x</p></section><footer>Write to hello@example.com</footer></body></html>",
+   "refused": [
+    "email"
+   ]
+  },
+  {
+   "name": "the area alone",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Korean barbecue in Flushing, NY.</p></section></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a quote's <footer> caption does not open the contact section",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><blockquote>Great food.<footer>A customer</footer></blockquote><p>Call (718) 555-0142</p></section><footer>Flushing, NY</footer></body></html>",
+   "refused": [
+    "phone"
+   ]
+  },
+  {
+   "name": "a sticky call bar after the footer is inside the contact section",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><footer>Flushing, NY</footer><nav class=\"callbar\"><a href=\"tel:+17185550142\">Call</a><a href=\"https://wa.me/17185550142\">WhatsApp</a><a href=\"https://www.google.com/maps/place/Maple+Grill+House+BBQ\">Directions</a></nav></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a sticky call bar before any contact section is refused",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><nav class=\"callbar\"><a href=\"tel:+17185550142\">Call</a><a href=\"https://wa.me/17185550142\">WhatsApp</a><a href=\"https://www.google.com/maps/place/Maple+Grill+House+BBQ\">Directions</a></nav><footer>Flushing, NY</footer></body></html>",
+   "refused": [
+    "phone"
+   ]
+  },
+  {
+   "name": "a review count before a quote is not a street (677)",
+   "html": "<!doctype html><html><head><title>Maple Grill House</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>4.9 from 4,574 reviews Absolutely stunning place.</p><p>Rated by 212 guests at our place.</p></section><footer>120 Maple Avenue</footer></body></html>",
+   "refused": []
+  }
+ ]
+}

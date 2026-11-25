@@ -9,10 +9,10 @@ import { body, fail, failed, keyed, metered } from "@/lib/board-api";
 // order, with the list's updated_at; ?status=published for the published packages only. PUT with the owner's
 // assets:write key: the whole list, in order ({rates: [...]} or {packages: [...]}); rows with an id are kept, the
 // rest added, the ones left out deleted. {sections: [{id, position, title, kind, body, ...}]} is the Asset page's "What
-// we have" text, also at /v1/assets/company; read with a key, edited only by
+// we have" text, read with a key, edited only by
 // people on the page (a key's PUT is 405). A key never publishes: a PUT that would publish a
-// package, change a published one's name or price, or remove a published one is refused with 405.
-// A package without an id is the existing one of the same name, updated in place; a draft's handed_over_by/at,
+// package, change a published one's name or price, or remove a published one is refused with 405. A package without an
+// id is the existing one of the same name, updated in place; a draft's handed_over_by/at,
 // reviewed_by/at, review_verdict/note, created_at and updated_by are written when an item carries them (to restore
 // them), never cleared when it does not; a published package's are not changed by a key.
 const LISTS = ["rates", "packages", "sections"] as const;

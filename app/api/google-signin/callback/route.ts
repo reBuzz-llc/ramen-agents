@@ -8,10 +8,12 @@ import { markSignedIn } from "@/lib/team";
 
 // GET /api/google-signin/callback?code&state: the state must be the one this browser was given;
 // the code is swapped for Google's word on the account (a verified email); a person of a company here is signed in
-// with the portal's own session, anyone else is turned back to the sign-in page with the reason. Nothing is created for an
+// with Peek's own session, anyone else is turned back to the sign-in page with the reason. Nothing is created for an
 // unknown email.
 export async function GET(req: Request) {
   const origin = originOf(req);
+  // sign-in turned off or not set up: no session is ever made here
+  if (!googleSignIn()) return NextResponse.redirect(new URL("/sign-in?error=Google%20sign-in%20is%20not%20set%20up", origin), 303);
   // the cookies from the request itself (the route's own state, verifier and next)
   const jar = new Map(
     (req.headers.get("cookie") ?? "")

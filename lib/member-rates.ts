@@ -2,7 +2,7 @@
 // new row from a date on, so history and past statements stay as they were.
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "./db";
-import { memberRates } from "./db/schema";
+import { memberRates, statements } from "./db/schema";
 import type { RateRow } from "./rates";
 import type { Rates } from "./scoreboard";
 
@@ -36,4 +36,17 @@ export async function setRate(db: Db, tenantId: string, userId: string, effectiv
     .insert(memberRates)
     .values(row)
     .onConflictDoUpdate({ target: [memberRates.tenantId, memberRates.userId, memberRates.effectiveFrom], set: { hourlyCents: row.hourlyCents, outcomeBonusCents: row.outcomeBonusCents, currency: row.currency, setBy } });
+}
+
+/** Each person's approved statements' weeks (userId -> week starts), for the rates they lock (lib/rates.ts rateLocks). */
+export async function approvedWeeks(db: Db, tenantId: string): Promise<Map<string, string[]>> {
+  const rows = await db.select({ userId: statements.userId, weekStart: statements.weekStart }).from(statements).where(eq(statements.tenantId, tenantId));
+  const out = new Map<string, string[]>();
+  for (const r of rows) out.set(r.userId, [...(out.get(r.userId) ?? []), r.weekStart]);
+  return out;
+}
+
+/** Remove one of a person's rates: only one no approved statement lies under (the caller checks rateLocks). */
+export async function removeRate(db: Db, tenantId: string, userId: string, effectiveFrom: string) {
+  await db.delete(memberRates).where(and(eq(memberRates.tenantId, tenantId), eq(memberRates.userId, userId), eq(memberRates.effectiveFrom, effectiveFrom)));
 }

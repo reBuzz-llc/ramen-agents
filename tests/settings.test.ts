@@ -13,8 +13,8 @@ import { createTenant } from "@/lib/tenants";
 const src = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8");
 
 describe("the Settings section", () => {
-  it("one page per kind, in nav order; API keys only for the owner", () => {
-    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "rates", "keys", "my-view", "appearance"]);
+  it("one page per kind, in nav order; API keys only for the owner; Notion is no page of its own", () => {
+    expect(SETTINGS.map((p) => p.slug)).toEqual(["company", "people", "rates", "keys", "my-view", "appearance", "treasure-hunt"]); // Treasure Hunt: the owner's, where the build turns it on
     expect(settingsFor("owner").map((p) => p.slug)).toEqual(["company", "people", "rates", "keys", "my-view", "appearance"]);
     expect(settingsFor("manager").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
     expect(settingsFor("member").map((p) => p.slug)).toEqual(["company", "people", "rates", "my-view", "appearance"]);
@@ -22,12 +22,14 @@ describe("the Settings section", () => {
   it("every page exists, has the section head and its own tab title", () => {
     for (const p of SETTINGS) {
       const f = `app/settings/${p.slug}/page.tsx`;
+      // Treasure Hunt is the owner's own page: a copy without it (the public starter's) has no file and no menu entry
+      if (p.slug === "treasure-hunt" && !existsSync(f)) continue;
       expect(existsSync(f), f).toBe(true);
       expect(src(f)).toContain(`settingsTitle("${p.slug}")`);
       expect(src(f)).toContain(`<SectionHead slug="${p.slug}"`);
       expect(src(f)).toContain(`pageMe("/settings/${p.slug}")`);
     }
-    expect(settingsTitle("keys")).toBe("API keys · Settings · ramen-agents");
+    expect(settingsTitle("keys")).toBe("API keys · Settings · Productive Peek");
   });
   it("the owner-only pages refuse other roles", () => {
     expect(src("app/settings/keys/page.tsx")).toMatch(/if \(!can\(who\.role, "keys\.manage"\)\) notFound\(\)/);
@@ -42,6 +44,9 @@ describe("the Settings section", () => {
   });
   it("a form comes back to the page its action lives on", () => {
     expect(["rates", "points", "role", "memberRate", "updates", "keyResults"].map(sectionOf)).toEqual(["rates", "rates", "people", "people", "company", "company"]);
+    // Notion is gone, its panel, its forms and /settings/board with it
+    expect(existsSync("app/settings/board/route.ts")).toBe(false);
+    expect(existsSync("app/settings/notion-archive.tsx")).toBe(false);
     expect(src("app/api/settings/route.ts")).toContain("`/settings/${sectionOf(action)}`");
   });
   it("the nav marks the page you are on, and the left nav shows from 1024 px", () => {

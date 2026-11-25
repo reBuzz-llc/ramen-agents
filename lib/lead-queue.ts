@@ -1,4 +1,4 @@
-// Our queue's lead tabs, on Peek's own lead store.
+// Our queue's lead tabs, on Peek's own lead store (the Notion Leads board is frozen since 2026-11-02).
 // One flow with two entrances: the same rows, claims and writes as Leads → Send next.
 //   - "review": a draft (not a "skip:" note), no email status yet, no result;
 //   - "send": email status "Ready to Send Email", no result;
@@ -6,13 +6,15 @@
 // The writes go through lib/leads.ts as the signed-in person: "Reviewed, ready to send" is the drawer's Ready to send
 // step, "I sent it" its Mark email sent step (email status Email Sent, result Emailed and its date; the store fills
 // Sent by and Sent at). Nothing is sent from here.
+import { dayStartOf } from "./periods";
+import { dayIn } from "./send-goals";
 import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./db";
-import { files, leadCells, leadFiles, leads, tasks } from "./db/schema";
+import { files, leadCells, leadFiles, leads } from "./db/schema";
 import { emailSteps } from "./lead-workflow";
 import { WHATSAPP_SENT, writeLead, type Actor, type Refusal } from "./leads";
 import type { QueueRow } from "./queue";
-import type { LeadFact, TaskFact } from "./scoreboard";
+import type { LeadFact } from "./scoreboard";
 
 export const STATUS_REVIEWED = "Ready to Send Email";
 export const STATUS_SENT = "Email Sent";
@@ -108,14 +110,19 @@ export async function attachmentNames(
 }
 
 /** What This week, the Leaderboard and a statement count, from Peek's own board: the leads sent or
- *  with a result, and the tasks Done, changed or dated on or after `from`. */
+ *  with a result, changed or dated on or after `from`. */
 export async function scoreFacts(
   db: Db,
   tenantId: string,
   from: Date,
-): Promise<{ leads: LeadFact[]; tasks: TaskFact[] }> {
-  const day = from.toISOString().slice(0, 10);
-  const [leadRows, taskRows] = await Promise.all([
+  tz?: string | null, // The company's zone
+): Promise<{ leads: LeadFact[] }> {
+  // A Result date may be a UTC day or a calendar day, so read from the earlier of the two; resultInWindow decides.
+  const utcDay = from.toISOString().slice(0, 10);
+  const localDay = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
+  const zoneDay = dayIn(from, tz);
+  const day = [localDay, utcDay, zoneDay].sort()[0];
+  const [leadRows] = await Promise.all([
     db
       .select({
         id: leads.id,
@@ -140,35 +147,45 @@ export async function scoreFacts(
           ),
         ),
       ),
-    db
-      .select({
-        status: tasks.status,
-        assignees: tasks.assignees,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .where(
-        and(
-          eq(tasks.tenantId, tenantId),
-          eq(tasks.archived, false),
-          eq(tasks.status, "Done"),
-          gte(tasks.updatedAt, from),
-        ),
-      ),
   ]);
   // Who pressed "WhatsApp message sent", and when: the latest such step in each lead's History.
   const waIds = leadRows.filter((r) => r.whatsappStatus === WHATSAPP_SENT).map((r) => r.id);
-  const waSteps = waIds.length
-    ? await db
-        .select({ leadId: leadCells.leadId, userId: leadCells.actorUserId, at: leadCells.at, id: leadCells.id })
-        .from(leadCells)
-        .where(and(eq(leadCells.tenantId, tenantId), inArray(leadCells.leadId, waIds), eq(leadCells.column, "whatsapp_status"), eq(leadCells.outcome, "applied"), sql`${leadCells.new} = ${JSON.stringify(WHATSAPP_SENT)}::jsonb`))
-    : [];
+  // The latest step that wrote each Result date, so a date the buttons stored can be read as its exact moment.
+  const datedIds = leadRows.filter((r) => r.resultDate).map((r) => r.id);
+  // Every step that wrote a real answer's Result, so a period counts what was reached in it
+  const answeredIds = leadRows.filter((r) => r.result && r.result !== "Emailed").map((r) => r.id);
+  const [waSteps, dateSteps, resultRows] = await Promise.all([
+    waIds.length
+      ? db
+          .select({ leadId: leadCells.leadId, userId: leadCells.actorUserId, at: leadCells.at, id: leadCells.id })
+          .from(leadCells)
+          .where(and(eq(leadCells.tenantId, tenantId), inArray(leadCells.leadId, waIds), eq(leadCells.column, "whatsapp_status"), eq(leadCells.outcome, "applied"), sql`${leadCells.new} = ${JSON.stringify(WHATSAPP_SENT)}::jsonb`))
+      : [],
+    datedIds.length
+      ? db
+          .select({ leadId: leadCells.leadId, value: leadCells.new, at: leadCells.at, id: leadCells.id })
+          .from(leadCells)
+          .where(and(eq(leadCells.tenantId, tenantId), inArray(leadCells.leadId, datedIds), eq(leadCells.column, "result_date"), eq(leadCells.outcome, "applied")))
+      : [],
+    answeredIds.length
+      ? db
+          .select({ leadId: leadCells.leadId, value: leadCells.new, at: leadCells.at, id: leadCells.id })
+          .from(leadCells)
+          .where(and(eq(leadCells.tenantId, tenantId), inArray(leadCells.leadId, answeredIds), eq(leadCells.column, "result"), eq(leadCells.outcome, "applied")))
+      : [],
+  ]);
+  const resultSteps = new Map<string, { value: string | null; at: Date }[]>();
+  for (const s of [...resultRows].sort((a, b) => Number(a.id) - Number(b.id))) resultSteps.set(s.leadId, [...(resultSteps.get(s.leadId) ?? []), { value: typeof s.value === "string" ? s.value : null, at: s.at }]);
   const wa = new Map<string, { userId: string | null; at: Date; id: number }>();
   for (const s of waSteps) if (!wa.has(s.leadId) || wa.get(s.leadId)!.id < s.id) wa.set(s.leadId, s);
+  const dateStep = new Map<string, { value: unknown; at: Date; id: number }>();
+  for (const s of dateSteps) if (!dateStep.has(s.leadId) || dateStep.get(s.leadId)!.id < s.id) dateStep.set(s.leadId, s);
+  const setAt = (id: string, date: string | null) => {
+    const s = dateStep.get(id);
+    return s && date && String(s.value ?? "").slice(0, 10) === date ? s.at : null;
+  };
   return {
-    leads: leadRows.map((r) => ({ ...r, sentBy: r.sentBy ?? [], waSentAt: wa.get(r.id)?.at ?? null, waSentBy: wa.get(r.id)?.userId ?? null })),
-    tasks: taskRows.map((t) => ({ ...t, assignees: t.assignees ?? [] })),
+    leads: leadRows.map((r) => ({ ...r, sentBy: r.sentBy ?? [], resultSteps: resultSteps.get(r.id), resultSetAt: setAt(r.id, r.resultDate), waSentAt: wa.get(r.id)?.at ?? null, waSentBy: wa.get(r.id)?.userId ?? null })),
   };
 }
 
@@ -229,6 +246,7 @@ export async function sentSinceOnPeek(
   db: Db,
   tenantId: string,
   from: string,
+  tz?: string | null, // The day starts in the company's zone
 ): Promise<number> {
   const [r] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -238,7 +256,7 @@ export async function sentSinceOnPeek(
         eq(leads.tenantId, tenantId),
         eq(leads.emailStatus, STATUS_SENT),
         or(
-          gte(sql`(${leads.sentAt})::date`, from),
+          gte(leads.sentAt, dayStartOf(from, tz)),
           and(isNull(leads.sentAt), gte(leads.resultDate, from)),
         ),
       ),

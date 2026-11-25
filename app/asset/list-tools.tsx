@@ -1,6 +1,7 @@
 "use client";
-// What the Asset and Packages pages share: saving a
+// What the Asset and Packages pages share (packages have their own page): saving a
 // list as edited, moving a row, a row's tools and the "last changed" line.
+import { agentName } from "@/lib/agent-names";
 import { btnDanger, btnOutline } from "@/lib/ui-classes";
 
 export const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -47,7 +48,7 @@ export function Updated({ rows }: { rows: { updatedAt: string; updatedBy: string
   return last ? (
     <p className="mt-3 text-xs text-muted">
       Last changed {day(last.updatedAt)}
-      {last.updatedBy ? ` by ${last.updatedBy}` : ""}.
+      {last.updatedBy ? ` by ${agentName(last.updatedBy)}` : ""}.
     </p>
   ) : null;
 }

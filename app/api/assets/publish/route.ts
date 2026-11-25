@@ -7,7 +7,7 @@ import { sameOrigin } from "@/lib/same-origin";
 import { displayName } from "@/lib/display-name";
 
 // POST {ids: [...]} from the Asset page: publish these drafts, as the person who clicked. One
-// package: the owner or a manager (its Publish button); several at once ("Publish all drafts"): the owner. A key never
+// package: the owner or a manager (its Publish button); several at once (Publish all drafts): the owner. A key never
 // reaches this route (people's sessions only), and PUT /v1/assets/packages refuses to publish.
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });

@@ -1,12 +1,15 @@
+import { originOf } from "@/lib/google-signin";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { me } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { textPdf } from "@/lib/pdf";
+import { clockIn } from "@/lib/periods";
 import { can } from "@/lib/roles";
 import { canSeePay } from "@/lib/rates";
 import { sameOrigin } from "@/lib/same-origin";
+import { StatementBlocked } from "@/lib/open-clock";
 import { approve, statementFor } from "@/lib/statements";
 import { hhmm } from "@/lib/timesheet";
 import { displayName } from "@/lib/display-name";
@@ -35,17 +38,17 @@ export async function GET(req: Request) {
     { text: `Hours clocked: ${hhmm(s.week.minutes)}` },
     ...(s.statement.lines ?? []).map((l) => ({ text: `   ${l.project}, ${l.from === l.to ? l.from : `${l.from} to ${l.to}`}: ${l.hours.toFixed(2)} h x ${l.hourly === null ? "rate not set" : l.hourly.toFixed(2)} = ${m(l.base)}` })),
     { text: `Base (hours x hourly rate): ${m(s.statement.base)}` },
-    { text: `Emails sent: ${s.week.sent}` },
-    { text: `WhatsApp messages sent: ${s.week.whatsapp ?? 0}` },
+    { text: `First emails sent: ${s.week.sent}` },
+    { text: `First WhatsApp messages sent: ${s.week.whatsapp ?? 0}` },
     { text: `Replies ${s.week.replies}, meetings ${s.week.meetings}, clients ${s.week.clients}` },
+    { text: 'Any answer counts as a reply, including "not interested".' },
     { text: `Outcome bonus: ${m(s.statement.bonus)}` },
-    { text: `Tasks done: ${s.week.tasksDone}` },
     ...(s.days.length ? [{ text: " " }, { text: "Day by day", bold: true }] : []),
     ...s.days.flatMap((d) => [
       { text: `${d.day}: ${hhmm(d.minutes)}` },
       ...d.shifts.flatMap((sh) => [
-        { text: `   ${new Date(sh.start).toTimeString().slice(0, 5)}-${sh.end ? new Date(sh.end).toTimeString().slice(0, 5) : "now"}  ${sh.project}  ${hhmm(sh.minutes)}${sh.updates ? `  ${sh.updates.met} of ${sh.updates.expected} updates` : ""}` },
-        ...sh.notes.map((n) => ({ text: `      ${new Date(n.at).toTimeString().slice(0, 5)}  ${n.text}` })),
+        { text: `   ${clockIn(sh.start, who.settings.timezone)}-${sh.end ? clockIn(sh.end, who.settings.timezone) : "now"}  ${sh.project}  ${hhmm(sh.minutes)}${sh.updates ? `  ${sh.updates.met} of ${sh.updates.expected} updates` : ""}` },
+        ...sh.notes.map((n) => ({ text: `      ${clockIn(n.at, who.settings.timezone)}  ${n.text}` })),
       ]),
     ]),
     { text: " " },
@@ -68,6 +71,11 @@ export async function POST(req: Request) {
   const d = await db();
   const [person] = await d.select().from(users).where(and(eq(users.tenantId, who.tenantId), eq(users.id, userId)));
   if (!person || !canSeePay({ id: who.userId, role: who.role }, person)) return NextResponse.json({ error: "not found" }, { status: 404 });
-  await approve(d, who.tenantId, userId, week, who.userId);
-  return NextResponse.redirect(new URL(`/week/statement/${userId}?week=${week}`, req.url), 303);
+  try {
+    await approve(d, who.tenantId, userId, week, who.userId);
+  } catch (err) {
+    // the page says why, and offers the close
+    if (!(err instanceof StatementBlocked)) throw err;
+  }
+  return NextResponse.redirect(new URL(`/week/statement/${userId}?week=${week}`, originOf(req)), 303);
 }

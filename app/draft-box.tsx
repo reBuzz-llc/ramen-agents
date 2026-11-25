@@ -17,7 +17,7 @@ export default function DraftBox({ leadId, field, text, onSaved }: { leadId: str
     try {
       const r = await fetch(`/api/leads/${leadId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { [field]: value } }) });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!r.ok || j.ok === false) throw new Error(j.error ?? `the server answered ${r.status}`);
+      if (!r.ok || j.ok === false) throw new Error(j.error ?? `Peek answered ${r.status}`);
       onSaved(value);
       setEditing(false);
     } catch (err) {

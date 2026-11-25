@@ -1,5 +1,5 @@
-// Leads → Mark already sent: sends from before the board existed (an import, a rebuild) are not on it,
-// so Send next would offer those leads again. A person pastes the addresses from their mailbox's Sent folder (or a
+// Leads → Mark already sent: the team's sends from before the board was rebuilt (2026-11-06) are not
+// on it, so Send next would offer those leads again. A person pastes the addresses from their mailbox's Sent folder (or a
 // CSV export of it), the WhatsApp numbers they messaged, or a list of lead ids; this matches them to leads, previews what
 // it would set and what Send next stops offering, and on confirm sets each lead's status as that person. The marks: Email
 // sent (with the paste's date, else now, and Sent by), WhatsApp sent (the same), WhatsApp Verified, Ready to send email,
@@ -123,7 +123,7 @@ export function parsePaste(text: string): Entry[] {
 
 const leadDigits = (l: LeadLite) => [l.whatsapp, l.phone].map((v) => digits(v ?? "")).filter((d) => d.length >= 9);
 
-/** The entries against the board: a lead id, an exact business email, then the email's domain
+/** The entries against the board: a lead id (Peek's; an old Notion page id no longer matches, Peek 601), an exact business email, then the email's domain
  *  (never a free-mail one), or a number (with or without its country code). A key that fits more than one lead is listed,
  *  not marked; with "as each line says", a line that names no status is listed too. */
 export function matchEntries(entries: Entry[], board: LeadLite[], choice: MarkChoice): Preview {
@@ -207,7 +207,7 @@ export async function markSent(db: Db, tenantId: string, p: Preview, actor: Acto
     const mk = MARKS[m.mark];
     const sentAt = mk.send && m.date ? new Date(`${m.date}T12:00:00Z`) : null;
     try {
-      const r = await writeLead(db, tenantId, { id: m.leadId }, { [mk.field]: mk.value }, actor, { sentAt, sourceUrl: ALREADY_SENT_SOURCE }); // sends made before: never today's goal
+      const r = await writeLead(db, tenantId, { id: m.leadId }, { [mk.field]: mk.value }, actor, { sentAt, sourceUrl: ALREADY_SENT_SOURCE, pastSend: true }); // sends made before: never today's goal
       if (r.ok && r.written.length) marked++;
       else if (!r.ok) failed.push({ business: m.business, reason: r.message });
     } catch (err) {
@@ -217,7 +217,7 @@ export async function markSent(db: Db, tenantId: string, p: Preview, actor: Acto
   return { marked, failed };
 }
 
-/** What marking prevents: of the leads to be marked Email sent, how many Send next offers right now (its ids),
+/** What marking prevents on Monday: of the leads to be marked Email sent, how many Send next offers right now (its ids),
  *  and how many more have a draft waiting, so would come up later. */
 export function prevented(p: Preview, sendNextIds: string[]): { now: number; later: number } {
   const offered = new Set(sendNextIds);

@@ -1,13 +1,14 @@
 "use client";
-// The Asset page, "What we have": the company's text section by section (services, products, the rate card in its
-// place, who does what, ideal customers, proof, how you deliver, contact and legal names, whatever the team keeps);
-// then the brochures and PDFs from Files. The packages have
+// The Asset page, "What we have" (the Notion page of that name, section by section): the Drive
+// folder, services, integrations, goals, products, the rate card in its place, who does what, ideal customers, proof, how
+// we deliver, what we do not do, contact and legal names; then the brochures and PDFs from Files. The packages have
 // their own page (/packages). Everyone reads it; the owner and managers edit a section in place, and the bots read the
 // same sections (GET /v1/assets/sections) and the rate card (GET /v1/assets/rates).
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Rate, Section, SectionKind } from "@/lib/assets";
+import { LOGIN_WARNING, looksLikeLogin } from "@/lib/looks-like-login";
 import { btnDanger, btnOutline, btnPrimary, btnText, control, fieldLabel, helper, pageLead, pageTitle, sectionTitle } from "@/lib/ui-classes";
 import { linkify, parseBody, type Block, type ListBlock } from "@/lib/what-we-have";
 import { RowTools, Updated, move, newKey, save } from "./list-tools";
@@ -74,7 +75,7 @@ function Blocks({ blocks }: { blocks: Block[] }) {
   );
 }
 
-/** A section's body: toggles, nested lists, paragraphs, links. */
+/** A section's body, read as the Notion page showed it: toggles, nested lists, paragraphs, links. */
 export function Body({ text }: { text: string }) {
   return (
     <div className="mt-2 text-[0.9375rem] leading-relaxed">
@@ -236,6 +237,8 @@ function Sections({ sections, rates, canEdit }: { sections: Section[]; rates: Ra
   const saveEdit = () => {
     if (!edit) return;
     if (!edit.title.trim() && !edit.body.trim() && edit.kind !== "rates") return setError("Give the section a title or some text.");
+    // a login on this page is read by everyone; warn, never block
+    if (looksLikeLogin(edit.title, edit.body) && !window.confirm(`${LOGIN_WARNING}\n\nSave anyway?`)) return;
     const list = edit.id ? sections.map((s) => (s.id === edit.id ? asIn(edit) : asIn(s))) : [...sections.map(asIn), asIn(edit)];
     void commit(list);
   };

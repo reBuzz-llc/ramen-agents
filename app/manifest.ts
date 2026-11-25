@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ramen-agents",
-    short_name: "ramen",
+    name: "Productive Peek",
+    short_name: "Peek",
     description: "One queue: agents fill it, people finish it.",
     start_url: "/",
     display: "standalone",

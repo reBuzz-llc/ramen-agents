@@ -7,6 +7,7 @@ import { withAttachments } from "@/lib/attachment-line";
 import { withSample } from "@/lib/sample-site";
 import DraftBox from "./draft-box";
 import type { PackLead } from "@/lib/send-pack";
+import { HELD_LINE, type HeldLead } from "@/lib/held-drafts";
 import { doneLine, type Budget } from "@/lib/send-goals";
 
 type Others = { userId: string; name: string; leads: { id: string; business: string }[] }[] | null;
@@ -20,13 +21,12 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; error
   }
 }
 
-/** Your send pack: ten leads taken for you, each draft with its open flags, Copy and Mark sent in
+/** Your send pack: ten leads taken for you, each draft with Copy and Mark sent in
  *  place; the owner also sees everyone's. Refreshed from the server after every action. */
-export default function SendPack({ pack: held, size: most, me, others, today }: { pack: PackLead[]; size: number; me: string; others: Others; today: Budget }) {
-  // the day's send goal: the pack shows and fills only what is left today; leads held past it wait for tomorrow
-  const size = Math.min(most, today.left);
-  const pack = held.slice(0, size);
-  const later = held.length - pack.length;
+export default function SendPack({ pack: taken, held = [], size: most, me, others, today }: { pack: PackLead[]; held?: HeldLead[]; size: number; me: string; others: Others; today: Budget }) {
+  // the day's send goal is a target, not a limit: the pack shows and fills to ten all day
+  const size = most;
+  const pack = taken;
   const done = today.left <= 0;
   const router = useRouter();
   const [busy, setBusy] = useState("");
@@ -71,28 +71,19 @@ export default function SendPack({ pack: held, size: most, me, others, today }: 
             · {today.sent} of {today.goal} sent today
           </span>
         </h2>
-        {done ? (
-          <button type="button" disabled className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-on-accent disabled:opacity-50">
-            Fill my pack
-          </button>
-        ) : pack.length < size ? (
+        {pack.length < size ? (
           <button type="button" disabled={busy === "fill"} onClick={fill} className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50">
             {busy === "fill" ? "Taking…" : pack.length ? `Top up to ${size}` : `Fill my pack (${size})`}
           </button>
         ) : null}
       </div>
       <p className="mt-1 text-sm text-muted">
-        Leads taken for you ({me}), so nobody else sends them. Read the draft and its flags, copy it into your own mailbox, send it, then Mark sent: the next lead
-        comes in. A wrong draft: open the lead and fix it first. {today.goal} emails a day each: more from one address lands in spam.
+        Leads taken for you ({me}), so nobody else sends them. Read the draft, copy it into your own mailbox, send it, then Mark sent: the next lead
+        comes in. A wrong draft: open the lead and fix it first. Today&apos;s goal: {today.goal} emails each.
       </p>
       {done ? (
         <p data-goal-done className="mt-2 rounded-lg bg-good/10 px-3 py-2 text-sm font-semibold">
           {doneLine(today.goal)}
-        </p>
-      ) : null}
-      {later > 0 ? (
-        <p className="mt-1 text-xs text-muted">
-          {later} more lead{later === 1 ? " stays" : "s stay"} in your pack for tomorrow.
         </p>
       ) : null}
       {msg.fill ? (
@@ -114,7 +105,6 @@ export default function SendPack({ pack: held, size: most, me, others, today }: 
                     {i + 1}. {l.business}
                   </span>
                   <span className="text-xs text-muted">
-                    {l.flags.length ? <span className="mr-2 font-semibold text-bad">{l.flags.length} flag{l.flags.length === 1 ? "" : "s"}</span> : null}
                     {l.email ?? "no email"}
                   </span>
                 </button>
@@ -125,13 +115,7 @@ export default function SendPack({ pack: held, size: most, me, others, today }: 
                       {l.pkg ? ` · ${l.pkg}` : ""}
                       {l.attachments.length ? ` · attach: ${l.attachments.join(", ")}` : ""}
                     </p>
-                    {l.sample ? <SampleLine url={l.sample} /> : null}
-                    {l.flags.map((f) => (
-                      <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 text-sm ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
-                        <span className="font-semibold">{f.rule}</span> {f.detail}
-                        {f.changed || edited[l.id] !== undefined ? <span className="block text-xs text-muted">You changed the draft after this flag; the Validator checks it again on its next run.</span> : null}
-                      </p>
-                    ))}
+                    {l.sample ? <SampleLine url={l.sample} /> : l.sampleHeld ? <SampleHeld /> : null}
                     {draftOf(l) ? (
                       <DraftBox
                         leadId={l.id}
@@ -173,6 +157,19 @@ export default function SendPack({ pack: held, size: most, me, others, today }: 
         </ol>
       )}
 
+      {held.length ? (
+        <ul className="mt-3 space-y-2" aria-label="Held drafts" data-held-drafts>
+          {held.map((l) => (
+            <li key={l.id} className="rounded-xl border border-line bg-panel p-3 text-sm">
+              <Link href={`/leads?tab=board&lead=${l.id}`} className="font-semibold hover:underline">
+                {l.business}
+              </Link>
+              <p className="mt-1 text-muted">{HELD_LINE}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {others ? (
         <div className="mt-6">
           <h3 className="text-sm font-semibold">Everyone&apos;s packs</h3>
@@ -195,6 +192,11 @@ export default function SendPack({ pack: held, size: most, me, others, today }: 
 }
 
 /** The lead's sample site on its card: the link to open and check it before sending. */
+/** Why a lead with a sample shows no link in this first message. */
+export function SampleHeld() {
+  return <p className="mt-1 text-sm text-muted">Sample link: send it after they reply.</p>;
+}
+
 export function SampleLine({ url }: { url: string }) {
   return (
     <p className="mt-1 text-sm">

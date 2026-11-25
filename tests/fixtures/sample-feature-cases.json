@@ -1,0 +1,141 @@
+{
+ "about": "The page rules for the ten standing features that the engine (site_page.html_problems) and Peek's lib/sample-page.ts must agree on. Scripts: at most two inline, one menu toggle and one open-now badge; the badge's script (it reads Date or Intl.DateTimeFormat and data-hours) is at most 1,500 characters and has no network, storage or HTML writing (fetch, XMLHttpRequest, WebSocket, eval, import(), document.cookie, localStorage, sessionStorage, indexedDB, navigator, location, sendBeacon, innerHTML, outerHTML, insertAdjacentHTML, document.write, Function, postMessage, open(), caches, serviceWorker). Its data sits in exactly one data-hours attribute, at most 400 characters, and every time in it (HH:MM, 24:00 = 00:00) is one the facts' hours print (2PM = 14:00, 12AM = 00:00). Words in Hangul, kana or Chinese characters stand only as the facts or the row's map link (URL-decoded) print them. No reviewer's name on the page. 'refused' lists the kinds: script, hours-data, script-words, reviewer. A review card shows its reviewer's short name (\"Sarah M.\") beside its quote and nowhere else; never a full last name, never a reviewer's picture.",
+ "facts": {
+  "name": "Maple Grill House",
+  "area": "Flushing, NY",
+  "hours": "Mon-Sun 2PM-12AM; Sat-Sun from 11:30AM",
+  "native_name": "단풍",
+  "offers": [
+   "sam gyup sal pork belly",
+   "Combo a Marinated Combo"
+  ],
+  "second_names": [
+   {
+    "item": "sam gyup sal pork belly",
+    "native": "烤五花肉",
+    "source": "https://listings.example/ny/flushing/maple-grill-house/"
+   }
+  ],
+  "quotes": [
+   {
+    "text": "The pork belly was perfect and the staff grilled it for us",
+    "first_name": "Grace",
+    "source": "https://listings.example/ny/flushing/maple-grill-house/",
+    "second": "Local Guide · 70 reviews"
+   }
+  ]
+ },
+ "row": {
+  "business": "Maple Grill House",
+  "map_link": "https://www.google.com/maps/place/%EB%8B%A8%ED%92%8D+BBQ+%EB%89%B4%EC%9A%95/"
+ },
+ "cases": [
+  {
+   "name": "the menu toggle and the open-now badge reading data-hours, times as the facts print them",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a third inline script is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script><script>document.querySelector(\".x\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": [
+    "script"
+   ]
+  },
+  {
+   "name": "an open-now script that calls the network is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());fetch(\"/x\");var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "script"
+   ]
+  },
+  {
+   "name": "an open-now script that stores anything is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){localStorage.setItem(\"x\",1);b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "script"
+   ]
+  },
+  {
+   "name": "an open-now script that writes HTML is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.innerHTML=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "script"
+   ]
+  },
+  {
+   "name": "data-hours with a time the facts do not print is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"22:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "hours-data"
+   ]
+  },
+  {
+   "name": "the open-now script with no data-hours on the page is refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "hours-data"
+   ]
+  },
+  {
+   "name": "two data-hours attributes are refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><table class=\"hours\" data-hours='{\"mon-sun\":[\"14:00\",\"24:00\"],\"sat-sun\":[\"11:30\",\"24:00\"]}'><tr><td>Mon-Sun 2PM-12AM</td></tr></table><p id=\"open-now\"></p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script><script>(function(){var t=document.querySelector(\"[data-hours]\");var h=JSON.parse(t.dataset.hours);var p=new Intl.DateTimeFormat(\"en-US\",{timeZone:\"America/New_York\",hour:\"2-digit\",minute:\"2-digit\",hour12:false,weekday:\"short\"}).formatToParts(new Date());var b=document.getElementById(\"open-now\");if(b&&h){b.textContent=\"Open now\";}})()</script></body></html>",
+   "refused": [
+    "hours-data"
+   ]
+  },
+  {
+   "name": "the name in its own script as the facts print it",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><p class=\"native\">단풍</p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a menu item's second-language name as the facts print it",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><li>Sam gyup sal pork belly <span lang=\"zh\">烤五花肉</span></li><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": []
+  },
+  {
+   "name": "words in another script that no fact prints are refused",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><p>불고기 맛집</p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": [
+    "script-words"
+   ]
+  },
+  {
+   "name": "a native word the row's map link prints (and the facts do not)",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><p>단풍 BBQ 뉴욕</p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a reviewer's full last name is refused (651)",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><blockquote>The pork belly was perfect and the staff grilled it for us</blockquote><p>Grace Kim</p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": [
+    "reviewer"
+   ]
+  },
+  {
+   "name": "a review quoted without a name",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><blockquote>The pork belly was perfect and the staff grilled it for us</blockquote><p>a guest, on Google</p><script>document.querySelector(\".menu-btn\").addEventListener(\"click\",function(){document.querySelector(\"nav\").classList.toggle(\"open\")})</script></body></html>",
+   "refused": []
+  },
+  {
+   "name": "a review card with its reviewer's short name beside the quote passes (651)",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1></section><figure class=\"review\"><blockquote>The pork belly was perfect and the staff grilled it for us</blockquote><figcaption><span class=\"avatar\">G</span> Grace</figcaption></figure></body></html>",
+   "refused": []
+  },
+  {
+   "name": "the reviewer's name away from its quote is refused (651)",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Loved by Grace</p></section><p>Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. </p><blockquote>The pork belly was perfect and the staff grilled it for us</blockquote></body></html>",
+   "refused": [
+    "reviewer"
+   ]
+  },
+  {
+   "name": "the reviewer's second line away from its quote is refused (11-20)",
+   "html": "<!doctype html><html lang=\"en\"><head><title>Maple Grill House, Flushing</title></head><body><section id=\"hero\"><h1>Maple Grill House</h1><p>Local Guide · 70 reviews</p></section><p>Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. Korean barbecue in Flushing. </p><blockquote>The pork belly was perfect and the staff grilled it for us</blockquote></body></html>",
+   "refused": [
+    "reviewer"
+   ]
+  }
+ ]
+}

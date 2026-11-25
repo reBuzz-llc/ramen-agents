@@ -5,7 +5,7 @@ import { pageMe } from "@/lib/page-me";
 import { dayBounds, logOf, logProject, shiftDay } from "@/lib/project-log";
 import { hhmm } from "@/lib/timesheet";
 
-export const metadata = { title: "Project log · ramen-agents" };
+export const metadata = { title: "Project log · Productive Peek" };
 
 const time = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 

@@ -1,4 +1,4 @@
-// The portal's own Google sign-in: Neon Auth is not needed. Google is stood in for by a fetch stub.
+// Peek's own Google sign-in: Neon Auth is not needed. Google is stood in for by a fetch stub.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryDb, type Db } from "@/lib/db";
 import { authSessions, users } from "@/lib/db/schema";
@@ -57,7 +57,7 @@ describe("Google sign-in without Neon Auth", () => {
     expect(to.searchParams.get("scope")).toBe("openid email profile");
   });
 
-  it("signs a person of the company in with the portal's own session and goes where they were headed", async () => {
+  it("signs a person of the company in with Peek's own session and goes where they were headed", async () => {
     const s = await start("/todo");
     const res = await callback(s.state, s.state, s.verifier, encodeURIComponent("/todo"));
     expect(res.status).toBe(303);

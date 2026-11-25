@@ -9,17 +9,17 @@ const ch = (column: string, value: unknown, who: string, when: string, o: Partia
 describe("Copy for WhatsApp", () => {
   it("one bullet per save, newest first: steps by what they mean, edits by the cell", () => {
     const h = [
-      ch("draft_email", "Hi Ana, call me on +1 718 555 0100", "Casey", at(10, 14, 10)),
-      ch("email_status", "Email Sent", "Robin", at(9, 11)),
-      ch("sent_by", ["Robin"], "Robin", at(9, 11)),
-      ch("sent_at", "2026-11-09", "Robin", at(9, 11)),
+      ch("draft_email", "Hi Ana, call me on +1 718 555 0100", "Mina", at(10, 14, 10)),
+      ch("email_status", "Email Sent", "Alex", at(9, 11)),
+      ch("sent_by", ["Alex"], "Alex", at(9, 11)),
+      ch("sent_at", "2026-11-09", "Alex", at(9, 11)),
       ch("result", "Meeting", "Ann", at(6, 9)),
       ch("result_date", "2026-11-06", "Ann", at(6, 9)),
       ch("notes", null, "Ann", at(5, 9), { old: "x" }),
     ];
     expect(recentBullets(h, now)).toEqual([
-      "• Casey set Draft email (today 14:10)",
-      "• Robin marked Email sent (yesterday)",
+      "• Mina set Draft email (today 14:10)",
+      "• Alex marked Email sent (yesterday)",
       "• Ann set Result to Meeting (6 Nov)",
       "• Ann cleared Notes (5 Nov)",
     ]);
@@ -37,7 +37,7 @@ describe("Copy for WhatsApp", () => {
     expect(b.join()).not.toContain("Ann");
   });
   it("the whole message: business, link, changes; none yet said so; no addresses or numbers", () => {
-    const url = "https://peek.example/leads?lead=00000000-0000-4000-8000-000000000403";
+    const url = "https://peek.example/leads?lead=2e7e6382-5a2b-4e27-90aa-36c289c67c5b";
     expect(shareText({ business: "Luna Salon", url, history: [], now })).toBe(`Luna Salon\n${url}\n\nRecent changes:\n• no changes by the team yet`);
     const t = shareText({ business: "Luna Salon", url, history: [ch("business_email", "ana@luna.example", "ana@luna.example", at(10, 9))], now });
     expect(t).not.toMatch(/@luna|ana@/);

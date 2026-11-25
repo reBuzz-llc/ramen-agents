@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { SentLead } from "@/lib/follow-up";
+import type { SentLead, WaitingLead } from "@/lib/follow-up";
+import { FOLLOW_UP_LIMIT } from "@/lib/follow-up-limit";
 
 /** The result chips: the drawer's steps (Replied, Meeting booked, Lost, Bounced) as one click. */
 const RESULTS: { result: string; label: string; tone: string }[] = [
@@ -17,12 +18,12 @@ const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const ago = (iso: string) => {
+export const ago = (iso: string) => {
   const days = Math.max(0, Math.round((Date.parse(today()) - Date.parse(iso.slice(0, 10))) / 86_400_000));
   return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 };
 
-async function call(url: string, method: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
+export async function call(url: string, method: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
   try {
     const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -32,7 +33,7 @@ async function call(url: string, method: string, body: unknown): Promise<{ ok: b
   }
 }
 
-function Chips({ l, busy, act }: { l: SentLead; busy: string; act: (id: string, fn: () => Promise<{ ok: boolean; error?: string }>, done: string) => void }) {
+export function ResultChips({ l, busy, act }: { l: Pick<SentLead, "id" | "business">; busy: string; act: (id: string, fn: () => Promise<{ ok: boolean; error?: string }>, done: string) => void }) {
   return (
     <span className="inline-flex flex-wrap gap-1.5">
       {RESULTS.map((r) => (
@@ -51,7 +52,7 @@ function Chips({ l, busy, act }: { l: SentLead; busy: string; act: (id: string, 
 }
 
 /** Follow up and record the result, on the Clock home under the send pack. */
-export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: SentLead[] }) {
+export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: WaitingLead[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
@@ -79,7 +80,7 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
         Follow up <span className="text-sm font-normal text-muted tabular-nums">{due.length}</span>
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Leads you sent {4} or more working days ago with no answer yet. Most replies come after a short second note: copy it, send it from your own mailbox, then press
+        Leads you sent 2, 5 and 14 days ago with no answer yet. Most replies come after a short second note: copy it, send it from your own mailbox, then press
         Follow-up sent. Got an answer? Press what it was.
       </p>
       {note ? (
@@ -88,10 +89,10 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
         </p>
       ) : null}
       {due.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-line bg-panel p-4 text-sm text-muted">No follow-ups due. They appear here four working days after you send.</p>
+        <p className="mt-3 rounded-xl border border-line bg-panel p-4 text-sm text-muted">No follow-ups due. They appear here 2 days after you send.</p>
       ) : (
         <ol className="mt-3 space-y-2">
-          {due.map((l) => {
+          {due.slice(0, FOLLOW_UP_LIMIT).map((l) => {
             const expanded = open === l.id;
             const text = texts[l.id] ?? l.followUp;
             return (
@@ -109,7 +110,7 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
                       <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-bg p-3 font-sans text-sm">{l.draft ?? "(no draft on the lead)"}</pre>
                     </details>
                     <label className="mt-3 block text-xs text-muted">
-                      The follow-up {l.followUpByAgent ? "(drafted by the agents)" : "(a two-line note: make it yours)"}
+                      Follow-up {l.step} of 3 {l.followUpBy === "bot" ? "(drafted by the agents)" : l.followUpBy === "person" ? "(written by a person)" : "(no draft yet: write it, or wait for the agents)"}
                       <textarea
                         value={text}
                         onChange={(e) => setTexts((t) => ({ ...t, [l.id]: e.target.value }))}
@@ -117,14 +118,15 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
                         className="mt-1 block w-full rounded-lg border border-line bg-bg p-3 text-sm text-ink"
                       />
                     </label>
+                    {l.hold ? <p role="alert" className="mt-2 text-sm text-bad">{l.hold}</p> : null}
                     <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <button type="button" onClick={() => copy(text)} className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-semibold hover:border-accent">
+                      <button type="button" disabled={!text.trim() || !!l.hold} onClick={() => copy(text)} className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-semibold hover:border-accent">
                         Copy follow-up
                       </button>
                       <button
                         type="button"
                         disabled={busy === l.id}
-                        onClick={() => act(l.id, () => call("/api/follow-up", "POST", { id: l.id }), `${l.business}: follow-up recorded.`)}
+                        onClick={() => act(l.id, () => call("/api/follow-up", "POST", { id: l.id, step: l.step, channel: l.channel }), `${l.business}: follow-up recorded.`)}
                         className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50"
                       >
                         Follow-up sent
@@ -134,7 +136,7 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
                       </Link>
                     </div>
                     <div className="mt-3">
-                      <Chips l={l} busy={busy} act={act} />
+                      <ResultChips l={l} busy={busy} act={act} />
                     </div>
                   </div>
                 ) : null}
@@ -143,6 +145,13 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
           })}
         </ol>
       )}
+      {due.length > FOLLOW_UP_LIMIT ? (
+        <p className="mt-2 text-sm">
+          <Link href="/leads?tab=followup" className="font-medium text-accent-ink hover:underline">
+            See all {due.length} on the Follow up tab
+          </Link>
+        </p>
+      ) : null}
 
       {waiting.length ? (
         <div className="mt-6">
@@ -156,7 +165,7 @@ export default function FollowUps({ due, waiting }: { due: SentLead[]; waiting: 
                   </Link>
                   <span className="text-xs text-muted"> · sent {ago(l.sentAt)}</span>
                 </span>
-                <Chips l={l} busy={busy} act={act} />
+                <ResultChips l={l} busy={busy} act={act} />
               </li>
             ))}
           </ul>

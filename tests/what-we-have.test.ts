@@ -1,14 +1,16 @@
-// The Asset page's "What we have" sections: the light markdown, the seed from examples/company.md, and the store.
+// The Asset page's "What we have" sections: the light markdown, the seed from the bots' mirror of
+// the Notion page, and the store.
 import { describe, expect, it } from "vitest";
 import { checkSections, listSections, saveSections } from "@/lib/assets";
 import { memoryDb } from "@/lib/db";
 import { createTenant } from "@/lib/tenants";
 import { linkify, parseBody } from "@/lib/what-we-have";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { sectionsFrom } from "../scripts/seed-sections.mjs";
+import { sectionsFromMirror } from "../scripts/seed-sections.mjs";
 
-const MIRROR = `# What we have
+const MIRROR = `# What we have (the owner's Notion page, mirrored)
+
+What the company actually has and charges -- written by the owner.
+Last edited on Notion: 2026-10-30 16:59 UTC.
 
 https://drive.example/folder
 
@@ -24,6 +26,7 @@ https://drive.example/folder
 
 ## Rates
 The internal rate card.
+From Peek's Asset page, where the owner edits the rates.
 - Website Care Retainer: $249-$499/month
 
 ## Contact and legal names
@@ -43,13 +46,13 @@ describe("the light markdown", () => {
   });
 
   it("links URLs, leaving a trailing full stop outside", () => {
-    expect(linkify("See https://company.example/a. Thanks")).toEqual([{ text: "See " }, { text: "https://company.example/a", href: "https://company.example/a" }, { text: ". Thanks" }]);
+    expect(linkify("See https://acme.example/a. Thanks")).toEqual([{ text: "See " }, { text: "https://acme.example/a", href: "https://acme.example/a" }, { text: ". Thanks" }]);
   });
 });
 
-describe("the seed", () => {
+describe("the seed from the mirror", () => {
   it("one section per ## heading; the link before them untitled; Rates keeps its paragraph, not its rate lines", () => {
-    const s = sectionsFrom(MIRROR);
+    const s = sectionsFromMirror(MIRROR);
     expect(s.map((x) => [x.title, x.kind])).toEqual([
       ["", "text"],
       ["Services", "text"],
@@ -59,12 +62,6 @@ describe("the seed", () => {
     expect(s[0].body).toBe("https://drive.example/folder");
     expect(s[1].body.startsWith("### Human resources (Next Office)\n1. Marketing\n  1. email, sms")).toBe(true);
     expect(s[2].body).toBe("The internal rate card.");
-  });
-
-  it("the example company text has a rate-card section and no team's own names", () => {
-    const s = sectionsFrom(readFileSync(path.join(__dirname, "..", "examples", "company.md"), "utf8"));
-    expect(s.filter((x) => x.kind === "rates")).toHaveLength(1);
-    expect(s[0]).toMatchObject({ title: "", kind: "text" });
   });
 });
 

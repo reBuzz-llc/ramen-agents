@@ -59,10 +59,10 @@ export function answer(r: WriteResult) {
   return fail(status, r.code, r.message, r.existingId ? { existing_id: r.existingId } : {});
 }
 
-/** A write that threw: logged here, answered as the portal's failure (never the query or its values). */
+/** A write that threw: logged here, answered as Peek's failure (never the query or its values). */
 export function failed(err: unknown, where: string) {
   console.error(`[${where}]`, err);
-  return fail(500, "server_error", "the write failed on the portal's side; it is logged");
+  return fail(500, "server_error", "the write failed on Peek's side; it is logged");
 }
 
 export async function body(req: Request): Promise<Record<string, unknown> | null> {

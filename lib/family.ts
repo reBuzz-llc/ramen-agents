@@ -1,7 +1,7 @@
 // The family's reports for the team: the agents' day and week on /family, the reverse of the Guide.
 // The Validator posts them with its key (POST /v1/family/report, scope board:validate); people only read them. The
 // payload is checked here: known fields only, short plain text, and nothing that looks like a person's contact (an
-// email address, a phone number) or a web address (except the week post's own link, wherever you publish it).
+// email address, a phone number) or a web address (except the week post's own link on the blog).
 //
 // The shapes (`kind` and `at` beside the payload; `at` optional, ISO 8601, default now):
 //   tick:    {"kind": "tick", "at": "...", "today": {"drafts_landed": 12, "whatsapp_pitches": 4, "leads_listed": 6,
@@ -9,7 +9,7 @@
 //             "members": [{"name": "Lead Gen", "state": "working", "line": "searching for bakeries with no website"}]}
 //   morning: {"kind": "morning", "at": "...", "lines": ["Drafts landed: 11-07 14, today so far 3", "..."]}
 //   week:    {"kind": "week", "at": "...", "week": {"title": "This week in the family: ...", "summary": "...",
-//             "url": "https://<where you publish it>/..."}}  (the fleet's scripts/family_week.py writes the post)
+//             "url": "https://<the blog>/family-week/2026-11-08"}}
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import type { Db } from "./db";
 import { familyReports } from "./db/schema";
@@ -83,11 +83,11 @@ export function parseReport(b: Record<string, unknown>): Report {
     const url = typeof w.url === "string" ? w.url.trim() : "";
     let ok = false;
     try {
-      ok = new URL(url).protocol === "https:" && url.length <= 300;
+      ok = new URL(url).protocol === "https:" && /^\/family-week\/[\w-]+$/.test(new URL(url).pathname);
     } catch {
       ok = false;
     }
-    if (!ok) throw new Error("week.url must be the post's https link");
+    if (!ok) throw new Error("week.url must be the post's https link (/family-week/<date>)");
     return { kind, week: { title: text(w.title, "week.title", 160), summary: text(w.summary ?? "", "week.summary"), url } };
   }
   throw new Error(`kind must be one of ${KINDS.join(", ")}`);

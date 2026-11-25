@@ -4,9 +4,11 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "./db";
 import { tenants, users } from "./db/schema";
+import { LOCAL_TEAM } from "./local-mode";
 import { createTenant } from "./tenants";
 
-export const FIRST_TENANT = { name: "My team", slug: "team" };
+/** The company the first sign-in on an empty database makes; the owner renames it in Settings. */
+export const FIRST_TENANT = LOCAL_TEAM;
 
 export async function userForSignIn(db: Db, email: string, name = "") {
   const e = email.trim().toLowerCase();

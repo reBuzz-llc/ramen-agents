@@ -1,0 +1,197 @@
+{
+ "about": "Shared by Peek and the Validator (validator/template_rules.py); for each case, ratio (to 4 places), small_fix, group, group_words for group_words_n, template, placeholders and text_key must match",
+ "small_fix_below": 0.15,
+ "cases": [
+  {
+   "name": "only the lead's own words changed",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "",
+    "package": "Starter Website",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hello Maria,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.0071,
+   "small_fix": true,
+   "group": "Starter Website",
+   "group_words_n": 7,
+   "group_words": "the other 7 no-website leads",
+   "template": "Hello <contact>,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<contact>"
+   ],
+   "text_key": "569ad4c3633ea9e992db7e0064a82843d7a22aa8845d7be3b48d50ac4ddac7ed"
+  },
+  {
+   "name": "one word changed is a small fix",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "",
+    "package": "Starter Website",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a quick online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.0141,
+   "small_fix": true,
+   "group": "Starter Website",
+   "group_words_n": 7,
+   "group_words": "the other 7 no-website leads",
+   "template": "Hello <business> team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a quick online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<business>"
+   ],
+   "text_key": "bc615c74e39dd047ff487cdeb67de9bc2b92a122f3773a8cebd01202df0a8fd6"
+  },
+  {
+   "name": "a rewrite is a proposal; its template carries placeholders",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "",
+    "package": "Starter Website",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hi Maria,\nI'm Rosa from Acme Sites. Parents in Brooklyn searching for Little Scholars Child Development Center only find your Google listing, no website of its own; parents find only the Google listing.\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.5188,
+   "small_fix": false,
+   "group": "Starter Website",
+   "group_words_n": 12,
+   "group_words": "the other 12 no-website leads",
+   "template": "Hi <contact>,\nI'm Rosa from Acme Sites. Parents in <city> searching for <business> only find your Google listing, <pain_point>\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<pain_point>",
+    "<business>",
+    "<city>",
+    "<contact>"
+   ],
+   "text_key": "10824a8b7b99d109c25f4c5f900c1112a72b77b0598e69ff2e8c53f36ca96e3a"
+  },
+  {
+   "name": "another package is its own group",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "https://littlescholars.example",
+    "package": "SMB Website Care Retainer",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hi Maria,\nI'm Rosa from Acme Sites. Parents in Brooklyn searching for Little Scholars Child Development Center only find your Google listing, no website of its own; parents find only the Google listing.\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.5188,
+   "small_fix": false,
+   "group": "SMB Website Care Retainer",
+   "group_words_n": 3,
+   "group_words": "the other 3 SMB Website Care Retainer leads",
+   "template": "Hi <contact>,\nI'm Rosa from Acme Sites. Parents in <city> searching for <business> only find your Google listing, <pain_point>\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<pain_point>",
+    "<business>",
+    "<city>",
+    "<contact>"
+   ],
+   "text_key": "10824a8b7b99d109c25f4c5f900c1112a72b77b0598e69ff2e8c53f36ca96e3a"
+  },
+  {
+   "name": "a row with no package and no website",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "",
+    "package": "",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hi Maria,\nI'm Rosa from Acme Sites. Parents in Brooklyn searching for Little Scholars Child Development Center only find your Google listing, no website of its own; parents find only the Google listing.\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.5188,
+   "small_fix": false,
+   "group": "no package, no website",
+   "group_words_n": 2,
+   "group_words": "the other 2 leads with no package and no website",
+   "template": "Hi <contact>,\nI'm Rosa from Acme Sites. Parents in <city> searching for <business> only find your Google listing, <pain_point>\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<pain_point>",
+    "<business>",
+    "<city>",
+    "<contact>"
+   ],
+   "text_key": "10824a8b7b99d109c25f4c5f900c1112a72b77b0598e69ff2e8c53f36ca96e3a"
+  },
+  {
+   "name": "a row with no package and its own website",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "https://x.example",
+    "package": "",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "Hello Little Scholars Child Development Center team,\nWe noticed you don't have a website of your own, so customers find only your Google listing.\nWe'd like to build you a website for free. If you can join a short online meeting, we'll show you the site we made for you, and you decide whether you want it.\nInterested? If yes, when are you usually free for a 15-minute call this week?\nRegards,\nAnna\n-- Acme Sites",
+   "after": "Hi Maria,\nI'm Rosa from Acme Sites. Parents in Brooklyn searching for Little Scholars Child Development Center only find your Google listing, no website of its own; parents find only the Google listing.\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "ratio": 0.5188,
+   "small_fix": false,
+   "group": "no package, own website",
+   "group_words_n": 1,
+   "group_words": "the other 1 leads with no package and own website",
+   "template": "Hi <contact>,\nI'm Rosa from Acme Sites. Parents in <city> searching for <business> only find your Google listing, <pain_point>\nWe build free sample websites for child-care centers: we make yours first, show it to you in a 15-minute online meeting, and you decide.\nWould Tuesday or Thursday afternoon suit you?\nRegards,\nAnna\n-- Acme Sites",
+   "placeholders": [
+    "<pain_point>",
+    "<business>",
+    "<city>",
+    "<contact>"
+   ],
+   "text_key": "10824a8b7b99d109c25f4c5f900c1112a72b77b0598e69ff2e8c53f36ca96e3a"
+  },
+  {
+   "name": "empty texts are a small fix",
+   "row": {
+    "business": "Little Scholars Child Development Center",
+    "contact": "Maria Lopez",
+    "city": "Brooklyn",
+    "website": "",
+    "package": "Starter Website",
+    "pain_point": "Pain point: no website of its own; parents find only the Google listing.\nThey can try: ...\nWe propose: Starter Website."
+   },
+   "before": "",
+   "after": "",
+   "ratio": 0.0,
+   "small_fix": true,
+   "group": "Starter Website",
+   "group_words_n": 7,
+   "group_words": "the other 7 no-website leads",
+   "template": "",
+   "placeholders": [],
+   "text_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "name": "a value under 3 characters is not replaced",
+   "row": {
+    "business": "Al",
+    "contact": "",
+    "city": "",
+    "website": "",
+    "package": "Starter Website"
+   },
+   "before": "Hello Al team",
+   "after": "Hi Al, we would love to build your new site and show it to you this week",
+   "ratio": 1.0,
+   "small_fix": false,
+   "group": "Starter Website",
+   "group_words_n": 7,
+   "group_words": "the other 7 no-website leads",
+   "template": "Hi Al, we would love to build your new site and show it to you this week",
+   "placeholders": [],
+   "text_key": "1130687aad338b7426ea746fe6fcd23edb96701b7cc8fb1ebbdbbdb9305233a7"
+  }
+ ]
+}

@@ -1,16 +1,31 @@
+import { agentName } from "@/lib/agent-names";
 import Link from "next/link";
 import { me } from "@/lib/auth";
 import type { TenantSettings } from "@/lib/db/schema";
+import { goalLine, goalsOf as sendGoalsOf } from "@/lib/send-goals";
 
-export const metadata = { title: "Guide · ramen-agents" };
+export const metadata = { title: "Guide · Productive Peek" };
 
 // The team's step-by-step guide, reshaped from the fleet's docs/peek-guide.md:
-// what a person changes in the portal, step by step, and what the agent family and the scoreboard read from that change. Every
+// what a person changes in Peek, step by step, and what the agent family and the scoreboard read from that change. Every
 // button and cell name is the one on the page. Edit LAST_UPDATED by hand when the text changes. Each section has an
 // anchor (/guide#send) so an agent or a teammate can link one step.
-const LAST_UPDATED = "2026-11-09";
+const LAST_UPDATED = "2026-11-20";
 
 type Step = { id: string; title: string; intro?: React.ReactNode; steps: React.ReactNode[]; seen: string };
+/** The saleable checklist's titles, as written in the engine's common-data/knowledge/saleable-checklist.json. */
+const SALEABLE = [
+  "Real photos (4 or more)",
+  "Menu prices, or no public price list recorded",
+  "Street address on the row",
+  "Rating and review count, with 3 quotes",
+  "Plain hours",
+  "Clean menu names",
+  "Photo header and gallery",
+  "Reserve or order button",
+  "Reviews as moving cards of real quotes (3 or more; 8 on a focus site), each from the facts",
+  "Quiet motion across the page that still reads with motion off",
+];
 
 const B = ({ children }: { children: React.ReactNode }) => <strong className="font-semibold text-ink">{children}</strong>;
 /** A page or tab a step names, as a link (every page a step names is one click away). */
@@ -27,8 +42,8 @@ const SECTIONS: Step[] = [
     id: "sign-in",
     title: "Sign in",
     steps: [
-      <>Open ramen-agents and press <B>Continue with Google</B>.</>,
-      <>Pick the Google account the owner added you with. Any other address gets no access; if the portal says so, ask the owner to check <P href="/settings/people">Settings → People</P>.</>,
+      <>Open Productive Peek and press <B>Continue with Google</B>.</>,
+      <>Pick the Google account the owner added you with. Any other address gets no access; if Peek says so, ask the owner to check <P href="/settings/people">Settings → People</P>.</>,
       <>The first time, read the privacy notice and accept it. Nothing is recorded for you before that.</>,
       <>On the <P href="/">Clock</P>, pick a project and press <B>Clock in</B>. <B>Clock out</B> at the end of the day, with a line about what you got done.</>,
     ],
@@ -36,13 +51,13 @@ const SECTIONS: Step[] = [
   },
   {
     id: "already-sent",
-    title: "Before the first sends: mark what you already sent (the owner)",
-    intro: "If your board was imported or rebuilt without the record of who was already emailed, Send next and the packs would offer those businesses again. Do this once, before anyone fills a pack.",
+    title: "Before Monday: mark what you already sent (the owner)",
+    intro: "The board was rebuilt on 6 November without the record of who was emailed before, so Send next and the packs would offer those businesses again. Do this once, before anyone fills a pack.",
     steps: [
       <>Open <P href="/leads/already-sent">Leads → Mark already sent</P> (owners and managers).</>,
       <>Paste the addresses from your mailbox&apos;s <B>Sent</B> folder, or press <B>Open a CSV…</B> on an export of it. A date on a line becomes the sent date. WhatsApp numbers and lead ids work too.</>,
       <>Pick what to set: <B>Email sent</B> (the usual), <B>WhatsApp sent</B>, <B>WhatsApp Verified</B>, <B>Ready to send email</B>, or <B>As each line says</B> for a list that names the status on each line.</>,
-      <>Press <B>Preview</B>. It shows what it would mark, what is already marked, what it could not find, and how many second first-emails it keeps from going out. Then press <B>Mark</B>.</>,
+      <>Press <B>Preview</B>. It shows what it would mark, what is already marked, what it could not find, and how many second first-emails it keeps from going out on Monday. Then press <B>Mark</B>.</>,
       <>Then everyone fills their pack (the next step). In that order: paste first, then packs.</>,
     ],
     seen: "Email status (or WhatsApp status), Sent by and Sent at, set as you in each lead's History: Send next and the packs stop offering those leads, and This week counts them on the day in the paste.",
@@ -50,29 +65,31 @@ const SECTIONS: Step[] = [
   {
     id: "pick",
     title: "Your send pack: today's leads",
-    intro: "Each person sends a few first emails and WhatsApp messages a day, not dozens: many sends from one address in a day land in spam more often, and the replies are what count. The daily goal is 5 emails and 3 WhatsApp messages each, unless the owner changed it in Settings → Company.",
+    // the intro quotes the Clock's goal line with the company's live numbers (set in Guide below)
+    intro: "",
     steps: [
-      <>On the <P href="/">Clock</P>, under the clock, press <B>Fill my pack</B>. The portal takes the next leads from Send next for you, best first, that nobody else holds, as many as you may still send today; they are yours until you send them or give them back. The pack&apos;s title shows how far you are (&ldquo;2 of 5 sent today&rdquo;).</>,
-      <>Open a lead in the pack. Read the <B>Draft email</B> and any red line under it: that is the Validator&apos;s flag on this lead (a wrong name, a figure it could not find). If the draft needs fixing, press <B>Open the lead</B> and use <B>Edit</B> on the draft first.</>,
+      <>On the <P href="/">Clock</P>, under the clock, press <B>Fill my pack</B>. Peek takes the next leads from Send next for you, best first, that nobody else holds, up to ten; they are yours until you send them or give them back. The pack&apos;s title shows how far you are (&ldquo;2 of 5 sent today&rdquo;).</>,
+      <>Open a lead in the pack. Read the <B>Draft email</B>. If the draft needs fixing, press <B>Open the lead</B> and use <B>Edit</B> on the draft first.</>,
       <>Copy the address shown beside the business, then press <B>Copy draft</B>. If files are attached, the copy ends with a line &ldquo;Attachments: …&rdquo; naming them (the files are on the <P href="/files">Files</P> page; what we offer is on <P href="/packages">Packages</P> and <P href="/asset">Asset</P>).</>,
       <>Made the sample site for this lead? Paste its link in the lead&apos;s <B>Sample site</B> cell before you send: <B>Copy draft</B> and <B>Copy message</B> then end with &ldquo;Your sample site: …&rdquo;.</>,
-      <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. When the day&apos;s goal is met the pack says &ldquo;Today&apos;s 5 are done; more tomorrow&rdquo;: <B>Fill my pack</B> waits and <B>Mark sent</B> is refused until the next day (midnight in the company&apos;s time zone). Checking WhatsApp numbers has no limit.</>,
+      <>Send it from your own mailbox (the next step), then press <B>Mark sent</B> in the pack. When the day&apos;s goal is met the pack says &ldquo;Today&apos;s goal of 5 is met. Keep going!&rdquo;: the goal is a target, not a limit, so keep sending if you have more.</>,
       <>Want one particular lead instead? In <P href="/leads">Leads</P> → <B>Send next</B>, press <B>Take it</B>; <B>Give back</B> if you cannot finish it. <B>Copy link</B> in a lead&apos;s drawer shares it with a colleague.</>,
       <>Telling the team in the WhatsApp group? Beside <B>Copy link</B>, <B>Copy for WhatsApp</B> copies the business, its link and the team&apos;s last changes on it (no email addresses or phone numbers); paste it into the group.</>,
+      <>Looking for businesses with no website of their own (the Starter Website offer)? In <P href="/leads?tab=table&site=none">Leads → Table</P>, press <B>No website</B>, or <B>No website, has WhatsApp</B> for the ones to message on WhatsApp; the count is on the chip.</>,
     ],
     seen: "your claim. A lead in your pack shows as yours everywhere, so nobody else sends the same email, and your fixes to the draft are saved into the lead, where they win over the agents'.",
   },
   {
     id: "send",
     title: "Send by hand and record it",
-    intro: "The portal never sends anything by itself. You send from your own mailbox; the portal records that you did.",
+    intro: "Peek never sends anything by itself. You send from your own mailbox; Peek records that you did.",
     steps: [
       <>Paste the draft into a new email from your own mailbox, to the address you copied.</>,
       <>Attach the files the last line names, then delete that line. Send it.</>,
-      <>Back in the portal, press <B>Mark sent</B> in Send next (it shows once the lead is yours) or <B>Mark email sent</B> in the drawer. They are the same step, and all count toward your daily goal. Sends from before, recorded with Leads → Mark already sent, do not.</>,
-      <>Check the lead now shows <B>Email Sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today. If you pressed it by mistake, the <B>×</B> on the chip clears all three.</>,
+      <>Back in Peek, press <B>Mark sent</B> in your pack on the <P href="/">Clock</P> (or in Send next, or <B>Mark email sent</B> in the drawer). They are the same step, and all count toward your daily goal. Sends from before, recorded with Leads → Mark already sent, do not.</>,
+      <>Check the lead&apos;s <B>Email</B> line now reaches <B>Sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today. If you pressed it by mistake, <B>Clear email status</B> in that line&apos;s <B>⋯</B> menu clears all three.</>,
     ],
-    seen: "Email status, Sent by and Sent at. The Validator counts the team's sends from them, This week shows them as sent this week, and the Leaderboard gives the lead to the person in Sent by on the day in Sent at.",
+    seen: `Email status, Sent by and Sent at. The ${agentName("Validator")} counts the team's sends from them, This week shows them as sent this week, and the Leaderboard gives the lead to the person in Sent by on the day in Sent at.`,
   },
   {
     id: "whatsapp",
@@ -81,20 +98,20 @@ const SECTIONS: Step[] = [
       <>On the <P href="/">Clock</P>, open your send pack&apos;s <B>WhatsApp</B> tab. Under <B>Check numbers</B>, press <B>Take 20 numbers</B>: twenty unchecked numbers, best leads first, that nobody else holds.</>,
       <>Press <B>Open in WhatsApp</B> on a number. If WhatsApp shows the business, press <B>Verified</B>. If you sent a message asking, press <B>Asked to verify</B>, and later <B>Verified</B> or <B>False number</B>.</>,
       <>If the number is not on WhatsApp, press <B>False number</B>. The status becomes &ldquo;False Whatsapp Number&rdquo; and the number leaves your list.</>,
-      <>The same buttons are in a lead&apos;s drawer: in <P href="/leads?tab=board">Leads → Board</P>, set the <B>WhatsApp</B> filter to &ldquo;(not set)&rdquo; and open a lead. The <B>Phone</B> cell is the number in the international format (+1…).</>,
+      <>The same steps are on the <B>WhatsApp</B> line in a lead&apos;s drawer (<B>False number</B> is under its <B>⋯</B> menu): in <P href="/leads?tab=board">Leads → Board</P>, set the <B>WhatsApp</B> filter to &ldquo;(not set)&rdquo; and open a lead. The <B>Phone</B> cell is the number in the international format (+1…).</>,
     ],
-    seen: "WhatsApp status. On “False Whatsapp Number” the Validator clears the number, the agents look for a better one, and no WhatsApp draft is written for that lead.",
+    seen: `WhatsApp status. On “False Whatsapp Number” the ${agentName("Validator")} clears the number, the agents look for a better one, and no WhatsApp draft is written for that lead.`,
   },
   {
     id: "whatsapp-send",
     title: "Send a WhatsApp message and record it",
     intro: "Like an email: Peek never sends it. You send from WhatsApp; Peek records that you did.",
     steps: [
-      <>In the pack&apos;s <B>WhatsApp</B> tab on the <P href="/">Clock</P>, <B>Send on WhatsApp</B> lists your verified numbers with a message ready, as many as you may still send today (3 a day unless the owner changed it: numbers that message many strangers get reported as spam) (a verified one without a message shows as &ldquo;draft coming&rdquo;: the agents write it next). Or open <P href={WA_VERIFIED}>Leads filtered to WhatsApp Verified</P> and a lead that has a <B>Draft WhatsApp message</B>.</>,
+      <>In the pack&apos;s <B>WhatsApp</B> tab on the <P href="/">Clock</P>, <B>Send on WhatsApp</B> lists your verified numbers with a message ready, up to ten (a verified one without a message shows as &ldquo;draft coming&rdquo;: the agents write it next). Or open <P href={WA_VERIFIED}>Leads filtered to WhatsApp Verified</P> and a lead that has a <B>Draft WhatsApp message</B>.</>,
       <>Read the draft. If anything is wrong or weak, press <B>Edit</B> on it and fix it: your version wins over the agents&apos;.</>,
       <>Press <B>Copy message</B> in the tab (or <B>Copy</B> on the draft in the drawer).</>,
       <>Press <B>Open in WhatsApp</B> (or the <B>WhatsApp</B> link in the drawer): it opens a chat with that number. Paste the message and send it from WhatsApp.</>,
-      <>Back in Peek, press <B>Mark WhatsApp sent</B> in the tab (in the drawer: <B>WhatsApp message sent</B>). Check the chip now reads <B>WhatsApp msg sent</B>, with <B>Sent by</B> your name and <B>Sent at</B> today (if the lead was emailed first, those keep the email&apos;s). Pressed it by mistake? The <B>×</B> on the chip clears it.</>,
+      <>Back in Peek, press <B>Mark WhatsApp sent</B> in the tab (in the drawer: <B>Message sent</B> on the WhatsApp line). Check the line now reaches <B>Message sent</B> (the status <B>WhatsApp msg sent</B>), with <B>Sent by</B> your name and <B>Sent at</B> today (if the lead was emailed first, those keep the email&apos;s). Pressed it by mistake? <B>Clear WhatsApp status</B> in that line&apos;s <B>⋯</B> menu clears it.</>,
       <>A reply or a meeting from WhatsApp is recorded the same way as from email: see <a href="#result" className="underline">Follow up and record the result</a>.</>,
     ],
     seen: "WhatsApp status, Sent by and Sent at, under your name in the lead's History. This week, the Leaderboard and your statement count it as a send for the person who pressed the button, shown beside the emails (\"12 emails · 4 WhatsApp\"), worth the same points as an email; a reply, meeting or client you record afterwards counts as usual.",
@@ -104,25 +121,14 @@ const SECTIONS: Step[] = [
     title: "Follow up and record the result",
     intro: "Most small businesses answer a short second note, not the first email. Peek reminds you; you send it, as always, from your own mailbox.",
     steps: [
-      <>On the <P href="/">Clock</P>, under your pack, <B>Follow up</B> lists the leads you sent four or more working days ago with no answer yet, oldest first.</>,
-      <>Open one. <B>What you sent first</B> shows your first email; under it is the follow-up: the agents&apos; draft when they wrote one, else a two-line note. Make it yours, press <B>Copy follow-up</B>, send it from your mailbox as a reply to your first email, then press <B>Follow-up sent</B>.</>,
-      <>An answer came? Press what it was, there or under <B>Sent by you, no answer yet</B>: <B>Replied</B>, <B>Meeting booked</B>, <B>Not interested</B> or <B>Bounced</B>. In a lead&apos;s drawer the same steps are <B>Replied</B>, <B>Meeting booked</B>, <B>Won</B>, <B>Lost</B> and <B>Bounced</B>; Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
+      <>On the <P href="/">Clock</P>, under your pack, <B>Follow up</B> lists the leads you sent 2, 5 and 14 days ago with no answer yet, oldest first. The <P href="/leads?tab=followup">Follow up tab</P> under Leads shows all of them.</>,
+      <>Open one. <B>What you sent first</B> shows your first email; under it is the follow-up: the agents&apos; draft when they wrote one, else it says no draft yet and you write your own. Make it yours, press <B>Copy follow-up</B>, send it from your mailbox as a reply to your first email, then press <B>Follow-up sent</B>.</>,
+      <>An answer came? Press what it was, there or under <B>Sent by you, no answer yet</B>: <B>Replied</B>, <B>Meeting booked</B>, <B>Not interested</B> or <B>Bounced</B>. In a lead&apos;s drawer the <B>Email</B> line has <B>Replied</B>, <B>Meeting</B> and <B>Won</B>, and its <B>⋯</B> menu has <B>Lost</B> and <B>Bounced</B>; Won sets the <B>Result</B> to Client, Lost to Not interested.</>,
       <>The <B>Result date</B> fills itself with today. If the reply came on another day, open the lead (search it in <P href="/leads?tab=board">Leads → Board</P>); in its <B>Activity</B> box at the top, press <B>Change date</B> beside the result and set it.</>,
-      <>Pressed the wrong one? Clear it with the <B>×</B> on its chip in the drawer and press the right one.</>,
+      <>Pressed the wrong one? Use <B>Clear result</B> in the line&apos;s <B>⋯</B> menu in the drawer, and press the right one.</>,
       <>A Starter Website lead replied or booked a meeting? It shows under <B>Samples to make</B> on the <P href="/">Clock</P> until you paste its sample&apos;s link in <B>Sample site</B>.</>,
     ],
     seen: "Follow-up sent and Follow-up by, Result and Result date, which only people set; the agents never change them. This week shows the follow-ups on their own line (not as sends), and the Leaderboard and This week count replies, meetings and clients by the result date, for the person who sent the lead.",
-  },
-  {
-    id: "tasks",
-    title: "Team tasks",
-    steps: [
-      <>Open <P href="/todo">To-do</P>. The standing task comes first, then yours, then the rest by priority.</>,
-      <>Press <B>I&apos;m on it</B> on the task you take. <B>Release</B> gives it back.</>,
-      <>Press the status step the task has reached; tick each line under <B>Done when</B> as you finish it.</>,
-      <>Press <B>Done</B> at the end. A red flag on a task is the Validator&apos;s note about something to fix; fix it and the flag goes on its next run.</>,
-    ],
-    seen: "the task's status and its assignees. A Done task counts once for each person assigned, on This week and the Leaderboard; the Validator's flags on it clear once it is fixed.",
   },
 ];
 
@@ -133,7 +139,6 @@ function goalsOf(kr: TenantSettings["keyResults"]): string[] {
     k.sent ? `${k.sent} emails sent` : "",
     k.replies ? `${k.replies} replies` : "",
     k.meetings ? `${k.meetings} meetings` : "",
-    k.tasksDone ? `${k.tasksDone} tasks done` : "",
   ].filter(Boolean);
 }
 
@@ -145,7 +150,13 @@ const nextLink = "text-sm font-medium text-accent-ink underline underline-offset
 export default async function Guide() {
   const who = await me().catch(() => null);
   const goals = who ? goalsOf(who.settings.keyResults) : [];
-  const steps = SECTIONS;
+  // the send step quotes the Clock's line, with this company's goals
+  const line = goalLine(sendGoalsOf(who?.settings));
+  const steps = SECTIONS.map((s) =>
+    s.id === "pick"
+      ? { ...s, intro: <>&ldquo;{line}&rdquo; Each person sends a few first emails and WhatsApp messages a day, not dozens: the replies are what count. The owner sets the numbers in Settings → Company.</> }
+      : s,
+  );
   return (
     <article className="max-w-2xl text-[0.9375rem] leading-relaxed">
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Guide</h1>
@@ -156,8 +167,8 @@ export default async function Guide() {
           Mission and this week
         </h2>
         <p className="mt-2">
-          Your mission in plain words: who you help, what you offer them first so they see the work before they pay, and how you help them grow. (Edit
-          this line in app/guide/page.tsx.)
+          We find small businesses that have no website, or one that is broken or out of date. We offer each one a free one-page sample site first, so they
+          see the work before they pay anything, and then we help them grow: the full site, its care, and the tools that bring them customers.
         </p>
         <p className="mt-3 font-semibold">This week</p>
         {!who ? (
@@ -179,7 +190,7 @@ export default async function Guide() {
           The agents read what you recorded, and so does the scoreboard: <P href="/week">This week</P> and the <P href="/leaderboard">Leaderboard</P>.
         </p>
         <p className="mt-3 text-sm text-muted">
-          Want to see the agents at work? The <P href="/family">Family</P> page shows their office live and read-only (when the agents&apos; machine is on):
+          Want to see the agents at work? The <P href="/family">Team</P> page shows their world live and read-only (when the owner&apos;s Mac is on):
           tap a member for what it is doing and its last actions. Businesses show as their first word and an initial; no addresses or numbers.
         </p>
       </section>
@@ -190,14 +201,14 @@ export default async function Guide() {
         </h2>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 marker:text-accent">
           <li>Whatever you write in a cell is the true value. The agents read it and never overwrite it; if one tries, <B>History</B> at the bottom of the drawer shows its write as refused.</li>
-          <li>The Validator counts it as the team&apos;s correction; the <B>Corrected by the team</B> filter on <P href="/leads?tab=board">Leads → Board</P> lists those leads.</li>
+          <li>The {agentName("Validator")} counts it as the team&apos;s correction; the <B>Corrected by the team</B> filter on <P href="/leads?tab=board">Leads → Board</P> lists those leads.</li>
           <li>The drafts you edit and send are what the agents learn their writing from.</li>
         </ul>
         <p className="mt-2">So fix anything wrong or weak in place. It is never wasted.</p>
         <p className="mt-2 text-sm">
-          <span className="font-semibold">How:</span> open the lead, press <B>Edit</B> next to the cell (empty cells are listed too; if you pressed <B>Hide empty fields</B> before, press <B>Show empty fields</B>), type the
+          <span className="font-semibold">How:</span> open the lead, press <B>Edit</B> on the cell, or <B>Add</B> on an empty one (empty cells are listed too; if you pressed <B>Hide empty fields</B> before, press <B>Show empty fields</B>), type the
           right value and press <B>Save</B>. What was sent, the follow-up, the result and who holds the lead are not cells: they show in the
-          drawer&apos;s <B>Activity</B> box, set by the step buttons and the result chips.
+          drawer&apos;s <B>Activity</B> box, set by the <B>Email</B> and <B>WhatsApp</B> lines.
         </p>
         <p className="mt-2 text-sm">
           <span className="font-semibold">Your order:</span> in <P href="/settings/my-view">Settings → My view</P> put the drawer&apos;s fields in the order you work them, hide the ones you never use (the agents&apos; proof fields, such as Evidence, Source pages and Found by, start hidden; unhide any you want), or press <B>Use my Table column order</B>. It is yours on every browser.
@@ -215,6 +226,12 @@ export default async function Guide() {
             </li>
           ))}
         </ol>
+        <p className="mt-2 text-sm">
+          And for final sites:{" "}
+          <a href="#site-standard" className="underline decoration-line underline-offset-2 hover:decoration-accent">
+            the house standard
+          </a>
+        </p>
       </nav>
       {steps.map((s, i) => (
         <section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className="mt-8 scroll-mt-20">
@@ -230,7 +247,7 @@ export default async function Guide() {
             ))}
           </ol>
           <p className="mt-3 rounded-lg border-l-4 border-accent bg-accent-tint px-3 py-2 text-sm">
-            <span className="font-semibold">Seen by the family as:</span> {s.seen}
+            <span className="font-semibold">Seen by the agents as:</span> {s.seen}
           </p>
           <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
             {steps[i + 1] ? (
@@ -244,6 +261,31 @@ export default async function Guide() {
           </p>
         </section>
       ))}
+
+      {/* the design standard for final sites (the rule as the Site Builder's persona states it, and the saleable
+          checklist's titles, common-data/knowledge/saleable-checklist.json); change them there first, then here */}
+      <section id="site-standard" aria-labelledby="site-standard-title" className="mt-10 scroll-mt-20 rounded-xl border border-line bg-panel p-4">
+        <h2 id="site-standard-title" className="text-lg font-semibold">
+          <a href="#site-standard" className="hover:underline">
+            Final sites: the house standard
+          </a>
+        </h2>
+        <p className="mt-1">
+          <span className="font-semibold">The owner&apos;s r8:</span> clean design with quiet, elegant motion that still reads with motion off; a slider of real food quotes with
+          short names; the popular dishes lead the menu; edited photos, the business&apos;s own first; every site unique.
+        </p>
+        <p className="mt-3 font-semibold">A site is saleable when all of these are done:</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5 marker:text-muted">
+          {SALEABLE.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ol>
+        <p className="mt-2">
+          <a href="#steps" className={nextLink}>
+            Back to steps
+          </a>
+        </p>
+      </section>
     </article>
   );
 }

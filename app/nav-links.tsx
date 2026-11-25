@@ -1,10 +1,11 @@
 "use client";
-// The top bar: the daily work on the left (Clock, To-do, Leads), everything else in the profile menu on the
-// right. The page you are on is marked: accent text, the brand orange underline and aria-current="page" in the bar; a
+// The top bar: the daily work on the left (Clock, Leads; To-do removed), everything else (the leaderboard, this week,
+// settings) in the profile menu on the right. The page you are on is marked: accent text, the brand orange underline and aria-current="page" in the bar; a
 // filled row in the menu, and a ring on the profile button while you are on one of its pages. Below 380 px the wordmark
 // steps aside (Clock is home) and, with large text, the links scroll inside the bar, so the page never scrolls sideways.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useFollowUpCount } from "./use-follow-up-count";
 import { useEffect, useRef, useState } from "react";
 import SignOut from "./sign-out";
 import { displayName } from "@/lib/display-name";
@@ -12,52 +13,70 @@ import { displayName } from "@/lib/display-name";
 /** The bar: the work people do every day. */
 export const NAV = [
   { href: "/", label: "Clock" },
-  { href: "/todo", label: "To-do" }, // the team's tasks
-  { href: "/leads", label: "Leads" },
-  { href: "/files", label: "Files" },
-  { href: "/asset", label: "Asset" }, // "What we have": the company text, rates included
-  { href: "/packages", label: "Packages" }, // what you offer, ready to pitch
+  { href: "/leads", label: "Lead" },
+  { href: "/packages", label: "Package" }, // moved off the Asset page into the bar
+  { href: "/asset", label: "Asset" }, // "What we have": the owner's Notion page, rates included
+  { href: "/files", label: "File" },
 ] as const;
+/** The daily work first (Clock, Lead, Sample), a divider, then the reference pages. */
+export const NAV_WORK = 2;
+/** For everyone on the team: the sample sites to review, after Leads, with the drafts waiting as a
+ *  badge. */
+export const REVIEW_NAV = { href: "/samples", label: "Sample" } as const;
 /** The profile menu: looking back and setting up. */
 export const MENU = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/week", label: "This week" },
   { href: "/guide", label: "Guide" }, // the team's step-by-step guide
-  { href: "/family", label: "Family" }, // what the agents did today and this week
+  { href: "/family", label: "Team" }, // the agents (the Team): what they did today and this week
   { href: "/settings", label: "Settings" },
   { href: "/privacy", label: "Privacy" },
 ] as const;
 
+/** What only the owner can say yes to, in the owner's menu. */
+export const OWNER_MENU = { href: "/approvals", label: "Approvals" } as const;
+
 /** The nav item a path belongs to: "/" only for home itself, the others for their pages and everything under them. */
 export function currentNav(path: string): string | null {
   if (path === "/" || path === "/clock" || path.startsWith("/projects/")) return "/";
-  const hit = [...NAV, ...MENU].filter((n) => n.href !== "/").find((n) => path === n.href || path.startsWith(`${n.href}/`));
+  const hit = [...NAV, REVIEW_NAV, ...MENU, OWNER_MENU].filter((n) => n.href !== "/").find((n) => path === n.href || path.startsWith(`${n.href}/`));
   return hit ? hit.href : null;
 }
 
-export default function NavLinks({ who }: { who: { name: string; email: string; role: string; tenantName: string } }) {
+export default function NavLinks({ who, samples }: { who: { name: string; email: string; role: string; tenantName: string }; samples?: number | null }) {
   const current = currentNav(usePathname() ?? "/");
   const links = useRef<HTMLDivElement>(null);
+  const followUps = useFollowUpCount();
   // When the links scroll inside the bar, the current one is brought into view.
   useEffect(() => {
     links.current?.querySelector<HTMLElement>("[aria-current=page]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [current]);
+  const link = (n: (typeof NAV)[number] | typeof REVIEW_NAV) => {
+    const on = current === n.href;
+    const badge = n.href === REVIEW_NAV.href && samples ? samples : n.href === "/leads" ? followUps : 0; // follow-ups due on the Leads link
+    return (
+      <Link
+        key={n.href}
+        href={n.href}
+        aria-current={on ? "page" : undefined}
+        aria-label={badge ? `${n.label}: ${badge} ${n.href === "/leads" ? `follow-up${badge === 1 ? "" : "s"} due` : `draft${badge === 1 ? "" : "s"} to check`}` : undefined}
+        className={`inline-flex min-h-12 shrink-0 items-center gap-1.5 border-b-2 whitespace-nowrap ${on ? "border-accent font-semibold text-accent-ink" : "border-transparent text-muted hover:text-ink"}`}
+      >
+        {n.label}
+        {badge ? (
+          <span data-samples-badge aria-hidden className="inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs leading-5 font-semibold text-on-accent tabular-nums">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
   return (
     <>
       <div ref={links} className="-mb-px flex min-w-0 items-center gap-x-3 max-[379px]:gap-x-2.5 overflow-x-auto [scrollbar-width:none] sm:gap-x-5">
-        {NAV.map((n) => {
-          const on = current === n.href;
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              aria-current={on ? "page" : undefined}
-              className={`inline-flex min-h-12 shrink-0 items-center border-b-2 whitespace-nowrap ${on ? "border-accent font-semibold text-accent-ink" : "border-transparent text-muted hover:text-ink"}`}
-            >
-              {n.label}
-            </Link>
-          );
-        })}
+        {[...NAV.slice(0, NAV_WORK), ...(samples == null ? [] : [REVIEW_NAV])].map(link)}
+        <span aria-hidden data-nav-divider className="mx-0.5 h-5 w-px shrink-0 bg-line sm:mx-1.5" />
+        {NAV.slice(NAV_WORK).map(link)}
       </div>
       <ProfileMenu who={who} current={current} />
     </>
@@ -75,7 +94,8 @@ function ProfileMenu({ who, current }: { who: { name: string; email: string; rol
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
-  const inMenu = MENU.some((m) => m.href === current);
+  const menu = who.role === "owner" ? [OWNER_MENU, ...MENU] : MENU;
+  const inMenu = menu.some((m) => m.href === current);
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
@@ -120,7 +140,7 @@ function ProfileMenu({ who, current }: { who: { name: string; email: string; rol
             </p>
           </div>
           <div className="my-1 border-t border-line" />
-          {MENU.map((m) => {
+          {menu.map((m) => {
             const on = current === m.href;
             return (
               <Link

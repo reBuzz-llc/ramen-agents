@@ -1,38 +1,38 @@
 {
-  "name": "ramen-agents-portal",
+  "name": "productive-peek",
   "version": "0.1.0",
   "private": true,
-  "license": "Apache-2.0",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
     "start": "npm run migrate && next start -p 3100",
+    "local": "PEEK_SIGNIN=off FILES_LOCAL=1 next start -H 127.0.0.1 -p 3100",
     "lint": "eslint app lib",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
-    "env:vercel": "sh scripts/vercel-env.sh"
+    "migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
     "@aws-sdk/s3-request-presigner": "^3.1161.0",
     "@electric-sql/pglite": "^0.5.9",
-    "@neondatabase/auth": "^0.6.0-beta",
     "@vercel/functions": "^3.10.1",
     "drizzle-orm": "^0.45.4",
     "next": "16.3.5",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "read-excel-file": "^9.3.14"
+    "read-excel-file": "^9.3.14",
+    "sanitize-html": "2.18.1"
   },
   "devDependencies": {
-    "@neon/config": "^1.9.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/sanitize-html": "2.16.2",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",

@@ -11,14 +11,15 @@ import { listTasks, openTaskFlags } from "@/lib/tasks";
 import { sameOrigin } from "@/lib/same-origin";
 import { recordOutcome } from "@/lib/tenants";
 import { startDayOf, weekStart } from "@/lib/week";
-import { overGoal } from "@/lib/send-goals-db";
 import { displayName } from "@/lib/display-name";
 
 // GET: the company's queue (drafts to review, emails to send, open team tasks), best Lead score first, and this week's
 // sent count against the key result. The leads come from Peek's own board, the same rows and
-// claims as Leads → Send next.
-export async function GET() {
+// claims as Leads → Send next; nothing is read from Notion.
+export async function GET(req: Request) {
   const started = Date.now();
+  // ?part=tasks (To-do): the team's tasks only, none of the leads queue it never shows
+  const tasksOnly = new URL(req.url).searchParams.get("part") === "tasks";
   const g = await guard("queue.work");
   if ("res" in g) return g.res;
   const d = await db();
@@ -26,13 +27,13 @@ export async function GET() {
     // Three independent reads at once (one round trip of waiting, not three); the person, the company's settings and
     // the notice state came with the sign-in check. The task board is optional: when it fails, the leads still show.
     // The leads read is optional too: when it fails, its reason shows on the lead tabs and the team's tasks still show.
-    const from = weekStart(new Date(), startDayOf(g.who.settings));
+    const from = weekStart(new Date(), startDayOf(g.who.settings), g.who.settings.timezone);
     const [{ queue, sentThisWeek, leadsReason }, taken, taskResult] = await Promise.all([
-      Promise.all([leadQueue(d, g.who.tenantId), sentSinceOnPeek(d, g.who.tenantId, from)]).then(
+      (tasksOnly ? Promise.resolve([[], 0] as const) : Promise.all([leadQueue(d, g.who.tenantId), sentSinceOnPeek(d, g.who.tenantId, from, g.who.settings.timezone)])).then(
         ([queue, sentThisWeek]) => ({ queue, sentThisWeek, leadsReason: "" }),
         (err) => ({ queue: [] as Awaited<ReturnType<typeof leadQueue>>, sentThisWeek: 0, leadsReason: publicReason(err, "queue.read") }),
       ),
-      claimsOf(d, g.who.tenantId),
+      tasksOnly ? Promise.resolve(new Map() as Awaited<ReturnType<typeof claimsOf>>) : claimsOf(d, g.who.tenantId),
       teamTasks(d, g.who).then(
         (tasks) => ({ tasks, reason: "" }),
         (err) => ({ tasks: [] as TaskRow[], reason: publicReason(err, "queue.tasks") }),
@@ -53,7 +54,7 @@ export async function GET() {
   }
 }
 
-/** The team's tasks, Peek's own. */
+/** The team's tasks, Peek's own (the Notion task board is frozen since 2026-11-05). */
 async function teamTasks(d: Awaited<ReturnType<typeof db>>, who: { tenantId: string; userId: string; name: string; email: string }): Promise<TaskRow[]> {
   const all: Record<string, unknown>[] = [];
   for (let since = 0, i = 0; i < 20; i++) {
@@ -83,9 +84,6 @@ export async function POST(req: Request) {
   if (!holder) return NextResponse.json({ ok: false, error: "Accept it first." }, { status: 409 });
   if (holder.userId !== g.who.userId) return NextResponse.json({ ok: false, error: `${holder.name} accepted this one.` }, { status: 409 });
   try {
-    // the day's send goal
-    const over = status === STATUS_SENT ? await overGoal(d, g.who.tenantId, g.who.userId, ["email"], body.pageId) : null;
-    if (over) return NextResponse.json({ ok: false, error: over }, { status: 409 });
     const r = await markLead(d, g.who.tenantId, body.pageId, status as (typeof WRITABLE)[number], { kind: "person", name: displayName(g.who.name, g.who.email), userId: g.who.userId });
     if (r.ok) await recordOutcome(d, g.who.tenantId, g.who.userId, body.pageId, status === STATUS_SENT ? "sent" : "reviewed");
     if (r.ok && status === STATUS_SENT) await closeClaim(d, g.who.tenantId, body.pageId);

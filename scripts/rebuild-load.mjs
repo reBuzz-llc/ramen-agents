@@ -1,27 +1,28 @@
-// Rebuild the portal's data from a dataset (when the database is lost, or moves to another host and only the agents'
-// records remain): one JSON object per line in <dir>/{leads,tasks,assets,people}-rebuild-<stamp>.jsonl
-//   leads-rebuild-<stamp>.jsonl   {id, created_at, archived, fields: {<API key>: {value, source, at} | value}}
+// Rebuild Peek's data from the Mac's records (written for the day a database's free allowance stopped Peek until the
+// month reset). The Validator's side assembles the dataset in ~/bots/common-data/backups/ from what the Mac kept (the bots' traces,
+// the Validator's caches, Notion's history):
+//   leads-rebuild-<stamp>.jsonl   {id, notion_page_id, created_at, archived, fields: {<API key>: {value, source, at} | value}}
 //   tasks-rebuild-<stamp>.jsonl   the same, with the task board's keys
-//   assets-rebuild-<stamp>.jsonl  {kind: rate|package|section, position, ...} (a section's own kind as section_kind)
+//   assets-rebuild-<stamp>.jsonl  {kind: rate|package|section, position, ...}
 //   people-rebuild-<stamp>.jsonl  {email, name, role} (optional: else common-data/team.json and --owner-email)
-// (examples/rebuild/ has a tiny set) and this loads them into a portal database, as the portal itself would store them:
-//   - one company (--tenant, default "team"), its people (the owner as owner);
+// and this loads them into a Peek database (the local one by default), as Peek itself would have stored them:
+//   - one company (--tenant, default: the only one there is), its people (the owner as owner);
 //   - leads and tasks upserted by id, keeping the dataset's ids and created_at; the derived columns (a lead's domain,
 //     city and state) computed as lib/leads.ts does; each new or changed row gets a fresh rev (so the readers' since=
 //     works) and one History entry "rebuilt from <sources> on <date>";
-//   - a mirrored "What we have" page split into its sections, its Rates block the rate card; packages as given;
-//   - the agents' API keys: only their SHA-256 is stored, and the plain keys are in <keys>/peek-*.key, so the same
-//     hashes go in and every agent's key works unchanged.
+//   - the asset lists (rates, packages, sections) replaced when they differ;
+//   - the family's API keys: only their SHA-256 is stored, and the plain keys are in ~/bots/common-data/keys/peek-*.key,
+//     so the same hashes go in and every bot's key works unchanged (no new keys, no key file rewritten).
 // Idempotent: a second run with the same files changes nothing. Ends with a count per table and column.
 //
-//   node scripts/rebuild-load.mjs --database-url URL [--dir ~/bots/common-data/backups] [--stamp <stamp>]
-//        [--owner-email you@example.com] [--tenant team] [--dry-run]
+//   node scripts/rebuild-load.mjs [--dir ~/bots/common-data/backups] [--stamp <stamp>] [--database-url URL]
+//        [--owner-email you@example.com] [--tenant <slug>] [--dry-run]
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sectionsFrom as sectionsFromMirror } from "./seed-sections.mjs";
+import { sectionsFromMirror } from "./seed-sections.mjs";
 
 const BOTS = process.env.BOTS_DIR || path.join(homedir(), "bots");
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
@@ -45,18 +46,30 @@ export function domainOf(website) {
     return null;
   }
 }
-const STATES = { "new york": "NY", "n.y.": "NY", ny: "NY", california: "CA", florida: "FL", michigan: "MI", "new jersey": "NJ", texas: "TX", "united kingdom": "UK", england: "UK" };
-// the same list as lib/lead-filters.ts (tests/rebuild-load.test.ts compares the two)
-const NYC = /^(brooklyn|queens|manhattan|bronx|the bronx|staten island|new york|new york city|nyc|ridgewood|astoria|flushing|jamaica|long island city)$/i;
+const STATES = { "new york": "NY", "new jersey": "NJ", connecticut: "CT", pennsylvania: "PA", massachusetts: "MA", california: "CA", texas: "TX", florida: "FL", illinois: "IL" };
+const NYC = /^(new york|nyc|manhattan|brooklyn|queens|bronx|the bronx|staten island|long island city|astoria|flushing|jamaica|harlem)$/i;
+const looksLikeStreet = (part) => {
+  const p = part.trim();
+  return /^\d/.test(p) || (/\d/.test(p) && /\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|hwy|highway|pkwy|parkway|pl|place|ct|court|way|ter|terrace|sq|square)\.?$/i.test(p)) || /^(suite|ste|unit|apt|floor|fl)\b|#\s*\d/i.test(p);
+};
 export function placeOf(location) {
   const parts = String(location ?? "").split(",").map((p) => p.trim()).filter(Boolean);
   if (!parts.length) return { city: "", state: "" };
-  const city = parts[0];
-  for (const p of parts.slice(1)) {
+  let last = null;
+  for (const [i, p] of parts.entries()) {
+    if (i === 0) continue;
     const word = p.replace(/\s*\d{5}(-\d{4})?$/, "").trim().toLowerCase();
-    if (STATES[word]) return { city, state: STATES[word] };
-    if (/^[a-z]{2}$/i.test(word) && !/^(us)$/i.test(word)) return { city, state: word.toUpperCase() };
+    const state = STATES[word] ?? (/^[a-z]{2}$/i.test(word) && !/^(us)$/i.test(word) ? word.toUpperCase() : "");
+    if (state) last = { i, state };
   }
+  // the last part that reads as a state: "276 Fifth Avenue, New York, NY 10001" is New York, NY
+  if (last) {
+    // the nearest place before it; a state's own name ("New York") only when no other place comes first
+    const before = parts.slice(0, last.i).reverse().filter((x) => !looksLikeStreet(x));
+    const isState = (x) => !!STATES[x.replace(/\s*\d{5}(-\d{4})?$/, "").trim().toLowerCase()];
+    return { city: before.find((x) => !isState(x)) ?? before[0] ?? "", state: last.state };
+  }
+  const city = parts.find((x) => !looksLikeStreet(x)) ?? "";
   return { city, state: NYC.test(city) ? "NY" : "" };
 }
 
@@ -85,10 +98,18 @@ export const readJsonl = (file) =>
         })
     : [];
 
-/** A cell's value and source, from {value, source, at} or a plain value. */
-export const cellOf = (v) => (v && typeof v === "object" && !Array.isArray(v) && "value" in v ? { value: v.value, source: String(v.source ?? ""), at: v.at ?? null } : { value: v, source: "", at: null });
+/** A cell's value, source, time and who wrote it last ("person" or "bot", when the dataset says), from
+ *  {value, source, at, by} or a plain value. */
+export const cellOf = (v) =>
+  v && typeof v === "object" && !Array.isArray(v) && "value" in v
+    ? { value: v.value, source: String(v.source ?? ""), at: v.at ?? null, by: v.by === "person" || v.by === "bot" ? v.by : "" }
+    : { value: v, source: "", at: null, by: "" };
 
-/** A value for a column of this Postgres type, as the portal stores it: empty text and empty lists are null. */
+/** The name a moved cell's history entry carries: a person's cell is the team's (no single person can be named), a
+ *  bot's keeps its source. Person cells keep person_wins: an agent cannot overwrite them after the move. */
+export const MOVED_BY = "moved from the local board";
+
+/** A value for a column of this Postgres type, as Peek stores it: empty text and empty lists are null. */
 export function toColumn(type, v) {
   if (v === undefined || v === null || v === "") return null;
   switch (type) {
@@ -135,7 +156,7 @@ async function columnsOf(client, table) {
   return new Map(rows.map((r) => [r.column_name, r.data_type]));
 }
 
-const BATCH = 500; // rows per insert statement (a remote load in seconds, not half an hour)
+const BATCH = 500; // rows per insert statement: a remote load in a minute, not 30
 const quote = (n) => `"${n}"`;
 
 /** Insert rows in batches of BATCH, rows with the same columns together (a multi-row VALUES cannot leave a column to
@@ -161,12 +182,13 @@ async function insertMany(client, table, rows) {
  *  own, so a stop never leaves one long transaction open. */
 async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today, dry }) {
   const cols = await columnsOf(client, table);
-  const report = { inserted: 0, changed: 0, unchanged: 0, skipped: 0, cells: {} };
-  // what is stored: by id, and (tasks without one) by title, oldest first
+  const report = { inserted: 0, changed: 0, unchanged: 0, skipped: 0, cells: {}, writers: { person: 0, bot: 0 }, dropped: {} };
+  // what is stored: by id, by Notion page, and (tasks without either) by title, oldest first
   const stored = (await client.query(`select * from ${table} where tenant_id = $1 order by created_at, rev`, [tenant])).rows;
   const byId = new Map(stored.map((r) => [r.id, r]));
+  const byNotion = new Map(stored.filter((r) => r.notion_page_id).map((r) => [r.notion_page_id, r]));
   const byTitle = new Map();
-  if (table === "tasks") for (const r of stored) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
+  if (table === "tasks") for (const r of stored.filter((x) => !x.notion_page_id)) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
   const taken = new Set(); // each stored row answers one dataset row per run (two tasks may share a title)
   const inserts = [];
   const history = [];
@@ -175,11 +197,17 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
     const fields = row.fields ?? {};
     const values = {};
     const sources = new Set();
+    const writer = {}; // column -> {by, source, at} when the dataset says who wrote it last
     for (const [k, raw] of Object.entries(fields)) {
-      if (!cols.has(k) || DERIVED.has(k)) continue;
+      if (!cols.has(k) || DERIVED.has(k)) {
+        // a field this board has no column for is left out, and counted, so a dataset with the wrong names shows it
+        if (!cols.has(k)) report.dropped[k] = (report.dropped[k] ?? 0) + 1;
+        continue;
+      }
       const c = cellOf(raw);
       values[k] = toColumn(cols.get(k), c.value);
       if (c.source) sources.add(c.source);
+      if (c.by) writer[k] = c;
     }
     if (row.archived !== undefined) values.archived = !!row.archived;
     if (table === "leads") {
@@ -197,15 +225,31 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
       report.skipped++;
       continue;
     }
+    // the Notion page id only while the table still has the column (dropped in Peek 601): rows are found by id after it
+    if (row.notion_page_id && cols.has("notion_page_id")) values.notion_page_id = String(row.notion_page_id);
     const id = row.id && /^[0-9a-f-]{36}$/i.test(row.id) ? row.id : null;
-    // the row by its id, else (a task the dataset has no id for) its title: a second run finds what the first one wrote
-    let found = id ? byId.get(id) : undefined;
-    if (!found && !id && table === "tasks") found = (byTitle.get(values.title) ?? []).find((r) => !taken.has(r.id));
+    // the row by its id, else its Notion page, else (a task the dataset has no id for) its title: a second run finds
+    // what the first one wrote
+    let found = id ? byId.get(id) : values.notion_page_id ? byNotion.get(values.notion_page_id) : undefined;
+    if (!found && !id && !values.notion_page_id && table === "tasks") found = (byTitle.get(values.title) ?? []).find((r) => !taken.has(r.id));
     if (found && taken.has(found.id)) found = undefined;
     if (found) taken.add(found.id);
-    const note = { note: `rebuilt from ${[...sources].join(", ") || "the dataset"} on ${today}` };
+    const note = { note: `rebuilt from ${[...sources].join(", ") || "the Mac's records"} on ${today}` };
     const asParam = (k) => (cols.get(k) === "jsonb" ? JSON.stringify(values[k]) : values[k]);
     const entry = (rowId, columns) => ({ tenant_id: tenant, [idCol]: rowId, column: "rebuilt", new: JSON.stringify({ ...note, columns }), actor_kind: "bot", actor_name: "rebuild", via: "rebuild-load" });
+    // one applied entry per column whose writer the dataset names, so Peek's person-wins rule reads it as before the move;
+    // the rest share the one "rebuilt" entry
+    const record = (rowId, columns, old) => {
+      const named = columns.filter((k) => writer[k]);
+      const rest = columns.filter((k) => !writer[k]);
+      for (const k of named) {
+        const w = writer[k];
+        const at = w.at && !Number.isNaN(Date.parse(w.at)) ? new Date(w.at).toISOString() : new Date().toISOString();
+        history.push({ tenant_id: tenant, [idCol]: rowId, column: k, old: old ? JSON.stringify(norm(cols.get(k), old[k]) ?? null) : null, new: JSON.stringify(values[k] ?? null), actor_kind: w.by, actor_name: w.by === "person" ? MOVED_BY : w.source || MOVED_BY, via: "rebuild-load", at });
+        report.writers[w.by]++;
+      }
+      if (rest.length) history.push(entry(rowId, rest));
+    };
     if (found) {
       const diff = Object.keys(values).filter((k) => !same(norm(cols.get(k), found[k]), values[k]));
       if (!diff.length) {
@@ -215,7 +259,7 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
       report.changed++;
       for (const k of diff) report.cells[k] = (report.cells[k] ?? 0) + 1;
       updates.push({ id: found.id, diff, args: diff.map(asParam) });
-      history.push(entry(found.id, diff));
+      record(found.id, diff, found);
       continue;
     }
     report.inserted++;
@@ -228,7 +272,7 @@ async function loadBoard(client, { table, cellsTable, idCol, tenant, rows, today
     ins.last_actor_name = "rebuild";
     ins.last_actor_kind = "bot";
     inserts.push(ins);
-    history.push(entry(newId, Object.keys(values)));
+    record(newId, Object.keys(values), null);
   }
   if (dry) return report;
   await client.query("begin");
@@ -260,14 +304,9 @@ export function expandMirror(items) {
       const body = String(x.body);
       const block = /^##\s+Rates[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(body)?.[1] ?? "";
       for (const l of block.split("\n")) if (/^\s*[-*]\s+\S/.test(l)) rates.push(l.replace(/^\s*[-*]\s+/, "").trim());
-      const header = /^(Last (edited|changed) on [^:]+:|What the company actually has)/;
+      const header = /^(Last (edited on Notion|changed on Peek):|What the company actually has)/;
       for (const s of sectionsFromMirror(body)) {
-        // the untitled first section loses the mirror's header lines; the Rates section its note about where rates live
-        const sbody = (s.title ? s.body : s.body.split("\n").filter((l) => !header.test(l)).join("\n"))
-          .split("\n")
-          .filter((l) => !(s.kind === "rates" && /^From .+ Asset page/.test(l)))
-          .join("\n")
-          .trim();
+        const sbody = s.title ? s.body : s.body.split("\n").filter((l) => !header.test(l)).join("\n").trim();
         if (s.title || sbody) out.push({ kind: "section", title: s.title, section_kind: s.kind, body: sbody, source: x.source });
       }
     } else out.push(x);
@@ -287,7 +326,7 @@ export function splitRates(items) {
       const lines = String(x.body ?? "").split("\n");
       const rates = lines.filter((l) => /^\s*[-*]\s+\S/.test(l)).map((l) => l.replace(/^\s*[-*]\s+/, "").trim());
       for (const line of rates) out.push({ kind: "rate", position: ++pos, line });
-      out.push({ ...x, section_kind: "rates", body: lines.filter((l) => !/^\s*[-*]\s+\S/.test(l) && !/^From .+ Asset page/.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim() });
+      out.push({ ...x, section_kind: "rates", body: lines.filter((l) => !/^\s*[-*]\s+\S/.test(l) && !/^From Peek's Asset page/.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim() });
     } else out.push(x);
   }
   return out;
@@ -335,16 +374,19 @@ async function loadAssets(client, tenant, rawItems, dry) {
   return out;
 }
 
-export async function rebuild({ client, dir, stamp, ownerEmail, tenantSlug = "team", dry = false, keysDir = path.join(BOTS, "common-data", "keys"), teamFile = path.join(BOTS, "common-data", "team.json"), today = new Date().toISOString().slice(0, 10) }) {
+export async function rebuild({ client, dir, stamp, ownerEmail, tenantSlug = "", tenantName = "My team", dry = false, keysPrefix = "peek", keysDir = path.join(BOTS, "common-data", "keys"), teamFile = path.join(BOTS, "common-data", "team.json"), today = new Date().toISOString().slice(0, 10) }) {
   const files = datasetFiles(dir, stamp);
   if (!files) throw new Error(`no leads-rebuild-<stamp>.jsonl in ${dir}`);
   const report = { stamp: files.stamp, files: Object.fromEntries(Object.entries(files).filter(([k]) => k !== "stamp").map(([k, v]) => [k, v ? path.basename(v) : "none"])) };
   await client.query("begin");
   try {
     // the company
-    let { rows: t } = await client.query("select id from tenants where slug = $1", [tenantSlug]);
+    // the company named, else the only one there is, else a new one ("team" unless named)
+    let { rows: t } = tenantSlug ? await client.query("select id from tenants where slug = $1", [tenantSlug]) : await client.query("select id, slug from tenants limit 2");
+    if (!tenantSlug && t.length > 1) throw new Error("more than one company: say which with --tenant <slug>");
+    if (!tenantSlug) tenantSlug = t[0]?.slug ?? "team";
     if (!t[0]) {
-      if (!dry) t = (await client.query("insert into tenants (name, slug) values ($1, $2) returning id", [tenantSlug, tenantSlug])).rows;
+      if (!dry) t = (await client.query("insert into tenants (name, slug) values ($1, $2) returning id", [tenantName, tenantSlug])).rows;
       else t = [{ id: "00000000-0000-0000-0000-000000000000" }];
       report.tenant = `created ${tenantSlug}`;
     } else report.tenant = `kept ${tenantSlug}`;
@@ -371,7 +413,8 @@ export async function rebuild({ client, dir, stamp, ownerEmail, tenantSlug = "te
     // the API keys: the same hashes, so every key file keeps working
     const keyReport = [];
     for (const [name, scopes] of Object.entries(KEY_SCOPES)) {
-      const f = path.join(keysDir, `peek-${name}.key`);
+      // <prefix>-<name>.key: peek- here; a starter install's agents hold portal-<name>.key (--keys-prefix portal)
+      const f = path.join(keysDir, `${keysPrefix}-${name}.key`);
       if (!existsSync(f)) {
         keyReport.push(`${name}: no key file`);
         continue;
@@ -413,9 +456,11 @@ function print(r) {
   console.log(`API keys: ${r.keys}`);
   for (const b of ["leads", "tasks"]) {
     const x = r[b];
-    console.log(`${b}: ${x.inserted} inserted, ${x.changed} changed, ${x.unchanged} unchanged, ${x.skipped} skipped (no ${b === "leads" ? "business" : "title"})`);
+    console.log(`${b}: ${x.inserted} inserted, ${x.changed} changed, ${x.unchanged} unchanged, ${x.skipped} skipped (no ${b === "leads" ? "business" : "title"}); history cells by a person ${x.writers.person}, by a bot ${x.writers.bot}`);
     const cells = Object.entries(x.cells).sort((a, b) => b[1] - a[1]);
     if (cells.length) console.log(`  cells written: ${cells.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    const dropped = Object.entries(x.dropped ?? {});
+    if (dropped.length) console.log(`  NOT LOADED, no such column: ${dropped.map(([k, n]) => `${k} ${n}`).join(", ")}`);
   }
   console.log(`assets: ${Object.entries(r.assets).map(([k, v]) => `${k} ${v}`).join("; ")}`);
 }
@@ -427,14 +472,14 @@ async function main() {
     return i >= 0 ? args[i + 1] : dflt;
   };
   const dir = opt("--dir", path.join(BOTS, "common-data", "backups"));
-  const keyFile = path.join(BOTS, "common-data", "keys", "portal-local.key");
-  const url = opt("--database-url", existsSync(keyFile) ? readFileSync(keyFile, "utf8").trim() : "");
-  if (!url) throw new Error("no database: --database-url, or common-data/keys/portal-local.key (the fleet's scripts/portal-local-setup.sh)");
-  const { default: pg } = await import("pg");
-  const client = new pg.Client({ connectionString: url });
-  await client.connect();
+  const keyFile = path.join(BOTS, "common-data", "keys", "peek-local.key");
+  const pglite = opt("--pglite", "");
+  const url = pglite ? "" : opt("--database-url", existsSync(keyFile) ? readFileSync(keyFile, "utf8").trim() : "");
+  if (!url && !pglite) throw new Error("no database: --database-url, common-data/keys/peek-local.key (scripts/peek-local-setup.sh), or --pglite <folder> for a local install");
+  const { openClient } = await import("./db-client.mjs");
+  const client = await openClient({ url, pglite });
   try {
-    const r = await rebuild({ client, dir, stamp: opt("--stamp"), ownerEmail: opt("--owner-email"), tenantSlug: opt("--tenant", "team"), dry: args.includes("--dry-run") });
+    const r = await rebuild({ client, dir, stamp: opt("--stamp"), ownerEmail: opt("--owner-email"), tenantSlug: opt("--tenant", ""), tenantName: opt("--tenant-name", "My team"), keysPrefix: opt("--keys-prefix", "peek"), dry: args.includes("--dry-run") });
     if (args.includes("--dry-run")) console.log("dry run: nothing written");
     print(r);
   } finally {

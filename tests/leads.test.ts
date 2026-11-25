@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { keyFor, mintKey, revokeKey } from "@/lib/api-keys";
 import { memoryDb } from "@/lib/db";
-import { batchWrite, domainOf, getLead, historyOf, listLeads, splitStatus, writeLead, type Actor } from "@/lib/leads";
+import { domainOf, getLead, historyOf, listLeads, NOTION_GONE, splitStatus, writeLead, type Actor } from "@/lib/leads";
 import { createTenant } from "@/lib/tenants";
 
 const ENRICHER: Actor = { kind: "bot", name: "Lead Enricher", via: "engine" };
@@ -93,38 +93,9 @@ describe("the since-cursor", () => {
   });
 });
 
-describe("batch writes", () => {
-  it("each write on its own, answered in order; duplicates and bad fields refused without stopping the rest", async () => {
-    const { db, tenantId, ANN, id } = await board();
-    await writeLead(db, tenantId, { id }, { pain_point: "Pain point: no online menu" }, ANN);
-    const r = await batchWrite(
-      db,
-      tenantId,
-      [
-        { id, fields: { lead_score: 77, pain_point: "Pain point: slow site" } },
-        { fields: { business: "Acme Bakery Two", website: "https://acmebakery.example" }, create: true },
-        { fields: { business: "Echo Eatery", website: "https://echo.example" }, create: true },
-        { id, fields: { colour: "red" } },
-        { id: "00000000-0000-4000-8000-000000000000", fields: { lead_score: 1 } },
-      ],
-      ENRICHER,
-    );
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    const [a, b, c, d, e] = r.results;
-    expect(a.ok && a.written).toEqual(["lead_score"]);
-    expect(a.ok && a.refused[0].reason).toBe("person_wins");
-    expect(b).toMatchObject({ ok: false, code: "duplicate_row", existingId: id });
-    expect(c.ok && c.created).toBe(true);
-    expect(d).toMatchObject({ ok: false, code: "bad_request", message: "unknown field: colour" });
-    expect(e).toMatchObject({ ok: false, code: "not_found" });
-    expect(await batchWrite(db, tenantId, Array.from({ length: 101 }, () => ({ id, fields: {} })), ENRICHER)).toMatchObject({ ok: false, code: "too_large" });
-    expect(await batchWrite(db, tenantId, [], ENRICHER)).toMatchObject({ ok: false, code: "bad_request" });
-  });
-});
-
-describe("an import (the import key)", () => {
-  const ROW = {
+describe("the backfill's import", () => {
+  const PAGE = "3e3d905fccff80fe9d00000b133cee18";
+  const NOTION = {
     business: "Fox Florist",
     website: "https://foxflorist.example",
     status: ["Email Sent", "WhatsApp Verified"],
@@ -132,23 +103,29 @@ describe("an import (the import key)", () => {
     lead_score: 64,
     result: null,
     result_date: "2026-10-20",
-    sent_by: ["Sam"],
+    sent_by: ["Anna"],
     package: "SMB Website Care Retainer",
+    notion_url: "https://www.notion.so/Fox-Florist-3e3d905fccff80fe9d00000b133cee18",
+    notion_uid: "LD-412",
     created_at: "2026-09-24T10:11:00.000Z",
   };
 
-  it("copies the values as they are (the team's fields too), splits Status, keeps their time; the same row again changes nothing", async () => {
+  it("copies Notion as it is (the team's fields too), splits Status, keeps the Notion time, and is idempotent", async () => {
     const { db, tenantId } = await board();
-    const first = await writeLead(db, tenantId, {}, ROW, BACKFILL, { create: true, import: true });
+    const first = await writeLead(db, tenantId, {}, NOTION, BACKFILL, { create: true, import: true });
     expect(first.ok && first.created).toBe(true);
     if (!first.ok) return;
-    expect(first.lead).toMatchObject({ email_status: "Email Sent", whatsapp_status: "WhatsApp Verified", status: ["Email Sent", "WhatsApp Verified"], result_date: "2026-10-20", sent_by: ["Sam"], created_at: "2026-09-24T10:11:00.000Z", domain: "foxflorist.example" });
-    const again = await writeLead(db, tenantId, { id: first.lead.id }, ROW, BACKFILL, { import: true });
+    expect(first.lead).toMatchObject({ email_status: "Email Sent", whatsapp_status: "WhatsApp Verified", status: ["Email Sent", "WhatsApp Verified"], result_date: "2026-10-20", sent_by: ["Anna"], created_at: "2026-09-24T10:11:00.000Z", domain: "foxflorist.example" });
+    expect("notion_page_id" in first.lead).toBe(false); // dropped, Peek 601
+    const again = await writeLead(db, tenantId, { id: first.lead.id }, NOTION, BACKFILL, { create: true, import: true });
     expect(again.ok && !again.created && again.written).toEqual([]);
     expect(again.ok && again.lead.rev).toBe(first.lead.rev);
-    // an import may also land on a domain already on the board (a list with chain rows)
+    // an import may also land on a domain already on the board (Notion holds chain rows)
     const chain = await writeLead(db, tenantId, {}, { business: "Acme Bakery (2nd)", website: "https://acmebakery.example" }, BACKFILL, { create: true, import: true });
     expect(chain.ok).toBe(true);
+    // a late caller naming a row by its old Notion page id is refused with a message the log shows; a null echo is ignored
+    expect(await writeLead(db, tenantId, {}, { notion_page_id: PAGE, business: "Late Caller" }, BACKFILL, { create: true })).toEqual({ ok: false, code: "bad_request", message: NOTION_GONE });
+    expect((await writeLead(db, tenantId, { id: first.lead.id }, { notion_page_id: null, notes: "kept" }, BACKFILL)).ok).toBe(true);
     // Status values outside both tracks are refused
     expect(splitStatus(["Maybe"])).toEqual({ error: "status has values outside both tracks: Maybe" });
   });

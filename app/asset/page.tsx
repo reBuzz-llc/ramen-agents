@@ -5,9 +5,9 @@ import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import AssetView from "./asset-view";
 
-export const metadata = { title: "Asset · ramen-agents" };
+export const metadata = { title: "Asset · Productive Peek" };
 
-/** "What we have" (the packages have their own page): the
+/** "What we have" (the Notion page as it was, packages on their own page): the
  *  sections and the rate card, edited by the owner and managers, read by everyone and by the bots (GET /v1/assets/*);
  *  the brochures and PDFs are the Files page's own. */
 export default async function AssetPage() {

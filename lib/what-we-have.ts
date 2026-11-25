@@ -1,5 +1,6 @@
-// The "What we have" sections' light markdown, the shape examples/company.md is written in: "### Title" opens a toggle
-// (closed until clicked) that runs to the next one; "- ", "* " or "1. " is a list item, two spaces of indent a level deeper; any other
+// The "What we have" sections' light markdown (the Asset page as the Notion page was), the same
+// shape the CEO's what-we-have.md mirrors it in: "### Title" opens a toggle (closed until clicked, as on
+// Notion) that runs to the next one; "- ", "* " or "1. " is a list item, two spaces of indent a level deeper; any other
 // line is a paragraph. Links are written as plain URLs.
 
 export type ListItem = { text: string; children: ListBlock[] };
@@ -7,7 +8,7 @@ export type ListBlock = { kind: "list"; ordered: boolean; items: ListItem[] };
 export type Block = { kind: "p"; text: string } | ListBlock | { kind: "toggle"; title: string; children: Block[] };
 
 const ITEM = /^(\s*)(?:([-*])|(\d+)[.)])\s+(.*)$/;
-const BARE_ITEM = /^(\s*)(?:[-*]|\d+[.)])\s*$/; // a list item left empty ("6.")
+const BARE_ITEM = /^(\s*)(?:[-*]|\d+[.)])\s*$/; // a Notion list item left empty ("6.")
 
 /** The flat blocks of a run of lines with no toggles: paragraphs and nested lists. */
 function flat(lines: string[]): Block[] {

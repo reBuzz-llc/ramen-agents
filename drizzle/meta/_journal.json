@@ -215,50 +215,218 @@
     {
       "idx": 30,
       "version": "7",
-      "when": 1794134037779,
+      "when": 1794133456399,
       "tag": "0030_family_reports",
       "breakpoints": true
     },
     {
       "idx": 31,
       "version": "7",
-      "when": 1794135650324,
+      "when": 1794135226964,
       "tag": "0031_follow_up",
       "breakpoints": true
     },
     {
       "idx": 32,
       "version": "7",
-      "when": 1794136257051,
+      "when": 1794135845181,
       "tag": "0032_package_review",
       "breakpoints": true
     },
     {
       "idx": 33,
       "version": "7",
-      "when": 1794137025294,
+      "when": 1794136673089,
       "tag": "0033_claim_kind",
       "breakpoints": true
     },
     {
       "idx": 34,
       "version": "7",
-      "when": 1794214092393,
+      "when": 1794213745237,
       "tag": "0034_view_prefs",
       "breakpoints": true
     },
     {
       "idx": 35,
       "version": "7",
-      "when": 1794217977275,
+      "when": 1794217832983,
       "tag": "0035_sample_url",
       "breakpoints": true
     },
     {
       "idx": 36,
       "version": "7",
-      "when": 1794844502789,
-      "tag": "0036_drop_notion",
+      "when": 1794232113814,
+      "tag": "0036_samples",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794232542587,
+      "tag": "0037_social_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794234006470,
+      "tag": "0038_sample_published_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794473696002,
+      "tag": "0039_sample_line",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794501881793,
+      "tag": "0040_sample_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794503103833,
+      "tag": "0041_lead_city_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794573860177,
+      "tag": "0042_sample_deletions",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794584374127,
+      "tag": "0043_package_changes_job_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794928803674,
+      "tag": "0044_sample_pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794964178970,
+      "tag": "0045_template_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795151564832,
+      "tag": "0046_proposal_template_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795152090036,
+      "tag": "0047_drop_notion_page_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795155346972,
+      "tag": "0048_enable_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795156895681,
+      "tag": "0049_sample_photos",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795173538892,
+      "tag": "0050_sample_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795247131103,
+      "tag": "0051_lead_sends",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795389393287,
+      "tag": "0052_sample_not_complete",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795413164763,
+      "tag": "0053_follow_ups",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795414174608,
+      "tag": "0054_owner_answers",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795416897658,
+      "tag": "0055_shift_edits",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795418293459,
+      "tag": "0056_session_presses",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795419340178,
+      "tag": "0057_drop_local_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795427124252,
+      "tag": "0058_lead_rich_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795523671271,
+      "tag": "0059_found_by_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795597984489,
+      "tag": "0060_treasures",
       "breakpoints": true
     }
   ]

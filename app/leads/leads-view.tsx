@@ -5,21 +5,37 @@
 // person edits any cell (saved as that person into the lead's history), takes the next step with one click, takes the
 // lead, and copies a draft. Send next tab: the Validator's pick of what to send next, with take, copy and mark sent.
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import PixelLoader from "@/app/pixel-loader";
+import { useFollowUpCount } from "@/app/use-follow-up-count";
+import FollowUpView from "./follow-up-view";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { leadPath } from "@/lib/deep-links";
-import { FILTER_KEYS, industryGroup, SITE_FILTERS, siteMatches } from "@/lib/lead-filters";
+import { agentName } from "@/lib/agent-names";
+import { navOf, type LeadNav } from "@/lib/lead-nav";
+import { EDITED_FILTERS, editedMatches, FILTER_KEYS, industryGroup, leadsTab, NOT_TAKEN, SITE_FILTERS, siteMatches, toolOptions, toolsMatch } from "@/lib/lead-filters";
+import { phoneDiffers } from "@/lib/sample-contact";
 import { readShowEmpty, writeShowEmpty } from "@/lib/drawer-prefs";
 import { activityOf } from "@/lib/activity";
+import type { SendLog } from "@/lib/lead-sends";
 import { withSample } from "@/lib/sample-site";
+import { firstMessageLink, hasReplied } from "@/lib/send-test";
 import { shareText, type ShareChange } from "@/lib/team-share";
-import { DEFAULT_VIEW, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
+import { clampDrawer, DEFAULT_VIEW, DRAWER_WIDTH, drawerOrder, fieldLabel as label, type ViewPrefs } from "@/lib/view-prefs";
 import { withAttachments } from "@/lib/attachment-line";
 import { telHref } from "@/lib/phone";
-import { CONTACT_ROLES, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, tone, WHATSAPP_STATUSES, whatsappSteps, type Step } from "@/lib/lead-workflow";
+import { CONTACT_ROLES, EMAIL_STATUSES, emailSteps, LINKEDIN_VIA, READ_ONLY, RESULTS, splitAtDraft, WHATSAPP_STATUSES, type Step } from "@/lib/lead-workflow";
+import { hasPictures, isDocsPaste, PICTURES_NOTE, plainOf, RICH_FIELDS, richWithEnding, textToHtml } from "@/lib/rich-text";
+import { cleanPaste, copyRich, RichBody, RichEditor } from "./rich-cell";
+import { leadTracks } from "@/lib/lead-track";
+import { siteHealthShort } from "@/lib/site-health-short";
+import LeadTracks from "./lead-track";
+import { SampleBox } from "./sample-box";
+import TakeControl, { type Holder } from "./take-control";
+import type { ResearchFirst } from "@/lib/research-first";
 import type { SendNext } from "@/lib/send-next";
 import { control, Field } from "../ui";
-import { CHIP, Chip } from "./chip";
+import { Chip } from "./chip";
 import LeadTable, { type TableRow } from "./lead-table";
 
 export type BoardRow = {
@@ -40,16 +56,16 @@ export type BoardRow = {
   hasDraft: boolean;
   hasWhatsapp: boolean;
   takenBy: string | null;
+  toolsOnSite?: string[] | null;
   mine: boolean;
   corrected: boolean;
-  openFlags: number;
   updatedAt: string;
 };
 type Me = { userId: string; name: string };
 type Choices = { package: string[]; industry: string[]; location: string[] };
 
-type F = { q: string; email: string; whatsapp: string; city: string; industry: string; score: string; draft: string; role: string; site: string; mine: boolean; corrected: boolean; flagged: boolean };
-const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", score: "", draft: "", role: "", site: "", mine: false, corrected: false, flagged: false };
+type F = { q: string; email: string; whatsapp: string; city: string; industry: string; taken: string; edited: string; tools: string; site: string; mine: boolean; corrected: boolean };
+const NONE: F = { q: "", email: "", whatsapp: "", city: "", industry: "", taken: "", edited: "", tools: "", site: "", mine: false, corrected: false };
 /** The text filters a link may set in the address (?whatsapp=WhatsApp%20Verified): the Guide links the board filtered. */
 const NOT_SET = "(not set)";
 
@@ -59,7 +75,7 @@ function counts(rows: BoardRow[], key: (r: BoardRow) => string) {
   return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-function matches(r: BoardRow, f: F) {
+function matches(r: BoardRow, f: F, now: number) {
   if (f.q) {
     const hay = `${r.business} ${r.website ?? ""} ${r.contactPerson ?? ""} ${r.industry ?? ""} ${r.city ?? ""}`.toLowerCase();
     if (!hay.includes(f.q.toLowerCase())) return false;
@@ -68,37 +84,13 @@ function matches(r: BoardRow, f: F) {
   if (f.whatsapp && (r.whatsappStatus ?? NOT_SET) !== f.whatsapp) return false;
   if (f.city && (r.city || NOT_SET) !== f.city) return false;
   if (f.industry && industryGroup(r.industry ?? "") !== f.industry) return false;
-  if (f.score === "none" ? r.leadScore !== null : f.score && (r.leadScore ?? -1) < Number(f.score)) return false;
-  if (f.draft && r.hasDraft !== (f.draft === "yes")) return false;
-  if (f.role && !!r.contactRole !== (f.role === "yes")) return false;
+  if (f.taken && (r.takenBy || NOT_TAKEN) !== f.taken) return false;
+  if (!editedMatches(r.updatedAt, f.edited, now)) return false;
+  if (!toolsMatch(r.toolsOnSite, f.tools)) return false;
   if (!siteMatches(r, f.site)) return false;
   if (f.mine && !r.mine) return false;
   if (f.corrected && !r.corrected) return false;
-  if (f.flagged && !r.openFlags) return false;
   return true;
-}
-
-/** A status chip with a small × at its end: pressing it empties that status, and with it the cells
- *  its step set (sent by and at, result and its date), as one history entry by the person. */
-function StatusChip({ label: what, status, disabled, onClear }: { label: string; status: string | null; disabled?: boolean; onClear: () => void }) {
-  if (!status) return null;
-  return (
-    <span className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pr-0.5 pl-2.5 text-xs whitespace-nowrap ${CHIP[tone(status)]}`}>
-      {status}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClear}
-        aria-label={`Clear ${what} (${status})`}
-        title={`Clear ${what}`}
-        className="inline-flex size-6 items-center justify-center rounded-full hover:bg-ink/10 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-          <path d="M2 2l6 6M8 2L2 8" />
-        </svg>
-      </button>
-    </span>
-  );
 }
 
 /** The pill row under Search: with nothing typed, the board's most common boroughs and industries; while typing, the
@@ -154,30 +146,99 @@ function Toggle({ label, on, set, count }: { label: string; on: boolean; set: (v
   );
 }
 
+const NO_ROWS: TableRow[] = [];
+
 export default function LeadsView({
-  rows,
+  rows: firstRows,
+  total = firstRows.length,
   next,
+  research = { generatedAt: null, bar: null, rows: [], wait: 0, long: 0 },
   me,
-  tab,
+  tab: serverTab,
   canImport = false,
+  canMarkSent = false,
+  canSampleTest = false,
   openId = null,
   unavailable = false,
   filters = {},
   view = null,
 }: {
   rows: TableRow[];
+  /** Every live lead's count: the page carries the first rows, the rest come from /api/leads/rows. */
+  total?: number;
   next: SendNext;
+  /** Research first: the leads waiting for a person's pain point, from the Validator's list. */
+  research?: ResearchFirst;
   me: Me;
-  tab: "board" | "table" | "send";
+  tab: "board" | "table" | "send" | "followup" | "research";
   canImport?: boolean;
+  /** Mark already sent: owners and managers (a member imports). */
+  canMarkSent?: boolean;
+  /** Owners and managers see the sample link test's results. */
+  canSampleTest?: boolean;
   openId?: string | null;
   unavailable?: boolean;
   filters?: Partial<Record<(typeof FILTER_KEYS)[number], string>>;
   view?: ViewPrefs | null;
 }) {
+  // The whole board: the page brings the first rows at once and the rest arrive from
+  // /api/leads/rows, which answers 304 while the board is unchanged (the browser keeps its copy). After an edit the page
+  // refreshes, the first rows come in fresh and the whole board is asked again; until it arrives, the fresh rows are laid
+  // over the copy held, so an edit shows at once.
+  // The tabs switch in the browser. The address is the source of which tab is open; a tab's rows are kept once they
+  // came, and asked again each time it opens (304 while the board is unchanged). Send next and Research first are read again
+  // behind what is on the screen, so a teammate's mark appears within a moment.
+  const router = useRouter();
+  const tab = leadsTab(useSearchParams().get("tab"));
+  const [held, setHeld] = useState<Partial<Record<"board" | "table", TableRow[]>>>({});
+  const heldTabs = useRef(new Set<string>());
+  const base = tab === serverTab ? firstRows : NO_ROWS;
+  useEffect(() => {
+    if (tab === "send" || tab === "followup" || tab === "research" || (tab === serverTab && firstRows.length >= total)) return;
+    let live = true;
+    const load = (more: string) => fetch(`/api/leads/rows?tab=${tab}${more}`, { credentials: "same-origin" }).then((r) => (r.ok ? (r.json() as Promise<{ rows: TableRow[] }>) : null));
+    const keep = (list?: TableRow[]) => {
+      if (!live || !list) return;
+      heldTabs.current.add(tab);
+      setHeld((h) => ({ ...h, [tab]: list }));
+    };
+    void (async () => {
+      if (tab !== serverTab && !heldTabs.current.has(tab)) keep((await load("&first=1"))?.rows);
+      if (live) keep((await load(""))?.rows);
+    })().catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [firstRows, serverTab, tab, total]);
+  const full = tab === "board" || tab === "table" ? (held[tab] ?? null) : null;
+  const rows = useMemo(() => {
+    if (!full || base.length >= total) return base;
+    const fresh = new Map(base.map((r) => [r.id, r]));
+    // merged, not replaced: the Table's first rows come without their long cells, the full rows keep them
+    return full.map((r) => (fresh.has(r.id) ? ({ ...r, ...fresh.get(r.id) } as TableRow) : r));
+  }, [full, base, total]);
+  const loading = tab !== "send" && tab !== "followup" && tab !== "research" && rows.length < total;
+  // a tab with nothing to show yet
+  const pendingTab: string | null = loading && rows.length === 0 ? tab : null;
+  const followUps = useFollowUpCount();
+  const goTab = (key: typeof tab) => (e: React.MouseEvent) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // a new tab or window stays a normal link
+    e.preventDefault();
+    if (key === tab) return;
+    const u = new URL(window.location.href);
+    if (key === "send") u.searchParams.delete("tab");
+    else u.searchParams.set("tab", key);
+    window.history.pushState(null, "", u);
+    if (key === "send" || key === "research") router.refresh();
+  };
   const [f, setF] = useState<F>({ ...NONE, ...filters });
+  // the moment the Last edited filter measures from: held, so a redraw cannot move a row in or out
+  const [filterNow] = useState(() => Date.now());
   // the open drawer lives in the address, /leads?lead=<id>: a load with it opens that lead
   const [open, setOpen] = useState<string | null>(openId);
+  // the drawer's width, dragged by its left edge: saved on the person, and kept here so the next
+  // drawer opened on this page has it at once
+  const [drawerWidth, setDrawerWidth] = useState<number | null>(view?.drawer_width ?? null);
   const [gone, setGone] = useState(unavailable);
   useEffect(() => {
     try {
@@ -205,16 +266,37 @@ export default function LeadsView({
   }, [f]);
   // the count beside each "No website" chip: the rows it would show under the other filters
   const siteCounts = useMemo(() => {
-    const rest = rows.filter((r) => matches(r, { ...f, site: "" }));
+    const rest = rows.filter((r) => matches(r, { ...f, site: "" }, filterNow));
     return Object.fromEntries(SITE_FILTERS.map(([k]) => [k, rest.filter((r) => siteMatches(r, k)).length]));
-  }, [rows, f]);
+  }, [rows, f, filterNow]);
   // a load that names a lead: its row scrolled into view, the filters as they were
   useEffect(() => {
     if (!openId) return;
     const t = setTimeout(() => document.querySelector(`[data-lead="${openId}"]`)?.scrollIntoView({ block: "center" }), 50);
     return () => clearTimeout(t);
   }, [openId]);
-  const shown = useMemo(() => rows.filter((r) => matches(r, f)), [rows, f]);
+  const shown = useMemo(() => rows.filter((r) => matches(r, f, filterNow)), [rows, f, filterNow]);
+  // The panel's arrows walk the list on screen. The list is noted when a lead is opened, so a lead that a save takes
+  // out of the filter does not lose its place; a link that opens a lead uses the list as it stands.
+  const [tableOrder, setTableOrder] = useState<string[]>([]);
+  const [followOrder, setFollowOrder] = useState<string[]>([]);
+  const [trail, setTrail] = useState<string[] | null>(null);
+  const order = useMemo(
+    () => (tab === "table" ? tableOrder : tab === "board" ? shown.map((r) => r.id) : tab === "followup" ? followOrder : tab === "research" ? research.rows.map((r) => r.id) : next.rows.map((r) => r.id)),
+    [tab, tableOrder, shown, followOrder, research.rows, next.rows],
+  );
+  const openLead = (id: string) => {
+    setTrail(order);
+    setOpen(id);
+  };
+  const closeLead = useCallback(() => {
+    setOpen(null);
+    setTrail(null);
+  }, []);
+  const stepTo = useCallback((id: string) => {
+    setOpen(id);
+    document.querySelector(`[data-lead="${id}"]`)?.scrollIntoView({ block: "nearest" });
+  }, []);
   const hints = useMemo(() => searchHints(rows, f.q), [rows, f.q]);
   const on = (k: keyof F) => (v: string | boolean) => setF({ ...f, [k]: v });
   const opts = (key: (r: BoardRow) => string) => counts(rows, key).map(([v, n]) => [v, `${v} (${n})`] as [string, string]);
@@ -235,47 +317,70 @@ export default function LeadsView({
     <div data-wide={wide || undefined}>
       <div className={`flex flex-wrap items-center justify-between gap-3 ${narrow}`}>
         <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Leads</h1>
-        {canImport ? (
+        {canImport || canMarkSent || canSampleTest ? (
           <div className="flex flex-wrap gap-2">
+            {canSampleTest ? (
+              <Link href="/leads/sample-test" className="inline-flex h-11 items-center rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
+                Sample link test
+              </Link>
+            ) : null}
             {/* the sends the rebuilt board lost, re-marked from a person's Sent folder */}
-            <Link href="/leads/already-sent" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-              Mark already sent
-            </Link>
-            <Link href="/leads/import" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-              </svg>
-              Import CSV
-            </Link>
+            {canMarkSent ? (
+              <Link href="/leads/already-sent" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                Mark already sent
+              </Link>
+            ) : null}
+            {canImport ? (
+              <Link href="/leads/import" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold hover:border-accent">
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+                </svg>
+                Import CSV
+              </Link>
+            ) : null}
           </div>
         ) : null}
       </div>
       <p className={`mt-1 text-[0.9375rem] text-muted ${narrow}`}>Every business on the board, with where it stands. Open one to see its details, its history and what to do next.</p>
-      <nav className={`mt-4 flex gap-1 border-b border-line text-sm ${narrow}`} aria-label="Leads views">
+      <nav className={`mt-4 border-b border-line text-sm ${narrow}`} aria-label="Leads views">
+        <div className="-mb-px flex gap-1 overflow-x-auto [scrollbar-width:none]">
         {(
           [
             ["send", "Send next", next.rows.length],
-            ["board", "Board", rows.length],
-            ["table", "Table", rows.length],
+            ["followup", "Follow up", followUps],
+            ["research", "Research first", research.wait],
+            ["board", "Board", Math.max(rows.length, total)],
+            ["table", "Table", Math.max(rows.length, total)],
           ] as const
         ).map(([key, label, n]) => (
           <Link
             key={key}
             href={key === "send" ? "/leads" : `/leads?tab=${key}`}
+            prefetch={false}
+            onClick={goTab(key)}
             aria-current={tab === key ? "page" : undefined}
-            className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 ${tab === key ? "border-accent font-semibold" : "border-transparent text-muted hover:text-ink"}`}
+            className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-4 whitespace-nowrap max-[414px]:px-2.5 ${tab === key ? "border-accent font-semibold" : "border-transparent text-muted hover:text-ink"}`}
           >
             {label} <span className="ml-1 rounded-full bg-panel px-1.5 text-xs tabular-nums">{n}</span>
           </Link>
         ))}
+        </div>
       </nav>
+      {/* a tab on its way: the loading orb and what loads, under the tabs */}
+      <div className={narrow}>
+        <PixelLoader active={!!pendingTab} label={pendingTab === "table" ? "Loading every cell of every lead…" : pendingTab === "board" ? "Loading the board…" : pendingTab === "research" ? "Loading the leads to research…" : "Loading what to send next…"} />
+      </div>
       {tab === "send" ? (
-        <SendNextView next={next} me={me} onOpen={setOpen} />
-      ) : rows.length === 0 ? (
-        <p className={`mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted ${narrow}`}>No leads here yet. They arrive as Lead Gen finds them, or import a list on the Import page.</p>
+        <SendNextView next={next} me={me} onOpen={openLead} />
+      ) : tab === "followup" ? (
+        <FollowUpView onOpen={openLead} paused={!!open} onOrder={setFollowOrder} />
+      ) : tab === "research" ? (
+        <ResearchFirstView research={research} onOpen={openLead} />
+      ) : rows.length === 0 && loading ? null : rows.length === 0 ? (
+        <p className={`mt-6 rounded-xl border border-line bg-panel p-6 text-sm text-muted ${narrow}`}>No leads here yet. They arrive as the agents find them, or from an import (Leads → Import).</p>
       ) : (
         <>
           <div className={`mt-4 space-y-3 rounded-2xl border border-line bg-panel/50 p-4 ${narrow}`}>
@@ -303,15 +408,14 @@ export default function LeadsView({
               <Pick label="WhatsApp" value={f.whatsapp} onChange={on("whatsapp")} options={opts((r) => r.whatsappStatus ?? NOT_SET)} />
               <Pick label="Borough / city" value={f.city} onChange={on("city")} options={opts((r) => r.city || NOT_SET)} />
               <Pick label="Industry" value={f.industry} onChange={on("industry")} options={opts((r) => industryGroup(r.industry ?? ""))} />
-              <Pick label="Score" value={f.score} onChange={on("score")} options={[["85", "85 and up"], ["70", "70 and up"], ["50", "50 and up"], ["none", "no score"]]} />
-              <Pick label="Draft email" value={f.draft} onChange={on("draft")} options={[["yes", "has a draft"], ["no", "no draft"]]} />
-              <Pick label="Contact role" value={f.role} onChange={on("role")} options={[["yes", "has a role"], ["no", "no role"]]} />
+              <Pick label="Taken by" value={f.taken} onChange={on("taken")} options={opts((r) => r.takenBy || NOT_TAKEN)} />
+              <Pick label="Last edited" value={f.edited} onChange={on("edited")} options={EDITED_FILTERS} />
+              <Pick label="Tools on site" value={f.tools} onChange={on("tools")} options={toolOptions(rows)} />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
               <div className="flex flex-wrap gap-2" role="group" aria-label="Quick filters">
                 <Toggle label="Mine" on={f.mine} set={on("mine")} />
                 <Toggle label="Corrected by the team" on={f.corrected} set={on("corrected")} />
-                <Toggle label="Has flags" on={f.flagged} set={on("flagged")} />
                 {SITE_FILTERS.map(([k, label]) => (
                   <Toggle key={k} label={label} count={siteCounts[k]} on={f.site === k} set={(v) => on("site")(v ? k : "")} />
                 ))}
@@ -324,12 +428,17 @@ export default function LeadsView({
                 ) : null}
                 <span className="text-muted tabular-nums" aria-live="polite">
                   {shown.length} of {rows.length}
+                  {loading ? (
+                    <span className="ml-1">
+                      <PixelLoader inline label={`the other ${total - rows.length} loading from the database…`} />
+                    </span>
+                  ) : null}
                 </span>
               </div>
             </div>
           </div>
           {tab === "table" ? (
-            <LeadTable rows={shown} onOpen={setOpen} />
+            <LeadTable rows={shown} onOpen={openLead} onOrder={setTableOrder} columnPrefs={view?.table_columns} />
           ) : (
             <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-panel">
               <table className="w-full text-sm">
@@ -345,16 +454,15 @@ export default function LeadsView({
                 </thead>
                 <tbody className="divide-y divide-line">
                   {shown.slice(0, 500).map((r) => (
-                    <tr key={r.id} data-lead={r.id} onClick={() => setOpen(r.id)} className="cursor-pointer hover:bg-accent-tint">
+                    <tr key={r.id} data-lead={r.id} onClick={() => openLead(r.id)} className="cursor-pointer hover:bg-accent-tint">
                       <td className="px-3 py-2">
-                        <button type="button" onClick={() => setOpen(r.id)} className="text-left font-medium hover:underline">
+                        <button type="button" onClick={() => openLead(r.id)} className="text-left font-medium hover:underline">
                           {r.business}
                         </button>
                         <span className="block text-xs text-muted">
                           {r.industry ?? ""}
                           {r.takenBy ? ` · taken by ${r.takenBy}` : ""}
                         </span>
-                        {r.openFlags ? <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-2 text-xs text-bad">{r.openFlags === 1 ? "1 flag" : `${r.openFlags} flags`}</span> : null}
                       </td>
                       <td className="px-3 py-2 text-muted">{[r.city, r.state].filter(Boolean).join(", ")}</td>
                       <td className="px-3 py-2">
@@ -387,19 +495,87 @@ export default function LeadsView({
           </button>
         </p>
       ) : null}
-      {open ? <Drawer id={open} me={me} choices={choices} view={view} holder={rows.find((r) => r.id === open)?.takenBy ?? null} onClose={() => setOpen(null)} /> : null}
+      {open ? <Drawer key={open} id={open} me={me} choices={choices} view={view} width={drawerWidth} onWidth={setDrawerWidth} onClose={closeLead} nav={navOf(trail ?? order, open)} onStep={stepTo} /> : null}
     </div>
   );
 }
 
+const NO_CHOICES: Choices = { package: [], industry: [], location: [] };
+
+/** The lead's side panel for a page other than the board (the Taken page). The same drawer: the free-text cells
+ *  have no suggestions, as on the Send next tab. */
+export function LeadPanel({ id, me, view, onClose, order, onStep }: { id: string; me: Me; view: ViewPrefs | null; onClose: () => void; order?: string[]; onStep?: (id: string) => void }) {
+  const [width, setWidth] = useState<number | null>(view?.drawer_width ?? null);
+  return <Drawer key={id} id={id} me={me} choices={NO_CHOICES} view={view} width={width} onWidth={setWidth} onClose={onClose} nav={order ? navOf(order, id) : null} onStep={onStep} />;
+}
+
 type Lead = Record<string, unknown>;
 type Change = { id: number; column: string; old: unknown; new: unknown; actor: { kind: string; name: string; via: string | null }; at: string; outcome: string; reason: string | null };
-type Flag = { id: string; rule: string; detail: string; status: string; first_seen: string };
-type Saved = { ok: boolean; changes?: number[]; error?: string; lead?: Lead; history?: Change[]; refused?: { field: string; reason: string }[] };
+type Saved = { ok: boolean; changes?: number[]; error?: string; lead?: Lead; history?: Change[]; refused?: { field: string; reason: string }[]; sendLog?: SendLog | null; rich?: Record<string, string | null> | null };
 
-async function patch(id: string, fields: Record<string, unknown>): Promise<Saved> {
+type LeadRead = { lead: Lead; history: Change[]; attachments?: Attached[]; sendLog?: SendLog | null; rich?: Record<string, string>; holder?: Holder | null };
+const fetchLead = (id: string): Promise<LeadRead> => fetch(`/api/leads/${id}`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+// a lead read when the pointer reaches an arrow, so the step feels instant; used once, within seconds, and dropped by any save
+const READY_MS = 10_000;
+const ready = new Map<string, { at: number; read: Promise<LeadRead | null> }>();
+const readAhead = (id: string) => {
+  const hit = ready.get(id);
+  if (!hit || Date.now() - hit.at > READY_MS) ready.set(id, { at: Date.now(), read: fetchLead(id).catch(() => null) });
+};
+async function readLead(id: string): Promise<LeadRead> {
+  const hit = ready.get(id);
+  ready.delete(id);
+  const got = hit && Date.now() - hit.at <= READY_MS ? await hit.read : null;
+  return got ?? fetchLead(id);
+}
+
+/** Up and down through the list the lead was opened from. */
+function LeadArrows({ nav, onStep }: { nav: LeadNav; onStep: (id: string) => void }) {
+  const arrow = (to: string | null, name: string, path: string) => (
+    <button
+      type="button"
+      disabled={!to}
+      aria-label={name}
+      title={name}
+      onClick={() => to && onStep(to)}
+      onPointerEnter={() => to && readAhead(to)}
+      onFocus={() => to && readAhead(to)}
+      className="inline-flex size-11 items-center justify-center rounded-full text-muted hover:bg-accent-tint hover:text-accent-ink disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
+    >
+      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d={path} />
+      </svg>
+    </button>
+  );
+  return (
+    <div role="group" aria-label="Move through this list" data-lead-arrows className="inline-flex items-center rounded-full border border-line">
+      {arrow(nav.prev, "Previous lead", "M6 15l6-6 6 6")}
+      <span className="hidden px-0.5 text-xs whitespace-nowrap text-muted tabular-nums min-[420px]:inline">
+        {nav.at.toLocaleString()} of {nav.total.toLocaleString()}
+      </span>
+      {arrow(nav.next, "Next lead", "M6 9l6 6 6-6")}
+    </div>
+  );
+}
+
+const onResize = (fn: () => void) => {
+  window.addEventListener("resize", fn);
+  return () => window.removeEventListener("resize", fn);
+};
+
+async function patch(id: string, fields: Record<string, unknown>, rich?: Record<string, string | null>): Promise<Saved> {
+  ready.clear();
   try {
-    const r = await fetch(`/api/leads/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields }) });
+    const send = (confirmed: boolean) => fetch(`/api/leads/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields, confirmed, rich }) });
+    let r = await send(false);
+    // the Validator's checks found something; the person decides, never blocked
+    if (r.status === 409) {
+      const w = (await r.json()) as { warn?: string };
+      if (w.warn) {
+        if (!window.confirm(`${w.warn}\n\nSave anyway?`)) return { ok: false, error: "Not saved." };
+        r = await send(true);
+      }
+    }
     return (await r.json()) as Saved;
   } catch {
     return { ok: false, error: "No answer from the server; check the connection and try again." };
@@ -407,6 +583,7 @@ async function patch(id: string, fields: Record<string, unknown>): Promise<Saved
 }
 
 async function claim(id: string, action: "accept" | "release"): Promise<{ ok: boolean; error?: string }> {
+  ready.clear();
   try {
     const r = await fetch("/api/queue/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pageId: id, action }) });
     return await r.json();
@@ -502,6 +679,50 @@ async function copy(text: string) {
   }
 }
 
+/** Research first: own-site leads above the Validator's bar wait for a person's pain point,
+ *  by the team's research method, before any bot writes one. Highest Lead score first; a lead leaves as soon as a person saves its
+ *  pain point (then the Writer may draft it). */
+function ResearchFirstView({ research, onOpen }: { research: ResearchFirst; onOpen: (id: string) => void }) {
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-semibold tabular-nums" data-research-head>
+        {research.wait} wait{research.long ? ` · ${research.long} more than 7 days` : ""}
+      </p>
+      <div className="mt-2 rounded-xl border border-line bg-panel p-3 text-sm">
+        <p className="font-semibold">How to research one</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted">
+          <li>Find one problem anyone can check, with its proof: a quote from their site, a page address, or the site and Google saying different things.</li>
+          <li>Write it in the three lines: Pain point / They can try / We propose. Save it, and the lead leaves this list.</li>
+        </ol>
+      </div>
+      {research.rows.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-line bg-panel p-6 text-sm text-muted">
+          Nothing to research right now. The {agentName("Validator")} puts the best own-site leads here{research.bar !== null ? ` (Lead score ${research.bar} and up)` : ""}.
+        </p>
+      ) : (
+        <ol className="mt-3 space-y-2" data-research-list>
+          {research.rows.map((r, i) => (
+            <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl border border-line bg-panel p-3 text-sm">
+              <button type="button" onClick={() => onOpen(r.id)} className="min-h-9 text-left font-semibold hover:underline">
+                {i + 1}. {r.business}
+              </button>
+              <span className="inline-flex flex-wrap items-center gap-3 text-xs text-muted tabular-nums">
+                {r.score !== null ? <span>Lead score {Math.round(r.score)}</span> : null}
+                <span>{r.days === 0 ? "new today" : `waiting ${r.days} day${r.days === 1 ? "" : "s"}`}</span>
+                {r.website ? (
+                  <a href={r.website.startsWith("http") ? r.website : `https://${r.website}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center font-medium text-accent-ink underline">
+                    Their site ↗
+                  </a>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (id: string) => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
@@ -514,9 +735,17 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
     say(id, r.ok ? done : (r.error ?? "That failed."));
     if (r.ok) router.refresh();
   };
-  const from = next.source === "validator" ? "the Validator's list" : next.source === "file" ? "the Validator's file on this computer" : "the board (a draft, not sent, best score first)";
+  if (next.source === "none") {
+    return (
+      <p className="mt-4 rounded-xl border border-line bg-panel p-6 text-sm text-muted" data-no-send-list>
+        Peek has no saved Send next list, so there is nothing to send here. The {agentName("Validator")} saves one when it runs.
+      </p>
+    );
+  }
+  const from = next.source === "validator" ? `the ${agentName("Validator")}'s list` : `the ${agentName("Validator")}'s file on this computer`;
   return (
     <div className="mt-4">
+      <PixelLoader inline active={!!busy} label="Saving to the database…" />
       <p className="text-sm text-muted">
         From {from}
         {next.generatedAt ? `, made ${next.generatedAt.replace("T", " ").slice(0, 16)}` : ""}. Take a lead, copy its draft into your own mailbox, send it,
@@ -554,6 +783,7 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
                 {[r.contact, r.role].filter(Boolean).join(", ") || "no contact name"} · {r.email ?? "no email"}
                 {r.note ? ` · ${r.note}` : ""}
               </p>
+              {r.sampleHeld ? <p className="mt-1 text-xs text-muted">Sample link: send it after they reply.</p> : null}
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 {r.takenBy && !mine ? (
                   <span className="text-xs text-muted">taken by {r.takenBy.name}</span>
@@ -613,10 +843,12 @@ function SendNextView({ next, me, onOpen }: { next: SendNext; me: Me; onOpen: (i
 }
 
 const show = (v: unknown) => (v === null || v === undefined || v === "" ? "" : Array.isArray(v) ? v.join(", ") : String(v));
+/** A cell as the panel shows it. Site health reads short; what is stored does not change. */
+const shownCell = (k: string, v: unknown) => (k === "site_health" ? siteHealthShort(show(v)) : show(v));
 const isUrl = (v: string) => /^https?:\/\//.test(v);
 const LONG = new Set(["pain_point", "draft_email", "draft_whatsapp", "draft_followup", "source_pages", "site_health", "notes"]);
 const SELECT: Record<string, string[]> = { contact_role: CONTACT_ROLES, linkedin_via: LINKEDIN_VIA, email_status: EMAIL_STATUSES, whatsapp_status: WHATSAPP_STATUSES, result: RESULTS };
-const REASON: Record<string, string> = { person_wins: "a person changed it last", human_only: "the team's field", filled: "already filled" };
+const REASON: Record<string, string> = { research_first: "waiting for a person's research (Research first)", person_wins: "a person changed it last", human_only: "the team's field", filled: "already filled", derived: "worked out from another cell" };
 
 /** Copy link: the lead's canonical address to the clipboard, "Copied" for two seconds. Where the
  *  clipboard is refused, the address shows selected in a field, ready for ⌘C. */
@@ -680,11 +912,61 @@ function CopyButton({ text, label, title, done, field, icon, multiline = false }
 
 export const GUIDE_HINT_KEY = "peek.guide-hint-seen";
 
-function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me; choices: Choices; view: ViewPrefs | null; holder: string | null; onClose: () => void }) {
+/** The drawer's left edge: drag it (or use the arrow keys on it) to widen or narrow the drawer on a
+ *  wide screen; the width is saved on the person when the drag ends. A double-click puts back the default. */
+function DrawerEdge({ width, onWidth }: { width: number; onWidth: (w: number | null) => void }) {
+  const [live, setLive] = useState<number | null>(null);
+  const save = (w: number | null) => {
+    onWidth(w);
+    void fetch("/api/view-prefs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ drawer_width: w }) }).catch(() => undefined);
+  };
+  const shown = live ?? width;
+  return (
+    <button
+      type="button"
+      aria-label={`Drawer width ${shown} pixels: drag, or use the arrow keys; double-click for the default`}
+      title="Drag to resize · double-click for the default width"
+      className="group absolute inset-y-0 left-0 z-10 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none sm:block focus-visible:outline-none"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setLive(width);
+      }}
+      onPointerMove={(e) => {
+        if (live === null) return;
+        const w = clampDrawer(window.innerWidth - e.clientX, window.innerWidth);
+        setLive(w);
+        onWidth(w);
+      }}
+      onPointerUp={() => {
+        if (live === null) return;
+        save(live);
+        setLive(null);
+      }}
+      onDoubleClick={() => save(null)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 96 : 32;
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        save(clampDrawer(width + (e.key === "ArrowLeft" ? step : -step), window.innerWidth));
+      }}
+    >
+      <span aria-hidden className={`absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors ${live !== null ? "bg-accent" : "bg-transparent group-hover:bg-accent/60 group-focus-visible:bg-accent"}`} />
+      <span aria-hidden className="absolute top-1/2 left-1/2 h-10 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-line group-hover:bg-accent" />
+    </button>
+  );
+}
+
+function Drawer({ id, me, choices, view, width, onWidth, onClose, nav, onStep }: { id: string; me: Me; choices: Choices; view: ViewPrefs | null; width: number | null; onWidth: (w: number | null) => void; onClose: () => void; nav?: LeadNav | null; onStep?: (id: string) => void }) {
+  // the window's width, for keeping the drawer inside it (0 until the browser says, so server and browser render alike)
+  const viewport = useSyncExternalStore(onResize, () => window.innerWidth, () => 0);
+  const drawerPx = viewport ? clampDrawer(width, viewport) : null;
   const router = useRouter();
-  const [data, setData] = useState<{ lead: Lead; history: Change[]; flags?: Flag[]; attachments?: Attached[] } | null>(null);
+  const [data, setData] = useState<LeadRead | null>(null);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  // after a person's rewrite of a Writer draft, the offer to use it for the rest of its group
+  const [offer, setOffer] = useState<{ edit_id: number; channel: string; words: string } | null>(null);
   const [busy, setBusy] = useState(false);
   // The person's own view (Settings → My view): their field order, the fields behind "n hidden", and whether
   // empty fields show (default yes). Kept on the person; this browser's copy of "show empty" stands in only
@@ -700,8 +982,9 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
     }
   });
   const [revealHidden, setRevealHidden] = useState(false);
-  // Take it / Give back here changes who holds the lead before the board reloads
-  const [claimNow, setClaimNow] = useState<boolean | null>(null);
+  // who holds this lead, from the lead's own read; Take it waits for it, so a taken lead never offers it
+  const [got, setGot] = useState<{ id: string; holder: Holder | null } | null>(null);
+  const claimed = got?.id === id ? got.holder : undefined;
   const [movingDate, setMovingDate] = useState(false);
   const setShowEmpty = (v: boolean) => {
     setShowEmptyState(v);
@@ -712,8 +995,8 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
     }
     void fetch("/api/view-prefs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_empty: v }) }).catch(() => undefined);
   };
-  const [taken, setTaken] = useState(false);
-  const [done, setDone] = useState<{ key: string; label: string }[]>([]);
+  // right after a reply or a win, the one extra click (which channel, the amount)
+  const [askSend, setAskSend] = useState(false);
   // the first drawer this browser opens shows one line pointing at the guide's sending steps
   const [hint, setHint] = useState(false);
   useEffect(() => {
@@ -729,46 +1012,95 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {
+    // read once per lead: this used to run again on every redraw of the page behind, and one failed re-read put "Could not load"
+    // over a lead that was loaded
     let live = true;
-    fetch(`/api/leads/${id}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d) => live && setData(d))
+    readLead(id)
+      .then((d) => {
+        if (!live) return;
+        setError("");
+        setData(d);
+        setGot({ id, holder: d.holder ?? null });
+      })
       .catch(() => live && setError("Could not load this lead. Try again."));
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", esc);
     return () => {
       live = false;
-      window.removeEventListener("keydown", esc);
     };
-  }, [id, onClose]);
-  const save = async (fields: Record<string, unknown>, done: string): Promise<boolean> => {
+  }, [id]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+  // the sticky row names the lead once its title has scrolled out of sight
+  const titleBlock = useRef<HTMLDivElement>(null);
+  const [titleGone, setTitleGone] = useState(false);
+  const hasLead = !!data;
+  useEffect(() => {
+    const el = titleBlock.current;
+    if (!el || !hasLead) return;
+    const seen = new IntersectionObserver(([e]) => setTitleGone(!e.isIntersecting), { root: el.closest("aside"), rootMargin: "-60px 0px 0px 0px" });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [hasLead]);
+  // an edit still open is not lost by a press of an arrow
+  const moveTo = useCallback(
+    (to: string) => {
+      if (document.querySelector("aside[role=dialog] form") && !window.confirm("You have an edit open. Leave it without saving?")) return;
+      onStep?.(to);
+    },
+    [onStep],
+  );
+  const save = async (fields: Record<string, unknown>, done: string, formatted?: Record<string, string | null>): Promise<boolean> => {
     setBusy(true);
     setMsg("");
-    const r = await patch(id, fields);
+    const r = await patch(id, fields, formatted);
     setBusy(false);
     if (!r.ok || !r.lead) {
       setMsg(r.error ?? "Not saved.");
       return false;
     }
-    setData({ lead: r.lead, history: r.history ?? data?.history ?? [], flags: data?.flags, attachments: data?.attachments });
-    setMsg(r.refused?.length ? `Not saved: ${r.refused.map((x) => `${label(x.field)} (${REASON[x.reason] ?? x.reason})`).join(", ")}` : done);
+    // a saved cell's old formatted copy no longer applies; what the server kept comes back in r.rich
+    const rich = { ...data?.rich };
+    for (const key of Object.keys(fields)) delete rich[key];
+    for (const [key, html] of Object.entries(r.rich ?? {})) if (html) rich[key] = html;
+    setData({ lead: r.lead, history: r.history ?? data?.history ?? [], attachments: data?.attachments, sendLog: r.sendLog ?? data?.sendLog, rich });
+    setMsg(r.refused?.length ? `Not saved: ${r.refused.map((x) => `${label(x.field)} (${REASON[x.reason] ?? x.reason})`).join(", ")}` : formatted && r.rich === null ? `${done} Its formatting could not be kept.` : done);
     router.refresh();
+    setOffer(null);
+    if (("draft_email" in fields || "draft_whatsapp" in fields) && r.changes?.length) {
+      for (const edit of r.changes) {
+        const o = (await fetch(`/api/template-proposals?lead=${encodeURIComponent(id)}&edit=${edit}`).then((x) => x.json()).catch(() => null)) as { offer?: { edit_id: number; channel: string; words: string } | null } | null;
+        if (o?.offer) {
+          setOffer(o.offer);
+          break;
+        }
+      }
+    }
     return true;
   };
-  const step = async (s: Step) => {
-    if (busy || done.some((d) => d.key === s.key)) return;
-    if (await save(s.fields, `${s.label}: saved.`)) setDone((d) => [...d, { key: s.key, label: s.label }]);
+  const answerOffer = async (answer: "yes" | "no") => {
+    if (!offer) return;
+    const r = await fetch("/api/template-proposals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lead: id, edit: offer.edit_id, answer }) })
+      .then((x) => x.json()).catch(() => ({ ok: false, error: "No answer from the server." })) as { ok: boolean; error?: string };
+    setMsg(r.ok ? (answer === "yes" ? `Saved: your rewrite is the approved template for ${offer.words.replace(/^the other \d+ /, "")}.` : "Kept to this lead only.") : (r.error ?? "Not saved."));
+    setOffer(null);
   };
-  // The × on a status chip: empties it and the cells its step set; the step buttons start over.
+  const step = async (s: Step) => {
+    if (busy) return;
+    if ((await save(s.fields, `${s.label}: saved.`)) && hasReplied(s.fields.result)) setAskSend(true);
+  };
+  // Clear, in a status line's menu: empties it and the cells its step set; the line starts over.
   const clear = async (field: "email_status" | "whatsapp_status" | "result", what: string) => {
     setBusy(true);
     setMsg("");
     try {
+      ready.clear();
       const res = await fetch(`/api/leads/${id}/clear`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ field }) });
-      const r = (await res.json()) as { ok: boolean; error?: string; lead?: Lead; history?: Change[]; cleared?: string[] };
+      const r = (await res.json()) as { ok: boolean; error?: string; lead?: Lead; history?: Change[]; cleared?: string[]; sendLog?: SendLog | null };
       if (!r.ok || !r.lead) return setMsg(r.error ?? "Not cleared.");
-      setData({ lead: r.lead, history: r.history ?? data?.history ?? [], flags: data?.flags, attachments: data?.attachments });
-      setDone([]);
+      setData({ lead: r.lead, history: r.history ?? data?.history ?? [], attachments: data?.attachments, sendLog: r.sendLog ?? data?.sendLog, rich: data?.rich });
+      setAskSend(false);
       setMsg(`${what} cleared${r.cleared && r.cleared.length > 1 ? `, with ${r.cleared.filter((c) => c !== field).map(label).join(", ")}` : ""}.`);
       router.refresh();
     } catch {
@@ -780,28 +1112,73 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
   const take = async (action: "accept" | "release") => {
     setBusy(true);
     const r = await claim(id, action);
+    if (!r.ok) {
+      // someone else got there first, or it changed hands: show who holds it now
+      const now = (await fetch(`/api/leads/${id}`).then((x) => (x.ok ? x.json() : null)).catch(() => null)) as { holder?: Holder | null } | null;
+      if (now) setGot({ id, holder: now.holder ?? null });
+      setBusy(false);
+      return setMsg(r.error ?? "That failed.");
+    }
     setBusy(false);
-    if (!r.ok) return setMsg(r.error ?? "That failed.");
-    setTaken(action === "accept");
-    setClaimNow(action === "accept");
+    setGot({ id, holder: action === "accept" ? { userId: me.userId, name: me.name } : null });
     setMsg(action === "accept" ? "Taken: it is yours." : "Given back.");
     router.refresh();
   };
   const lead = data?.lead;
-  const steps: Step[] = lead ? [...emailSteps(lead), ...whatsappSteps(lead)] : [];
-  const holderNow = claimNow === true ? "you" : claimNow === false ? null : holder === me.name ? "you" : holder;
+  const tracks = lead ? leadTracks(lead) : [];
+  // a lead sent on both channels says which one answered; a win may carry an amount; a held link goes after the reply
+  const sends = data?.sendLog?.sends ?? [];
+  const needChannel = hasReplied(lead?.result) && sends.length === 2 && !sends.some((x) => x.replied);
+  const needAmount = lead?.result === "Client" && (needChannel || sends.some((x) => x.closed && x.amountCents === null));
+  const heldLink = lead && hasReplied(lead.result) && sends.some((x) => x.variant === "after_reply") ? show(lead.sample_url) : "";
+  const copyHeldLink = async () => {
+    if (!(await copy(heldLink))) return setMsg("Copy failed: select the link in Sample site.");
+    setMsg("Sample link copied.");
+    const r = (await fetch(`/api/leads/${id}/send-log`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link: true }) }).then((x) => x.json()).catch(() => null)) as { sendLog?: SendLog | null } | null;
+    if (r?.sendLog) setData((d) => (d ? { ...d, sendLog: r.sendLog } : d));
+  };
+  const holderNow = claimed ? (claimed.userId === me.userId ? "you" : claimed.name) : null;
   const activity = lead ? activityOf(lead, data?.history ?? [], holderNow ? `Taken by ${holderNow}` : null) : [];
   const visible = order.filter((k) => !hiddenSet.has(k) || revealHidden);
-  const keys = visible.filter((k) => showEmpty || show(lead?.[k]));
-  const empty = lead ? visible.filter((k) => !show(lead[k])).length : 0;
-  // The next step in the brand orange, the other next steps as orange outlines, a losing one as a red outline (never a
-  // prominent destructive button); steps already taken here are muted with a check and cannot be pressed again.
-  const stepClass = (t: Step["tone"], first: boolean) =>
-    t === "bad" ? "border border-bad/50 bg-panel text-bad hover:bg-bad/10" : first ? "bg-accent text-on-accent hover:bg-accent-hover" : "border border-accent bg-panel text-accent-ink hover:bg-accent-tint";
+  const keys = visible.filter((k) => showEmpty || shownCell(k, lead?.[k]));
+  const empty = lead ? visible.filter((k) => !shownCell(k, lead[k])).length : 0;
+  const split = splitAtDraft(keys);
+  const attachments = <Attachments leadId={id} initial={data?.attachments ?? []} onChange={(a) => setData((d) => (d ? { ...d, attachments: a } : d))} />;
+  const cell = (k: string) =>
+    lead && data ? (
+      <Cell
+        key={k}
+        k={k}
+        value={lead[k]}
+        busy={busy}
+        choices={choices}
+        rich={data.rich?.[k]}
+        copyAs={k === "draft_email" ? (v) => withAttachments(withSample(v, firstMessageLink("email", show(lead.sample_url), data.sendLog?.variant, lead.result)), (data.attachments ?? []).map((a) => a.name)) : k === "draft_whatsapp" ? (v) => withSample(v, firstMessageLink("whatsapp", show(lead.sample_url), data.sendLog?.variant, lead.result)) : undefined}
+        onSave={(v, html) => save({ [k]: v }, `${label(k)}: saved.`, html === undefined ? undefined : { [k]: html })}
+      />
+    ) : null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-ink/30" />
-      <aside role="dialog" aria-modal="true" aria-label={String(lead?.business ?? "Lead")} className="relative h-full w-full max-w-xl overflow-y-auto bg-bg p-5 shadow-xl">
+      {/* the frame holds the width and the draggable left edge, which stays put while the drawer scrolls */}
+      <div className={`relative h-full w-full ${drawerPx ? "sm:w-[var(--drawer-w)]" : "max-w-xl"}`} style={drawerPx ? ({ "--drawer-w": `${drawerPx}px` } as React.CSSProperties) : undefined}>
+      <DrawerEdge width={drawerPx ?? DRAWER_WIDTH.default} onWidth={onWidth} />
+      <aside role="dialog" aria-modal="true" aria-label={String(lead?.business ?? "Lead")} className="relative h-full w-full overflow-y-auto bg-bg px-5 pb-5 shadow-xl">
+        {/* this row stays at the top while the panel scrolls; once the title has scrolled away it names the lead */}
+        <div data-lead-bar className="sticky top-0 z-10 -mx-5 mb-3 flex items-center justify-between gap-2 border-b border-line bg-bg px-5 py-1.5">
+          <span data-lead-bar-name aria-hidden={!titleGone} className={`hidden min-w-0 flex-1 truncate text-sm font-semibold transition-opacity sm:block ${titleGone ? "opacity-100" : "opacity-0"}`}>
+            {show(lead?.business)}
+          </span>
+          <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1" data-lead-actions>
+            {lead && claimed !== undefined ? <TakeControl holder={claimed} meId={me.userId} busy={busy} onTake={() => void take("accept")} onGiveBack={() => void take("release")} /> : null}
+            <CopyLink id={id} />
+            {lead ? <CopyForWhatsApp id={id} business={show(lead.business)} history={data?.history ?? []} /> : null}
+            {nav && onStep ? <LeadArrows nav={nav} onStep={moveTo} /> : null}
+            <button type="button" onClick={onClose} className="min-h-11 px-1 text-sm text-muted hover:text-ink">
+              Close
+            </button>
+          </div>
+        </div>
         {hint ? (
           <p role="note" className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-accent bg-accent-tint px-3 py-2 text-sm">
             <span>
@@ -820,7 +1197,7 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
             </button>
           </p>
         ) : null}
-        <div className="flex items-start justify-between gap-3">
+        <div ref={titleBlock}>
           <div className="min-w-0">
             {lead ? (
               <>
@@ -831,35 +1208,54 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
                   <span aria-hidden>·</span>
                   <HeaderField k="industry" value={lead.industry} busy={busy} choices={choices.industry} onSave={(v) => save({ industry: v }, "Industry: saved.")} />
                 </p>
-                <p className="mt-2 flex flex-wrap gap-1">
-                  <StatusChip label="email status" status={show(lead.email_status) || null} disabled={busy} onClear={() => void clear("email_status", "Email status")} />
-                  <StatusChip label="result" status={show(lead.result) || null} disabled={busy} onClear={() => void clear("result", "Result")} />
-                  <StatusChip label="WhatsApp status" status={show(lead.whatsapp_status) || null} disabled={busy} onClear={() => void clear("whatsapp_status", "WhatsApp status")} />
-                </p>
               </>
             ) : (
               <h2 className="text-xl font-bold">…</h2>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <CopyLink id={id} />
-            {lead ? <CopyForWhatsApp id={id} business={show(lead.business)} history={data?.history ?? []} /> : null}
-            <button type="button" onClick={onClose} className="min-h-11 px-1 text-sm text-muted hover:text-ink">
-              Close
-            </button>
-          </div>
         </div>
         {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
         {lead ? (
           <>
-            {(data.flags ?? [])
-              .filter((x) => x.status === "open")
-              .map((x) => (
-                <p key={x.id} role="note" className="mt-3 rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-2 text-sm">
-                  <span className="font-semibold text-bad">{x.rule}</span> {x.detail}
-                  <span className="block text-xs text-muted">flagged {new Date(x.first_seen).toLocaleDateString()}</span>
-                </p>
-              ))}
+            {/* nothing is settled for the person; the Phone cell and the send screens keep the row's number */}
+            {phoneDiffers(show(lead.phone), lead.site_facts) ? (
+              <p data-phone-differs className="mt-4 rounded-xl border border-line bg-panel/60 px-3 py-2 text-sm">
+                The listing shows a different phone: <span className="tabular-nums">{phoneDiffers(show(lead.phone), lead.site_facts)}</span>. Check it and update the Phone cell if it is right. Send screens keep using the Phone cell.
+              </p>
+            ) : null}
+            <LeadTracks tracks={tracks} busy={busy} onStep={(x) => void step(x)} onClear={(c) => void clear(c.field, c.what)} />
+            <PixelLoader inline active={busy} label="Saving to the database…" />
+            {msg && !busy ? (
+              <p role="status" className="mt-2 text-sm">
+                {msg}
+              </p>
+            ) : null}
+            {askSend && !busy && (needChannel || needAmount) ? (
+              <SendAnswer
+                id={id}
+                channel={needChannel}
+                amount={needAmount}
+                onDone={(log) => {
+                  setAskSend(false);
+                  if (log) setData((d) => (d ? { ...d, sendLog: log } : d));
+                }}
+              />
+            ) : null}
+            {heldLink && !busy ? (
+              <button type="button" onClick={() => void copyHeldLink()} className="mt-2 inline-flex min-h-11 items-center rounded-full border border-accent bg-panel px-3 text-sm font-semibold text-accent-ink">
+                Copy sample link
+              </button>
+            ) : null}
+            {offer && !busy ? (
+              // asked once, right after the save; no answer leaves it to the owner's Decisions box
+              <div role="group" aria-label="Use this rewrite for other leads" className="mt-2 rounded-xl border border-line bg-panel p-3 text-sm" data-template-offer>
+                <p>Use your rewritten {offer.channel === "whatsapp" ? "WhatsApp message" : "email"} for {offer.words}? Their names, city and pain point fill in for each.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void answerOffer("yes")} className="rounded-full px-3 py-1.5 text-sm font-semibold" style={{ background: "#ff6600", color: "#1a0d00" }}>Yes, use it for them</button>
+                  <button type="button" onClick={() => void answerOffer("no")} className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold">Just this lead</button>
+                </div>
+              </div>
+            ) : null}
             {activity.length ? (
               <section aria-label="Activity" className="mt-4 rounded-xl border border-line bg-panel/60 px-3 py-2">
                 <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Activity</h3>
@@ -896,40 +1292,12 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
                 </ul>
               </section>
             ) : null}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {done.map((s) => (
-                <span key={`done-${s.key}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-panel px-3 text-sm text-muted">
-                  <span aria-hidden>✓</span> {s.label}
-                </span>
-              ))}
-              {steps.map((s, i) => (
-                <button key={s.key} type="button" disabled={busy} onClick={() => void step(s)} className={`min-h-11 rounded-full px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${stepClass(s.tone, i === 0)}`}>
-                  {s.label}
-                </button>
-              ))}
-              <button type="button" disabled={busy} onClick={() => take(taken ? "release" : "accept")} className="inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline">
-                {taken ? "Give back" : "Take it"}
-              </button>
-            </div>
-            {msg ? (
-              <p role="status" className="mt-2 text-sm">
-                {msg}
-              </p>
-            ) : null}
-            <Attachments leadId={id} initial={data.attachments ?? []} onChange={(a) => setData((d) => (d ? { ...d, attachments: a } : d))} />
-            <dl className="mt-4 space-y-1.5 text-sm">
-              {keys.map((k) => (
-                <Cell
-                  key={k}
-                  k={k}
-                  value={lead[k]}
-                  busy={busy}
-                  choices={choices}
-                  copyAs={k === "draft_email" ? (v) => withAttachments(withSample(v, show(lead.sample_url)), (data.attachments ?? []).map((a) => a.name)) : k === "draft_whatsapp" ? (v) => withSample(v, show(lead.sample_url)) : undefined}
-                  onSave={(v) => save({ [k]: v }, `${label(k)}: saved.`)}
-                />
-              ))}
-            </dl>
+            {!split ? attachments : null}
+            <SampleBox leadId={id} noSite={!show(lead.website)} />
+            <dl className="mt-4 space-y-2 text-sm">{(split?.upTo ?? keys).map(cell)}</dl>
+            {/* Attachments directly under the draft email; with no draft showing it stays above the fields */}
+            {split ? attachments : null}
+            {split?.rest.length ? <dl className="mt-4 space-y-2 text-sm">{split.rest.map(cell)}</dl> : null}
             {empty ? (
               <button type="button" onClick={() => setShowEmpty(!showEmpty)} className="inline-flex min-h-11 items-center mt-2 text-sm text-accent-ink hover:underline">
                 {showEmpty ? `Hide empty fields (${empty})` : `Show empty fields (${empty})`}
@@ -949,7 +1317,7 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
               {data.history.map((h) => (
                 <li key={h.id} className="rounded-lg border border-line bg-panel px-3 py-2">
                   <span className="text-xs text-muted">
-                    {new Date(h.at).toLocaleString()} · {h.actor.name}
+                    {new Date(h.at).toLocaleString()} · {h.actor.kind === "person" ? h.actor.name : agentName(h.actor.name)}
                     {h.actor.kind === "person" ? (h.actor.name === me.name ? " (you)" : " (person)") : ` (bot${h.actor.via && h.actor.via !== h.actor.name ? `, via ${h.actor.via}` : ""})`}
                   </span>
                   {h.column === "cleared" ? (
@@ -971,6 +1339,7 @@ function Drawer({ id, me, choices, view, holder, onClose }: { id: string; me: Me
           <p className="mt-4 text-sm text-muted">Loading…</p>
         ) : null}
       </aside>
+      </div>
     </div>
   );
 }
@@ -1041,63 +1410,184 @@ function HeaderField({ k, value, busy, choices, onSave }: { k: string; value: un
   );
 }
 
+/** A draft's text, editable where it is shown: no frame of its own, the box's font and line height, as tall as its text
+ *  (it grows as you type), so starting an edit moves nothing. */
+function InPlaceText({ value, onChange, label, onPaste, roomy = false }: { value: string; onChange: (v: string) => void; label: string; onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>; roomy?: boolean }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const t = ref.current;
+    if (!t) return;
+    t.style.height = "0px";
+    t.style.height = `${t.scrollHeight}px`;
+  }, [value]);
+  useEffect(() => {
+    const t = ref.current;
+    if (!t) return;
+    t.focus({ preventScroll: true });
+    t.setSelectionRange(t.value.length, t.value.length);
+  }, []);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onPaste={onPaste}
+      aria-label={label}
+      rows={1}
+      className={`block w-full resize-none appearance-none overflow-hidden whitespace-pre-wrap break-words border-0 bg-transparent p-0 text-[length:inherit] leading-[inherit] text-[color:inherit] shadow-none ${roomy ? "min-h-24" : ""}`}
+      // the global focus ring (globals.css, unlayered) would draw a frame inside the box: the box's accent border shows the edit
+      style={{ outline: "none" }}
+    />
+  );
+}
+
 /** One field: its value (a link, a draft with Copy), and for a person-editable field an Edit that saves it. */
-function Cell({ k, value, busy, choices, onSave, copyAs }: { k: string; value: unknown; busy: boolean; choices: Choices; onSave: (v: unknown) => Promise<boolean>; copyAs?: (v: string) => string }) {
+/** The one extra click after a reply or a win. Saved or skipped, the lead's own step is already saved. */
+function SendAnswer({ id, channel, amount, onDone }: { id: string; channel: boolean; amount: boolean; onDone: (log: SendLog | null | undefined) => void }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const send = async (ch?: "email" | "whatsapp") => {
+    setSaving(true);
+    setError("");
+    const r = (await fetch(`/api/leads/${id}/send-log`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: ch, amount: amount ? value : undefined }) })
+      .then((x) => x.json())
+      .catch(() => ({ ok: false, error: "No answer from the server." }))) as { ok: boolean; error?: string; sendLog?: SendLog | null };
+    setSaving(false);
+    if (!r.ok) return setError(r.error ?? "Not saved.");
+    onDone(r.sendLog);
+  };
+  const btn = "inline-flex min-h-11 items-center rounded-full border border-accent bg-panel px-3 text-sm font-semibold text-accent-ink disabled:opacity-60";
+  return (
+    <div data-send-answer className="mt-2 rounded-xl border border-line bg-panel p-3 text-sm">
+      {amount ? (
+        <label className="mb-2 block">
+          <span className="text-muted">Amount won (optional)</span>
+          <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="1200" className="mt-1 block min-h-11 w-40 rounded-lg border border-line bg-bg px-3" />
+        </label>
+      ) : null}
+      {channel ? <p className="mb-2 text-muted">Which message did they answer?</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {channel ? (
+          <>
+            <button type="button" disabled={saving} onClick={() => void send("email")} className={btn}>Email</button>
+            <button type="button" disabled={saving} onClick={() => void send("whatsapp")} className={btn}>WhatsApp</button>
+          </>
+        ) : (
+          <button type="button" disabled={saving} onClick={() => void send()} className={btn}>Save amount</button>
+        )}
+        <button type="button" disabled={saving} onClick={() => onDone(undefined)} className="inline-flex min-h-11 items-center px-2 text-sm text-muted hover:underline">Skip</button>
+      </div>
+      {error ? <p role="alert" className="mt-2 text-bad">{error}</p> : null}
+    </div>
+  );
+}
+
+function Cell({ k, value, rich, busy, choices, onSave, copyAs }: { k: string; value: unknown; rich?: string; busy: boolean; choices: Choices; onSave: (v: unknown, html?: string | null) => Promise<boolean>; copyAs?: (v: string) => string }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
-  const v = show(value);
+  const v = shownCell(k, value);
   const editable = !READ_ONLY.has(k);
+  // a cell holding a pasted Google Doc edits as that document; every other cell stays a plain text box
+  const [html, setHtml] = useState<string | null>(null);
+  const [pasteNote, setPasteNote] = useState("");
+  const editor = useRef<HTMLDivElement>(null);
   const start = () => {
     setDraft(v);
+    setHtml(rich ?? null);
+    setPasteNote("");
     setEditing(true);
   };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (html !== null && editor.current) {
+      const plain = plainOf(editor.current);
+      if (await onSave(plain || null, plain ? editor.current.innerHTML : null)) setEditing(false);
+      return;
+    }
     if (await onSave(draft.trim() === "" ? null : draft)) setEditing(false);
   };
+  const docPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!RICH_FIELDS.has(k)) return;
+    const raw = e.clipboardData.getData("text/html");
+    if (!isDocsPaste(raw)) return;
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    const before = draft.slice(0, e.currentTarget.selectionStart);
+    const after = draft.slice(e.currentTarget.selectionEnd);
+    void cleanPaste(raw)
+      .then((clean) => {
+        setHtml(`${textToHtml(before)}${clean}${textToHtml(after)}`);
+        setPasteNote(hasPictures(raw) ? PICTURES_NOTE : "");
+      })
+      .catch(() => setDraft(`${before}${text}${after}`));
+  };
   const list = k === "package" ? choices.package : k === "industry" ? choices.industry : k === "location" ? choices.location : null;
-  const input = "h-11 w-full rounded-xl border border-line bg-panel px-3 text-base";
-  const boxed = (k === "draft_email" || k === "draft_whatsapp") && !!v && !editing;
+  // Every field is the draft email's box. Its label and actions on one line, the value below; Edit turns the value
+  // editable in place, Save and Cancel take Copy and Edit's places, and the border turns to the accent. An empty field is one
+  // quiet line with Add, and opens the same way.
+  const filled = !!v;
+  const formId = useId();
+  const action = "inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline";
   return (
-    <div className={boxed ? "rounded-xl border border-line bg-panel p-3" : "grid grid-cols-[9rem_1fr] gap-x-3"}>
-      <dt className="text-muted">
-        {label(k)}
-        {boxed ? (
-          <span className="float-right flex gap-3">
+    <div data-cell={k} data-cell-state={editing ? "editing" : filled ? "filled" : "empty"} className={`rounded-xl border bg-panel px-3 ${editing || filled ? "pb-3" : ""} ${editing ? "border-accent" : filled ? "border-line" : "border-dashed border-line"}`}>
+      <dt className="flex min-h-11 items-center justify-between gap-3 text-muted">
+        <span className="min-w-0">{label(k)}</span>
+        {editing ? (
+          <span className="flex shrink-0 gap-3">
+            <button form={formId} disabled={busy} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent-ink hover:underline disabled:opacity-50">
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-11 items-center text-sm text-muted hover:underline">
+              Cancel
+            </button>
+          </span>
+        ) : filled ? (
+          <span className="flex shrink-0 gap-3">
             <button
               type="button"
+              aria-label={copied ? `${label(k)} copied` : `Copy ${label(k)}`}
               onClick={async () => {
-                setCopied(await copy(copyAs ? copyAs(v) : v));
+                const final = copyAs ? copyAs(v) : v;
+                const formatted = rich ? richWithEnding(rich, v, final) : null;
+                setCopied(formatted ? await copyRich(formatted, final) : await copy(final));
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline"
+              className={action}
             >
               {copied ? "Copied" : "Copy"}
             </button>
-            <button type="button" onClick={start} className="inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline">
-              Edit
-            </button>
+            {editable ? (
+              <button type="button" onClick={start} aria-label={`Edit ${label(k)}`} className={action}>
+                Edit
+              </button>
+            ) : null}
           </span>
-        ) : null}
+        ) : editable ? (
+          <button type="button" onClick={start} aria-label={`Add ${label(k)}`} className={`${action} shrink-0`}>
+            Add
+          </button>
+        ) : (
+          <span className="shrink-0 text-muted">-</span>
+        )}
       </dt>
-      <dd className={`break-words whitespace-pre-line ${boxed ? "mt-2" : ""}`}>
-        {editing ? (
-          <form onSubmit={submit} className="space-y-1">
+      {editing ? (
+        <dd className="break-words whitespace-pre-line">
+          <form id={formId} onSubmit={submit}>
             {SELECT[k] ? (
-              <select value={draft} onChange={(e) => setDraft(e.target.value)} className={input} aria-label={label(k)}>
-                <option value="">(empty)</option>
-                {SELECT[k].map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
+              <InPlaceSelect value={draft} onChange={setDraft} label={label(k)} options={SELECT[k]} />
             ) : k === "result_date" ? (
-              <input type="date" value={draft} onChange={(e) => setDraft(e.target.value)} className={input} aria-label={label(k)} />
+              <InPlaceInput type="date" value={draft} onChange={setDraft} label={label(k)} />
             ) : LONG.has(k) ? (
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={k.startsWith("draft") ? 10 : 4} className={input} aria-label={label(k)} />
+              html !== null ? (
+                <RichEditor initial={html} label={label(k)} editorRef={editor} onNote={setPasteNote} />
+              ) : (
+                <InPlaceText value={draft} onChange={setDraft} label={label(k)} onPaste={docPaste} roomy={!filled} />
+              )
             ) : (
               <>
-                <input value={draft} onChange={(e) => setDraft(e.target.value)} list={list ? `dl-${k}` : undefined} className={input} aria-label={label(k)} />
+                <InPlaceInput value={draft} onChange={setDraft} label={label(k)} list={list ? `dl-${k}` : undefined} />
                 {list ? (
                   <datalist id={`dl-${k}`}>
                     {list.map((o) => (
@@ -1107,40 +1597,53 @@ function Cell({ k, value, busy, choices, onSave, copyAs }: { k: string; value: u
                 ) : null}
               </>
             )}
-            <span className="flex gap-3">
-              <button disabled={busy} className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-on-accent disabled:opacity-50">
-                Save
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-11 items-center text-sm text-muted hover:underline">
-                Cancel
-              </button>
-            </span>
+            {pasteNote ? <p role="status" className="mt-1 text-xs text-muted">{pasteNote}</p> : null}
           </form>
-        ) : (
-          <>
-            {v ? (
-              k === "phone" && telHref(v) ? (
-                <a href={telHref(v)!} className="text-accent-ink tabular-nums hover:underline">
-                  {v}
-                </a>
-              ) : isUrl(v) ? (
-                <a href={v} target="_blank" rel="noreferrer" className="text-accent-ink hover:underline">
-                  {v}
-                </a>
-              ) : (
-                v
-              )
-            ) : (
-              <span className="text-muted">-</span>
-            )}
-            {editable && !boxed ? (
-              <button type="button" onClick={start} className="inline-flex min-h-11 items-center ml-2 text-sm text-accent-ink hover:underline" aria-label={`Edit ${label(k)}`}>
-                Edit
-              </button>
-            ) : null}
-          </>
-        )}
-      </dd>
+        </dd>
+      ) : filled ? (
+        <dd className="break-words whitespace-pre-line">
+          {rich ? (
+            <RichBody html={rich} />
+          ) : k === "phone" && telHref(v) ? (
+            <a href={telHref(v)!} className="text-accent-ink tabular-nums hover:underline">
+              {v}
+            </a>
+          ) : isUrl(v) ? (
+            <a href={v} target="_blank" rel="noreferrer" className="text-accent-ink hover:underline">
+              {v}
+            </a>
+          ) : k === "found_by" ? (
+            agentName(v)
+          ) : (
+            v
+          )}
+        </dd>
+      ) : (
+        <dd className="sr-only">Empty</dd>
+      )}
     </div>
   );
 }
+
+const IN_PLACE = "block min-h-6 w-full appearance-none border-0 bg-transparent p-0 text-[length:inherit] leading-[inherit] text-[color:inherit] shadow-none";
+
+/** A one-line field, edited where its value is shown, with no frame of its own: the box's accent border shows the edit. */
+function InPlaceInput({ value, onChange, label, type = "text", list }: { value: string; onChange: (v: string) => void; label: string; type?: string; list?: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => ref.current?.focus({ preventScroll: true }), []);
+  return <input ref={ref} type={type} value={value} list={list} onChange={(e) => onChange(e.target.value)} aria-label={label} className={IN_PLACE} style={{ outline: "none" }} />;
+}
+
+function InPlaceSelect({ value, onChange, label, options }: { value: string; onChange: (v: string) => void; label: string; options: string[] }) {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => ref.current?.focus({ preventScroll: true }), []);
+  return (
+    <select ref={ref} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="block min-h-6 w-full border-0 bg-panel p-0 text-[length:inherit] text-[color:inherit]" style={{ outline: "none" }}>
+      <option value="">(empty)</option>
+      {options.map((o) => (
+        <option key={o}>{o}</option>
+      ))}
+    </select>
+  );
+}
+

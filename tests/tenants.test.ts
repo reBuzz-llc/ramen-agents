@@ -22,7 +22,6 @@ describe("tenants", () => {
     expect((await clockOut(db, tenant.id, owner.id)).ok).toBe(false);
     expect(await shiftsSince(db, tenant.id, owner.id, new Date(0))).toHaveLength(1);
   });
-
 });
 
 describe("first sign-in", () => {

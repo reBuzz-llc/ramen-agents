@@ -1,0 +1,230 @@
+{
+ "commit": "deaf462",
+ "norm": {
+  "The Beauty Cellar NY": "beauty cellar ny",
+  "Applied Aesthetic": "applied aesthetic",
+  "Prism Med Spa": "prism med spa",
+  "Asunshine MedSpa": "asunshine medspa",
+  "Joe's Pizza": "joes pizza",
+  "Spa": "spa",
+  "Starbucks": "starbucks",
+  "Kim & Lee Dental, PLLC": "kim & lee dental",
+  "쌈통 Korean BBQ": "쌈통 korean bbq",
+  "Co-Op Market": "op market",
+  "GlowDocs": "glowdocs",
+  "Bar": "bar",
+  "Clothing": "clothing",
+  "Forest Hills DDS": "forest hills",
+  "Astoria Dental, P.C.": "astoria dental p c",
+  "All in One": "all in one",
+  "Green Garden LLC": "green garden",
+  "The Corner Store": "corner store",
+  "Men’s Wearhouse": "mens wearhouse",
+  "Drafting Services": "drafting services",
+  "The Tribeca Dentist, LLC": "tribeca dentist",
+  "Dr. Smith DDS": "dr smith",
+  "Mc.Donald's Inc.": "mc donalds",
+  "Men's Wearhouse": "mens wearhouse"
+ },
+ "cases": [
+  {
+   "text": "Hi Natalie, a new patient finds Applied Aesthetic on Instagram tonight",
+   "own": "Asunshine MedSpa",
+   "also": [],
+   "other": "names another lead's business, 'Applied Aesthetic': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "357,000 followers at The Beauty Cellar NY is rare",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'The Beauty Cellar NY': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Your Prism Med Spa page is noindexed",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Book at the spa near Starbucks",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "We love Joe's Pizza nearby",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Joe's Pizza': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Kim & Lee Dental runs late",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Kim & Lee Dental, PLLC': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "쌈통 Korean BBQ has a dead link",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, '쌈통 Korean BBQ': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "GlowDocs answers at 9pm",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'GlowDocs': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Of every med spa reviewed so far, yours is best",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": "carries a research note, not words for the business: 'reviewed so far'"
+  },
+  {
+   "text": "Based on my research the site lacks booking",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": "carries a research note, not words for the business: 'based on my research'"
+  },
+  {
+   "text": "Your clothing racks look great online",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "The best spa in Forest Hills has no booking",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Forest Hills DDS answers the phone at night",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Forest Hills DDS': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "A dentist in Astoria with no site",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Astoria Dental, P.C. has a booking page",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Astoria Dental, P.C.': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Book, pay and review all in one place",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "All in One shows up first on Google",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'All in One': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "a green garden behind the shop",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Green Garden has no menu online",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Green Garden LLC': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "the corner store sells it",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "The Corner Store sells it",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'The Corner Store': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Men's Wearhouse has no booking page",
+   "own": "Men's Wearhouse",
+   "also": [],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Men's Wearhouse has no booking page",
+   "own": "Prism Med Spa",
+   "also": [],
+   "other": "names another lead's business, 'Men’s Wearhouse': write only about this row's business",
+   "leftover": ""
+  },
+  {
+   "text": "Pain point: a drafting firm (Drafting Services) with no website",
+   "own": "Kline Drafting LLC",
+   "also": [
+    "Drafting Services"
+   ],
+   "other": "",
+   "leftover": ""
+  },
+  {
+   "text": "Pain point: a drafting firm (Drafting Services) with no website",
+   "own": "Kline Drafting LLC",
+   "also": [],
+   "other": "names another lead's business, 'Drafting Services': write only about this row's business",
+   "leftover": ""
+  }
+ ],
+ "names": [
+  "The Beauty Cellar NY",
+  "Applied Aesthetic",
+  "Prism Med Spa",
+  "Asunshine MedSpa",
+  "Joe's Pizza",
+  "Spa",
+  "Starbucks",
+  "Kim & Lee Dental, PLLC",
+  "쌈통 Korean BBQ",
+  "Co-Op Market",
+  "GlowDocs",
+  "Bar",
+  "Clothing",
+  "Forest Hills DDS",
+  "Astoria Dental, P.C.",
+  "All in One",
+  "Green Garden LLC",
+  "The Corner Store",
+  "Men’s Wearhouse",
+  "Drafting Services"
+ ]
+}

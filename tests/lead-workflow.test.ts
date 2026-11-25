@@ -95,24 +95,24 @@ describe("the board's Mine and Corrected filters", () => {
 });
 
 describe("send next", () => {
-  it("shows the Validator's pushed list in its order, by lead id; drops what was sent since; counts what the board lacks", async () => {
+  it("shows the Validator's pushed list in its order, by Peek id; drops what was sent since; counts what the board lacks", async () => {
     const { db, tenantId, ANN, make } = await board();
-    const x = await make("Maple Kitchen", { draft_email: "Hi Esther", business_email: "pr@maple.example", lead_score: 49 });
-    const y = await make("Birch Studio", { draft_email: "Hi" });
-    await saveList(db, tenantId, "send-next", { generated_at: "2026-11-02T02:31:45", next: [{ id: y }, { id: x, note: "chain" }, { id: "f".repeat(32) }], held: [{ id: "x", name: "Echo Eatery", reason: "greeting is a placeholder" }] }, "validator");
+    const x = await make("Mokbar Kitchen", { draft_email: "Hi Esther", business_email: "pr@mokbar.example", lead_score: 49 });
+    const y = await make("Kline Studio", { draft_email: "Hi" });
+    await saveList(db, tenantId, "send-next", { generated_at: "2026-11-02T02:31:45", next: [{ id: y }, { id: x.replace(/-/g, ""), note: "chain" }, { id: "f".repeat(32) }], held: [{ id: "x", name: "Echo Eatery", reason: "greeting is a placeholder" }] }, "validator");
     let s = await sendNext(db, tenantId);
     expect(s).toMatchObject({ source: "validator", generatedAt: "2026-11-02T02:31:45", missing: 1, held: [{ business: "Echo Eatery", reason: "greeting is a placeholder" }] });
     expect(s.rows.map((r) => [r.business, r.note])).toEqual([
-      ["Birch Studio", ""],
-      ["Maple Kitchen", "chain"],
+      ["Kline Studio", ""],
+      ["Mokbar Kitchen", "chain"],
     ]);
-    expect(s.rows[1]).toMatchObject({ email: "pr@maple.example", draft: "Hi Esther", score: 49, takenBy: null });
+    expect(s.rows[1]).toMatchObject({ email: "pr@mokbar.example", draft: "Hi Esther", score: 49, takenBy: null });
     await writeLead(db, tenantId, { id: y }, { email_status: "Email Sent" }, ANN);
     s = await sendNext(db, tenantId);
     expect(s.rows.map((r) => r.id)).toEqual([x]);
   });
 
-  it("with no list: the board's own rule (a draft not 'skip:', not sent, no result), best score first", async () => {
+  it("with no saved list: nothing to send, never a plain read of the board", async () => {
     const { db, tenantId, make } = await board();
     await make("Low Score Co", { draft_email: "Hi", lead_score: 40 });
     await make("High Score Co", { draft_email: "Hi", lead_score: 90 });
@@ -120,7 +120,7 @@ describe("send next", () => {
     await make("Sent Co", { draft_email: "Hi", lead_score: 99, status: ["Email Sent"] });
     await make("No Draft Co", { lead_score: 99 });
     const s = await sendNext(db, tenantId);
-    expect(s.source).toBe("board");
-    expect(s.rows.map((r) => r.business)).toEqual(["High Score Co", "Low Score Co"]);
+    expect(s.source).toBe("none");
+    expect(s.rows).toEqual([]);
   });
 });

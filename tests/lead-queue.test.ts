@@ -17,6 +17,7 @@ import { sendNext } from "@/lib/send-next";
 import { writeTask } from "@/lib/tasks";
 import { createTenant } from "@/lib/tenants";
 import { eq } from "drizzle-orm";
+import { saveBoardAsList } from "./helpers/saved-send-list";
 
 const eqId = (id: string) => eq(files.id, id);
 
@@ -48,7 +49,7 @@ async function board() {
   return { db, tenantId: tenant.id, OLU, owner, add };
 }
 
-describe("Our queue on the portal's board", () => {
+describe("Our queue on Peek's board", () => {
   it("lists drafted rows with no result: no status to review, Ready to Send Email to send, best score first", async () => {
     const { db, tenantId, OLU, add } = await board();
     const a = await add("Alpha", { draft_email: "Hi Alpha", lead_score: 40 });
@@ -150,6 +151,7 @@ describe("Our queue on the portal's board", () => {
   it("shares its claims with Send next: a lead taken in one is taken in the other", async () => {
     const { db, tenantId, owner, add } = await board();
     const id = await add("Delta", { draft_email: "Hi Delta" });
+    await saveBoardAsList(db, tenantId);
     expect((await accept(db, tenantId, id, owner.id)).ok).toBe(true); // the queue's Accept, by lead id
     expect((await holderOf(db, tenantId, id))?.userId).toBe(owner.id);
     const next = await sendNext(db, tenantId);
@@ -205,6 +207,7 @@ describe("Our queue on the portal's board", () => {
     expect(withAttachments(row.draft, row.attachments)).toBe(
       "Hi Echo\n\nAttachments: menu.pdf, logo.png",
     );
+    await saveBoardAsList(db, tenantId);
     expect((await sendNext(db, tenantId)).rows[0].attachments).toEqual([
       "menu.pdf",
       "logo.png",
@@ -212,7 +215,7 @@ describe("Our queue on the portal's board", () => {
     expect(withAttachments("Hi", [])).toBe("Hi");
   });
 
-  it("feeds This week, the Leaderboard and statements from Peek's board: sent leads, results and Done tasks", async () => {
+  it("feeds This week, the Leaderboard and statements from Peek's board: sent leads and results, no tasks", async () => {
     const { db, tenantId, OLU, owner, add } = await board();
     const from = new Date(Date.now() - 86400e3);
     const a = await add("Foxtrot", { draft_email: "Hi" });
@@ -243,7 +246,7 @@ describe("Our queue on the portal's board", () => {
     );
     const facts = await scoreFacts(db, tenantId, from);
     expect(facts.leads.map((l) => l.id)).toEqual([a]);
-    expect(facts.tasks).toHaveLength(1);
+    expect("tasks" in facts).toBe(false); // Done tasks are no longer read
     const people = [
       {
         id: owner.id,
@@ -252,13 +255,12 @@ describe("Our queue on the portal's board", () => {
         role: "owner",
       },
     ];
-    const [olu] = scoreboard(people, [], facts.leads, facts.tasks, [], from);
+    const [olu] = scoreboard(people, [], facts.leads, [], from);
     expect(olu).toMatchObject({
       sent: 1,
       replies: 1,
       meetings: 1,
       clients: 0,
-      tasksDone: 1,
     });
   });
 });

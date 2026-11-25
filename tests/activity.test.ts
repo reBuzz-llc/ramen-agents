@@ -8,15 +8,15 @@ const now = new Date("2026-11-10T12:00:00Z");
 
 describe("the drawer's Activity strip", () => {
   it("says each record as one short phrase", () => {
-    const lead = { email_check: "valid", email_status: "Email Sent", whatsapp_status: null, sent_by: ["Casey"], sent_at: "2026-11-10T09:30:00Z", follow_up_by: ["Casey"], follow_up_at: "2026-11-14", result: "Meeting", result_date: "2026-11-17" };
+    const lead = { email_check: "valid", email_status: "Email Sent", whatsapp_status: null, sent_by: ["Mina"], sent_at: "2026-11-10T09:30:00Z", follow_up_by: ["Mina"], follow_up_at: "2026-11-14", result: "Meeting", result_date: "2026-11-17" };
     const history = [
       { column: "email_check", at: "2026-11-08T10:00:00Z", outcome: "applied" },
       { column: "email_check", at: "2026-11-09T10:00:00Z", outcome: "applied" },
     ];
     expect(activityOf(lead, history, "Taken by Ann", now).map((a) => a.text)).toEqual([
       "Email check: valid, 9 Nov",
-      "Email sent by Casey, 10 Nov",
-      "Follow-up by Casey, 14 Nov",
+      "Email sent by Mina, 10 Nov",
+      "Follow-up by Mina, 14 Nov",
       "Result: Meeting, 17 Nov",
       "Taken by Ann",
     ]);

@@ -1,9 +1,9 @@
-// A lead's status workflow on the board: the one-click steps a person takes, with the fields each writes. Email: New → Ready to Send →
+// A lead's status workflow on the board (moved off Notion into Peek's own database): the one-click steps a person takes, with the fields each writes. Email: New → Ready to Send →
 // Email Sent → Replied / Meeting / Won / Lost (or Bounced). WhatsApp: Waiting for verification → Verified or False
-// number → message sent. The values are the board's own, kept exactly. Sent by and sent at are filled
+// number → message sent. The values are the board's own (Notion's options, kept exactly). Sent by and sent at are filled
 // by lib/leads.ts from the signed-in person when the email status becomes Email Sent. Pure, for the tests.
 
-/** The two tracks of a lead's status, each its own field. */
+/** Notion's one Status column held two tracks; here each has its field. */
 export const EMAIL_STATUSES = ["Ready to Send Email", "Email Sent"];
 export const WHATSAPP_STATUSES = ["WhatsApp msg sent", "False Whatsapp Number", "WhatsApp Verified", "Waiting response for WhatsApp verification"];
 export const RESULTS = ["Not contacted", "Emailed", "Replied", "Meeting", "Client", "Not interested", "Bounced"];
@@ -57,6 +57,12 @@ export function whatsappSteps(l: Lead): Step[] {
   }
 }
 
+/** The drawer's fields split just after the draft email, where Attachments sits; null when no draft email shows. */
+export function splitAtDraft(keys: string[]): { upTo: string[]; rest: string[] } | null {
+  const at = keys.indexOf("draft_email");
+  return at < 0 ? null : { upTo: keys.slice(0, at + 1), rest: keys.slice(at + 1) };
+}
+
 /** The colour group of a status, for the table's chips (the words are always shown too). */
 export function tone(status: string | null | undefined): "good" | "bad" | "go" | "wait" | "none" {
   if (!status) return "none";
@@ -79,6 +85,8 @@ export const DRAWER_ORDER = [
   "phone",
   "pain_point",
   "sample_url",
+  "instagram_url",
+  "facebook_url",
   "draft_email",
   "draft_whatsapp",
   "draft_followup",

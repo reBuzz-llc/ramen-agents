@@ -1,7 +1,6 @@
 // Where the team's files live: an S3-compatible bucket reached with the AWS-standard variables
-// (AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) and FILES_BUCKET, for example Neon Object
-// Storage or Supabase Storage. FILES_STORE names it ("neon", "supabase"): each upload records it, so files can move
-// from one store to another (scripts/files-copy.mjs).
+// (AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) and FILES_BUCKET: Neon Object Storage at
+// first, Supabase Storage from 2026-11-06 (FILES_STORE=supabase, FILES_BUCKET=peek-files).
 // The browser uploads straight to the bucket with a short presigned PUT (a 25 MB PDF does not fit through a Vercel
 // function), and downloads with a short presigned GET; the app only signs. Without those variables: on this Mac in
 // development, and in the tests, a local folder (.data/files, or FILES_DIR) stands in, served by /api/files/local;
@@ -10,7 +9,7 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type Storage = {
-  kind: "neon" | "local";
+  kind: "s3" | "local";
   /** Where the browser PUTs the bytes, and the headers it must send. */
   uploadUrl(key: string, contentType: string, fileId: string): Promise<{ url: string; headers: Record<string, string> }>;
   /** A short link to read it: inline (a PDF preview) or as a download under its name. */
@@ -18,23 +17,25 @@ export type Storage = {
   /** The stored size, or null when nothing is there. */
   size(key: string): Promise<number | null>;
   remove(key: string): Promise<void>;
+  /** The server's own write (a sample page's pictures copied at Approve): small files only. */
+  put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
 };
 
 export const BUCKET = process.env.FILES_BUCKET?.trim() || "files";
 const MINUTES = 10;
 
-function neonConfigured() {
+function s3Configured() {
   return !!(process.env.AWS_ENDPOINT_URL_S3?.trim() && process.env.AWS_ACCESS_KEY_ID?.trim() && process.env.AWS_SECRET_ACCESS_KEY?.trim());
 }
 
-async function neonStorage(): Promise<Storage> {
+async function s3Storage(): Promise<Storage> {
   const { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
   const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-  // Neon uses path-style addressing; endpoint, region and keys come from the AWS_* variables.
+  // Path-style addressing (Supabase Storage's S3 API, Neon's before it); endpoint, region and keys from the AWS_* variables.
   const s3 = new S3Client({ forcePathStyle: true, region: process.env.AWS_REGION?.trim() || "us-east-2" });
   const disposition = (name: string, inline: boolean) => `${inline ? "inline" : "attachment"}; filename="${name.replace(/["\\\r\n]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
   return {
-    kind: "neon",
+    kind: "s3",
     async uploadUrl(key, contentType) {
       const url = await getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType }), { expiresIn: MINUTES * 60 });
       return { url, headers: { "Content-Type": contentType } };
@@ -52,6 +53,9 @@ async function neonStorage(): Promise<Storage> {
     },
     async remove(key) {
       await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    },
+    async put(key, bytes, contentType) {
+      await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: bytes, ContentType: contentType }));
     },
   };
 }
@@ -81,6 +85,9 @@ function localStorage(): Storage {
     async remove(key) {
       await rm(/*turbopackIgnore: true*/ localPath(key), { force: true });
     },
+    async put(key, bytes) {
+      await writeLocal(key, bytes);
+    },
   };
 }
 
@@ -92,17 +99,17 @@ export async function writeLocal(key: string, bytes: Uint8Array) {
 export const readLocal = (key: string) => readFile(/*turbopackIgnore: true*/ localPath(key));
 
 /** The name of the store in use, recorded on each upload: FILES_STORE ("supabase" once Files moved;
- *  "neon" before) when an S3 store is set up, "local" for the stand-in folder. */
+ *  "neon" before, and the default for rows stored then) when an S3 store is set up, "local" for the stand-in folder. */
 export function storeName(): string {
-  if (neonConfigured()) return process.env.FILES_STORE?.trim() || "neon";
+  if (s3Configured()) return process.env.FILES_STORE?.trim() || "neon";
   return "local";
 }
 
 /** The storage in use, or null on the live app before the bucket is set up. */
 export async function storage(): Promise<Storage | null> {
-  if (neonConfigured()) return neonStorage();
+  if (s3Configured()) return s3Storage();
   if (process.env.NODE_ENV !== "production" || process.env.FILES_LOCAL === "1") return localStorage();
   return null;
 }
 
-export const NOT_SET_UP = "File storage is not set up yet: the owner provisions the bucket (Neon Object Storage) and adds its four AWS_* variables to Vercel.";
+export const NOT_SET_UP = "File storage is not set up yet: the owner adds an S3-compatible bucket (Supabase Storage, for example) with its four AWS_* variables, or keeps files on this computer with FILES_LOCAL=1.";

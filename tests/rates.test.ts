@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 // Local times, the same clock statementFor's week uses. 2026-10-12 is a Monday.
 const at = (day: string, h: number) => new Date(`${day}T${String(h).padStart(2, "0")}:00:00`);
 const WEEK = "2026-10-12";
-const noOutcomes = { userId: "u", name: "", role: "member", sent: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0 };
+const noOutcomes = { userId: "u", name: "", role: "member", sent: 0, replies: 0, meetings: 0, clients: 0, minutes: 0 };
 
 describe("rates over time", () => {
   const history: RateRow[] = [

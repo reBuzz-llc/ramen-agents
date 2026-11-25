@@ -1,9 +1,9 @@
-// Google sign-in without a hosted auth service (Neon Auth, or any other), so sign-in does not depend on the database
-// host. The portal runs the OAuth code flow itself, with PKCE: /api/google-signin/start sends the browser to Google
+// Google sign-in without Neon Auth (2026-11-06: Supabase became Peek's database and Neon Auth went
+// down with Neon). Peek runs the OAuth code flow itself, with PKCE: /api/google-signin/start sends the browser to Google
 // with a state and a code challenge kept in short-lived cookies; /api/google-signin/callback swaps the code for a token,
-// asks Google who it is (a verified email), and signs in the person with that email on a company here, in the portal's own
+// asks Google who it is (a verified email), and signs in the person with that email on a company here, in Peek's own
 // session table (the same sessions as the codes). No account is created: an unknown email is refused (only the very
-// first sign-in on an empty database makes the company, as before). The codes stay the outage path.
+// first sign-in on an empty database makes the company, as before).
 // Settings: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (a Google Cloud OAuth client, "Web application", with the
 // redirect URI <origin>/api/google-signin/callback).
 import { createHash, randomBytes } from "node:crypto";
@@ -15,8 +15,9 @@ const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN = "https://oauth2.googleapis.com/token";
 const USERINFO = "https://openidconnect.googleapis.com/v1/userinfo";
 
-/** The portal's own Google sign-in is configured. */
-export const googleSignIn = () => !!(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
+/** Peek's own Google sign-in is configured. */
+/** Google sign-in is set up and on: its two values are there, and sign-in is not turned off (lib/local-mode.ts). */
+export const googleSignIn = () => process.env.PEEK_SIGNIN?.trim().toLowerCase() !== "off" && !!(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
 
 const b64url = (b: Buffer) => b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const newState = () => b64url(randomBytes(24));
@@ -26,8 +27,11 @@ export const challengeOf = (verifier: string) => b64url(createHash("sha256").upd
 /** The address the browser sees (behind Vercel or a tunnel: the forwarded host and protocol). */
 export function originOf(req: Request): string {
   const u = new URL(req.url);
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? u.host;
-  const proto = req.headers.get("x-forwarded-proto") ?? u.protocol.replace(":", "");
+  // the address the browser used (Tailscale Funnel, Vercel): the first of a forwarded list, then Host; req.url carries the
+  // server's own (https://localhost:3100 behind the Funnel)
+  const first = (name: string) => req.headers.get(name)?.split(",")[0]?.trim() || "";
+  const host = first("x-forwarded-host") || first("host") || u.host;
+  const proto = first("x-forwarded-proto") || u.protocol.replace(":", "");
   return `${proto}://${host}`;
 }
 export const redirectUri = (origin: string) => `${origin}/api/google-signin/callback`;

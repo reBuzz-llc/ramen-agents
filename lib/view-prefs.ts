@@ -7,11 +7,28 @@ import { DRAWER_ORDER } from "./lead-workflow";
 
 /** defaults_seen: the default-hidden fields this person has already been given, so a field added to DEFAULT_HIDDEN
  *  later is hidden for them once, and a field they unhid stays shown. */
-export type ViewPrefs = { show_empty: boolean; field_order: string[]; hidden_fields: string[]; defaults_seen: string[] };
+import { tableColumnsOf, type TableColumns } from "./table-columns";
+
+export type ViewPrefs = { show_empty: boolean; field_order: string[]; hidden_fields: string[]; defaults_seen: string[]; drawer_width: number | null; goals_seen: string | null;
+  /** The Leads table's wrap and width, per column. */
+  table_columns: TableColumns };
+
+/** The drawer's width on a wide screen: dragged by its left edge and kept on the person; null is the
+ *  default. Never narrower than MIN, never wider than MAX or 95 % of the window. */
+export const DRAWER_WIDTH = { min: 384, default: 576, max: 2400 };
+export function drawerWidthOf(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= DRAWER_WIDTH.min && n <= DRAWER_WIDTH.max ? Math.round(n) : null;
+}
+/** The width to draw: the saved one (or the default) kept between MIN and 95 % of the window. */
+export function clampDrawer(w: number | null | undefined, viewport: number): number {
+  const most = Math.max(DRAWER_WIDTH.min, Math.floor(viewport * 0.95));
+  return Math.min(Math.max(Math.round(w ?? DRAWER_WIDTH.default), DRAWER_WIDTH.min), most);
+}
 /** Hidden for everyone until they choose otherwise: the agents' proof
- *  and signal fields. Kept in the data and the API; a person unhides any of them in My view. */
+ *  and signal fields, and the Notion page id. Kept in the data and the API; a person unhides any of them in My view. */
 export const DEFAULT_HIDDEN = ["tools_on_site", "site_health", "source_pages", "evidence", "found_by", "founder_linkedin", "linkedin_via", "listing_evidence"];
-export const DEFAULT_VIEW: ViewPrefs = { show_empty: true, field_order: [], hidden_fields: DEFAULT_HIDDEN, defaults_seen: DEFAULT_HIDDEN };
+export const DEFAULT_VIEW: ViewPrefs = { show_empty: true, field_order: [], hidden_fields: DEFAULT_HIDDEN, defaults_seen: DEFAULT_HIDDEN, drawer_width: null, goals_seen: null, table_columns: {} };
 
 const known = new Set(DRAWER_ORDER);
 const keysOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((k): k is string => typeof k === "string" && known.has(k)))] : []);
@@ -29,6 +46,10 @@ export function viewOf(raw: unknown): ViewPrefs {
     // the person's hidden fields, plus any default-hidden field they have not been given yet
     hidden_fields: [...new Set([...keysOf(r.hidden_fields), ...fresh])],
     defaults_seen: [...new Set([...seen, ...DEFAULT_HIDDEN])],
+    drawer_width: drawerWidthOf(r.drawer_width),
+    // the daily-goals change this person dismissed: the change's time
+    goals_seen: typeof r.goals_seen === "string" && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(r.goals_seen) ? r.goals_seen : null,
+    table_columns: tableColumnsOf(r.table_columns),
   };
 }
 
@@ -61,6 +82,8 @@ export const FIELD_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
   map_link: "Map",
   sample_url: "Sample site",
+  instagram_url: "Instagram",
+  facebook_url: "Facebook",
   pain_point: "Pain point",
   package: "How can I help",
   evidence: "Evidence",

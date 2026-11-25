@@ -1,5 +1,5 @@
 // The Settings section's frame: its nav beside (or above) the page, and the card that sends people
-// to the Clock page for projects.
+// to the Clock page for projects (the Notion archive panel went with Notion).
 import Link from "next/link";
 import { pageMe } from "@/lib/page-me";
 import { settingsFor } from "@/lib/settings-nav";

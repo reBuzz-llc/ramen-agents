@@ -11,9 +11,6 @@ const minutes = (a: Date, b: Date) => Math.max(0, Math.round((b.getTime() - a.ge
 export function canClockIn(shifts: Shift[]): boolean {
   return !shifts.some((s) => s.endedAt === null);
 }
-export function openShift(shifts: Shift[]): Shift | undefined {
-  return shifts.find((s) => s.endedAt === null);
-}
 
 export function day(shifts: Shift[], notes: { fromAt: Date; toAt: Date; note: string }[] = [], now = new Date(), minGap = 15): Day {
   const sorted = [...shifts].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());

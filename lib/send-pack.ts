@@ -1,18 +1,18 @@
-// The send pack: on the Clock home, each person's ten leads to email, already taken for them
+// The Monday send pack: on the Clock home, each person's ten leads to email, already taken for them
 // so nobody else sends the same one, each with its draft and its open flags, Copy and Mark sent in place. A pack holds
 // the person's taken leads that are not sent and have no result; "Fill my pack" (and every Mark sent) takes the next
-// ones from Send next's order that nobody holds, up to ten and never past the day's send goal (lib/send-goals).
-// Marking sends the lead as the person (Email Sent, result
+// ones from Send next's order that nobody holds, up to ten (the day's send goal is a target, not a limit). Marking sends the lead as the person (Email Sent, result
 // Emailed, today) and closes the claim. The owner also sees everyone's packs.
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { accept, closeClaim } from "./claims";
 import type { Db } from "./db";
 import { claims, leadFlags, leads, users } from "./db/schema";
 import { changedSince, lastPersonEdit } from "./draft-edits";
+import { isHeld, notHeld, type HeldLead } from "./held-drafts";
 import { attachmentNames } from "./lead-queue";
+import { withFirstLink } from "./lead-sends";
 import { writeLead, type Actor } from "./leads";
 import { sendNext } from "./send-next";
-import { overGoal, todayOf } from "./send-goals-db";
 
 export const PACK = 10;
 
@@ -26,6 +26,8 @@ export type PackLead = {
   pkg: string | null;
   /** The sample site the team made: Copy draft ends with it. */
   sample: string | null;
+  /** This lead has a sample, and its link goes after a reply. */
+  sampleHeld: boolean;
   /** The Validator's open flags; `changed`: a person edited the draft after the flag was raised (checked on its next run). */
   flags: { rule: string; detail: string; changed: boolean }[];
   attachments: string[];
@@ -40,7 +42,7 @@ export async function packOf(db: Db, tenantId: string, userId: string): Promise<
     .select({ id: leads.id, business: leads.business, contact: leads.contactPerson, role: leads.contactRole, email: leads.businessEmail, draft: leads.draftEmail, pkg: leads.package, sample: leads.sampleUrl, takenAt: claims.at })
     .from(claims)
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
-    .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), eq(claims.kind, "email"), notSent))
+    .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), eq(claims.kind, "email"), notSent, notHeld))
     .orderBy(asc(claims.at), asc(leads.business));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
@@ -49,19 +51,29 @@ export async function packOf(db: Db, tenantId: string, userId: string): Promise<
     attachmentNames(db, tenantId, ids),
     lastPersonEdit(db, tenantId, ids, "draft_email"),
   ]);
-  return rows.map((r) => ({
+  return withFirstLink(db, tenantId, "email", rows.map((r) => ({
     ...r,
     takenAt: new Date(r.takenAt).toISOString(),
     flags: flags.filter((f) => f.leadId === r.id).map((f) => ({ rule: f.rule, detail: f.detail, changed: changedSince(f.firstSeen, edited.get(r.id)) })),
     attachments: files.get(r.id) ?? [],
-  }));
+  })));
 }
 
-/** Top a person's pack up from Send next's order (leads nobody holds, with a draft): up to ten, and never more than the
- *  emails they may still send today (5 a day unless the owner changes it). Returns how many were taken. */
-export async function fillPack(db: Db, tenantId: string, userId: string, now = new Date()): Promise<number> {
-  const [have, today] = await Promise.all([packOf(db, tenantId, userId).then((p) => p.length), todayOf(db, tenantId, userId, now)]);
-  const target = Math.min(PACK, today.email.left);
+/** The leads a person holds that packOf leaves out because their draft is on hold. */
+export async function heldPack(db: Db, tenantId: string, userId: string): Promise<HeldLead[]> {
+  return db
+    .select({ id: leads.id, business: leads.business })
+    .from(claims)
+    .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
+    .where(and(eq(claims.tenantId, tenantId), eq(claims.userId, userId), eq(claims.kind, "email"), notSent, isHeld))
+    .orderBy(asc(claims.at), asc(leads.business));
+}
+
+/** Top a person's pack up from Send next's order (leads nobody holds, with a draft): up to ten, whatever they sent today
+ *  (the goal is a target, not a limit). Returns how many were taken. */
+export async function fillPack(db: Db, tenantId: string, userId: string): Promise<number> {
+  const have = (await packOf(db, tenantId, userId)).length;
+  const target = PACK;
   if (have >= target) return 0;
   const next = await sendNext(db, tenantId);
   let added = 0;
@@ -78,13 +90,11 @@ export async function fillPack(db: Db, tenantId: string, userId: string, now = n
 export async function markPackSent(db: Db, tenantId: string, leadId: string, who: { userId: string; name: string }, now = new Date()): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
   const [c] = await db.select({ userId: claims.userId }).from(claims).where(and(eq(claims.tenantId, tenantId), eq(claims.pageId, leadId)));
   if (!c || c.userId !== who.userId) return { ok: false, error: "This lead is not in your pack any more." };
-  const over = await overGoal(db, tenantId, who.userId, ["email"], leadId, now);
-  if (over) return { ok: false, error: over };
   const actor: Actor = { kind: "person", name: who.name, userId: who.userId };
   const r = await writeLead(db, tenantId, { id: leadId }, { email_status: "Email Sent", result: "Emailed", result_date: now.toISOString().slice(0, 10) }, actor);
   if (!r.ok) return { ok: false, error: r.message };
   await closeClaim(db, tenantId, leadId);
-  return { ok: true, added: await fillPack(db, tenantId, who.userId, now) };
+  return { ok: true, added: await fillPack(db, tenantId, who.userId) };
 }
 
 /** Everyone's packs, for the owner: each person holding leads, with how many and which. */
@@ -94,7 +104,7 @@ export async function allPacks(db: Db, tenantId: string): Promise<{ userId: stri
     .from(claims)
     .innerJoin(users, eq(users.id, claims.userId))
     .innerJoin(leads, and(eq(leads.tenantId, claims.tenantId), eq(sql`${leads.id}::text`, claims.pageId)))
-    .where(and(eq(claims.tenantId, tenantId), eq(claims.kind, "email"), notSent))
+    .where(and(eq(claims.tenantId, tenantId), eq(claims.kind, "email"), notSent, notHeld))
     .orderBy(asc(users.name), asc(claims.at));
   const by = new Map<string, { userId: string; name: string; leads: { id: string; business: string }[] }>();
   for (const r of rows) {

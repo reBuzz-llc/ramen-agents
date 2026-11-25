@@ -15,6 +15,9 @@ const client = new pg.Client({ connectionString: url });
 const t = Date.now();
 try {
   await client.connect();
+  // a database the starter's older portal branch made needs its own 0036 bridged first (lib/db/portal-bridge.mjs)
+  const { bridgePortal } = await import("../lib/db/portal-bridge.mjs");
+  if ((await bridgePortal((text, params) => client.query(text, params))) === "bridged") console.log("migrate: a portal database: its own 0036 bridged, Peek's migrations follow");
   await migrate(drizzle(client), { migrationsFolder: "drizzle" });
   const { rows } = await client.query("select count(*)::int as n from drizzle.__drizzle_migrations");
   console.log(`migrate: up to date, ${rows[0].n} migrations applied (${Date.now() - t} ms)`);

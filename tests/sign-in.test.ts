@@ -1,14 +1,17 @@
-// The sign-in page's shape: Google only. A source check,
-// so a later edit cannot bring back an email form or self sign-up unnoticed.
-import { readFileSync } from "node:fs";
+// The sign-in page's shape (the team signs in with Google too): Google only, Peek's own;
+// Neon Auth's form is gone. A source check, so a later edit cannot bring back an
+// email form or self sign-up unnoticed.
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const form = readFileSync(path.join(process.cwd(), "app/sign-in/sign-in-form.tsx"), "utf8");
+const page = readFileSync(path.join(process.cwd(), "app/sign-in/page.tsx"), "utf8");
 
-describe("the sign-in form", () => {
-  it("is Google only: no email form, no sign-up, no password reset", () => {
-    expect(form).toMatch(/signIn\.social\(\{ provider: "google"/);
-    for (const gone of [/signUp\b/, /signIn\.email/, /type="password"/, /type="email"/, /emailOtp/, /Create (your )?account/, /Sign in with email/]) expect(form).not.toMatch(gone);
+describe("the sign-in page", () => {
+  it("is Google only (Peek's own): no Neon Auth, no sign-up, no password", () => {
+    expect(page).toMatch(/\/api\/google-signin\/start/);
+    expect(existsSync(path.join(process.cwd(), "app/sign-in/sign-in-form.tsx"))).toBe(false);
+    expect(existsSync(path.join(process.cwd(), "lib/neon-auth.ts"))).toBe(false);
+    for (const gone of [/signUp\b/, /signIn\.email/, /type="password"/, /emailOtp/, /Create (your )?account/, /neon/i]) expect(page).not.toMatch(gone);
   });
 });

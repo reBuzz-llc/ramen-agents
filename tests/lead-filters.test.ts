@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choices, FILTER_KEYS, filtersFrom, filtersToQuery, hasNoWebsite, industryGroup, matches, NO_FILTERS, placeOf, SITE_FILTERS, siteMatches, type Filterable } from "@/lib/lead-filters";
+import { choices, editedMatches, FILTER_KEYS, NO_TOOLS, toolOptions, toolsMatch, filtersFrom, filtersToQuery, hasNoWebsite, industryGroup, matches, NO_FILTERS, placeOf, SITE_FILTERS, siteMatches, type Filterable } from "@/lib/lead-filters";
 
 describe("reading a place", () => {
   it("finds the state in the messy shapes on the board", () => {
@@ -11,6 +11,21 @@ describe("reading a place", () => {
     expect(placeOf("Ridgewood")).toEqual({ city: "Ridgewood", state: "NY" }); // a New York City place on its own
     expect(placeOf("London, UK")).toEqual({ city: "London", state: "UK" });
     expect(placeOf("")).toEqual({ city: "", state: "" });
+    // a full address: the city before the state, never the street
+    expect(placeOf("31-15 Steinway St, Astoria, NY 11103")).toEqual({ city: "Astoria", state: "NY" });
+    expect(placeOf("12 Main St, Suite 4, Hoboken, NJ 07030, USA")).toEqual({ city: "Hoboken", state: "NJ" });
+    expect(placeOf("31-15 Steinway St")).toEqual({ city: "", state: "" });
+    // the dry run's four rows, and two places named like streets that stay places
+    expect(placeOf("276 Fifth Avenue, Suite 704, New York, NY 10001").city).toBe("New York");
+    expect(placeOf("3009 Ocean Parkway, Brooklyn, NY 11235, USA").city).toBe("Brooklyn");
+    expect(placeOf("36-18 Main St, Suite 602, Flushing, NY 11354").city).toBe("Flushing");
+    expect(placeOf("1001 Irving Ave #7, Ridgewood, NY 11385").city).toBe("Ridgewood");
+    expect(placeOf("Bay Terrace, NY, USA")).toEqual({ city: "Bay Terrace", state: "NY" });
+    // the borough before a spelled-out state stays the city, as before (an import's duplicate check matches on it)
+    expect(placeOf("123 Court St, Brooklyn, New York, NY 11201")).toEqual({ city: "Brooklyn", state: "NY" });
+    expect(placeOf("Brooklyn, New York, NY 11201")).toEqual({ city: "Brooklyn", state: "NY" });
+    expect(placeOf("New York, NY 10001")).toEqual({ city: "New York", state: "NY" });
+    expect(placeOf("St. Albans, NY 11412")).toEqual({ city: "St. Albans", state: "NY" });
   });
   it("groups free-text industries", () => {
     expect(industryGroup("Hair Salon")).toBe("Beauty and fitness");
@@ -65,5 +80,46 @@ describe("the No website quick filters", () => {
   it("is one of the filters a link may set", () => {
     expect(FILTER_KEYS).toContain("site");
     expect(SITE_FILTERS.map(([k]) => k)).toEqual(["none", "none-wa"]);
+  });
+});
+
+describe("the board's Taken by, Last edited and Tools on site filters", () => {
+  const NOW = new Date(2026, 10, 23, 15, 0).getTime();
+  const ago = (days: number) => new Date(NOW - days * 86400e3).toISOString();
+
+  it("replace Score, Draft email and Contact role in the address", () => {
+    for (const k of ["taken", "edited", "tools"]) expect(FILTER_KEYS).toContain(k);
+    for (const k of ["score", "draft", "role"]) expect(FILTER_KEYS).not.toContain(k);
+  });
+
+  it("Last edited: today, 7 days, 30 days, older", () => {
+    expect(editedMatches(new Date(2026, 10, 23, 0, 5).toISOString(), "today", NOW)).toBe(true);
+    expect(editedMatches(new Date(2026, 10, 22, 23, 55).toISOString(), "today", NOW)).toBe(false);
+    expect(editedMatches(ago(6.9), "7", NOW)).toBe(true);
+    expect(editedMatches(ago(7.1), "7", NOW)).toBe(false);
+    expect(editedMatches(ago(29), "30", NOW)).toBe(true);
+    expect(editedMatches(ago(31), "30", NOW)).toBe(false);
+    expect(editedMatches(ago(31), "older", NOW)).toBe(true);
+    expect(editedMatches(ago(29), "older", NOW)).toBe(false);
+    expect(editedMatches(null, "older", NOW)).toBe(true);
+    expect(editedMatches(null, "7", NOW)).toBe(false);
+    expect(editedMatches(null, "", NOW)).toBe(true);
+  });
+
+  it("Tools on site: any lead holding that tool, or none found", () => {
+    expect(toolsMatch(["Wix", "OpenTable"], "OpenTable")).toBe(true);
+    expect(toolsMatch(["Wix"], "OpenTable")).toBe(false);
+    expect(toolsMatch([], NO_TOOLS)).toBe(true);
+    expect(toolsMatch(null, NO_TOOLS)).toBe(true);
+    expect(toolsMatch(["Wix"], NO_TOOLS)).toBe(false);
+    expect(toolsMatch(null, "")).toBe(true);
+  });
+
+  it("lists each tool once with its count, most used first, then the leads with none", () => {
+    expect(toolOptions([{ toolsOnSite: ["Wix", "OpenTable"] }, { toolsOnSite: ["Wix", "Wix"] }, { toolsOnSite: [] }, {}])).toEqual([
+      ["Wix", "Wix (2)"],
+      ["OpenTable", "OpenTable (1)"],
+      [NO_TOOLS, `${NO_TOOLS} (2)`],
+    ]);
   });
 });

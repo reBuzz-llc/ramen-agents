@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { copyText, signInLink } from "@/lib/team-text";
 import { PendingButton } from "../ui";
-import { btnDanger, control, fieldLabel, helper, sectionTitle } from "@/lib/ui-classes";
+import { control, fieldLabel, helper, sectionTitle } from "@/lib/ui-classes";
 
 async function post(body: object): Promise<{ ok: boolean; error?: string; member?: { email: string } }> {
   try {
@@ -117,29 +117,3 @@ export function CopySignIn({ email, name = "", ownerName = "" }: { email: string
 }
 
 /** "Remove": someone who never signed in is deleted; someone who did keeps their hours and outcomes but can't get in. */
-export function RemoveMember({ userId, email }: { userId: string; email: string }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-  return (
-    <span className="inline-flex items-center gap-2">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={async () => {
-          if (!window.confirm(`Remove ${email} from the team? They can no longer sign in; their hours and outcomes stay.`)) return;
-          setBusy(true);
-          setError("");
-          const r = await post({ action: "remove", userId });
-          setBusy(false);
-          if (!r.ok) return setError(r.error ?? "Could not remove them.");
-          router.refresh();
-        }}
-        className={btnDanger}
-      >
-        {busy ? "Removing…" : "Remove"}
-      </button>
-      {error ? <span role="alert" className="text-sm text-bad">{error}</span> : null}
-    </span>
-  );
-}

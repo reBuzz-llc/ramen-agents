@@ -1,10 +1,11 @@
 "use client";
 
 import { withSample } from "@/lib/sample-site";
-import { SampleLine } from "./send-pack";
+import { SampleHeld, SampleLine } from "./send-pack";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { HELD_LINE, type HeldLead } from "@/lib/held-drafts";
 import type { WaLead } from "@/lib/whatsapp-pack";
 import { doneLine, type Budget } from "@/lib/send-goals";
 import DraftBox from "./draft-box";
@@ -18,7 +19,7 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; error
   }
 }
 
-/** The number as people read it: "+17185550198", from the WhatsApp cell (a wa.me link or a number) or the phone. */
+/** The number as people read it: "+17185550100", from the WhatsApp cell (a wa.me link or a number) or the phone. */
 const shownNumber = (l: WaLead) => {
   const digits = ((l.whatsapp ?? "").replace(/^https?:\/\/(wa\.me|api\.whatsapp\.com)\/(send\?phone=)?/i, "") || l.phone || "").replace(/\D/g, "");
   return digits ? `+${digits}` : "";
@@ -27,7 +28,7 @@ const shownNumber = (l: WaLead) => {
 const btn = "inline-flex min-h-10 items-center rounded-full px-3.5 text-sm font-semibold disabled:opacity-50";
 
 /** The pack's WhatsApp tab: check numbers, then send to the verified ones. */
-export default function WhatsAppPack({ checks, send, size, today }: { checks: WaLead[]; send: WaLead[]; size: number; today: Budget }) {
+export default function WhatsAppPack({ checks, send, held = [], size, today }: { checks: WaLead[]; send: WaLead[]; held?: HeldLead[]; size: number; today: Budget }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
@@ -69,14 +70,14 @@ export default function WhatsAppPack({ checks, send, size, today }: { checks: Wa
         </h3>
       </div>
       <p className="mt-1 text-sm text-muted">
-        Verified numbers with a message ready. Copy it, open the chat, send it from WhatsApp, then Mark WhatsApp sent. {today.goal} a day each: more gets
-        numbers reported as spam. Checking numbers has no limit.
+        Verified numbers with a message ready. Copy it, open the chat, send it from WhatsApp, then Mark WhatsApp sent. Today&apos;s goal: {today.goal} each.
       </p>
       {today.left <= 0 ? (
         <p data-goal-done className="mt-3 rounded-lg bg-good/10 px-3 py-2 text-sm font-semibold">
           {doneLine(today.goal)}
         </p>
-      ) : ready.length === 0 ? (
+      ) : null}
+      {ready.length === 0 ? (
         <p className="mt-3 rounded-xl border border-line bg-panel p-4 text-sm text-muted">Nothing ready to send yet: check numbers below, and the agents draft for the verified ones.</p>
       ) : (
         <ol className="mt-3 space-y-2">
@@ -86,13 +87,7 @@ export default function WhatsAppPack({ checks, send, size, today }: { checks: Wa
                 <span className="font-semibold">{l.business}</span>
                 <span className="text-xs text-muted tabular-nums">{shownNumber(l)}</span>
               </div>
-              {l.sample ? <SampleLine url={l.sample} /> : null}
-              {l.flags.map((f) => (
-                <p key={f.rule} className={`mt-2 rounded-lg border-l-4 px-3 py-1.5 ${f.changed || edited[l.id] !== undefined ? "border-line bg-bg" : "border-bad bg-bad/10"}`}>
-                  <span className="font-semibold">{f.rule}</span> {f.detail}
-                  {f.changed || edited[l.id] !== undefined ? <span className="block text-xs text-muted">You changed the message after this flag; the Validator checks it again on its next run.</span> : null}
-                </p>
-              ))}
+              {l.sample ? <SampleLine url={l.sample} /> : l.sampleHeld ? <SampleHeld /> : null}
               <DraftBox
                 leadId={l.id}
                 field="draft_whatsapp"
@@ -123,6 +118,18 @@ export default function WhatsAppPack({ checks, send, size, today }: { checks: Wa
           ))}
         </ol>
       )}
+      {held.length ? (
+        <ul className="mt-3 space-y-2" aria-label="Held drafts" data-held-drafts>
+          {held.map((l) => (
+            <li key={l.id} className="rounded-xl border border-line bg-panel p-3 text-sm">
+              <Link href={`/leads?tab=board&lead=${l.id}`} className="font-semibold hover:underline">
+                {l.business}
+              </Link>
+              <p className="mt-1 text-muted">{HELD_LINE}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {coming.length ? (
         <p className="mt-2 text-sm text-muted">
           Verified, draft coming: {coming.map((l) => l.business).join(" · ")}. The agents write these next.

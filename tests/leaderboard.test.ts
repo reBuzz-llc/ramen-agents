@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WEIGHTS, standings, weightsOf } from "@/lib/leaderboard";
 import type { PersonWeek } from "@/lib/scoreboard";
 
-const p = (name: string, o: Partial<PersonWeek> = {}): PersonWeek => ({ userId: name, name, role: "member", sent: 0, replies: 0, meetings: 0, clients: 0, tasksDone: 0, minutes: 0, ...o });
+const p = (name: string, o: Partial<PersonWeek> = {}): PersonWeek => ({ userId: name, name, role: "member", sent: 0, replies: 0, meetings: 0, clients: 0, minutes: 0, ...o });
 
 describe("the leaderboard", () => {
   it("ranks by points from outcomes, never hours; the owner is left off", () => {

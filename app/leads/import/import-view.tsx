@@ -1,8 +1,11 @@
 "use client";
+import { agentName } from "@/lib/agent-names";
 // Import leads: 1 choose a CSV or spreadsheet (read here, in the browser, up to 25 MB), 2 check the
 // columns (matched by their headers; change any) and the import rules (on by default for a Google Maps export), 3 the
 // dry run on the whole file: rows with an email, rows with a phone only ("no email, listing only"), rows with neither,
-// what the rules left out, the duplicates; 4 import a group, 500 rows at a time with a progress bar, then the other;
+// what the rules left out, the duplicates; 4 import a group, 100 rows a request (the server stops after 40 s and says how
+// many it handled) with a progress bar, then the other -- or Import all, both in turn with one overall bar, and Resume
+// after a stop, which carries on from the row reached;
 // one report for the file, downloadable. The rows are mapped here, so a 5 MB export sends only what the board keeps.
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -10,7 +13,6 @@ import {
   autoMap,
   BATCH,
   FIELD_LABEL,
-  HOME_STATES,
   IMPORT_FIELDS,
   isMapsExport,
   keyOf,
@@ -51,7 +53,7 @@ type Rules = {
 type Batch = "email" | "listing";
 
 const MAPS_RULES: Rules = {
-  states: HOME_STATES.length ? HOME_STATES : null,
+  states: ["NY", "NJ"],
   skipClosed: true,
   skipChains: true,
   needContact: true,
@@ -86,14 +88,31 @@ async function readTable(file: File): Promise<string[][]> {
   return parseCsv(await file.text());
 }
 
+/** What the server said when it did not answer JSON (a cut-off batch once showed only "failed"). */
+export function serverError(status: number, text: string): string {
+  if (status === 504 || /FUNCTION_INVOCATION_TIMEOUT/.test(text)) return `The server ran out of time (${status}).`;
+  if (status === 413 || /FUNCTION_PAYLOAD_TOO_LARGE/.test(text)) return `The request was too large for the server (${status}).`;
+  const said = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+  return `The server answered ${status}${said ? `: ${said}` : ""}.`;
+}
+
 async function post(body: object) {
   const r = await fetch("/api/leads/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return r.json();
+  const text = await r.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, error: serverError(r.status, text) };
+  }
 }
+/** Rows sent in one request: the server also stops after 40 s and says how many it handled, and the rest goes next. */
+const CHUNK = 100;
+const ORDER: Batch[] = ["email", "listing"];
+const GROUP_NAME: Record<Batch, string> = { email: "rows with an email", listing: "phone-only rows" };
 
 export default function ImportView({
   past,
@@ -113,10 +132,17 @@ export default function ImportView({
     Partial<Record<Batch, { created: number; skipped: number }>>
   >({});
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ batch: Batch; k: number } | null>(
+  // k: the share done; null until the first request answers ("Starting…": a cold start can take a while)
+  const [progress, setProgress] = useState<{ batch: Batch; k: number | null } | null>(
     null,
   );
   const [error, setError] = useState("");
+  // Import all's overall bar, and where a stopped run can resume
+  const [overall, setOverall] = useState<{ done: number; total: number; batch: Batch } | null>(null);
+  const [stopped, setStopped] = useState<{ all: boolean; batch: Batch } | null>(null);
+  const handledRef = useRef<Partial<Record<Batch, number>>>({});
+  const [handled, setHandled] = useState<Partial<Record<Batch, number>>>({}); // the same, for the labels
+  const sumsRef = useRef<Partial<Record<Batch, { created: number; skipped: number }>>>({});
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const headers = table[0] ?? [];
@@ -129,6 +155,10 @@ export default function ImportView({
     setPlan(null);
     setImportId(undefined);
     setImported({});
+    setStopped(null);
+    handledRef.current = {};
+    setHandled({});
+    sumsRef.current = {};
   };
   const pick = async (f: File) => {
     setError("");
@@ -167,30 +197,38 @@ export default function ImportView({
         rules,
       });
       if (!d.ok) setError(d.error ?? "That failed.");
-      else setPlan(d);
+      else {
+        // a fresh check starts the groups over: rows imported meanwhile are now "already on the board"
+        setPlan(d);
+        setImported({});
+        setStopped(null);
+        handledRef.current = {};
+        setHandled({});
+        sumsRef.current = {};
+      }
     } catch {
       setError("No answer from the server.");
     } finally {
       setBusy(false);
     }
   };
-  const run = async (batch: Batch) => {
-    if (!plan) return;
-    setBusy(true);
-    setError("");
+  /** One group, from where it stopped last time (handled[batch]): never a row sent twice; the server's duplicate check
+   *  is the second guard. Answers whether the group finished. `idIn` carries the file's one report across groups. */
+  const runGroup = async (batch: Batch, idIn: string | undefined, onStep?: (handledNow: number) => void): Promise<{ ok: boolean; id: string | undefined }> => {
+    if (!plan) return { ok: false, id: idIn };
     const all = mapRows(rows, mapping);
     // plan rows are file rows: the header is row 1, so data row i is row i + 2
-    const picked: (MappedRow & { row: number })[] = plan[batch].rows.map(
-      (row) => ({ ...all[row - 2], row }),
-    );
-    let id = importId;
-    const sum = { created: 0, skipped: 0 };
+    const picked: (MappedRow & { row: number })[] = plan[batch].rows.map((row) => ({ ...all[row - 2], row }));
+    let id = idIn;
+    let at = handledRef.current[batch] ?? 0;
+    const sum = { ...(sumsRef.current[batch] ?? { created: 0, skipped: 0 }) };
+    setProgress({ batch, k: at ? at / picked.length : null });
     try {
-      for (let at = 0; at < picked.length; at += BATCH) {
-        setProgress({ batch, k: at / picked.length });
+      while (at < picked.length) {
+        const chunk = picked.slice(at, at + Math.min(CHUNK, BATCH));
         const d = await post({
           dry: false,
-          records: picked.slice(at, at + BATCH),
+          records: chunk,
           batch,
           maps,
           packageForWebsite: pkg || undefined,
@@ -199,25 +237,66 @@ export default function ImportView({
           excluded: id ? undefined : plan.notCreated,
         });
         if (!d.ok) {
-          setError(
-            `${d.error ?? "That failed."}${at ? ` The first ${n(at)} were imported; press Import again to finish (they are skipped as already there).` : ""}`,
-          );
-          return;
+          setError(`${d.error ?? "That failed."} ${n(at)} of ${n(picked.length)} ${GROUP_NAME[batch]} were handled. Resume carries on from there.`);
+          return { ok: false, id };
         }
         id = d.id;
         setImportId(d.id);
         sum.created += d.created;
         sum.skipped += d.skipped;
+        // the server says how many rows it handled before its time budget ran out; the rest goes in the next request
+        const done = typeof d.done === "number" && d.done > 0 ? Math.min(d.done, chunk.length) : chunk.length;
+        at += done;
+        handledRef.current = { ...handledRef.current, [batch]: at };
+        setHandled(handledRef.current);
+        sumsRef.current = { ...sumsRef.current, [batch]: sum };
+        setProgress({ batch, k: at / picked.length });
+        onStep?.(done);
       }
       setImported((x) => ({ ...x, [batch]: sum }));
+      return { ok: true, id };
     } catch {
-      setError(
-        "No answer from the server; press Import again to finish (imported rows are skipped as already there).",
-      );
+      setError(`No answer from the server after ${n(at)} of ${n(picked.length)} ${GROUP_NAME[batch]}. Resume carries on from there.`);
+      return { ok: false, id };
     } finally {
-      setBusy(false);
       setProgress(null);
     }
+  };
+  const run = async (batch: Batch) => {
+    setBusy(true);
+    setError("");
+    setStopped(null);
+    const r = await runGroup(batch, importId);
+    if (!r.ok) setStopped({ all: false, batch });
+    setBusy(false);
+  };
+  /** Import all: the email group, then the phone-only group (with the rows with neither while
+   *  that rule is off), one overall bar, one report for the file; a stop offers Resume, which skips what was handled. */
+  const runAll = async () => {
+    if (!plan) return;
+    setBusy(true);
+    setError("");
+    setStopped(null);
+    const order = ORDER.filter((b) => plan[b].rows.length && !imported[b]);
+    const total = ORDER.reduce((t, b) => t + plan[b].rows.length, 0);
+    let doneAll = ORDER.reduce((t, b) => t + (imported[b] ? plan[b].rows.length : (handledRef.current[b] ?? 0)), 0);
+    let id = importId;
+    for (const b of order) {
+      setOverall({ done: doneAll, total, batch: b });
+      const r = await runGroup(b, id, (k) => {
+        doneAll += k;
+        setOverall({ done: doneAll, total, batch: b });
+      });
+      id = r.id;
+      if (!r.ok) {
+        setStopped({ all: true, batch: b });
+        setOverall(null);
+        setBusy(false);
+        return;
+      }
+    }
+    setOverall(null);
+    setBusy(false);
   };
 
   const group = (batch: Batch, title: string, hint: string) => {
@@ -244,18 +323,22 @@ export default function ImportView({
               type="button"
               disabled={busy || !g.rows.length}
               onClick={() => void run(batch)}
-              className={batch === "email" ? btnPrimary : btnOutline}
+              className={btnOutline}
             >
               {progress?.batch === batch
-                ? "Importing…"
-                : `Import ${n(g.rows.length)}`}
+                ? progress.k === null
+                  ? "Starting…"
+                  : "Importing…"
+                : handled[batch]
+                  ? `Resume (${n(g.rows.length - (handled[batch] ?? 0))} left)`
+                  : `Import ${n(g.rows.length)}`}
             </button>
           )}
           {progress?.batch === batch ? (
             <div
               className="mt-2"
               role="progressbar"
-              aria-valuenow={Math.round(progress.k * 100)}
+              aria-valuenow={Math.round((progress.k ?? 0) * 100)}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-label={`Importing ${title}`}
@@ -264,13 +347,14 @@ export default function ImportView({
                 <div
                   className="h-2 rounded-full bg-accent transition-[width]"
                   style={{
-                    width: `${Math.max(3, Math.round(progress.k * 100))}%`,
+                    width: `${Math.max(3, Math.round((progress.k ?? 0) * 100))}%`,
                   }}
                 />
               </div>
               <p className="mt-1 text-xs text-muted">
-                {n(Math.round(progress.k * g.rows.length))} of{" "}
-                {n(g.rows.length)}
+                {progress.k === null
+                  ? `Starting… (the first ${n(Math.min(CHUNK, g.rows.length))} rows)`
+                  : `${n(Math.round(progress.k * g.rows.length))} of ${n(g.rows.length)}`}
               </p>
             </div>
           ) : null}
@@ -280,6 +364,8 @@ export default function ImportView({
   };
   const neither =
     plan?.excluded.find((r) => r.reason.startsWith("neither"))?.n ?? 0;
+  const allRows = plan ? ORDER.reduce((t, b) => t + plan[b].rows.length, 0) : 0;
+  const allDone = !!plan && ORDER.every((b) => !plan[b].rows.length || imported[b]);
 
   return (
     <div className="max-w-4xl">
@@ -289,8 +375,8 @@ export default function ImportView({
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Import leads</h1>
       <p className="mt-1 text-[0.9375rem] text-muted">
         Businesses you gathered, from a CSV or a spreadsheet (a Google Maps
-        export works as it is). New ones join the board as yours; the Enricher
-        fills their empty cells and the Validator checks them like any other
+        export works as it is). New ones join the board as yours; the {agentName("Lead Enricher")}
+        fills their empty cells and the {agentName("Validator")} checks them like any other
         row.
       </p>
 
@@ -435,7 +521,7 @@ export default function ImportView({
                         reset();
                         setRules((r) => ({
                           ...r,
-                          states: e.target.checked ? HOME_STATES : null,
+                          states: e.target.checked ? ["NY", "NJ"] : null,
                         }));
                       }}
                       className="size-5 accent-[#ff6600]"
@@ -521,9 +607,44 @@ export default function ImportView({
             <section className="mt-6 rounded-2xl border border-line bg-panel p-5">
               <h2 className="text-lg font-semibold">What the import will do</h2>
               <p className="mt-1 text-sm text-muted">
-                Nothing is written until you press Import. Import the rows with
-                an email first; the phone-only rows can follow now or later.
+                Nothing is written until you press Import. Import all takes the
+                whole file; a group&apos;s own button imports just that group.
               </p>
+              {allRows ? (
+                <div className="mt-4 rounded-xl border border-line bg-bg p-4" data-import-all>
+                  {overall ? (
+                    <div role="progressbar" aria-valuenow={Math.round((overall.done / overall.total) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Importing the whole file">
+                      <p className="text-sm font-medium">
+                        {progress?.k === null && overall.done === 0 ? "Starting…" : `Importing ${n(overall.done)} of ${n(overall.total)}: ${GROUP_NAME[overall.batch].replace(/ rows$/, "")}`}
+                      </p>
+                      <div className="mt-2 h-2 rounded-full bg-line">
+                        <div className="h-2 rounded-full bg-accent transition-[width]" style={{ width: `${Math.max(3, Math.round((overall.done / overall.total) * 100))}%` }} />
+                      </div>
+                    </div>
+                  ) : allDone ? (
+                    <p className="text-sm text-good">✓ The whole file is imported: one report below.</p>
+                  ) : stopped ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {error ? (
+                        <p role="alert" className="w-full text-sm text-bad">
+                          {error}
+                        </p>
+                      ) : null}
+                      <button type="button" className={btnPrimary} disabled={busy} onClick={() => void (stopped.all ? runAll() : run(stopped.batch))}>
+                        Resume
+                      </button>
+                      <span className="text-sm text-muted">Carries on where it stopped; rows already written are never sent again.</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button type="button" className={btnPrimary} disabled={busy} onClick={() => void runAll()}>
+                        Import all ({n(allRows)} rows)
+                      </button>
+                      <span className="text-sm text-muted">The rows with an email first, then the phone-only ones{rules.needContact ? "" : " (with the rows with neither)"}. Or pick one group below.</span>
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 {group(
                   "email",
@@ -588,7 +709,7 @@ export default function ImportView({
           ) : null}
         </>
       )}
-      {error ? (
+      {error && !stopped ? (
         <p role="alert" className="mt-3 text-sm text-bad">
           {error}
         </p>

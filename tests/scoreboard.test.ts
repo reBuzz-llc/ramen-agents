@@ -4,7 +4,6 @@ import {
   statementOf,
   type LeadFact,
   type Person,
-  type TaskFact,
 } from "@/lib/scoreboard";
 
 const lead = (
@@ -54,7 +53,7 @@ describe("this week, from Peek's board", () => {
       }),
       lead("c", { ...sent("2026-10-01T10:00:00Z"), sentBy: ["Sam"] }), // sent last week
     ];
-    const [sam] = scoreboard(team, [], leads, [], [], from);
+    const [sam] = scoreboard(team, [], leads, [], from);
     expect(sam).toMatchObject({ sent: 2, replies: 1, meetings: 1, clients: 0 });
   });
 
@@ -69,18 +68,17 @@ describe("this week, from Peek's board", () => {
         }),
       ],
       [],
-      [],
       from,
     );
     expect(rows.find((r) => r.userId === "u-jo")?.sent).toBe(1);
   });
 
-  it("counts a click on 'I sent it' when the board has no Sent by yet, by lead id", () => {
+  it("counts a click on 'I sent it' when the board has no Sent by yet, by lead id (a click keyed by an old Notion page id no longer counts, Peek 601)", () => {
     const clicks = [
       { userId: "u-jo", pageId: "d", at: new Date("2026-10-14T09:00:00Z") },
       {
         userId: "u-jo",
-        pageId: "e",
+        pageId: "notion-e",
         at: new Date("2026-10-14T09:00:00Z"),
       },
     ];
@@ -89,10 +87,10 @@ describe("this week, from Peek's board", () => {
       lead("e", { emailStatus: "Email Sent" }),
     ];
     expect(
-      scoreboard(team, clicks, leads, [], [], from).find(
+      scoreboard(team, clicks, leads, [], from).find(
         (r) => r.userId === "u-jo",
       )?.sent,
-    ).toBe(2);
+    ).toBe(1);
   });
 
   it("dates an imported sent row without Sent at by its result date", () => {
@@ -110,24 +108,9 @@ describe("this week, from Peek's board", () => {
         sentBy: ["Sam"],
       }),
     ];
-    expect(scoreboard(team, [], leads, [], [], from)[0].sent).toBe(1);
+    expect(scoreboard(team, [], leads, [], from)[0].sent).toBe(1);
   });
 
-  it("counts tasks Done this week once for each person assigned, by name or email", () => {
-    const task = (
-      status: string,
-      at: string,
-      ...assignees: string[]
-    ): TaskFact => ({ status, assignees, updatedAt: new Date(at) });
-    const tasks = [
-      task("Done", "2026-10-13T10:00:00Z", "Sam", "jo@acme.example", "Sam"),
-      task("In progress", "2026-10-13T10:00:00Z", "Sam"),
-      task("Done", "2026-10-02T10:00:00Z", "Sam"),
-    ];
-    expect(
-      scoreboard(team, [], [], tasks, [], from).map((r) => r.tasksDone),
-    ).toEqual([1, 1]);
-  });
 });
 
 describe("statement", () => {
@@ -139,7 +122,6 @@ describe("statement", () => {
     replies: 2,
     meetings: 1,
     clients: 0,
-    tasksDone: 0,
     minutes: 600,
   };
   it("is hours x rate + bonus x (replies + meetings + clients)", () => {
@@ -180,7 +162,6 @@ describe("WhatsApp messages sent", () => {
         // verified, not sent: nothing
         lead("w5", { whatsappStatus: "WhatsApp Verified", sentBy: [], waSentAt: null }),
       ],
-      [],
       [],
       from,
     );

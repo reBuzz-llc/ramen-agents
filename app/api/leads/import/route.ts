@@ -5,9 +5,12 @@ import { guard } from "@/lib/guard";
 import { BATCH, IMPORT_FIELDS, MAX_ROWS, planImport, runImport, type Batch, type ImportField, type MappedRow, type PlanLine, type Rules } from "@/lib/lead-import";
 import { sameOrigin } from "@/lib/same-origin";
 import { displayName } from "@/lib/display-name";
+import { can } from "@/lib/roles";
 
-// A batch of 500 new leads, each with its history, can take a while: up to a minute (Vercel Hobby's limit).
+// A batch of new leads, each with its history, can take a while: up to a minute (Vercel Hobby's limit). The import stops
+// after 40 s with the rows it handled (`done`); the page sends the rest (a 188-row batch was once cut off).
 export const maxDuration = 60;
+const BUDGET_MS = 40_000;
 
 const clean = (r: unknown): MappedRow => {
   const out: MappedRow = {};
@@ -30,7 +33,7 @@ const rulesOf = (v: unknown): Rules => {
 // and why, the duplicates, the rejected, and every row not created (for the report).
 // POST {dry: false, records: [{row, ...fields}], batch, maps, packageForWebsite, fileName, importId?, excluded?}: up to
 // 500 approved rows imported; the first batch answers the import's id, later ones pass it so the report stays one.
-// Owners and managers.
+// Anyone signed in; a member's importId must be their own import, else the rows start a new one.
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   const g = await guard("leads.import");
@@ -39,6 +42,7 @@ export async function POST(req: Request) {
   if (!b || !Array.isArray(b.records)) return NextResponse.json({ ok: false, error: "send {records}" }, { status: 400 });
   const dry = b.dry !== false;
   if (b.records.length > (dry ? MAX_ROWS : BATCH)) return NextResponse.json({ ok: false, error: dry ? `At most ${MAX_ROWS} rows; split the file.` : `At most ${BATCH} rows a batch.` }, { status: 413 });
+  const started = Date.now();
   const d = await db();
   try {
     if (dry) {
@@ -68,12 +72,14 @@ export async function POST(req: Request) {
     const excluded = Array.isArray(b.excluded) ? (b.excluded as PlanLine[]).slice(0, MAX_ROWS).map((l) => ({ row: Number(l.row) || 0, business: String(l.business ?? "").slice(0, 200), outcome: (["skipped", "excluded", "rejected"].includes(String(l.outcome)) ? l.outcome : "skipped") as PlanLine["outcome"], reason: String(l.reason ?? "").slice(0, 200) })) : [];
     const r = await runImport(d, g.who.tenantId, { userId: g.who.userId, name: displayName(g.who.name, g.who.email) }, rows, String(b.fileName ?? ""), {
       importId: typeof b.importId === "string" ? b.importId : undefined,
+      ownOnly: !can(g.who.role, "leads.importsAll"),
       maps: b.maps === true,
       packageForWebsite: typeof b.packageForWebsite === "string" ? b.packageForWebsite.slice(0, 120) : undefined,
       batch: b.batch === "listing" ? "listing" : "email",
       excluded,
+      deadline: started + BUDGET_MS,
     });
-    return NextResponse.json({ ok: true, id: r.id, created: r.created, skipped: r.skipped, rejected: r.rejected });
+    return NextResponse.json({ ok: true, id: r.id, done: r.done, created: r.created, skipped: r.skipped, rejected: r.rejected });
   } catch (err) {
     return NextResponse.json({ ok: false, error: publicReason(err, "leads.import") }, { status: 500 });
   }

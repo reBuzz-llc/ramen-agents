@@ -17,8 +17,8 @@ describe("routes", () => {
     expect(src("app/page.tsx")).toMatch(/import ClockView from "\.\/clock\/clock-view"/);
     expect(src("app/clock/page.tsx")).toMatch(/redirect\("\/"\)/);
     expect(src("app/leaderboard/page.tsx")).toMatch(/standings\(/);
-    expect(NAV.map((n) => n.label)).toEqual(["Clock", "To-do", "Leads", "Files", "Asset", "Packages"]);
-    expect(MENU.map((n) => n.label)).toEqual(["Leaderboard", "This week", "Guide", "Family", "Settings", "Privacy"]);
+    expect(NAV.map((n) => n.label)).toEqual(["Clock", "Lead", "Package", "Asset", "File"]);
+    expect(MENU.map((n) => n.label)).toEqual(["Leaderboard", "This week", "Guide", "Team", "Settings", "Privacy"]);
     expect(src("app/settings/layout.tsx")).toMatch(/Projects are managed on the/);
   });
   it("the nav marks the page you are on", () => {

@@ -1,6 +1,6 @@
 import { NOTICE, NOTICE_VERSION } from "@/lib/notice";
 
-export const metadata = { title: "Privacy · ramen-agents" };
+export const metadata = { title: "Privacy · Productive Peek" };
 
 /** What this version records and never records. The same text every person acknowledges at /welcome. */
 export default function Privacy() {

@@ -1,0 +1,16 @@
+{
+ "about": "The lists the write-time checks read (validator/checks.py), and Peek's warning at save reads them too (a drift test against this file). Edit the lists, not the code.",
+ "leftovers": ["reviewed so far", "across all three businesses", "across all the businesses", "across these businesses", "of the businesses reviewed",
+               "in my research", "based on my research", "my research notes", "research notes", "as an ai", "as a language model",
+               "the businesses above", "the previous business", "the next business", "business #1", "business #2", "business #3",
+               "[business name]", "[insert", "lorem ipsum"],
+ "name_min_chars": 8,
+ "name_two_words_min": 4,
+ "generic_words": ["restaurant", "cafe", "coffee", "pizza", "pizzeria", "deli", "salon", "bakery", "grill", "kitchen", "bar", "studio", "spa",
+                   "dental", "dentist", "clinic", "market", "boutique", "cleaners", "laundromat", "barbershop", "auto", "repair", "plumbing",
+                   "construction", "landscaping", "fitness", "gym", "yoga", "nails", "beauty", "law", "insurance", "realty", "travel",
+                   "new york", "brooklyn", "queens", "manhattan", "bronx", "staten island", "new jersey", "the team", "home", "services"],
+ "chains": ["starbucks", "dunkin", "mcdonald's", "subway", "chipotle", "7-eleven", "walgreens", "cvs", "duane reade", "target", "walmart",
+            "home depot", "best buy", "whole foods", "trader joe's", "panera", "shake shack", "sweetgreen", "chase", "bank of america", "verizon",
+            "t-mobile", "at&t", "google", "facebook", "instagram", "yelp", "tripadvisor", "groupon", "classpass", "birdeye", "opentable"]
+}

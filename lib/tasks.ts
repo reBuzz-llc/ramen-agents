@@ -3,14 +3,14 @@
 // - person wins: a bot never replaces a field whose last change was a person's; the attempt is kept, refused;
 // - human only: status, assignees and the checklist's ticks are the team's. A bot may create a task (it starts "Not
 //   started", nobody assigned), append to its details, and add unticked checklist items, never tick or untick one;
-// - an import (the import key) copies the values as they are, past those rules.
+// - an import (the backfill's key) copies Notion as it is, past those rules, and is idempotent on the Notion page id.
 // Readers follow `rev`: listTasks(since = the last rev seen) returns what changed after it, in order.
 import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "./db";
 import { taskCells, taskFlags, tasks } from "./db/schema";
-import type { Actor } from "./leads";
+import { NOTION_GONE, type Actor } from "./leads";
 
-/** The task Status options, spelling kept as the board has them ("Not Fisible", "Dublicate"). */
+/** Notion's Status options, spelling kept ("Not Fisible", "Dublicate"). */
 export const TASK_STATUSES = ["Not started", "In progress", "In Review", "Done", "Blocker", "QA", "Not Fisible", "Dublicate"] as const;
 /** The queue's steps; the others are set from the task's menu. */
 export { STEPS } from "./task-steps";
@@ -35,6 +35,8 @@ export const TASK_FIELDS: Field[] = [
   { key: "checklist", prop: "checklist", kind: "checklist", human: true },
   { key: "standing", prop: "standing", kind: "bool" },
   { key: "archived", prop: "archived", kind: "bool", human: true },
+  { key: "notion_url", prop: "notionUrl", kind: "text" },
+  { key: "notion_uid", prop: "notionUid", kind: "text" },
 ];
 const BY_KEY = new Map(TASK_FIELDS.map((f) => [f.key, f]));
 const MAX_TEXT = 50_000;
@@ -113,7 +115,7 @@ export async function writeTask(
 ): Promise<TaskWrite> {
   const want = new Map<Field, unknown>();
   for (const [k, v] of Object.entries(input)) {
-    if (["id", "rev", "created_at", "created_by", "updated_at", "last_edited_by"].includes(k)) continue;
+    if (["id", "notion_page_id", "rev", "created_at", "created_by", "updated_at", "last_edited_by"].includes(k)) continue;
     const f = BY_KEY.get(k);
     if (!f) return { ok: false, code: "bad_request", message: `unknown field: ${k}` };
     const n = normalise(f, v);
@@ -122,6 +124,8 @@ export async function writeTask(
   }
   const append = typeof opts.detailsAppend === "string" ? opts.detailsAppend.trim().slice(0, MAX_TEXT) : "";
   const createdAt = opts.import && typeof input.created_at === "string" && !Number.isNaN(Date.parse(input.created_at)) ? new Date(input.created_at) : null;
+  // a late caller still naming tasks by their Notion page id gets this, so it shows in the log (the column was dropped)
+  if (typeof input.notion_page_id === "string" && input.notion_page_id.trim()) return { ok: false, code: "bad_request", message: NOTION_GONE };
   if (!target.id && !opts.create) return { ok: false, code: "bad_request", message: "a task is named by its id" };
   if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return { ok: false, code: "not_found", message: `no task ${target.id}` };
   const isBot = actor.kind === "bot" && !opts.import;
@@ -231,10 +235,8 @@ export async function listTasks(db: Db, tenantId: string, q: { since?: number; l
 }
 
 export async function getTask(db: Db, tenantId: string, target: { id?: string }) {
-  if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return null;
-  const where = target.id ? eq(tasks.id, target.id) : null;
-  if (!where) return null;
-  const [r] = await db.select().from(tasks).where(and(eq(tasks.tenantId, tenantId), where));
+  if (!target.id || !/^[0-9a-f-]{36}$/i.test(target.id)) return null;
+  const [r] = await db.select().from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, target.id)));
   return r ? toApi(r) : null;
 }
 

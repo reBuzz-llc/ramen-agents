@@ -6,6 +6,7 @@ import { drizzle as drizzleLite } from "drizzle-orm/pglite";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { migrate as migrateLite } from "drizzle-orm/pglite/migrator";
 import * as schema from "./schema";
+import { poolErrorLine, poolOptions, withReadRetry } from "./pool-options";
 
 export type Db = ReturnType<typeof drizzleLite<typeof schema>> | ReturnType<typeof drizzlePg<typeof schema>>;
 
@@ -18,10 +19,34 @@ export async function memoryDb(dataDir?: string, onQuery?: (sql: string) => void
   const { PGlite } = await import("@electric-sql/pglite");
   const hook = { on: false };
   const logger = onQuery ? { logQuery: (q: string) => hook.on && onQuery(q) } : undefined;
-  const db = drizzleLite(dataDir ? new PGlite(dataDir) : new PGlite(), { schema, logger });
+  // an in-memory database (the tests) starts from one migrated copy, made once per process, instead of
+  // running every migration again; a database on disk (this Mac's dev data) migrates as before
+  if (!dataDir) {
+    const db = drizzleLite(new PGlite({ loadDataDir: await migratedImage(PGlite) }), { schema, logger });
+    hook.on = true;
+    return db;
+  }
+  const lite = new PGlite(dataDir);
+  // a database the starter's older portal branch made needs its own 0036 bridged first (lib/db/portal-bridge.mjs)
+  const { bridgePortal } = await import("./portal-bridge.mjs");
+  await bridgePortal((text: string, params?: unknown[]) => lite.query(text, params));
+  const db = drizzleLite(lite, { schema, logger });
   await migrateLite(db, { migrationsFolder: MIGRATIONS });
   hook.on = true;
   return db;
+}
+
+/** The migrated empty database as PGlite's data-dir image (a tarball), made once per process and reused. */
+const gm = globalThis as { __peekMigrated?: Promise<Blob> };
+function migratedImage(PGlite: typeof import("@electric-sql/pglite").PGlite): Promise<Blob> {
+  gm.__peekMigrated ??= (async () => {
+    const pg = new PGlite();
+    await migrateLite(drizzleLite(pg, { schema }), { migrationsFolder: MIGRATIONS });
+    const image = await pg.dumpDataDir("none");
+    await pg.close();
+    return image;
+  })();
+  return gm.__peekMigrated;
 }
 
 async function open(): Promise<Db> {
@@ -46,14 +71,32 @@ async function open(): Promise<Db> {
       await migrator.end();
     }
   }
-  // Keep connections: from far away a new TLS connection to us-east-2 costs about a second, so the default 10 s idle timeout
-  // made most page views pay it again. Five minutes, with TCP keep-alive, matches Neon's own suspend window.
-  const pool = new Pool({ connectionString: url, max: 5, idleTimeoutMillis: 5 * 60_000, keepAlive: true });
-  try {
-    (await import("@vercel/functions")).attachDatabasePool(pool);
-  } catch {
-    /* not on Vercel: the pool just lives with the process */
+  // Off Vercel, keep connections (a new TLS connection to the database's region costs about half a second); on Vercel a
+  // short idle timeout and no attached pool, so a function is billed for its request only (lib/db/pool-options.ts).
+  const plan = poolOptions(process.env);
+  const pool = new Pool({ connectionString: url, max: plan.max, min: plan.min, idleTimeoutMillis: plan.idleTimeoutMillis, keepAlive: plan.keepAlive, keepAliveInitialDelayMillis: plan.keepAliveInitialDelayMillis });
+  // An idle client's error had no handler and became an uncaughtException; now one timed line (pg drops
+  // the broken client itself), and off Vercel a read whose connection timed out or was reset runs once more
+  pool.on("error", (err) => console.error(poolErrorLine(err)));
+  if (!process.env.VERCEL) (pool as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query = withReadRetry(pool.query.bind(pool) as (...a: unknown[]) => Promise<unknown>);
+  // PEEK_QUERY_LOG=<file> (measuring only): one JSON line per query with its start and end, so
+  // docs/perf.md can count a page's queries and round-trip waves. Off unless set; never on Vercel.
+  const logFile = process.env.PEEK_QUERY_LOG?.trim();
+  if (logFile && !process.env.VERCEL) {
+    const { appendFileSync } = await import("node:fs");
+    const orig = pool.query.bind(pool) as (...a: unknown[]) => Promise<unknown>;
+    (pool as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query = (...a: unknown[]) => {
+      const t0 = performance.now();
+      const text = typeof a[0] === "string" ? a[0] : String((a[0] as { text?: string })?.text ?? "");
+      const p = orig(...a);
+      const done = (rows: number) => appendFileSync(logFile, JSON.stringify({ t0, t1: performance.now(), rows, sql: text.slice(0, 160) }) + "\n");
+      p.then((r) => done(Number((r as { rowCount?: number })?.rowCount ?? 0)), () => done(-1));
+      return p;
+    };
   }
+  // Never attached any more. attachDatabasePool held each Vercel function open (waitUntil) until the pool's idle
+  // clients closed -- with a five-minute timeout, ~300 s billed per request -- and soft-blocked the team on 11-15.
+  if (plan.attachToVercel) (await import("@vercel/functions")).attachDatabasePool(pool);
   return drizzlePg(pool, { schema });
 }
 

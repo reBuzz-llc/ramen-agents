@@ -1,0 +1,1 @@
+ALTER TABLE "template_proposals" ADD COLUMN "template_history" jsonb DEFAULT '[]'::jsonb NOT NULL;

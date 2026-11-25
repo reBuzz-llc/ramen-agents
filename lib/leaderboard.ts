@@ -1,11 +1,13 @@
-// The home page: who is ahead, by outcomes. Points come from what reached a customer or closed a task (sent, replies,
-// meetings, clients, tasks done), never from hours or activity, so nobody wins by keeping a clock running. The owner
+// The home page: who is ahead, by outcomes. Points come from what reached a customer (sent, replies, meetings, clients),
+// never from hours or activity, so nobody wins by keeping a clock running. The owner
 // sets the weights in Settings and is left off the board (the owner gives the rewards). Pure functions, tested.
+import { dayStartOf } from "./periods";
 import type { PersonWeek } from "./scoreboard";
+import { dayIn } from "./send-goals";
 
-export type Weights = { sent: number; replies: number; meetings: number; clients: number; tasksDone: number };
-export const DEFAULT_WEIGHTS: Weights = { sent: 1, replies: 3, meetings: 5, clients: 10, tasksDone: 2 };
-export const OUTCOMES = ["sent", "replies", "meetings", "clients", "tasksDone"] as const;
+export type Weights = { sent: number; replies: number; meetings: number; clients: number };
+export const DEFAULT_WEIGHTS: Weights = { sent: 1, replies: 3, meetings: 5, clients: 10 };
+export const OUTCOMES = ["sent", "replies", "meetings", "clients"] as const;
 
 export type Standing = PersonWeek & { points: number; rank: number };
 
@@ -27,5 +29,5 @@ export function standings(rows: PersonWeek[], w: Weights): Standing[] {
   return sorted;
 }
 
-/** The first day of this month, local time. */
-export const monthStartDate = (now = new Date()) => new Date(now.getFullYear(), now.getMonth(), 1);
+/** The first day of this month, in the company's zone when `tz` is given. */
+export const monthStartDate = (now = new Date(), tz?: string | null) => dayStartOf(`${dayIn(now, tz).slice(0, 7)}-01`, tz);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { addDraft, checkDraft, listPackages, packageJson } from "@/lib/assets";
 import { body, fail, failed, keyed } from "@/lib/board-api";
 
-// POST /v1/assets/packages/drafts: a bot hands a package over as a draft on the Asset page, with any
+// POST /v1/assets/packages/drafts a bot hands a package over as a draft on the Asset page, with any
 // board:write key ({name, price, buyer, deliverables, offer?, why?, sources?, by?}; `by` is the agent, else the key's
 // name). The same agent's draft of the same name is updated in place; a published package or a person's draft is never
 // touched, and a bot never publishes: the owner prices and publishes on the page. 201 for a new draft, 200 for an update.

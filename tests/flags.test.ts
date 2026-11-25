@@ -16,7 +16,7 @@ async function board() {
   return { db, tenantId: tenant.id, owner, OLU, id: r.lead.id };
 }
 
-describe("flags", () => {
+describe("flags (the flag_sync contract)", () => {
   it("raise is an upsert by rule; resolve; raise again reopens the same flag; list; the board counts open ones", async () => {
     const { db, tenantId, owner, id } = await board();
     const a = await raiseFlag(db, tenantId, id, "LD21", "pain point is not three lines", "validator");

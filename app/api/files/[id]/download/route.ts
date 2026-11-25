@@ -1,3 +1,4 @@
+import { originOf } from "@/lib/google-signin";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getFile } from "@/lib/files";
@@ -21,5 +22,5 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     );
   }
   const url = await st.downloadUrl(f.key, f.name, f.contentType, new URL(req.url).searchParams.get("inline") === "1", f.id);
-  return NextResponse.redirect(new URL(url, req.url), 302);
+  return NextResponse.redirect(new URL(url, originOf(req)), 302);
 }

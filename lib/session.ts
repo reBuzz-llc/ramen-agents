@@ -1,4 +1,4 @@
-// The portal's own sessions (the development sign-in, the local and outage codes, the portal's own Google sign-in): a random id in an
+// Peek's own sessions (the development sign-in, Peek's own Google sign-in): a random id in an
 // HttpOnly cookie, only its SHA-256 stored. Kept apart from lib/auth.ts so a sign-in route needs no Neon Auth at all.
 import { eq } from "drizzle-orm";
 import { newToken, sha256 } from "./crypto";

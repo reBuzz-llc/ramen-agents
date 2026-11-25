@@ -1,5 +1,5 @@
 import { answer, answerTask, body, botActor, fail, failed, keyed, metered, notModified, queryOf } from "@/lib/board-api";
-import { boardRev, fieldsOf, listLeads, writeLead } from "@/lib/leads";
+import { boardRev, fieldsOf, listLeads, NOTION_GONE, writeLead } from "@/lib/leads";
 import { sha256 } from "@/lib/crypto";
 import { listTasks, writeTask } from "@/lib/tasks";
 
@@ -53,6 +53,8 @@ export async function POST(req: Request, ctx: Ctx) {
       return answerTask(
         await writeTask(k.d, k.key.tenantId, {}, b.fields as Record<string, unknown>, botActor(k.key, b.actor), { create: true, detailsAppend: typeof b.details_append === "string" ? b.details_append : undefined }),
       );
+    // a late caller still creating rows keyed by a Notion page id: refused, so it shows in the log (the column was dropped)
+    if (typeof b.notion_page_id === "string" && b.notion_page_id.trim()) return fail(400, "bad_request", NOTION_GONE);
     return answer(
       await writeLead(k.d, k.key.tenantId, {}, b.fields as Record<string, unknown>, botActor(k.key, b.actor), {
         create: true,

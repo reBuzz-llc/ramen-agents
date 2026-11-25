@@ -1,13 +1,15 @@
-// Importing leads an owner or manager gathered. The browser reads the
+// Importing leads a person gathered (businesses, numbers and emails found by hand), so the agents can read and
+// update them like any other lead. The browser reads the
 // CSV or spreadsheet and maps it (lib/lead-import-map.ts); here the whole file is planned in a dry run (the import
 // rules, duplicates against the board and inside the file, the two batches), and then the approved rows of a batch are
 // created as that person: each new lead's cells in its history with the person as actor, no email status, so the
-// Enricher and the Validator treat them like any other row.
-import { and, desc, eq } from "drizzle-orm";
+// Enricher and the Validator treat them like any other row. Anyone may import; a member
+// sees, downloads and resumes their own imports only.
+import { and, eq } from "drizzle-orm";
 import type { Db } from "./db";
 import { leadImports, leads } from "./db/schema";
 import { placeOf } from "./lead-filters";
-import { HOME_STATES, SOCIAL, type MappedRow } from "./lead-import-map";
+import { SOCIAL, type MappedRow } from "./lead-import-map";
 import { domainOf, writeLead } from "./leads";
 import { e164 } from "./phone";
 import { isFreeMailDomain } from "./already-sent";
@@ -31,14 +33,15 @@ export const ownWebsite = (v?: string) => {
   const d = domainOf(w);
   return d && !SOCIAL.test(d) ? w : "";
 };
-// A chain branch's name: the shop's name without the place after a dash ("Prism Shops - Bronx" -> "prism shops").
+// A chain branch's name: the shop's name without the place after a dash ("Rainbow Shops - Bronx" -> "rainbow shops").
 const brand = (name: string) => normName(name.replace(/\s+[-–|@]\s+.*$/, ""));
 
-/** The import rules: only the states listed (null: any), CLOSED rows out, chain-like rows out (the same name or
+/** The import rules (defaults on for a Google Maps export; New Jersey is kept, as it is
+ *  close by): only the states listed (null: any), CLOSED rows out, chain-like rows out (the same name or
  *  website 3 or more times in the file), and rows with no way to reach the business (no email, phone or WhatsApp) out. */
 export type Rules = { states: string[] | null; skipClosed: boolean; skipChains: boolean; needContact: boolean };
 export const NO_RULES: Rules = { states: null, skipClosed: false, skipChains: false, needContact: false };
-export const MAPS_RULES: Rules = { states: HOME_STATES.length ? HOME_STATES : null, skipClosed: true, skipChains: true, needContact: true };
+export const MAPS_RULES: Rules = { states: ["NY", "NJ"], skipClosed: true, skipChains: true, needContact: true };
 
 export type Batch = "email" | "listing";
 export type PlanLine = { row: number; business: string; outcome: "create" | "skipped" | "excluded" | "rejected"; reason: string; batch?: Batch; existingId?: string; social?: boolean };
@@ -136,8 +139,8 @@ export function leadFields(r: MappedRow, o: FieldOpts): Record<string, unknown> 
   };
 }
 
-/** The website a business email points at: https://<domain> for an address on the business's own domain, "" for a
- *  free or shared mailbox (gmail, yahoo, outlook, an internet provider's, a school's or government's). */
+/** The website a business email points at: https://<domain> for an address on the business's own
+ *  domain, "" for a free or shared mailbox (gmail, yahoo, outlook, an internet provider's, a school's or government's). */
 export function websiteFromEmail(email?: string | null): string {
   const m = /^[^@\s]+@([a-z0-9.-]+\.[a-z]{2,})$/i.exec((email ?? "").trim());
   if (!m) return "";
@@ -147,7 +150,7 @@ export function websiteFromEmail(email?: string | null): string {
 /** History's mark on a website taken from the email's domain: the write's "via". */
 export const EMAIL_DOMAIN_VIA = "website from the email's domain, import";
 
-/** The found_by of an import, always starting "import:": "import:
+/** The found_by of an import, always starting "import:" (the Validator's grace rule keys on it): "import:
  *  google maps <date>" for a Maps export, else "import: owner file <date>". */
 export const foundByOf = (maps: boolean, now: Date) => `import: ${maps ? "google maps" : "owner file"} ${now.toISOString().slice(0, 10)}`;
 
@@ -160,12 +163,17 @@ export async function runImport(
   who: { userId: string; name: string },
   rows: (MappedRow & { row: number })[],
   fileName: string,
-  opts: { now?: Date; importId?: string; maps?: boolean; packageForWebsite?: string; batch?: Batch; excluded?: PlanLine[] } = {},
+  opts: { now?: Date; importId?: string; ownOnly?: boolean; maps?: boolean; packageForWebsite?: string; batch?: Batch; excluded?: PlanLine[]; deadline?: number; clock?: () => number } = {},
 ) {
+  // (a 188-row batch once ran past the function's 60 s and was cut off with no report) past the deadline the
+  // batch stops after the row in hand and says how many rows it handled (`done`); the page sends the rest next. The report
+  // is saved for what was handled, so it is never lost.
+  const clock = opts.clock ?? Date.now;
   const now = opts.now ?? new Date();
   const foundBy = foundByOf(!!opts.maps, now);
   const report: PlanLine[] = [];
   for (const r of rows) {
+    if (opts.deadline && report.length && clock() > opts.deadline) break;
     const business = (r.business ?? "").trim();
     if (!business) {
       report.push({ row: r.row, business: "", outcome: "rejected", reason: "no business name" });
@@ -184,7 +192,8 @@ export async function runImport(
   const count = (o: PlanLine["outcome"]) => all.filter((l) => l.outcome === o).length;
   const lines = all.map((l) => ({ row: l.row, business: l.business, outcome: l.outcome, reason: l.reason, leadId: l.existingId }));
   let id = opts.importId;
-  const [prev] = id && /^[0-9a-f-]{36}$/i.test(id) ? await db.select().from(leadImports).where(and(eq(leadImports.tenantId, tenantId), eq(leadImports.id, id))) : [];
+  const [prev] = id && /^[0-9a-f-]{36}$/i.test(id) ? await db.select().from(leadImports).where(and(eq(leadImports.tenantId, tenantId), eq(leadImports.id, id), opts.ownOnly ? eq(leadImports.byUserId, who.userId) : undefined)) : [];
+  // (a member's importId of someone else's import is not resumed: their rows start a record of their own)
   if (prev) {
     await db
       .update(leadImports)
@@ -197,29 +206,13 @@ export async function runImport(
       .returning();
     id = saved.id;
   }
-  return { id: id!, created: report.filter((l) => l.outcome === "create").length, skipped: report.filter((l) => l.outcome === "skipped").length, rejected: report.filter((l) => l.outcome === "rejected").length, report };
+  return { id: id!, done: report.length, created: report.filter((l) => l.outcome === "create").length, skipped: report.filter((l) => l.outcome === "skipped").length, rejected: report.filter((l) => l.outcome === "rejected").length, report };
 }
 
-/** The recent imports for the Validator (GET /v1/imports): who, when, the counts, and the leads each created, so it can
- *  list them for the Enricher. */
-export async function recentImports(db: Db, tenantId: string, limit = 20) {
-  const rows = await db.select().from(leadImports).where(eq(leadImports.tenantId, tenantId)).orderBy(desc(leadImports.at)).limit(limit);
-  return rows.map((i) => ({
-    id: i.id,
-    at: i.at.toISOString(),
-    by: i.byName,
-    file: i.fileName,
-    created: i.created,
-    skipped: i.skipped,
-    rejected: i.rejected,
-    created_ids: i.report.filter((l) => l.outcome === "create" && l.leadId).map((l) => l.leadId!),
-  }));
-}
-
-/** A kept import's report as CSV: row, business, outcome, reason. */
-export async function importReportCsv(db: Db, tenantId: string, id: string): Promise<{ name: string; csv: string } | null> {
+/** A kept import's report as CSV: row, business, outcome, reason. `byUserId`: only that person's import (a member's). */
+export async function importReportCsv(db: Db, tenantId: string, id: string, byUserId?: string): Promise<{ name: string; csv: string } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const [imp] = await db.select().from(leadImports).where(and(eq(leadImports.tenantId, tenantId), eq(leadImports.id, id)));
+  const [imp] = await db.select().from(leadImports).where(and(eq(leadImports.tenantId, tenantId), eq(leadImports.id, id), byUserId ? eq(leadImports.byUserId, byUserId) : undefined));
   if (!imp) return null;
   const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [["row", "business", "outcome", "reason"].join(","), ...[...imp.report].sort((a, b) => a.row - b.row).map((l) => [l.row, q(l.business), l.outcome === "create" ? "created" : l.outcome, q(l.reason)].join(","))];

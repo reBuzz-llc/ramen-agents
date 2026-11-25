@@ -1,3 +1,4 @@
+import { originOf } from "@/lib/google-signin";
 import { NextResponse } from "next/server";
 import { COOKIE, createSession, devLoginEnabled } from "@/lib/auth";
 import { userForSignIn } from "@/lib/bootstrap";
@@ -12,9 +13,9 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const d = await db();
   const r = await userForSignIn(d, String(form.get("email") ?? ""), String(form.get("name") ?? ""));
-  if (!r.ok) return NextResponse.redirect(new URL(`/sign-in?error=${encodeURIComponent(r.reason)}`, req.url), 303);
+  if (!r.ok) return NextResponse.redirect(new URL(`/sign-in?error=${encodeURIComponent(r.reason)}`, originOf(req)), 303);
   const { token, expiresAt } = await createSession(d, r.user.id);
-  const res = NextResponse.redirect(new URL(safeNext(form.get("next")) ?? "/leads", req.url), 303);
+  const res = NextResponse.redirect(new URL(safeNext(form.get("next")) ?? "/leads", originOf(req)), 303);
   res.cookies.set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: false, expires: expiresAt, path: "/" });
   return res;
 }

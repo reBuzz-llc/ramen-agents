@@ -12,15 +12,21 @@ export type Action =
   | "rates.members" // set a person's own pay rate (lib/rates.ts canSetRate says whose)
   | "users.manage" // change roles
   | "users.add" // add a person by Google address, remove one (a manager: members only, lib/team.ts)
-  | "leads.import" // import leads from a CSV or spreadsheet (lib/lead-import.ts)
+  | "leads.import" // import leads from a CSV or spreadsheet (lib/lead-import.ts); a member sees their own imports only
+  | "leads.importsAll" // see everyone's imports and their reports, and resume any of them (owner and manager)
+  | "leads.markSent" // Leads → Mark already sent (lib/already-sent.ts)
   | "projects.manage" // add and close the projects people clock in to
   | "assets.edit" // edit the Asset page's rates and packages (everyone else reads them)
-  | "keys.manage"; // mint and revoke the board API's machine keys (Settings > API keys)
+  | "samples.review" // see the Samples page and approve, send back, reject or take down a sample
+  | "samples.reference" // set, move or clear a sample's Reference mark
+  | "owner.answers" // approve a LinkedIn post, clear a billing bench: the owner only
+  | "keys.manage" // mint and revoke the board API's machine keys (Settings > API keys)
+  | "treasures"; // Settings > Treasure Hunt: the owner's own downloads (the owner only; nobody else sees the page)
 
 const ALLOWED: Record<Role, ReadonlySet<Action>> = {
-  owner: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "settings.rates", "rates.members", "users.manage", "users.add", "leads.import", "projects.manage", "keys.manage", "assets.edit"]),
-  manager: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "rates.members", "users.add", "leads.import", "projects.manage", "assets.edit"]),
-  member: new Set<Action>(["queue.work", "clock.own", "week.own"]),
+  owner: new Set<Action>(["owner.answers", "treasures", "queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "settings.rates", "rates.members", "users.manage", "users.add", "leads.import", "leads.importsAll", "leads.markSent", "projects.manage", "keys.manage", "assets.edit", "samples.review", "samples.reference"]),
+  manager: new Set<Action>(["queue.work", "clock.own", "week.own", "week.team", "settings.keyResults", "rates.members", "users.add", "leads.import", "leads.importsAll", "leads.markSent", "projects.manage", "assets.edit", "samples.review", "samples.reference"]),
+  member: new Set<Action>(["queue.work", "clock.own", "week.own", "leads.import", "samples.review"]), // members may import leads and review samples
 };
 
 export const can = (role: Role, action: Action) => ALLOWED[role].has(action);

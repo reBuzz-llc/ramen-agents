@@ -7,6 +7,7 @@ import { memoryDb } from "@/lib/db";
 import { historyOf, writeLead, type Actor } from "@/lib/leads";
 import { sendNext } from "@/lib/send-next";
 import { createTenant } from "@/lib/tenants";
+import { saveBoardAsList } from "./helpers/saved-send-list";
 
 const lead = (id: string, o: Partial<LeadLite>): LeadLite => ({ id, business: id, businessEmail: null, domain: null, whatsapp: null, phone: null, emailStatus: null, whatsappStatus: null, hasDraft: true, ...o });
 
@@ -25,10 +26,10 @@ describe("parsePaste", () => {
     ]);
   });
   it("a line with a lead id is matched by the id, with the status it names", () => {
-    const e = parsePaste('"Cobalt Dental, DDS",00000000-0000-4000-8000-000000000201,00000000-0000-4000-8000-000000000202,Ready to Send Email');
+    const e = parsePaste('"Xianglong Li, DDS",405d905f-ccff-8119-b1ef-e8ee256ddb97,8aee3936-02ce-4080-9fa7-8c4ff030743f,Ready to Send Email');
     expect(e.map((x) => [x.key, x.type, x.mark])).toEqual([
-      ["00000000000040008000000000000201", "id", "ready_email"],
-      ["00000000000040008000000000000202", "id", "ready_email"],
+      ["405d905fccff8119b1efe8ee256ddb97", "id", "ready_email"],
+      ["8aee393602ce40809fa78c4ff030743f", "id", "ready_email"],
     ]);
   });
   it("dates and status names in the common shapes, or none", () => {
@@ -48,13 +49,13 @@ describe("matchEntries", () => {
     lead("studio", { domain: "studio.example" }),
     lead("chain-1", { domain: "chain.example" }),
     lead("chain-2", { domain: "chain.example" }),
-    lead("gmail-shop", { businessEmail: "not-a-shop@gmail.com", domain: null }),
+    lead("gmail-shop", { businessEmail: "shop@gmail.com", domain: null }),
     lead("sent", { businessEmail: "done@sent.example", emailStatus: "Email Sent" }),
     lead("wa", { whatsapp: "https://wa.me/17185550100", phone: "+17185550199", whatsappStatus: "WhatsApp msg sent" }),
-    lead("00000000-0000-4000-8000-000000000202", { business: "By id" }),
+    lead("8aee3936-02ce-4080-9fa7-8c4ff030743f", { business: "By id" }),
   ];
   it("exact email, then the domain; never a free-mail domain; several leads: listed, not marked", () => {
-    const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\nx@chain.example\nnot-an-other@gmail.com\nnot-a-shop@gmail.com\ndone@sent.example\nnobody@nowhere.example"), board, "email_sent");
+    const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\nx@chain.example\nother@gmail.com\nshop@gmail.com\ndone@sent.example\nnobody@nowhere.example"), board, "email_sent");
     expect(p.matched.map((m) => [m.leadId, m.by, m.already])).toEqual([
       ["bakery", "email", false],
       ["studio", "domain", false],
@@ -62,12 +63,13 @@ describe("matchEntries", () => {
       ["sent", "email", true],
     ]);
     expect(p.ambiguous).toEqual([{ key: "x@chain.example", leads: 2 }]);
-    expect(p.notFound).toEqual(["not-an-other@gmail.com", "nobody@nowhere.example"]);
+    expect(p.notFound).toEqual(["other@gmail.com", "nobody@nowhere.example"]);
   });
-  it("a number with or without its country code; a lead id", () => {
+  it("a number with or without its country code; a lead id by Peek's id (an old Notion page id is not found, Peek 601)", () => {
     expect(matchEntries(parsePaste("7185550100"), board, "whatsapp_sent").matched.map((m) => [m.leadId, m.already])).toEqual([["wa", true]]);
     expect(matchEntries(parsePaste("+44 20 7946 0000"), board, "whatsapp_sent").notFound).toEqual(["442079460000"]);
-    expect(matchEntries(parsePaste("00000000-0000-4000-8000-000000000202"), board, "ready_email").matched.map((m) => [m.business, m.by, m.mark])).toEqual([["By id", "id", "ready_email"]]);
+    expect(matchEntries(parsePaste("8aee3936-02ce-4080-9fa7-8c4ff030743f"), board, "ready_email").matched.map((m) => [m.business, m.by, m.mark])).toEqual([["By id", "id", "ready_email"]]);
+    expect(matchEntries(parsePaste("405d905f-ccff-8119-b1ef-e8ee256ddb97"), board, "ready_email").notFound).toEqual(["405d905fccff8119b1efe8ee256ddb97"]);
   });
   it("never moves a lead back a step: Verified after a WhatsApp sent, Ready after Email Sent", () => {
     expect(matchEntries(parsePaste("7185550100"), board, "whatsapp_verified").matched[0].already).toBe(true);
@@ -75,12 +77,12 @@ describe("matchEntries", () => {
     expect(matchEntries(parsePaste("owner@bakery.example"), board, "ready_email").matched[0].already).toBe(false);
   });
   it("as each line says: the line's status; a line that names none is listed", () => {
-    const p = matchEntries(parsePaste("owner@bakery.example, Email Sent\nnew@studio.example, WhatsApp Verified\nnot-a-shop@gmail.com"), board, "per_line");
+    const p = matchEntries(parsePaste("owner@bakery.example, Email Sent\nnew@studio.example, WhatsApp Verified\nshop@gmail.com"), board, "per_line");
     expect(p.matched.map((m) => [m.leadId, m.mark])).toEqual([
       ["bakery", "email_sent"],
       ["studio", "whatsapp_verified"],
     ]);
-    expect(p.noMark).toEqual(["not-a-shop@gmail.com"]);
+    expect(p.noMark).toEqual(["shop@gmail.com"]);
   });
   it("what marking prevents counts the Email sent marks: offered by Send next now, and drafts waiting", () => {
     const p = matchEntries(parsePaste("owner@bakery.example\nnew@studio.example\ndone@sent.example"), [board[0], { ...board[1], hasDraft: false }, board[5]], "email_sent");
@@ -98,6 +100,7 @@ describe("markSent", () => {
     const a = await writeLead(db, tenant.id, {}, { business: "Acme Bakery", website: "https://acmebakery.example", business_email: "hello@acmebakery.example", draft_email: "Hi" }, ENGINE, { create: true });
     const b = await writeLead(db, tenant.id, {}, { business: "Bravo Barbers", website: "https://bravo.example", business_email: "hi@bravo.example", draft_email: "Hello", whatsapp: "https://wa.me/17185550100" }, ENGINE, { create: true });
     if (!a.ok || !b.ok) throw new Error("setup");
+    await saveBoardAsList(db, tenant.id);
     expect((await sendNext(db, tenant.id)).rows.map((r) => r.business).sort()).toEqual(["Acme Bakery", "Bravo Barbers"]);
 
     const p = matchEntries(parsePaste("hello@acmebakery.example 2026-10-21"), await boardLite(db, tenant.id), "email_sent");

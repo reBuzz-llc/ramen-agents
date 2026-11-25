@@ -5,7 +5,9 @@
 // never a teammate, never the agents.
 import { cadenceFor, roundShift, updateWindows, type CadenceEntry } from "./cadence";
 import type { TenantSettings } from "./db/schema";
+import { addDay } from "./periods";
 import type { PersonWeek, Rates, Statement, StatementLine } from "./scoreboard";
+import { dayIn } from "./send-goals";
 
 export type RateRow = { effectiveFrom: string; hourly: number | null; outcomeBonus: number | null; currency: string };
 export type ShiftLike = { startedAt: Date; endedAt: Date | null; projectId: string | null };
@@ -15,15 +17,11 @@ export type ByProject = (shifts: ShiftLike[], now: Date) => Map<string | null, n
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** The local calendar day of a moment, YYYY-MM-DD (the same clock the week's start uses). */
-export function dayOf(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export function dayOf(d: Date, tz?: string | null): string {
+  return dayIn(d, tz);
 }
 
-export function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return dayOf(d);
-}
+export const addDays = addDay;
 
 /** The rates in force on `day`: the newest row on or before it, else the defaults. */
 export function rateOn(history: RateRow[], defaults: Rates, day: string): Rates & { from: string | null } {
@@ -57,16 +55,16 @@ export const allGeneral: ByProject = (shifts, now) => {
  * summed per period and rounded to hours (2 decimals) once, here.
  */
 export function statementLines(shifts: ShiftLike[], history: RateRow[], defaults: Rates, weekStart: string, now: Date,
-                               byProject: ByProject = allGeneral, projectNames: Map<string, string> = new Map(), step = 0): StatementLine[] {
+                               byProject: ByProject = allGeneral, projectNames: Map<string, string> = new Map(), step = 0, tz?: string | null): StatementLine[] {
   const lines: StatementLine[] = [];
   // Paid minutes come from rounded shifts (settings.updates.rounding); the day a shift belongs to is its raw start day.
   shifts = shifts.map((x) => {
     const r = roundShift(x.startedAt, x.endedAt ?? now, step);
-    return { ...x, startedAt: dayOf(r.startedAt) === dayOf(x.startedAt) ? r.startedAt : x.startedAt, endedAt: r.endedAt };
+    return { ...x, startedAt: dayOf(r.startedAt, tz) === dayOf(x.startedAt, tz) ? r.startedAt : x.startedAt, endedAt: r.endedAt };
   });
   for (const p of periodsOf(history, defaults, weekStart)) {
     const inPeriod = shifts.filter((s) => {
-      const day = dayOf(s.startedAt);
+      const day = dayOf(s.startedAt, tz);
       return day >= p.from && day < p.to;
     });
     for (const [projectId, minutes] of byProject(inPeriod, now)) {
@@ -148,7 +146,7 @@ export function daysOf(worked: (ShiftLike & { id: string })[], notes: { shiftId:
   const project = new Map(projects.map((p) => [p.id, p]));
   const days = new Map<string, DayLine>();
   for (const s of [...worked].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())) {
-    const day = dayOf(s.startedAt);
+    const day = dayOf(s.startedAt, settings.timezone);
     const r = roundShift(s.startedAt, s.endedAt ?? now, step);
     const minutes = Math.max(0, Math.round((r.endedAt.getTime() - r.startedAt.getTime()) / 60000));
     const own = byShift.get(s.id) ?? [];
@@ -165,4 +163,30 @@ export function daysOf(worked: (ShiftLike & { id: string })[], notes: { shiftId:
     days.set(day, line);
   }
   return [...days.values()];
+}
+
+// ---- Settings → People: one Save, and correcting or removing a rate ----------------------------------------------
+
+/** The rate a Save writes, or null: only when the person's rate fields were touched and differ from the current rate
+ *  (hourly, bonus, currency or the date it starts), so saving a name or a role never adds a rate row. */
+export function rateToWrite(
+  cur: { hourly?: number; outcomeBonus?: number; currency?: string; from: string | null },
+  input: { touched: boolean; hourly?: number; outcomeBonus?: number; currency?: string; from: string },
+): { hourly?: number; outcomeBonus?: number; currency: string; from: string } | null {
+  if (!input.touched) return null;
+  const currency = (input.currency || cur.currency || "USD").toUpperCase().slice(0, 3);
+  const same = input.hourly === cur.hourly && input.outcomeBonus === cur.outcomeBonus && currency === (cur.currency || "USD").toUpperCase() && input.from === cur.from;
+  if (same || (input.hourly === undefined && input.outcomeBonus === undefined)) return null;
+  return { hourly: input.hourly, outcomeBonus: input.outcomeBonus, currency, from: input.from };
+}
+
+/** The rates an approved statement lies under (locked: not corrected, not removed): a rate covers the days from its date
+ *  to the day before the next rate; a statement covers its week (weekStart .. +6). `history` oldest first. */
+export function rateLocks(history: RateRow[], approvedWeekStarts: string[]): Set<string> {
+  const out = new Set<string>();
+  history.forEach((r, i) => {
+    const end = history[i + 1] ? addDays(history[i + 1].effectiveFrom, -1) : "9999-12-31";
+    if (approvedWeekStarts.some((w) => w <= end && addDays(w, 6) >= r.effectiveFrom)) out.add(r.effectiveFrom);
+  });
+  return out;
 }

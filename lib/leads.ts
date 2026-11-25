@@ -1,16 +1,23 @@
-// The Leads board in the portal's own database. Every
+// The Leads board in Peek's own database (columns: the engine's common-data/leads-columns.md). Every
 // write goes through writeLead, which enforces the store's rules and records each cell in lead_cells:
 // - person wins: a bot never replaces a cell whose last change was a person's; the attempt is kept, refused;
 // - human only: email status, WhatsApp status, result, result date and the follow-up sent (follow_up_at, follow_up_by)
 //   are the team's; a bot writing one is refused;
 // - fill only (when the writer asks): a cell that has a value is left alone;
-// - an import (the import key) copies the values as they are, past those rules.
+// - an import (the backfill's key) copies Notion as it is, past those rules, and is idempotent on the Notion page id.
 // Readers follow `rev`: listLeads(since = the last rev seen) returns what changed after it, in order.
+import { mergeDrafts, readStepInput, type StepInput, type StepKey } from "./follow-up-drafts";
+import { dropFingerprint } from "./board-fp";
+import { closeClaim } from "./claims";
 import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "./db";
+import { syncLeadSends } from "./lead-sends";
+import { onLeadWrite } from "./samples";
 import { claims, leadCells, leadFlags, leads, tasks, users } from "./db/schema";
 import { placeOf } from "./lead-filters";
+import { FENCED, isListed } from "./research-first";
+import { saveWarning } from "./pain-point-check";
 import { e164 } from "./phone";
 
 type Kind = "text" | "number" | "list" | "date" | "json";
@@ -34,6 +41,8 @@ export const FIELDS: Field[] = [
   { key: "phone", prop: "phone", kind: "text" },
   { key: "map_link", prop: "mapLink", kind: "text" },
   { key: "sample_url", prop: "sampleUrl", kind: "text", human: true },
+  { key: "instagram_url", prop: "instagramUrl", kind: "text" },
+  { key: "facebook_url", prop: "facebookUrl", kind: "text" },
   { key: "pain_point", prop: "painPoint", kind: "text" },
   { key: "package", prop: "package", kind: "text" },
   { key: "evidence", prop: "evidence", kind: "text" },
@@ -56,6 +65,8 @@ export const FIELDS: Field[] = [
   { key: "notes", prop: "notes", kind: "text" },
   { key: "address", prop: "address", kind: "text" },
   { key: "listing", prop: "listing", kind: "json" },
+  { key: "notion_url", prop: "notionUrl", kind: "text" },
+  { key: "notion_uid", prop: "notionUid", kind: "text" },
 ];
 const BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
 import { isSampleUrl } from "./sample-site";
@@ -65,7 +76,6 @@ export const WHATSAPP_SENT = "WhatsApp msg sent";
 export { EMAIL_STATUSES, RESULTS, WHATSAPP_STATUSES } from "./lead-workflow";
 
 const MAX_TEXT = 20_000;
-export const MAX_BATCH = 100;
 
 /** A bot actor's `validator` is set when its key holds board:validate: the one key that may clear a "False Whatsapp
  *  Number" (below). */
@@ -76,8 +86,13 @@ export type Actor = { kind: "person"; name: string; userId: string } | { kind: "
  *  status, WhatsApp status, result or result date stays refused. */
 export const validatorClears = (actor: Actor, field: string, old: unknown, value: unknown) =>
   actor.kind === "bot" && !!actor.validator && field === "whatsapp_status" && old === "False Whatsapp Number" && value === null;
-export type Refusal = { field: string; reason: "person_wins" | "human_only" | "filled"; current: unknown };
+export type Refusal = { field: string; reason: "person_wins" | "human_only" | "filled" | "derived" | "research_first"; current: unknown };
+/** Cells Peek works out from others (domain from website, city and state from location): a write to one is refused as
+ *  "derived", never a silent 200. */
+export const DERIVED = ["domain", "city", "state"];
 export type Lead = Record<string, unknown> & { id: string; rev: number };
+/** What a late caller gets for naming a row by its old Notion page id (the column was dropped, Peek 601, 11-20). */
+export const NOTION_GONE = "notion_page_id is gone (Peek 601, 11-20): name a row by its Peek id";
 export type WriteResult =
   | { ok: true; created: boolean; lead: Lead; written: string[]; refused: Refusal[]; changes?: number[] }
   | { ok: false; code: "not_found" | "bad_request" | "duplicate_row"; message: string; existingId?: string };
@@ -93,6 +108,18 @@ export function domainOf(website: string | null | undefined): string | null {
   }
 }
 
+/** The business's Instagram or Facebook page: https on that site, a page path, nothing else. */
+export function socialUrl(key: "instagram_url" | "facebook_url", s: string): { value: string } | { error: string } {
+  const host = key === "instagram_url" ? /^(www\.)?instagram\.com$/ : /^(www\.|m\.)?facebook\.com$/;
+  try {
+    const u = new URL(s.trim());
+    if (u.protocol === "https:" && host.test(u.hostname) && u.pathname.replace(/\/+$/, "").length > 1) return { value: `https://${u.hostname}${u.pathname.replace(/\/+$/, "")}` };
+  } catch {
+    /* not a URL */
+  }
+  return { error: `${key} is the business's own ${key === "instagram_url" ? "Instagram" : "Facebook"} page (https://${key === "instagram_url" ? "instagram" : "facebook"}.com/...)` };
+}
+
 /** A value as stored, or an error message. Empty text and empty lists are null. */
 function normalise(f: Field, v: unknown): { value: unknown } | { error: string } {
   if (v === null || v === undefined || v === "") return { value: null };
@@ -102,6 +129,7 @@ function normalise(f: Field, v: unknown): { value: unknown } | { error: string }
     if (s.length > MAX_TEXT) return { error: `${f.key} is longer than ${MAX_TEXT} characters` };
     if (f.key === "phone") return { value: e164(s) || null };
     if (f.key === "sample_url") return isSampleUrl(s) ? { value: s } : { error: "sample_url is a link starting with https://" };
+    if (f.key === "instagram_url" || f.key === "facebook_url") return socialUrl(f.key, s);
     return { value: s || null };
   }
   if (f.kind === "number") {
@@ -131,7 +159,7 @@ function normalise(f: Field, v: unknown): { value: unknown } | { error: string }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** A combined Status list ("Email Sent", "WhatsApp Verified") as the two fields; values in neither track are refused. */
+/** Notion's Status list ("Email Sent", "WhatsApp Verified") as the two fields; values in neither track are refused. */
 export function splitStatus(v: unknown): { email_status: string | null; whatsapp_status: string | null } | { error: string } {
   const items = (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean);
   const unknown = items.filter((x) => !EMAIL_STATUSES.includes(x) && !WHATSAPP_STATUSES.includes(x));
@@ -143,7 +171,7 @@ export function splitStatus(v: unknown): { email_status: string | null; whatsapp
 /** The draft cells whose bot text is kept when a person rewrites it, and the row's field for it. */
 export const BOT_SNAPSHOT: Record<string, "botDraft" | "botWhatsapp"> = { draft_email: "botDraft", draft_whatsapp: "botWhatsapp" };
 
-/** A row as the API answers it: every field under its name, the combined `status`, and the row's meta. */
+/** A row as the API answers it: every field under its Neon name, Notion's combined `status`, and the row's meta. */
 export function toApi(r: typeof leads.$inferSelect): Lead {
   const out: Lead = { id: r.id, rev: Number(r.rev) };
   for (const f of FIELDS) out[f.key] = r[f.prop] ?? null;
@@ -158,6 +186,8 @@ export function toApi(r: typeof leads.$inferSelect): Lead {
     created_at: r.createdAt.toISOString(),
     updated_at: r.updatedAt.toISOString(),
     last_edited_by: r.lastActorName ? { actor: r.lastActorName, kind: r.lastActorKind } : null,
+    site_facts: r.siteFacts ?? null, // the Enricher's site facts for the Site Builder
+    followup_drafts: r.followupDrafts ?? null, // A draft per follow-up step
     // the bot's draft before a person rewrote it (read only; the training scripts pair it with the sent text)
     bot_draft: r.botDraft ?? null,
     bot_whatsapp: r.botWhatsapp ?? null,
@@ -181,6 +211,8 @@ function toApiPartial(r: typeof leads.$inferSelect, keys: Set<string>): Lead {
     updated_at: r.updatedAt.toISOString(),
     last_edited_by: r.lastActorName ? { actor: r.lastActorName, kind: r.lastActorKind } : null,
   });
+  if (keys.has("site_facts") || keys.has("siteFacts")) out.site_facts = r.siteFacts ?? null;
+  if (keys.has("followup_drafts")) out.followup_drafts = r.followupDrafts ?? null;
   if (keys.has("bot_draft")) out.bot_draft = r.botDraft ?? null;
   if (keys.has("bot_whatsapp")) out.bot_whatsapp = r.botWhatsapp ?? null;
   return out;
@@ -195,7 +227,7 @@ export async function boardRev(db: Db, tenantId: string, board: "leads" | "tasks
 
 /**
  * Write one lead: an update to the row found by `target`, or, when there is none and `create` is set, a new row.
- * `input` holds fields under their Neon names (and a combined `status` list, split here). Returns what was written and
+ * `input` holds fields under their Neon names (and Notion's `status` list, split here). Returns what was written and
  * what was refused, with the row as stored, from the same transaction.
  */
 export async function writeLead(
@@ -205,7 +237,8 @@ export async function writeLead(
   input: Record<string, unknown>,
   actor: Actor,
   // sentAt: when the send happened, for a send marked after the fact (Leads → Mark already sent); else now
-  opts: { create?: boolean; fillOnly?: boolean; import?: boolean; sourceUrl?: string | null; sentAt?: Date | null } = {},
+  // pastSend: a send marked after the fact: the send log takes it only with a date the person gave
+  opts: { create?: boolean; fillOnly?: boolean; import?: boolean; sourceUrl?: string | null; sentAt?: Date | null; pastSend?: boolean } = {},
 ): Promise<WriteResult> {
   // Read and check the input before touching the database.
   const raw = { ...input };
@@ -216,9 +249,30 @@ export async function writeLead(
     raw.email_status ??= s.email_status;
     raw.whatsapp_status ??= s.whatsapp_status;
   }
+  // the Enricher's site facts: one JSON object, replaced whole by each write (never fill_only), up to
+  // 64 KB; null clears it
+  let siteFacts: Record<string, unknown> | null | undefined;
+  for (const k of ["siteFacts", "site_facts"]) {
+    if (!(k in raw)) continue;
+    const v = raw[k];
+    delete raw[k];
+    if (v !== null && (typeof v !== "object" || Array.isArray(v))) return { ok: false, code: "bad_request", message: "siteFacts is one JSON object" };
+    if (v !== null && Buffer.byteLength(JSON.stringify(v)) > 64 * 1024) return { ok: false, code: "bad_request", message: "siteFacts is over 64 KB" };
+    siteFacts = v as Record<string, unknown> | null;
+  }
+  // A draft per follow-up step, merged by step and stamped here (lib/follow-up-drafts.ts)
+  let followupSteps: Map<StepKey, StepInput> | undefined;
+  for (const k of ["followup_drafts", "followupDrafts"]) {
+    if (!(k in raw)) continue;
+    const r = readStepInput(raw[k]);
+    delete raw[k];
+    if (!r.ok) return { ok: false, code: "bad_request", message: r.message };
+    followupSteps = r.steps;
+  }
   const want = new Map<Field, unknown>();
+  const derived = Object.keys(raw).filter((k) => DERIVED.includes(k));
   for (const [k, v] of Object.entries(raw)) {
-    if (["id", "rev", "domain", "city", "state", "sent_at", "archived", "updated_at", "last_edited_by"].includes(k)) continue;
+    if (["id", "notion_page_id", "rev", "domain", "city", "state", "sent_at", "archived", "updated_at", "last_edited_by"].includes(k)) continue;
     if (k === "created_at") continue; // an import's created_at is read below
     const f = BY_KEY.get(k);
     if (!f) return { ok: false, code: "bad_request", message: `unknown field: ${k}` };
@@ -226,12 +280,17 @@ export async function writeLead(
     if ("error" in n) return { ok: false, code: "bad_request", message: n.error };
     want.set(f, n.value);
   }
+  // An agent never sets found_by itself (Peek writes it on the agent's create, below): a value it sends is
+  // dropped, not refused, so no caller breaks, and an agent's update cannot change it. A person's write and an import's keep it.
+  if (actor.kind === "bot" && !opts.import) want.delete(BY_KEY.get("found_by")!);
   const createdAt = opts.import && typeof input.created_at === "string" && !Number.isNaN(Date.parse(input.created_at)) ? new Date(input.created_at) : null;
+  // a late caller still naming rows by their Notion page id gets this, so it shows in the log (the column was dropped)
+  if (typeof input.notion_page_id === "string" && input.notion_page_id.trim()) return { ok: false, code: "bad_request", message: NOTION_GONE };
   if (!target.id && !opts.create) return { ok: false, code: "bad_request", message: "a lead is named by its id" };
   if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return { ok: false, code: "not_found", message: `no lead ${target.id}` };
   const sourceUrl = opts.sourceUrl ? String(opts.sourceUrl).slice(0, 2000) : null;
 
-  return db.transaction(async (tx) => {
+  const res = await db.transaction(async (tx) => {
     const where = target.id ? eq(leads.id, target.id) : null;
     const [cur] = where ? await tx.select().from(leads).where(and(eq(leads.tenantId, tenantId), where)).for("update") : [];
     const now = new Date();
@@ -258,6 +317,11 @@ export async function writeLead(
         }
         values[f.prop] = v;
       }
+      // An agent's new lead names who found it, the writing agent's
+      // display name (Lead Gen's creates arrive as "Lead Gen" on the engine key), always. The engine never sent it, so 452
+      // rows since 11-08 had none. A person's create and an import's are unchanged.
+      if (actor.kind === "bot" && !opts.import) values.foundBy = who.actorName;
+      const firstDrafts = followupSteps ? mergeDrafts(null, followupSteps, actor.kind === "person" ? "person" : "bot", now) : null;
       const domain = domainOf(values.website as string | undefined);
       if (!opts.import) {
         // One row per business: the same website domain, or with no website the same name and city, is refused.
@@ -283,12 +347,16 @@ export async function writeLead(
           lastActorName: who.actorName,
           lastActorKind: who.actorKind,
           ...(createdAt ? { createdAt } : {}),
+          ...(siteFacts ? { siteFacts } : {}),
+          ...(firstDrafts?.written.length ? { followupDrafts: firstDrafts.next } : {}),
         })
         .returning();
       for (const f of FIELDS) if (values[f.prop] !== undefined) history.push({ tenantId, leadId: row.id, column: f.key, old: null, new: values[f.prop] as object, ...who });
       for (const r of refused) history.push({ tenantId, leadId: row.id, column: r.field, old: null, new: want.get(BY_KEY.get(r.field)!) as object, ...who, outcome: "refused", reason: r.reason });
+      if (siteFacts) history.push({ tenantId, leadId: row.id, column: "site_facts", old: null, new: siteFacts as object, ...who });
+      if (firstDrafts?.written.length) history.push({ tenantId, leadId: row.id, column: "followup_drafts", old: null, new: firstDrafts.next as object, ...who });
       if (history.length) await tx.insert(leadCells).values(history);
-      return { ok: true as const, created: true, lead: toApi(row), written: Object.keys(values).map((p) => FIELDS.find((f) => f.prop === p)!.key), refused };
+      return { ok: true as const, created: true, lead: toApi(row), written: [...Object.keys(values).map((p) => FIELDS.find((f) => f.prop === p)!.key), ...(siteFacts ? ["site_facts"] : []), ...(firstDrafts?.written.length ? ["followup_drafts"] : [])], refused };
     }
 
     // The last applied change of each field: for the person-wins rule (a bot's write), and for the bot's draft kept when
@@ -303,6 +371,8 @@ export async function writeLead(
         .orderBy(desc(leadCells.id));
       for (const p of past) if (!lastBy.has(p.column)) lastBy.set(p.column, p.kind);
     }
+    // Research first: a bot's pain point or draft on a lead still waiting for a person's research is refused
+    const listed = actor.kind === "bot" && !opts.import && [...want.keys()].some((f) => FENCED.has(f.key)) && (await isListed(tx as unknown as Db, tenantId, cur.id));
     const set: Record<string, unknown> = {};
     const written: string[] = [];
     for (const [f, v] of want) {
@@ -311,6 +381,7 @@ export async function writeLead(
       let reason: Refusal["reason"] | null = null;
       if (!opts.import && !validatorClears(actor, f.key, old, v)) {
         if (actor.kind === "bot" && f.human) reason = "human_only";
+        else if (listed && FENCED.has(f.key)) reason = "research_first";
         else if (actor.kind === "bot" && lastBy.get(f.key) === "person") reason = "person_wins";
         else if (opts.fillOnly && old !== null) reason = "filled";
       }
@@ -325,6 +396,24 @@ export async function writeLead(
       // a person rewriting a bot's draft: keep the bot's text beside it (a person's later edits leave it alone)
       const snap = BOT_SNAPSHOT[f.key];
       if (snap && actor.kind === "person" && !opts.import && old !== null && lastBy.get(f.key) === "bot") set[snap] = old;
+    }
+    if (siteFacts !== undefined && !same(cur.siteFacts, siteFacts)) {
+      set.siteFacts = siteFacts;
+      written.push("site_facts");
+      history.push({ tenantId, leadId: cur.id, column: "site_facts", old: (cur.siteFacts ?? null) as object, new: siteFacts as object, ...who });
+    }
+    if (followupSteps) {
+      const m = mergeDrafts(cur.followupDrafts, followupSteps, actor.kind === "person" ? "person" : "bot", now);
+      for (const k of m.refused) {
+        const field = `followup_drafts.${k}`;
+        refused.push({ field, reason: "person_wins", current: cur.followupDrafts?.[k] ?? null });
+        history.push({ tenantId, leadId: cur.id, column: field, old: (cur.followupDrafts?.[k] ?? null) as object, new: followupSteps.get(k) as object, ...who, outcome: "refused", reason: "person_wins" });
+      }
+      if (m.written.length) {
+        set.followupDrafts = m.next;
+        written.push("followup_drafts");
+        history.push({ tenantId, leadId: cur.id, column: "followup_drafts", old: (cur.followupDrafts ?? null) as object, new: m.next as object, ...who });
+      }
     }
     if (createdAt && cur.createdAt.getTime() !== createdAt.getTime()) set.createdAt = createdAt;
     if (!Object.keys(set).length) {
@@ -343,7 +432,7 @@ export async function writeLead(
       const sentAt = opts.sentAt && opts.sentAt.getTime() <= now.getTime() ? opts.sentAt : now;
       set.sentAt = sentAt;
       history.push({ tenantId, leadId: cur.id, column: "sent_at", old: null, new: sentAt.toISOString() as unknown as object, ...who });
-      // Sent by is the person who marked it sent, never a bot.
+      // Sent by is the person who marked it sent, never a bot (the Validator guessed it from Notion until now).
       if (actor.kind === "person" && !cur.sentBy?.length && !("sentBy" in set)) {
         set.sentBy = [actor.name];
         history.push({ tenantId, leadId: cur.id, column: "sent_by", old: null, new: set.sentBy as object, ...who });
@@ -358,30 +447,19 @@ export async function writeLead(
     const saved = history.length ? await tx.insert(leadCells).values(history).returning() : [];
     return { ok: true as const, created: false, lead: toApi(row), written, refused, changes: saved.filter((h) => h.outcome === "applied").map((h) => Number(h.id)) };
   });
-}
-
-export type BatchWrite = { id?: string; fields: Record<string, unknown>; create?: boolean; fill_only?: boolean; source_url?: string };
-
-/** Several writes, each on its own (one refusal or failure never undoes another), answered in order. */
-export async function batchWrite(db: Db, tenantId: string, writes: BatchWrite[], actor: Actor, opts: { import?: boolean } = {}) {
-  if (!Array.isArray(writes) || !writes.length) return { ok: false as const, code: "bad_request" as const, message: "writes is a non-empty list" };
-  if (writes.length > MAX_BATCH) return { ok: false as const, code: "too_large" as const, message: `at most ${MAX_BATCH} writes a batch` };
-  const results: WriteResult[] = [];
-  for (const w of writes) {
-    if (!w || typeof w !== "object" || typeof w.fields !== "object" || !w.fields) {
-      results.push({ ok: false, code: "bad_request", message: "each write has fields" });
-      continue;
-    }
-    results.push(
-      await writeLead(db, tenantId, { id: w.id }, w.fields, actor, {
-        create: !!w.create,
-        fillOnly: !!w.fill_only,
-        import: opts.import,
-        sourceUrl: w.source_url,
-      }),
-    );
-  }
-  return { ok: true as const, results };
+  if (res.ok && derived.length && !opts.import)
+    for (const k of derived) res.refused.push({ field: k, reason: "derived", current: (res.lead as Record<string, unknown>)[k] ?? null });
+  // The send log follows the board, after the commit; it never throws, so it can never fail this write
+  if (res.ok && !opts.import && res.written.some((k) => ["email_status", "whatsapp_status", "result", "sample_url"].includes(k)))
+    await syncLeadSends(db, tenantId, String(res.lead.id), { sent: { email: res.written.includes("email_status"), whatsapp: res.written.includes("whatsapp_status") }, sentAt: opts.sentAt, past: opts.pastSend });
+  // the lead's sample, after the commit: frozen at Replied or Meeting, re-rendered on a facts change
+  if (res.ok && !res.created && res.written.length) await onLeadWrite(db, tenantId, String(res.lead.id), res.written, (res.lead.result as string | null) ?? null, { import: opts.import });
+  // A send closes the hold on the lead, by whatever path it was marked; never fails the write
+  if (res.ok && (res.written.includes("email_status") && res.lead.email_status === "Email Sent" || res.written.includes("whatsapp_status") && res.lead.whatsapp_status === WHATSAPP_SENT))
+    await closeClaim(db, tenantId, String(res.lead.id)).catch((err) => console.error("leads.closeClaim", err instanceof Error ? err.message : err));
+  // a person's write shows on their next view: the board's held fingerprint goes (lib/board-fp.ts; bots wait up to a minute)
+  if (res.ok && actor.kind === "person") dropFingerprint(tenantId);
+  return res;
 }
 
 export type LeadQuery = {
@@ -399,10 +477,10 @@ export type LeadQuery = {
 
 /** Leads in `rev` order after `since` (0 for all), with the filters given: {leads, next}. `next` is the last rev
  *  returned (ask again with since = next), or the same `since` when nothing changed; `more` says a page was cut. */
-/** The long cells a list read leaves out unless asked for (egress): drafts, pain point, evidence,
+/** The long cells a list read leaves out unless asked for (to save egress): drafts, pain point, evidence,
  *  the listing, notes, the bot's kept drafts. A lead's own read (GET /v1/rows/<id>) always has every cell. */
-export const LONG_FIELDS = ["draft_email", "draft_whatsapp", "draft_followup", "pain_point", "evidence", "listing_evidence", "source_pages", "site_health", "notes", "listing", "bot_draft", "bot_whatsapp"] as const;
-const LIST_EXTRA = ["bot_draft", "bot_whatsapp"] as const;
+export const LONG_FIELDS = ["draft_email", "draft_whatsapp", "draft_followup", "pain_point", "evidence", "listing_evidence", "source_pages", "site_health", "notes", "listing", "bot_draft", "bot_whatsapp", "followup_drafts"] as const;
+const LIST_EXTRA = ["bot_draft", "bot_whatsapp", "followup_drafts"] as const;
 /** The cells a list read answers: ?fields=a,b (any of the board's keys, plus bot_draft and bot_whatsapp), "slim" (all
  *  but LONG_FIELDS), "all"; none given: the default, "all" until PEEK_SLIM_DEFAULT=1 is set (the readers ask for
  *  their long cells first, so no bot takes a missing draft for an empty one). Unknown names are refused. */
@@ -447,10 +525,8 @@ export async function listLeads(db: Db, tenantId: string, q: LeadQuery = {}, key
 }
 
 export async function getLead(db: Db, tenantId: string, target: { id?: string }) {
-  if (target.id && !/^[0-9a-f-]{36}$/i.test(target.id)) return null;
-  const where = target.id ? eq(leads.id, target.id) : null;
-  if (!where) return null;
-  const [r] = await db.select().from(leads).where(and(eq(leads.tenantId, tenantId), where));
+  if (!target.id || !/^[0-9a-f-]{36}$/i.test(target.id)) return null;
+  const [r] = await db.select().from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, target.id)));
   return r ? toApi(r) : null;
 }
 
@@ -490,7 +566,7 @@ export async function boardOf(db: Db, tenantId: string, userId: string) {
 /** A long cell cut in the database to what a table cell shows; the drawer reads the whole lead. */
 const cut = (c: AnyPgColumn, n = 160) => sql<string | null>`left(${c}, ${sql.raw(String(n))})`;
 
-/** For the Table tab: the board's columns and every other
+/** For the Table tab (a table view, like Notion's): the board's columns and every other
  *  cell, long text cut to its first 160 characters (a draft's to 120), in the board's order. */
 export async function tableOf(db: Db, tenantId: string, userId: string) {
   return db
@@ -536,6 +612,7 @@ function boardColumns(userId: string) {
     contactRole: leads.contactRole,
     package: leads.package,
     leadScore: leads.leadScore,
+    toolsOnSite: leads.toolsOnSite, // the Tools on site filter, on the Board tab too
     emailStatus: leads.emailStatus,
     whatsappStatus: leads.whatsappStatus,
     result: leads.result,
@@ -553,7 +630,7 @@ function boardColumns(userId: string) {
 }
 
 
-/** The × on a status chip: empty that status cell, and with it the cells the same
+/** Clear, in a status line's menu (in place of undo): empty that status cell, and with it the cells the same
  *  step set (sent by, sent at, result, result date), when they still hold what that step wrote. One history entry by
  *  the person ("cleared"). Answers what was cleared; nothing when the status is already empty. */
 export const CLEARABLE = ["email_status", "whatsapp_status", "result"] as const;
@@ -561,7 +638,7 @@ const COMPANIONS = ["sent_by", "sent_at", "result", "result_date", "email_status
 
 export async function clearStatus(db: Db, tenantId: string, leadId: string, field: (typeof CLEARABLE)[number], actor: Extract<Actor, { kind: "person" }>) {
   if (!CLEARABLE.includes(field) || !/^[0-9a-f-]{36}$/i.test(leadId)) return { ok: false as const, error: "Nothing to clear." };
-  return db.transaction(async (tx) => {
+  const out = await db.transaction(async (tx) => {
     const [cur] = await tx.select().from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.id, leadId))).for("update");
     if (!cur) return { ok: false as const, error: "No such lead." };
     const valueOf = (col: string) => (col === "sent_at" ? (cur.sentAt?.toISOString() ?? null) : (cur[BY_KEY.get(col)!.prop] ?? null));
@@ -600,4 +677,19 @@ export async function clearStatus(db: Db, tenantId: string, leadId: string, fiel
     });
     return { ok: true as const, lead: toApi(row), cleared: [...clear] };
   });
+  if (out.ok) await syncLeadSends(db, tenantId, leadId); // A cleared send or result leaves the log too
+  if (out.ok) dropFingerprint(tenantId); // a person's clear shows at once (lib/board-fp.ts)
+  return out;
 }
+
+/** What to ask a person before saving these fields on this lead (lib/pain-point-check.ts saveWarning,
+ *  against the board's other live leads' names), or "". */
+export async function leadSaveWarning(db: Db, tenantId: string, leadId: string, fields: Record<string, unknown>): Promise<string> {
+  if (!/^[0-9a-f-]{36}$/i.test(leadId)) return "";
+  const rows = await db.select({ id: leads.id, business: leads.business, industry: leads.industry }).from(leads).where(and(eq(leads.tenantId, tenantId), eq(leads.archived, false)));
+  const own = rows.find((r) => r.id === leadId);
+  if (!own) return "";
+  // the row's own trade is never another business (as the Validator passes ld.industry)
+  return saveWarning(fields, own.business.split(" | ")[0], rows.filter((r) => r.id !== leadId).map((r) => r.business.split(" | ")[0]), own.industry ? [own.industry] : []);
+}
+

@@ -25,16 +25,33 @@ const STATES: Record<string, string> = { "new york": "NY", "n.y.": "NY", ny: "NY
 const NYC = /^(brooklyn|queens|manhattan|bronx|the bronx|staten island|new york|new york city|nyc|ridgewood|astoria|flushing|jamaica|long island city)$/i;
 
 /** "Brooklyn, NY 11220, USA" → { city: "Brooklyn", state: "NY" }. A missing or unreadable part is "". */
+/** A street line, not a place: a house number first ("31-15 Steinway St"), a street word last with a number in it ("Main St 12"), a suite or a unit ("#7"). A place named like a street with no number stays a place ("Bay Terrace", "St. Albans"). */
+export function looksLikeStreet(part: string): boolean {
+  const p = part.trim();
+  return /^\d/.test(p) || (/\d/.test(p) && /\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|hwy|highway|pkwy|parkway|pl|place|ct|court|way|ter|terrace|sq|square)\.?$/i.test(p)) || /^(suite|ste|unit|apt|floor|fl)\b|#\s*\d/i.test(p);
+}
+
 export function placeOf(location: string): { city: string; state: string } {
   const parts = location.split(",").map((p) => p.trim()).filter(Boolean);
   if (!parts.length) return { city: "", state: "" };
-  const city = parts[0];
-  // The state is the first later part that reads as one ("NY", "NY 11422", "New York"), skipping "Suite 704" and the like.
-  for (const p of parts.slice(1)) {
+  // The state is the last later part that reads as one ("NY", "NY 11422", "New York"), skipping "Suite 704" and the like;
+  // the city is the nearest place-like part before it, so a full address ("31-15 Steinway St, Astoria, NY 11103") gives Astoria, never
+  // the street (the street once reached a sample's slug through the city).
+  let last: { i: number; state: string } | null = null;
+  for (const [i, p] of parts.entries()) {
+    if (i === 0) continue;
     const word = p.replace(/\s*\d{5}(-\d{4})?$/, "").trim().toLowerCase();
-    if (STATES[word]) return { city, state: STATES[word] };
-    if (/^[a-z]{2}$/i.test(word) && !/^(us)$/i.test(word)) return { city, state: word.toUpperCase() };
+    const state = STATES[word] ?? (/^[a-z]{2}$/i.test(word) && !/^(us)$/i.test(word) ? word.toUpperCase() : "");
+    if (state) last = { i, state };
   }
+  // the last part that reads as a state: "276 Fifth Avenue, New York, NY 10001" is New York, NY
+  if (last) {
+    // the nearest place before it; a state's own name ("New York") only when no other place comes first
+    const before = parts.slice(0, last.i).reverse().filter((x) => !looksLikeStreet(x));
+    const isState = (x: string) => !!STATES[x.replace(/\s*\d{5}(-\d{4})?$/, "").trim().toLowerCase()];
+    return { city: before.find((x) => !isState(x)) ?? before[0] ?? "", state: last.state };
+  }
+  const city = parts.find((p) => !looksLikeStreet(p)) ?? "";
   return { city, state: NYC.test(city) ? "NY" : "" };
 }
 
@@ -111,9 +128,48 @@ export function filtersToQuery(f: Filters): string {
 /** The Leads page's filters read from the address (?whatsapp=…, ?city=…): one list for the server page and the client
  *  view. It lives here, not in the client view: a server component that imports a plain value from a "use client" file
  *  gets a client reference, not the array (FILTER_KEYS.map is not a function: the filters in a link were ignored). */
-export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "score", "draft", "role", "site"] as const;
+/** Which Leads tab an address names, read the same way on the server and in the browser. */
+export function leadsTab(v: string | string[] | null | undefined): "send" | "followup" | "research" | "board" | "table" {
+  return v === "board" || v === "table" || v === "research" || v === "followup" ? v : "send";
+}
 
-/** The "No website" quick filters: the businesses with no site of their own, the website
+export const FILTER_KEYS = ["q", "email", "whatsapp", "city", "industry", "taken", "edited", "tools", "site"] as const;
+
+/** The board's Taken by, Last edited and Tools on site filters, in place of Score, Draft email and Contact role. */
+export const NOT_TAKEN = "(not taken)";
+export const NO_TOOLS = "(none found)";
+export const EDITED_FILTERS: [string, string][] = [
+  ["today", "Today"],
+  ["7", "Last 7 days"],
+  ["30", "Last 30 days"],
+  ["older", "Older than 30 days"],
+];
+
+/** Was this row last edited inside the chosen period? "Today" is the calendar day on this device. */
+export function editedMatches(at: string | null | undefined, pick: string, now: number): boolean {
+  if (!pick) return true;
+  const t = at ? new Date(at).getTime() : NaN;
+  if (Number.isNaN(t)) return pick === "older";
+  if (pick === "today") return new Date(t).toDateString() === new Date(now).toDateString();
+  if (pick === "older") return now - t > 30 * 86400e3;
+  return now - t <= Number(pick) * 86400e3;
+}
+
+export const toolsMatch = (tools: string[] | null | undefined, pick: string) => !pick || (pick === NO_TOOLS ? !tools?.length : !!tools?.includes(pick));
+
+/** Each tool found on the board, most leads first, with how many; then the leads with none. */
+export function toolOptions(rows: { toolsOnSite?: string[] | null }[]): [string, string][] {
+  const m = new Map<string, number>();
+  let none = 0;
+  for (const r of rows) {
+    if (!r.toolsOnSite?.length) none++;
+    for (const t of new Set(r.toolsOnSite ?? [])) m.set(t, (m.get(t) ?? 0) + 1);
+  }
+  const found = [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t, n]): [string, string] => [t, `${t} (${n})`]);
+  return none ? [...found, [NO_TOOLS, `${NO_TOOLS} (${none})`]] : found;
+}
+
+/** The "No website" quick filters: the businesses with no site of their own, the Starter Website
  *  pitch; "none-wa" keeps those with a WhatsApp number, the channel that pitch goes out on. An empty or blank website
  *  cell is no website. */
 export type SiteFilter = "" | "none" | "none-wa";

@@ -1,3 +1,4 @@
+import { agentName } from "./agent-names";
 // The board API's machine keys (engine, Validator, backfill): a Bearer token whose SHA-256 is in api_keys. The key
 // fixes the company and the scopes; people never use one, and the app's pages never accept one.
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -12,7 +13,7 @@ export type ApiKey = { id: string; tenantId: string; name: string; scopes: Scope
 export const SCOPES: readonly { scope: Scope; label: string }[] = [
   { scope: "board:read", label: "Read the board" },
   { scope: "board:write", label: "Write cells (a person's edit still wins)" },
-  { scope: "board:validate", label: "Raise and resolve flags (the Validator)" },
+  { scope: "board:validate", label: `Raise and resolve flags: the ${agentName("Validator")}` },
   { scope: "board:import", label: "Import rows as they are (a backfill)" },
   { scope: "assets:write", label: "Replace the Asset page's rates and packages (the owner's key)" },
 ];

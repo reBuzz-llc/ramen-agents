@@ -8,8 +8,7 @@ import SectionHead from "../section-head";
 
 export const metadata = { title: settingsTitle("rates") };
 
-const OUTCOME_LABEL: Record<string, string> = { tasksDone: "Task done" };
-const label = (k: string) => OUTCOME_LABEL[k] ?? k[0].toUpperCase() + k.slice(1);
+const label = (k: string) => k[0].toUpperCase() + k.slice(1);
 
 export default async function Rates(props: PageProps<"/settings/rates">) {
   const who = await pageMe("/settings/rates");
@@ -58,7 +57,7 @@ export default async function Rates(props: PageProps<"/settings/rates">) {
           Leaderboard points
         </h2>
         <p className={helper}>Points per outcome on the leaderboard; empty means the default shown. Hours never earn points.</p>
-        <PendingForm action="/api/settings" method="post" className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <PendingForm action="/api/settings" method="post" className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <input type="hidden" name="action" value="points" />
           {OUTCOMES.map((k) => (
             <label key={k} className={fieldLabel}>
@@ -67,7 +66,7 @@ export default async function Rates(props: PageProps<"/settings/rates">) {
             </label>
           ))}
           {owner ? (
-            <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+            <div className="col-span-2 sm:col-span-4">
               <button className={btnOutline}>Save points</button>
             </div>
           ) : null}

@@ -73,7 +73,7 @@ export default async function ManageProjects({ who, msg }: { who: Me; msg?: stri
               </label>
               <div className="flex items-center justify-between gap-3">
                 <button className={btnOutline}>Save</button>
-                <Link href={`/projects/${p.id}`} className={btnText}>
+                <Link href={`/projects/${p.id}`} prefetch={false} className={btnText}>
                   Work log
                 </Link>
               </div>
@@ -146,7 +146,7 @@ export default async function ManageProjects({ who, msg }: { who: Me; msg?: stri
       <ul className="mt-3 divide-y divide-line">
         <li className="flex min-h-12 items-center gap-3 px-3 py-2">
           <span className="min-w-0 flex-1">
-            <Link href="/projects/general" className="block font-medium hover:text-accent-ink">
+            <Link href="/projects/general" prefetch={false} className="block font-medium hover:text-accent-ink">
               General
             </Link>
             <span className="block text-xs text-muted">built in · {reminders(companyCadence)}</span>

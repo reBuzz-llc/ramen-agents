@@ -92,7 +92,7 @@ export default function FilesView({ files, packages, ready }: { files: FileItem[
 
       {!ready ? (
         <p role="status" className="mt-6 rounded-2xl border border-accent bg-accent-tint p-4 text-sm">
-          File storage is not set up yet: the owner provisions the bucket (Neon Object Storage) and adds its four AWS_* variables. Uploads open as soon as it is.
+          File storage is not set up yet: the owner adds an S3-compatible bucket (Supabase Storage, for example) with its four AWS_* variables, or keeps files on this computer with FILES_LOCAL=1. Uploads open as soon as it is.
         </p>
       ) : (
         <div

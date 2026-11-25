@@ -1,4 +1,4 @@
-// The Validator's flags on a lead: raise (one per rule; raising an
+// The Validator's flags on a lead (the Validator's flag_sync contract): raise (one per rule; raising an
 // open rule again keeps its id and takes the new detail; a resolved one reopens), resolve, list.
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "./db";

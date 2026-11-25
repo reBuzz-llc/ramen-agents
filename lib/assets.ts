@@ -1,10 +1,11 @@
-// The Asset page's two lists: the rate card and the packages. The page, PUT /v1/assets/* (an assets:write key) and GET /v1/assets/* (any board:read key: the
+// The Asset page's two lists: the rate card and the packages, so the owner's Notion "What we have"
+// page can retire. The page, PUT /v1/assets/* (an assets:write key) and GET /v1/assets/* (any board:read key: the
 // Validator's price guard, the Writer's offer reader) all go through here. A save sends the whole list in the order it
 // should read: rows with an id are kept (and only touched when they changed), rows without one are added, rows left out
 // are deleted. One transaction, so a reader never sees half a list.
 import { and, asc, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import type { Db } from "./db";
-import { assetPackages, assetRates, assetSections } from "./db/schema";
+import { assetPackageChanges, assetPackages, assetRates, assetSections } from "./db/schema";
 import { unmasked } from "./family";
 
 export const MAX_ITEMS = 200;
@@ -22,7 +23,7 @@ export type PackageIn = {
   status: PackageStatus;
   /** The ready-to-send email, line breaks kept: the Outreach Writer builds a package's first email on it. */
   email: string;
-  /** Why this package and price, and the pages it rests on (a handover's). */
+  /** Why this package and price, and the pages it rests on (a handover's, or the Notion toggle's). */
   why: string;
   sources: string[];
   /** A key restoring a draft's record: the handover, the review, when it was made and by whom, as
@@ -67,7 +68,7 @@ const block = (v: unknown, max: number) =>
     : "";
 const urls = (v: unknown) => (Array.isArray(v) ? v.map((u) => str(u, 500)).filter((u) => /^https?:\/\//i.test(u)).slice(0, 20) : []);
 
-/** "Starter site: a one-page website ..." -> offer "Starter site", price the rest; no ": " -> all offer. */
+/** "Starter Website: a free one-page sample ..." -> offer "Starter Website", price the rest; no ": " -> all offer. */
 export function splitLine(line: string): { offer: string; price: string } {
   const i = line.indexOf(": ");
   return i < 0 ? { offer: line.trim(), price: "" } : { offer: line.slice(0, i).trim(), price: line.slice(i + 2).trim() };
@@ -113,7 +114,7 @@ const RESTORE_COLUMNS: (keyof Restore)[] = ["handedOverBy", "handedOverAt", "rev
 
 /** A key's list without ids: each item without an id takes the id of the existing row of the same
  *  name (case-insensitive, first not already named by id), so a re-sent list updates in place and never deletes and
- *  re-creates rows (which would lose their handover and review). */
+ *  re-creates rows (which lost their handover and review on 2026-11-09). */
 export function withIdsByName<T extends { id?: string; name: string }>(existing: { id: string; name: string }[], items: T[]): T[] {
   const taken = new Set(items.map((i) => i.id).filter(Boolean));
   return items.map((it) => {
@@ -148,7 +149,7 @@ export function checkRates(input: unknown): Checked<RateIn> {
     const o = typeof x === "string" ? { line: x } : x && typeof x === "object" ? (x as Record<string, unknown>) : null;
     if (!o) return { ok: false, message: `rate ${i + 1} is neither a line nor {line}` };
     const id = idOf(o.id);
-    if (id === null) return { ok: false, message: `rate ${i + 1} has an id that is not one of the portal's` };
+    if (id === null) return { ok: false, message: `rate ${i + 1} has an id that is not one of Peek's` };
     const line = str(o.line, 1000);
     if (line) items.push({ id, line });
   }
@@ -164,7 +165,7 @@ export function checkPackages(input: unknown, opts: { restore?: boolean } = {}):
     if (!x || typeof x !== "object" || Array.isArray(x)) return { ok: false, message: `package ${i + 1} is not an object` };
     const o = x as Record<string, unknown>;
     const id = idOf(o.id);
-    if (id === null) return { ok: false, message: `package ${i + 1} has an id that is not one of the portal's` };
+    if (id === null) return { ok: false, message: `package ${i + 1} has an id that is not one of Peek's` };
     const name = str(o.name, 200);
     if (!name) return { ok: false, message: `package ${i + 1} has no name` };
     if (o.status !== undefined && !STATUSES.includes(o.status as PackageStatus)) return { ok: false, message: `package ${i + 1}: status is draft or published` };
@@ -399,7 +400,7 @@ export async function publishPackages(db: Db, tenantId: string, ids: string[], b
   return rows.map((r) => ({ name: r.name, price: r.price }));
 }
 
-/** A key's PUT must not publish: it may not set a package to
+/** A key's PUT must not publish (publishing is a person's click): it may not set a package to
  *  published, change a published package's name or price, or remove a published package. The reason, or null. */
 export function keyMayNotPublish(existing: { id: string; name: string; price: string; status: string }[], items: PackageIn[]): string | null {
   const byId = new Map(existing.map((p) => [p.id, p]));
@@ -423,7 +424,7 @@ export function checkSections(input: unknown): Checked<SectionIn> {
     if (!x || typeof x !== "object" || Array.isArray(x)) return { ok: false, message: `section ${i + 1} is not an object` };
     const o = x as Record<string, unknown>;
     const id = idOf(o.id);
-    if (id === null) return { ok: false, message: `section ${i + 1} has an id that is not one of the portal's` };
+    if (id === null) return { ok: false, message: `section ${i + 1} has an id that is not one of Peek's` };
     if (o.kind !== undefined && !SECTION_KINDS.includes(o.kind as SectionKind)) return { ok: false, message: `section ${i + 1}: kind is text or rates` };
     const title = str(o.title, 200);
     const body = block(o.body, 20_000);
@@ -471,4 +472,87 @@ export async function reviewDraft(db: Db, tenantId: string, r: ReviewIn, now = n
   if (!draft) return null;
   await db.update(assetPackages).set({ reviewedBy: r.by, reviewedAt: now, reviewVerdict: r.verdict, reviewNote: r.note || null }).where(eq(assetPackages.id, draft.id));
   return { id: draft.id, reviewedAt: now.toISOString() };
+}
+
+// ---- one package at a time (Edit package used to open every package's form at once) ------------------------------------
+/** The fields a person edits on one package; a save sends only the ones that changed, so a price edit never writes the
+ *  email (nor anything a bot changed meanwhile in another field). */
+export const PACKAGE_FIELDS = ["name", "price", "offer", "buyer", "deliverables", "status", "email", "why", "sources"] as const;
+export type PackageField = (typeof PACKAGE_FIELDS)[number];
+export type PackagePatch = Partial<Pick<PackageIn, PackageField>>;
+
+/** Pure: the patch's known fields, cleaned as a full save cleans them (one package's checkPackages); or why it is refused. */
+export function checkPatch(input: unknown): { ok: true; patch: PackagePatch } | { ok: false; message: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, message: "send the changed fields: {name?, price?, email?, ...}" };
+  const o = input as Record<string, unknown>;
+  const keys = PACKAGE_FIELDS.filter((k) => k in o);
+  if (!keys.length) return { ok: false, message: "nothing changed" };
+  // run the one package through the list's own check, with a stand-in name when the name is not being changed
+  const c = checkPackages([{ name: "name" in o ? o.name : "x", ...Object.fromEntries(keys.filter((k) => k !== "name").map((k) => [k, o[k]])) }]);
+  if (!c.ok) return { ok: false, message: c.message.replace(/^package 1/, "the package") };
+  const item = c.items[0];
+  return { ok: true, patch: Object.fromEntries(keys.map((k) => [k, item[k]])) as PackagePatch };
+}
+
+export type OneResult = { ok: true; package: Package } | { ok: false; status: number; message: string };
+
+/** Change one package's given fields, as `by`. `since` is the package's updatedAt the page loaded: when it changed since,
+ *  the save is refused (409, with who changed it), so one person never silently writes over another's edit. */
+export async function updatePackage(db: Db, tenantId: string, id: string, patch: PackagePatch, by: string, since?: string): Promise<OneResult> {
+  if (!UUID.test(id)) return { ok: false, status: 404, message: "no such package" };
+  const [row] = await db.select().from(assetPackages).where(and(eq(assetPackages.tenantId, tenantId), eq(assetPackages.id, id)));
+  if (!row) return { ok: false, status: 404, message: "no such package: it was deleted; reload the page" };
+  if (since && row.updatedAt.toISOString() !== since)
+    return { ok: false, status: 409, message: `${row.name} was changed by ${row.updatedBy || "someone"} at ${row.updatedAt.toISOString().slice(11, 16)} UTC since you opened it: reload to see it, then edit again` };
+  const changed = Object.fromEntries(Object.entries(patch).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify((row as Record<string, unknown>)[k])));
+  if (Object.keys(changed).length)
+    await db.update(assetPackages).set({ ...changed, updatedBy: by, updatedAt: new Date() }).where(eq(assetPackages.id, id));
+  const one = (await listPackages(db, tenantId)).find((p) => p.id === id)!;
+  return { ok: true, package: one };
+}
+
+/** A new package at the end of the list. */
+export async function addPackage(db: Db, tenantId: string, item: PackagePatch & { name: string }, by: string): Promise<OneResult> {
+  const c = checkPackages([item]);
+  if (!c.ok) return { ok: false, status: 400, message: c.message.replace(/^package 1/, "the package") };
+  const [m] = await db.select({ n: max(assetPackages.position) }).from(assetPackages).where(eq(assetPackages.tenantId, tenantId));
+  const x = c.items[0];
+  const [row] = await db.insert(assetPackages).values({ tenantId, position: Number(m?.n ?? 0) + 1, updatedBy: by, name: x.name, price: x.price, offer: x.offer, buyer: x.buyer,
+    deliverables: x.deliverables, status: x.status, email: x.email, why: x.why, sources: x.sources }).returning();
+  return { ok: true, package: (await listPackages(db, tenantId)).find((p) => p.id === row.id)! };
+}
+
+/** One package removed (the others keep their order). */
+export async function deletePackage(db: Db, tenantId: string, id: string): Promise<{ ok: boolean; message?: string }> {
+  if (!UUID.test(id)) return { ok: false, message: "no such package" };
+  const gone = await db.delete(assetPackages).where(and(eq(assetPackages.tenantId, tenantId), eq(assetPackages.id, id))).returning();
+  return gone.length ? { ok: true } : { ok: false, message: "no such package" };
+}
+
+// ---- a key's change to one package (for the Validator: approved email rewrites) ----------------------------------------
+export const KEY_FIELDS = ["email", "price", "name"] as const;
+
+/** PATCH /v1/assets/packages/<id> with a board:write key: only the given name, price or email change, each change kept in
+ *  asset_package_changes (field, before, after, by, key). `since` (the package's updated_at as read) refuses a stale write
+ *  (409). A key still never changes a published package's name or price: those wait for the owner (405). */
+export async function keyPatchPackage(db: Db, tenantId: string, id: string, raw: unknown, by: string, via: string, since?: string): Promise<OneResult> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, status: 400, message: "send {fields: {email?, price?, name?}, by}" };
+  const o = raw as Record<string, unknown>;
+  const other = Object.keys(o).find((k) => !(KEY_FIELDS as readonly string[]).includes(k));
+  if (other) return { ok: false, status: 400, message: `a key changes only email, price or name, not ${other}` };
+  const c = checkPatch(o);
+  if (!c.ok) return { ok: false, status: 400, message: c.message };
+  if (!UUID.test(id)) return { ok: false, status: 404, message: "no such package" };
+  const [row] = await db.select().from(assetPackages).where(and(eq(assetPackages.tenantId, tenantId), eq(assetPackages.id, id)));
+  if (!row) return { ok: false, status: 404, message: "no such package" };
+  if (row.status === "published" && ((c.patch.name !== undefined && c.patch.name !== row.name) || (c.patch.price !== undefined && c.patch.price !== row.price)))
+    return { ok: false, status: 405, message: "a key never changes a published package's name or price: the owner does that on the Packages page" };
+  const before = row as Record<string, unknown>;
+  const r = await updatePackage(db, tenantId, id, c.patch, by.slice(0, 80) || via, since);
+  if (!r.ok) return r;
+  const lines = Object.entries(c.patch)
+    .filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k]))
+    .map(([field, v]) => ({ tenantId, packageId: id, field, old: (before[field] ?? null) as object, new: v as object, by: by.slice(0, 80), via }));
+  if (lines.length) await db.insert(assetPackageChanges).values(lines);
+  return r;
 }

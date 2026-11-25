@@ -1,4 +1,4 @@
-// Egress (to keep within a free tier's data transfer): list reads pick their cells, answer 304
+// Egress (after the Neon free quota tripped on 2026-11-06): list reads pick their cells, answer 304
 // with no body when nothing changed, say their size, and each key's day is counted; /api/health names a quota stop.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { keyDays, mintKey } from "@/lib/api-keys";

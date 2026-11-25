@@ -60,7 +60,7 @@ export default function AlreadySentView({ me }: { me: string }) {
       </p>
       <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-[1.75rem]">Mark already sent</h1>
       <p className="mt-1 text-[0.9375rem] text-muted">
-        If the board was imported or rebuilt without who was already emailed, Send next would offer those businesses again. Paste the addresses from your
+        The board was rebuilt on 6 November without who was emailed before, so Send next would offer those businesses again. Paste the addresses from your
         mailbox&apos;s Sent folder (or open a CSV export of it), the WhatsApp numbers you messaged, or a list of lead ids. Peek matches them to leads, shows
         you first, and on confirm sets the status you pick as you ({me}): a send on the date in the paste where there is one. A lead already at that step or
         further is left alone. The paste itself is not kept.
@@ -98,7 +98,7 @@ export default function AlreadySentView({ me }: { me: string }) {
           spellCheck={false}
           placeholder={
             mark === "per_line"
-              ? "Bakery,00000000-0000-0000-0000-000000000001,Ready to Send Email\nStudio,00000000-0000-0000-0000-000000000002,WhatsApp Verified"
+              ? "Bakery,8aee3936-02ce-4080-9fa7-8c4ff030743f,Ready to Send Email\nStudio,4d5f127b-8ad5-4b13-aa40-7589e58072aa,WhatsApp Verified"
               : "owner@bakery.example, 2026-10-21\nhello@studio.example  Oct 23, 2026\n+1 718 555 0100"
           }
           className="mt-1.5 block w-full rounded-lg border border-line bg-panel p-3 font-mono text-sm"
@@ -141,7 +141,7 @@ export default function AlreadySentView({ me }: { me: string }) {
               <>
                 Send next offers <strong>{p.prevented.now}</strong> of these right now, and <strong>{p.prevented.later}</strong> more have a draft waiting:
                 marking them keeps {p.prevented.now + p.prevented.later === 1 ? "that business" : `those ${p.prevented.now + p.prevented.later} businesses`}{" "}
-                from a second first email.
+                from a second first email on Monday.
               </>
             ) : (
               <>Send next offers none of these, so nothing there changes; the statuses are set as you, so the agents leave them alone.</>

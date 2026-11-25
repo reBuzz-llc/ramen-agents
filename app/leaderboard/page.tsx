@@ -8,32 +8,36 @@ import { can } from "@/lib/roles";
 import { teamNow, type NowRow } from "@/lib/shift-notes";
 import { scoreboard, weekRows } from "@/lib/scoreboard";
 import { startDayOf, weekStartDate } from "@/lib/week";
+import { offBoardIds, onBoard } from "@/lib/team-board";
 
-export const metadata = { title: "Leaderboard · ramen-agents" };
+export const metadata = { title: "Leaderboard · Productive Peek" };
 
-const LABEL: Record<(typeof OUTCOMES)[number], string> = { sent: "sent", replies: "reply", meetings: "meeting", clients: "client", tasksDone: "task done" };
+const LABEL: Record<(typeof OUTCOMES)[number], string> = { sent: "sent", replies: "reply", meetings: "meeting", clients: "client" };
 const PERIODS = { week: "This week", month: "This month" } as const;
 type Period = keyof typeof PERIODS;
 
-// The team's leaderboard, by outcomes. Everyone sees it; the owner rewards from it.
+// The team's leaderboard, by outcomes (second in the nav since the clock became home). Everyone sees it; the owner rewards from it.
 export default async function Leaderboard(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const who = await pageMe();
   const period: Period = (await props.searchParams).p === "month" ? "month" : "week";
-  const from = period === "month" ? monthStartDate() : weekStartDate(new Date(), startDayOf(who.settings));
+  const tz = who.settings.timezone;
+  const from = period === "month" ? monthStartDate(new Date(), tz) : weekStartDate(new Date(), startDayOf(who.settings), tz);
   const d = await db();
-  // The team's rows and the board's leads and tasks at once.
+  // The team's rows and the board's leads and tasks (Peek's own) at once.
   const [{ people, clicks, shiftRows }, boards, now] = await Promise.all([
     weekRows(d, who.tenantId, from),
-    scoreFacts(d, who.tenantId, from).then(
-      ({ leads, tasks }) => ({ leads, tasks, error: "" }),
-      (err) => ({ leads: [], tasks: [], error: publicReason(err, "home") }),
+    scoreFacts(d, who.tenantId, from, tz).then(
+      ({ leads }) => ({ leads, error: "" }),
+      (err) => ({ leads: [], error: publicReason(err, "home") }),
     ),
     // Who is working right now: for the owner and managers only.
     can(who.role, "week.team") ? teamNow(d, who.tenantId, who.settings) : Promise.resolve(null),
   ]);
-  const { leads, tasks, error: boardError } = boards;
+  const { leads, error: boardError } = boards;
   const w = weightsOf(who.settings.points);
-  const board = standings(scoreboard(people, clicks, leads, tasks, shiftRows, from), w);
+  // an owner account, and anyone the owner switched off the team board, is not on the leaderboard
+  const off = offBoardIds(people, who.settings);
+  const board = standings(onBoard(scoreboard(people, clicks, leads, shiftRows, from, new Date(), 0, undefined, tz), off), w);
   const top = Math.max(1, ...board.map((r) => r.points));
   const medal = (rank: number) => (rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "");
 
@@ -43,7 +47,7 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Leaderboard</h1>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            Points for what reached a customer or closed a task. Hours on the clock earn no points. A reply, meeting or
+            Points for what reached a customer: first messages sent, replies, meetings and clients. Hours on the clock earn no points. A reply, meeting or
             client counts for the person who sent that lead.
           </p>
         </div>
@@ -58,7 +62,7 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
 
       {boardError ? <p className="mt-4 rounded-lg bg-panel p-3 text-sm text-muted">{boardError}</p> : null}
 
-      {now ? <TeamNow rows={now} /> : null}
+      {now ? <TeamNow rows={onBoard(now, off)} /> : null}
 
       {board.length ? (
         <>
@@ -87,7 +91,6 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
                 <th className="py-2 text-right font-normal">Replies</th>
                 <th className="py-2 text-right font-normal">Meetings</th>
                 <th className="py-2 text-right font-normal">Clients</th>
-                <th className="py-2 text-right font-normal">Tasks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -109,7 +112,6 @@ export default async function Leaderboard(props: { searchParams: Promise<Record<
                   <td className="py-2 text-right">{r.replies}</td>
                   <td className="py-2 text-right">{r.meetings}</td>
                   <td className="py-2 text-right">{r.clients}</td>
-                  <td className="py-2 text-right">{r.tasksDone}</td>
                 </tr>
               ))}
             </tbody>

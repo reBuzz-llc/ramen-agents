@@ -13,7 +13,8 @@ export async function GET(req: Request, ctx: Ctx) {
 }
 
 // PATCH {actor, fields, fill_only?, source_url?}: the given fields; answers the row as stored with what was written
-// and what was refused (person_wins, human_only, filled) and why.
+// and what was refused (person_wins, human_only, filled, research_first; derived for domain, city and state, worked out from website and
+// location: write location instead) and why.
 export async function PATCH(req: Request, ctx: Ctx) {
   const k = await keyed(req, "board:write");
   if ("res" in k) return k.res;

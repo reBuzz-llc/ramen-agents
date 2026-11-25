@@ -8,11 +8,12 @@ import { leads, tasks } from "./db/schema";
 export type Link = { to: string } | { missing: true };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A task: Our queue with its card open (a closed one says so there, with its status). */
+/** A task: Peek no longer shows tasks (the To-do page is gone; the task board still works
+ *  behind it), so a real task's link lands on Leads, where the work is; another company's or an unknown id is missing. */
 export async function taskLink(db: Db, tenantId: string, id: string): Promise<Link> {
   if (!UUID.test(id)) return { missing: true };
-  const [t] = await db.select({ status: tasks.status }).from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, id)));
-  return t ? { to: `/todo?task=${id}&status=${encodeURIComponent(t.status)}` } : { missing: true };
+  const [t] = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, id)));
+  return t ? { to: "/leads" } : { missing: true };
 }
 
 /** A lead: the Leads board with its drawer open, at its canonical address /leads?lead=<id>. */
@@ -40,9 +41,9 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 /** The 404 a missing link answers: a small page of its own (a real 404 status, which a streamed app page cannot give),
  *  in the app's colours (app/globals.css), light or dark, with the way back. */
 export function missingPage(what: "task" | "lead", back: { href: string; label: string }) {
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>No such ${what} · ramen-agents</title>
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>No such ${what} · Productive Peek</title>
 <style>:root{--bg:rgb(250 249 247);--ink:rgb(24 22 20);--muted:rgb(104 98 92);--accent:#b34700}@media (prefers-color-scheme:dark){:root{--bg:rgb(20 17 15);--ink:rgb(246 241 233);--muted:rgb(170 162 152);--accent:#ff6600}}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:36rem;margin:0 auto;padding:4rem 1rem}h1{font-size:1.5rem;margin:0}p{color:var(--muted);font-size:15px}a{color:var(--accent);font-weight:600;text-decoration:none}a:hover{text-decoration:underline}</style></head>
-<body><main><p style="margin:0 0 1rem"><a href="/">ramen-agents</a></p><h1>No such ${what}</h1><p>This link names a ${what} that is not on your company's board: it may have been removed, or the link is from another company.</p><p><a href="${esc(back.href)}">← Back to ${esc(back.label)}</a></p></main></body></html>`;
+<body><main><p style="margin:0 0 1rem"><a href="/">Productive Peek</a></p><h1>No such ${what}</h1><p>This link names a ${what} that is not on your company's board: it may have been removed, or the link is from another company.</p><p><a href="${esc(back.href)}">← Back to ${esc(back.label)}</a></p></main></body></html>`;
   return new Response(html, { status: 404, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

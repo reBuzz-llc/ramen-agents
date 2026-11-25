@@ -4,135 +4,68 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { can } from "@/lib/roles";
 import { canRemove } from "@/lib/team";
-import { rateHistories } from "@/lib/member-rates";
-import { canSeePay, canSetRate, dayOf, rateOn, type RateRow } from "@/lib/rates";
+import { approvedWeeks, rateHistories } from "@/lib/member-rates";
+import { canSeePay, canSetRate, dayOf, rateLocks, rateOn, type RateRow } from "@/lib/rates";
 import { settingsTitle } from "@/lib/settings-nav";
-import { btnOutline, btnText, control, fieldLabel } from "@/lib/ui-classes";
-import { PendingForm } from "../../ui";
-import AddMember, { CopySignIn, RemoveMember } from "../add-member";
+import AddMember from "../add-member";
+import PeopleList, { type Person } from "./people-list";
 import SectionHead from "../section-head";
-import LocalCode from "../local-code";
-import { localMode } from "@/lib/local-codes";
 import { displayName } from "@/lib/display-name";
+import { offBoardIds } from "@/lib/team-board";
 
 export const metadata = { title: settingsTitle("people") };
-
-const badge = "rounded-full px-2.5 py-0.5 text-xs";
 
 export default async function People(props: PageProps<"/settings/people">) {
   const who = await pageMe("/settings/people");
   const msg = (await props.searchParams).msg;
   const d = await db();
   const s = who.settings;
-  const [people, histories] = await Promise.all([
+  const [people, histories, weeks] = await Promise.all([
     d.select().from(users).where(eq(users.tenantId, who.tenantId)),
     // Pay rates: read only for those who may set them (owner, managers).
     can(who.role, "rates.members") ? rateHistories(d, who.tenantId) : Promise.resolve(new Map<string, RateRow[]>()),
+    can(who.role, "rates.members") ? approvedWeeks(d, who.tenantId) : Promise.resolve(new Map<string, string[]>()),
   ]);
   // Pay is for the person, their manager and the owner: a member's Settings shows nobody's rate.
   const today = dayOf(new Date());
   const me = { id: who.userId, role: who.role };
-  const fmt = (n: number | undefined, c?: string) => (typeof n === "number" ? `${c || "USD"} ${n.toFixed(2)}` : "not set");
+  // each person as the list shows them: what this viewer may change, and the rate only for those who may see it
+  const off = offBoardIds(people, s);
+  const list: Person[] = people.map((p) => {
+    const rows = histories.get(p.id) ?? [];
+    const r = rateOn(rows, s.rates ?? {}, today);
+    const invited = p.active && !p.firstSignedInAt && p.role !== "owner";
+    const seePay = canSeePay(me, p) && can(who.role, "rates.members");
+    const locks = rateLocks(rows, weeks.get(p.id) ?? []);
+    return {
+      id: p.id,
+      label: displayName(p.name, p.email),
+      name: p.name ?? "",
+      email: p.email,
+      role: p.role,
+      active: p.active,
+      invited,
+      nameMissing: !(p.name ?? "").trim(),
+      isMe: p.id === who.userId,
+      may: {
+        name: p.id === who.userId || can(who.role, "users.add"),
+        role: can(who.role, "users.manage") && p.role !== "owner",
+        rate: canSetRate(me, p) && can(who.role, "rates.members"),
+        seePay,
+        remove: p.active && can(who.role, "users.add") && canRemove(me, p),
+        copySignIn: invited && can(who.role, "users.add"),
+        // the owner's switch for anyone but an owner account (always off the board)
+        offBoard: who.role === "owner" && p.role !== "owner" && p.active,
+      },
+      offBoard: off.has(p.id),
+      rate: seePay ? { hourly: r.hourly, outcomeBonus: r.outcomeBonus, currency: r.currency, from: r.from } : null,
+      history: seePay ? rows.map((h) => ({ from: h.effectiveFrom, hourly: h.hourly, outcomeBonus: h.outcomeBonus, currency: h.currency, locked: locks.has(h.effectiveFrom) })) : [],
+    };
+  });
   return (
     <>
       <SectionHead slug="people" msg={msg} />
-      <ul aria-label="The team" className="divide-y divide-line rounded-2xl bg-panel">
-        {people.map((p) => {
-          const rows = histories.get(p.id) ?? [];
-          const r = rateOn(rows, s.rates ?? {}, today);
-          const invited = p.active && !p.firstSignedInAt && p.role !== "owner";
-          // a missing name shows as the email's first part everywhere: warn, and offer to set it here
-          const nameMissing = !(p.name ?? "").trim();
-          const mayName = p.id === who.userId || can(who.role, "users.add");
-          return (
-            <li key={p.id} className={`space-y-2 p-4 ${p.active ? "" : "opacity-60"} ${nameMissing && p.id === who.userId ? "rounded-2xl ring-2 ring-accent" : ""}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2 text-[0.9375rem] font-semibold">
-                    {displayName(p.name, p.email)}
-                    {!p.active ? <span className={`${badge} bg-bg font-normal text-muted`}>Removed (add them again to restore)</span> : invited ? <span className={`${badge} bg-accent-tint font-normal`}>Invited, not signed in yet</span> : null}
-                  </p>
-                  {p.name ? <p className="truncate text-sm text-muted">{p.email}</p> : null}
-                </div>
-                {can(who.role, "users.manage") && p.role !== "owner" ? (
-                  <PendingForm action="/api/settings" method="post" className="flex items-end gap-2">
-                    <input type="hidden" name="action" value="role" />
-                    <input type="hidden" name="userId" value={p.id} />
-                    <label className="sr-only" htmlFor={`role-${p.id}`}>
-                      Role of {displayName(p.name, p.email)}
-                    </label>
-                    <select id={`role-${p.id}`} name="role" defaultValue={p.role} className={`${control} w-36`}>
-                      <option value="member">Member</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                    <button className={btnOutline}>Change</button>
-                  </PendingForm>
-                ) : (
-                  <span className={`${badge} bg-bg text-muted capitalize`}>{p.role}</span>
-                )}
-              </div>
-              {nameMissing && p.active ? (
-                <div data-name-missing className="rounded-lg border-l-4 border-accent bg-bg px-3 py-2 text-sm">
-                  <p>
-                    <span className="font-semibold">Name missing:</span> shows as &ldquo;{displayName(p.name, p.email)}&rdquo; on packs, Sent by, statements and This week.
-                    {p.id === who.userId ? " This is you." : ""}
-                  </p>
-                  {mayName ? (
-                    <PendingForm action="/api/settings" method="post" className="mt-2 flex flex-wrap items-end gap-2">
-                      <input type="hidden" name="action" value="name" />
-                      <input type="hidden" name="userId" value={p.id} />
-                      <label className="sr-only" htmlFor={`name-${p.id}`}>
-                        Name of {displayName(p.name, p.email)}
-                      </label>
-                      <input id={`name-${p.id}`} name="name" required maxLength={80} placeholder="Full name" className={`${control} w-56`} />
-                      <button className={btnOutline}>Save name</button>
-                    </PendingForm>
-                  ) : null}
-                </div>
-              ) : null}
-              {localMode() && p.active && can(who.role, "users.manage") ? <LocalCode userId={p.id} label={displayName(p.name, p.email)} /> : null}
-              {(invited && can(who.role, "users.add")) || (p.active && can(who.role, "users.add") && canRemove(me, p)) ? (
-                <div className="flex flex-wrap items-center gap-x-4">
-                  {invited && can(who.role, "users.add") ? <CopySignIn email={p.email} name={p.name} ownerName={who.name} /> : null}
-                  {p.active && can(who.role, "users.add") && canRemove(me, p) ? <RemoveMember userId={p.id} email={p.email} /> : null}
-                </div>
-              ) : null}
-              {canSeePay(me, p) && can(who.role, "rates.members") ? (
-                <p className="text-sm text-muted">
-                  {fmt(r.hourly, r.currency)}/h · bonus {fmt(r.outcomeBonus, r.currency)} {r.from ? `since ${r.from}` : "(company defaults)"}
-                  {rows.length > 1 ? ` · earlier: ${rows.slice(0, -1).reverse().slice(0, 3).map((x) => `${x.effectiveFrom} ${x.hourly ?? "-"}`).join(", ")}` : ""}
-                </p>
-              ) : null}
-              {canSetRate(me, p) && can(who.role, "rates.members") ? (
-                <details className="group">
-                  <summary className={`${btnText} cursor-pointer list-none`}>Set a new rate</summary>
-                  <PendingForm action="/api/settings" method="post" className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto] sm:items-end">
-                    <input type="hidden" name="action" value="memberRate" />
-                    <input type="hidden" name="userId" value={p.id} />
-                    <label className={fieldLabel}>
-                      Hourly
-                      <input name="hourly" type="number" step="0.01" min={0} inputMode="decimal" className={control} />
-                    </label>
-                    <label className={fieldLabel}>
-                      Bonus
-                      <input name="outcomeBonus" type="number" step="0.01" min={0} inputMode="decimal" className={control} />
-                    </label>
-                    <label className={fieldLabel}>
-                      Currency
-                      <input name="currency" defaultValue={r.currency ?? "USD"} maxLength={3} className={`${control} uppercase`} />
-                    </label>
-                    <label className={fieldLabel}>
-                      From
-                      <input name="effectiveFrom" type="date" defaultValue={today} className={control} />
-                    </label>
-                    <button className={`${btnOutline} col-span-2 justify-self-start sm:col-span-1`}>Set rate</button>
-                  </PendingForm>
-                </details>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      <PeopleList people={list} today={today} ownerName={who.name} />
       {can(who.role, "users.add") ? <AddMember canAddManager={who.role === "owner"} ownerName={who.name} /> : null}
     </>
   );

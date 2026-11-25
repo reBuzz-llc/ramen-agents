@@ -1,22 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { memoryDb } from "@/lib/db";
-import type { Actor } from "@/lib/leads";
+import { NOTION_GONE, type Actor } from "@/lib/leads";
 import { getTask, listTasks, onlyAdds, raiseTaskFlag, resolveTaskFlag, taskFlagsOf, taskHistory, writeTask } from "@/lib/tasks";
 import { createTenant } from "@/lib/tenants";
 
 const CEO: Actor = { kind: "bot", name: "The CEO", via: "engine" };
 const BACKFILL: Actor = { kind: "bot", name: "backfill", via: "backfill" };
+const PAGE = "3dbd905fccff80b481d4000bcf9e3185";
 
-// One task as an import sends it.
-const IMPORTED_TASK = {
+// What the tasks-backfill.py job sends for one Notion task (to_task()).
+const NOTION_TASK = {
+  notion_page_id: PAGE,
+  notion_url: "https://www.notion.so/Send-first-emails-3dbd905fccff80b481d4000bcf9e3185",
   title: "Send first emails to SMB leads in NYC",
   status: "In progress",
   priority: "P0",
-  assignees: ["Robin"],
+  assignees: ["Alex"],
   due: null,
-  projects: ["00000000000040008000000000000301"],
+  projects: ["2e1d905fccff80aa9b1cc0ffee000001"],
   blocker: null,
   files: null,
+  notion_uid: "CEO-185",
   created_at: "2026-10-27T09:12:00.000Z",
   details: "### Why\nThe first emails.\n### Done when\n- [x] 10 sent\n- [ ] 20 sent",
   checklist: [
@@ -33,17 +37,21 @@ async function board() {
   return { db, tenantId: tenant.id, OLU };
 }
 
-describe("an import (the import key)", () => {
-  it("copies the values as they are, status, assignees, ticks and created_at included, and the same task again changes nothing", async () => {
+describe("an import (the backfill's shape; Notion page ids dropped in Peek 601)", () => {
+  it("copies a task as it is, status, assignees, ticks and created_at included, and a second copy by id changes nothing", async () => {
     const { db, tenantId } = await board();
-    const task = IMPORTED_TASK;
+    const { notion_page_id, ...task } = NOTION_TASK;
+    // a late caller still naming the task by its Notion page id is refused with a message the log shows
+    expect(await writeTask(db, tenantId, {}, NOTION_TASK, BACKFILL, { create: true, import: true })).toEqual({ ok: false, code: "bad_request", message: NOTION_GONE });
+    expect(notion_page_id).toBe(PAGE);
     const a = await writeTask(db, tenantId, {}, task, BACKFILL, { create: true, import: true });
     expect(a.ok && [a.created, a.refused]).toEqual([true, []]);
     if (!a.ok) return;
     const got = await getTask(db, tenantId, { id: a.task.id });
-    // the fields an import reads back and compares
-    for (const [k, v] of Object.entries(IMPORTED_TASK)) expect([k, got![k] ?? null]).toEqual([k, v]);
-    const b = await writeTask(db, tenantId, { id: a.task.id }, task, BACKFILL, { import: true });
+    // the fields the backfill reads back and compares
+    for (const [k, v] of Object.entries(task)) expect([k, got![k] ?? null]).toEqual([k, v]);
+    expect(got && "notion_page_id" in got).toBe(false);
+    const b = await writeTask(db, tenantId, { id: a.task.id }, task, BACKFILL, { create: true, import: true });
     expect(b.ok && [b.created, b.written, b.task.rev]).toEqual([false, [], a.ok && a.task.rev]);
     expect((await listTasks(db, tenantId)).tasks).toHaveLength(1);
   });
@@ -52,7 +60,7 @@ describe("an import (the import key)", () => {
 describe("who may change what", () => {
   it("a bot's new task starts Not started and unassigned; its Done-when list unticked", async () => {
     const { db, tenantId } = await board();
-    const r = await writeTask(db, tenantId, {}, { title: "Write the menu page", status: "Done", assignees: ["Robin"], priority: "P1", checklist: [{ text: "draft", done: false }] }, CEO, { create: true });
+    const r = await writeTask(db, tenantId, {}, { title: "Write the menu page", status: "Done", assignees: ["Alex"], priority: "P1", checklist: [{ text: "draft", done: false }] }, CEO, { create: true });
     expect(r.ok && r.refused.map((x) => [x.field, x.reason])).toEqual([
       ["status", "human_only"],
       ["assignees", "human_only"],
@@ -168,7 +176,7 @@ describe("the queue", () => {
 });
 
 describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
-  it("open the task's card on To-do and the lead's drawer; another company's id, an unknown one or a bad one is missing", async () => {
+  it("a real task lands on Leads (To-do is gone) and a lead opens its drawer; another company's id, an unknown one or a bad one is missing", async () => {
     const { leadLink, taskLink } = await import("@/lib/deep-links");
     const { writeLead } = await import("@/lib/leads");
     const { db, tenantId } = await board();
@@ -178,8 +186,8 @@ describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
     const l = await writeLead(db, tenantId, {}, { business: "Acme Bakery", website: "https://acmebakery.example" }, CEO, { create: true });
     const tid = t.ok ? t.task.id : "";
     const lid = l.ok ? l.lead.id : "";
-    expect(await taskLink(db, tenantId, tid)).toEqual({ to: `/todo?task=${tid}&status=Not%20started` });
-    expect(await taskLink(db, tenantId, done.ok ? done.task.id : "")).toMatchObject({ to: expect.stringContaining("status=Done") });
+    expect(await taskLink(db, tenantId, tid)).toEqual({ to: "/leads" });
+    expect(await taskLink(db, tenantId, done.ok ? done.task.id : "")).toEqual({ to: "/leads" });
     expect(await leadLink(db, tenantId, lid)).toEqual({ to: `/leads?lead=${lid}` });
     for (const [fn, id] of [[taskLink, tid], [leadLink, lid]] as const) {
       expect(await fn(db, other, id)).toEqual({ missing: true }); // another company's
@@ -196,15 +204,16 @@ describe("the bots' links: <peek>/tasks/<id> and <peek>/leads/<id>", () => {
     expect(src("app/tasks/[id]/route.ts")).toMatch(/if \("missing" in r\) return missingPage\(/);
     // a lead someone cannot open lands on the Leads page, which says so in one line
     expect(src("app/leads/[id]/route.ts")).toMatch(/redirect\("missing" in r \? leadPath\(/);
-    expect(src("app/tasks/[id]/route.ts")).toContain('{ href: "/todo", label: "To-do" }');
-    const res = missingPage("task", { href: "/todo", label: "To-do" });
+    expect(src("app/tasks/[id]/route.ts")).toContain('{ href: "/leads", label: "Leads" }');
+    const res = missingPage("task", { href: "/leads", label: "Leads" });
     expect(res.status).toBe(404);
-    expect(await res.text()).toContain('<a href="/todo">← Back to To-do</a>');
+    expect(await res.text()).toContain('<a href="/leads">← Back to Leads</a>');
     expect(src("app/leads/page.tsx")).toMatch(/openId=\{openId\}/);
     expect(src("app/leads/leads-view.tsx")).toMatch(/useState<string \| null>\(openId\)/);
-    expect(src("app/todo/todo-view.tsx")).toMatch(/focused=\{focus\?\.id === t\.pageId\}/);
-    // an old Our-queue task link still lands on its card
-    expect(src("app/queue/page.tsx")).toMatch(/if \(task\) redirect\(`\/todo\?task=/);
+    // To-do is gone: its page, and every old queue link lands on Leads
+    const { existsSync } = await import("node:fs");
+    expect(existsSync("app/todo/page.tsx")).toBe(false);
+    expect(src("app/queue/page.tsx")).not.toMatch(/\/todo/);
   });
 });
 

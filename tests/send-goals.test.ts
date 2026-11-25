@@ -1,6 +1,6 @@
 // Daily send goals per person: 5 emails and 3 WhatsApp messages a day unless the
-// owner sets others; the pack fills only up to what is left today; Mark sent past the goal is refused (pack, WhatsApp
-// tab, drawer, queue: overGoal); checking numbers is never capped; Mark already sent never counts; an undo frees a slot.
+// owner sets others. A goal is a target, not a limit: the pack fills to ten all day and
+// no send is refused for the count. Mark already sent never counts; an undo takes a send off the day.
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { boardLite, markSent, matchEntries, parsePaste } from "@/lib/already-sent";
@@ -14,15 +14,18 @@ import {
   DEFAULT_WHATSAPP_GOAL,
   doneLine,
   goalFromForm,
+  goalLine,
+  goalsChanged,
   goalsOf,
   sendsIn,
   validTimeZone,
   workingDaysSoFar,
 } from "@/lib/send-goals";
-import { overGoal, todayOf } from "@/lib/send-goals-db";
+import { todayOf } from "@/lib/send-goals-db";
 import { fillPack, markPackSent, packOf } from "@/lib/send-pack";
 import { createTenant } from "@/lib/tenants";
 import { CHECK, fillChecks, markWhatsappSent, sendList, setCheck } from "@/lib/whatsapp-pack";
+import { saveBoardAsList } from "./helpers/saved-send-list";
 
 const ENGINE: Actor = { kind: "bot", name: "Outreach Writer", via: "engine" };
 
@@ -35,7 +38,7 @@ async function board(n: number) {
       db,
       tenant.id,
       {},
-      { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, business_email: `hi@shop${i}.example`, whatsapp: `https://wa.me/1718555${String(100 + i).padStart(4, "0")}`, draft_email: `Hi ${i}`, draft_whatsapp: `Hello ${i}`, lead_score: 100 - i },
+      { business: `Shop ${String(i).padStart(2, "0")}`, website: `https://shop${i}.example`, business_email: `hi@shop${i}.example`, whatsapp: `https://wa.me/1718555${1000 + i}`, draft_email: `Hi ${i}`, draft_whatsapp: `Hello ${i}`, lead_score: 100 - i },
       ENGINE,
       { create: true },
     );
@@ -44,6 +47,7 @@ async function board(n: number) {
   }
   const OLU = { userId: owner.id, name: "Olu" };
   const person: Actor = { kind: "person", name: "Olu", userId: owner.id };
+  await saveBoardAsList(db, tenant.id);
   return { db, tenantId: tenant.id, owner, ids, OLU, person };
 }
 
@@ -56,8 +60,8 @@ describe("goals and the company's day", () => {
     expect(goalFromForm("")).toBeUndefined();
     expect(goalFromForm("1.5")).toBeUndefined();
     expect(goalFromForm("999")).toBeUndefined();
-    expect(doneLine(5)).toBe("Today's 5 are done; more tomorrow.");
-    expect(doneLine(1)).toBe("Today's 1 is done; more tomorrow.");
+    expect(doneLine(5)).toBe("Today's goal of 5 is met. Keep going!");
+    expect(doneLine(1)).toBe("Today's goal of 1 is met. Keep going!");
   });
 
   it("starts the day at midnight in the company's time zone", () => {
@@ -81,30 +85,19 @@ describe("goals and the company's day", () => {
   });
 });
 
-describe("the daily cap", () => {
-  it("a fresh day fills five; the sixth Mark sent is refused with the done line and the pack does not refill", async () => {
+describe("the daily goal is a target, not a limit", () => {
+  it("the pack fills ten; past the goal Mark sent goes on and the pack refills", async () => {
     const { db, tenantId, owner, OLU } = await board(20);
-    expect(await fillPack(db, tenantId, owner.id)).toBe(5);
-    expect(await packOf(db, tenantId, owner.id)).toHaveLength(5);
-    for (const l of (await packOf(db, tenantId, owner.id)).slice(0, 4)) expect((await markPackSent(db, tenantId, l.id, OLU)).ok).toBe(true);
-    // four sent: the pack holds one, the one left today
-    expect(await packOf(db, tenantId, owner.id)).toHaveLength(1);
-    expect((await todayOf(db, tenantId, owner.id)).email).toEqual({ sent: 4, goal: 5, left: 1 });
-    const fifth = (await packOf(db, tenantId, owner.id))[0];
-    expect(await markPackSent(db, tenantId, fifth.id, OLU)).toEqual({ ok: true, added: 0 });
-    expect((await todayOf(db, tenantId, owner.id)).email.left).toBe(0);
-    expect(await fillPack(db, tenantId, owner.id)).toBe(0);
-    // a lead taken by hand (Send next → Take it) cannot be marked sent today either
+    expect(await fillPack(db, tenantId, owner.id)).toBe(10);
+    for (const l of (await packOf(db, tenantId, owner.id)).slice(0, 7)) expect((await markPackSent(db, tenantId, l.id, OLU)).ok).toBe(true);
+    expect((await todayOf(db, tenantId, owner.id)).email).toEqual({ sent: 7, goal: 5, left: 0 });
+    expect(await packOf(db, tenantId, owner.id)).toHaveLength(10); // topped up after each send
+    // a lead taken by hand (Send next → Take it) is marked sent too
     const { accept } = await import("@/lib/claims");
-    const all = await db.query.leads.findMany();
-    const spare = all.find((l) => !l.emailStatus)!;
+    const spare = (await db.query.leads.findMany()).find((l) => !l.emailStatus)!;
     await accept(db, tenantId, spare.id, owner.id);
-    expect(await markPackSent(db, tenantId, spare.id, OLU)).toEqual({ ok: false, error: "Today's 5 are done; more tomorrow." });
-    // the drawer and the queue go through overGoal: refused too, but a lead already sent is no new send
-    expect(await overGoal(db, tenantId, owner.id, ["email"], spare.id)).toBe("Today's 5 are done; more tomorrow.");
-    expect(await overGoal(db, tenantId, owner.id, ["email"], fifth.id)).toBeNull();
-    // WhatsApp has its own count
-    expect(await overGoal(db, tenantId, owner.id, ["whatsapp"], spare.id)).toBeNull();
+    expect((await markPackSent(db, tenantId, spare.id, OLU)).ok).toBe(true);
+    expect((await todayOf(db, tenantId, owner.id)).email.sent).toBe(8);
   });
 
   it("an undo frees the slot; the owner's goal applies at once", async () => {
@@ -125,20 +118,35 @@ describe("the daily cap", () => {
     expect((await todayOf(db, tenantId, owner.id)).email).toEqual({ sent: 0, goal: 5, left: 5 });
   });
 
-  it("WhatsApp: three to send a day, then refused; checking numbers is not capped", async () => {
+  it("WhatsApp: the list shows up to ten whatever was sent today; past the goal it goes on", async () => {
     const { db, tenantId, owner, ids, OLU } = await board(30);
     expect(await fillChecks(db, tenantId, owner.id)).toBe(CHECK);
     for (const id of ids.slice(0, 6)) expect((await setCheck(db, tenantId, id, "verified", OLU)).ok).toBe(true);
     const list = await sendList(db, tenantId, owner.id);
-    expect(list).toHaveLength(3);
-    for (const l of list) expect((await markWhatsappSent(db, tenantId, l.id, OLU)).ok).toBe(true);
-    expect((await todayOf(db, tenantId, owner.id)).whatsapp).toEqual({ sent: 3, goal: 3, left: 0 });
-    expect(await sendList(db, tenantId, owner.id)).toEqual([]);
-    expect(await markWhatsappSent(db, tenantId, ids[5], OLU)).toEqual({ ok: false, error: "Today's 3 are done; more tomorrow." });
-    // checks go on
-    expect((await setCheck(db, tenantId, ids[7], "verified", OLU)).ok).toBe(true);
-    expect(await fillChecks(db, tenantId, owner.id)).toBeGreaterThan(0);
+    expect(list).toHaveLength(6);
+    for (const l of list.slice(0, 5)) expect((await markWhatsappSent(db, tenantId, l.id, OLU)).ok).toBe(true);
+    expect((await todayOf(db, tenantId, owner.id)).whatsapp).toEqual({ sent: 5, goal: 3, left: 0 });
+    expect(await sendList(db, tenantId, owner.id)).toHaveLength(1);
     // emails are a separate count
     expect((await todayOf(db, tenantId, owner.id)).email.left).toBe(5);
+  });
+
+  it("no route refuses a send for the count", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const f of ["app/api/leads/[id]/route.ts", "app/api/queue/route.ts", "lib/send-pack.ts", "lib/whatsapp-pack.ts", "lib/send-goals-db.ts"]) expect(readFileSync(`${process.cwd()}/${f}`, "utf8")).not.toContain("overGoal");
+  });
+});
+
+describe("the goal line and the change banner", () => {
+  it("says the live goals in one line", () => {
+    expect(goalLine(goalsOf({}))).toBe("Your daily goal: 5 emails and 3 WhatsApp messages, set by the owner. It is a target, not a limit.");
+    expect(goalLine(goalsOf({ sendGoals: { email: 1, whatsapp: 1 } }))).toBe("Your daily goal: 1 email and 1 WhatsApp message, set by the owner. It is a target, not a limit.");
+  });
+  it("shows a change once per person, until they dismiss that change", () => {
+    const s = { sendGoals: { email: 8, whatsapp: 2, changedAt: "2026-11-09T12:00:00.000Z" } };
+    expect(goalsChanged({}, null)).toBeNull();
+    expect(goalsChanged(s, null)).toEqual({ at: "2026-11-09T12:00:00.000Z", text: "The owner changed the daily goals to 8 emails and 2 WhatsApp messages." });
+    expect(goalsChanged(s, "2026-11-09T12:00:00.000Z")).toBeNull();
+    expect(goalsChanged({ sendGoals: { ...s.sendGoals, changedAt: "2026-11-10T08:00:00.000Z" } }, "2026-11-09T12:00:00.000Z")?.at).toBe("2026-11-10T08:00:00.000Z");
   });
 });

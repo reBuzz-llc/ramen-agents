@@ -7,9 +7,9 @@ import { safeNext, withNext } from "@/lib/return-path";
 // Reads the session cookie: never prerendered.
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Welcome · ramen-agents" };
+export const metadata = { title: "Welcome · Productive Peek" };
 
-/** Onboarding: read what ramen-agents records, and acknowledge it (stored with the date) before anything else. */
+/** Onboarding: read what Productive Peek records, and acknowledge it (stored with the date) before anything else. */
 export default async function Welcome(props: PageProps<"/welcome">) {
   const next = safeNext((await props.searchParams).next);
   const who = await me();
@@ -18,7 +18,7 @@ export default async function Welcome(props: PageProps<"/welcome">) {
   return (
     <div className="max-w-2xl space-y-4 text-sm leading-relaxed">
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Before you start</h1>
-      <p>{who.tenantName} uses ramen-agents to track your paid work hours. Please read what it records about you.</p>
+      <p>{who.tenantName} uses Productive Peek to track your paid work hours. Please read what it records about you.</p>
       <p>{NOTICE.intro}</p>
       <h2 className="pt-2 text-lg font-semibold">What it records</h2>
       <ul className="list-disc space-y-1 pl-5">{NOTICE.records.map((r) => <li key={r}>{r}</li>)}</ul>

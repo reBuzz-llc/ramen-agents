@@ -1,4 +1,4 @@
-// The send pack: ten leads taken per person from Send next's order, never one someone else
+// The Monday send pack: ten leads taken per person from Send next's order, never one someone else
 // holds or one already sent; Mark sent sends it as the person, closes the claim and tops the pack up; the owner sees all.
 import { describe, expect, it } from "vitest";
 import { accept, holderOf } from "@/lib/claims";
@@ -10,6 +10,7 @@ import { createTenant } from "@/lib/tenants";
 import { tenants, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/lib/db";
+import { saveBoardAsList } from "./helpers/saved-send-list";
 
 const addUser = async (db: Db, tenantId: string, u: { email: string; name: string; role: "member" }) =>
   (await db.insert(users).values({ tenantId, ...u }).returning())[0];
@@ -27,6 +28,7 @@ async function board(n: number) {
     if (!r.ok) throw new Error(r.message);
     ids.push(r.lead.id);
   }
+  await saveBoardAsList(db, tenant.id);
   return { db, tenantId: tenant.id, owner, ids };
 }
 

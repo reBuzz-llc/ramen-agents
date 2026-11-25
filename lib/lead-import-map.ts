@@ -172,7 +172,3 @@ export const isMapsExport = (mapping: (ImportField | null)[]) => mapping.include
 
 /** Pages that are not a business's own website: they go to Source pages, never into Website. */
 export const SOCIAL = /(^|\.)(facebook|fb|instagram|twitter|x|tiktok|linkedin|youtube|pinterest|yelp|linktr|linktree|beacons|tripadvisor|google|goo|maps\.app|business\.site|squareup|square\.site|ubereats|doordash|grubhub|seamless|etsy|amazon|ebay|depop|poshmark|shopify\.com|wix\.com|whatsapp|wa)\.[a-z.]+$/i;
-
-/** The states a Google Maps import keeps by default: NEXT_PUBLIC_HOME_STATES, two-letter codes with commas ("NY,NJ"); none
- *  set means any state. */
-export const HOME_STATES = (process.env.NEXT_PUBLIC_HOME_STATES ?? "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x));

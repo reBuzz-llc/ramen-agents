@@ -6,7 +6,7 @@ import { pageMe } from "@/lib/page-me";
 import { storage, storeName } from "@/lib/storage";
 import FilesView, { type FileItem } from "./files-view";
 
-export const metadata = { title: "Files · ramen-agents" };
+export const metadata = { title: "Files · Productive Peek" };
 
 /** The team's files: PDFs, and PNG/JPG for logos, to attach to emails by hand. */
 export default async function FilesPage() {

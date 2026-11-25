@@ -57,14 +57,14 @@ describe("adding a member by Google address", () => {
   });
 
   it("copy text for Slack", () => {
-    expect(copyText("https://peek.example/", { email: "ann@acme.example", name: "Ann Lee", ownerName: "Kai Morgan" })).toBe(
-      "Hi Ann, you're set up on ramen-agents, our team's queue and clock. Sign in here: https://peek.example/sign-in — use Continue with Google with ann@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send. Questions, ask Kai.",
+    expect(copyText("https://peek.example/", { email: "ann@acme.example", name: "Ann Lee", ownerName: "Sam Rivera" })).toBe(
+      "Hi Ann, you're set up on Productive Peek, our team's queue and clock. Sign in here: https://peek.example/sign-in — use Continue with Google with ann@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send. Questions, ask Sam.",
     );
-    // copied on someone's own Mac, the link is still the live app's; no names, no empty greeting or "ask"
+    // copied on the computer Peek runs on, with no public address set: the link is that computer's; no names, no empty greeting or "ask"
     expect(copyText("http://localhost:3100", { email: "bo@acme.example" })).toBe(
-      "Hi, you're set up on ramen-agents, our team's queue and clock. Sign in here: https://your-team.example/sign-in — use Continue with Google with bo@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send.",
+      "Hi, you're set up on Productive Peek, our team's queue and clock. Sign in here: http://localhost:3100/sign-in — use Continue with Google with bo@acme.example (no password needed). First things: clock in on the home page when you start, and open Our queue for the drafts to review and send.",
     );
-    expect(signInLink("http://127.0.0.1:3100/")).toBe("https://your-team.example/sign-in");
+    expect(signInLink("http://127.0.0.1:3100/")).toBe("http://127.0.0.1:3100/sign-in");
   });
 });
 

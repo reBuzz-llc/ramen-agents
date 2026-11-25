@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  const g = await guard("leads.import");
+  const g = await guard("leads.markSent");
   if ("res" in g) return g.res;
   const b = (await req.json().catch(() => null)) as { text?: unknown; mark?: unknown; confirm?: unknown } | null;
   const mark = typeof b?.mark === "string" && (b.mark === "per_line" || b.mark in MARKS) ? (b.mark as MarkChoice) : null;

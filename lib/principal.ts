@@ -22,7 +22,7 @@ export type Me = {
 };
 
 // The signed-in person, their company and whether they acknowledged the current notice, in ONE query: the database is
-// a long round trip away (Neon us-east-2 from the team, ~285 ms), so every page pays for each query it runs in a row.
+// a long round trip away (Neon us-east-2 from the team's machine, ~285 ms), so every page pays for each query it runs in a row.
 async function principal(db: Db, where: SQL, viaSession = false): Promise<Me | null> {
   const q = db
     .select({
@@ -46,6 +46,9 @@ async function principal(db: Db, where: SQL, viaSession = false): Promise<Me | n
   void _active;
   return { ...me, settings: me.settings ?? {}, acked: !!ackId };
 }
+
+/** The person by user id: the local owner when sign-in is off (lib/local-mode.ts). One query. */
+export const principalById = (db: Db, id: string) => principal(db, eq(users.id, id));
 
 /** The users row behind a Neon Auth email, with company and notice state: one query. */
 export const principalByEmail = (db: Db, email: string) => principal(db, eq(users.email, email.toLowerCase()));

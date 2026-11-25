@@ -9,7 +9,7 @@ import { Busy, Spinner } from "../ui";
 type Shift = { id: string; startedAt: string; endedAt: string | null; minutes: number; open: boolean; note: string; projectId: string | null; notes: { id: string; at: string; text: string }[]; updates: { expected: number; met: number } };
 type Gap = { from: string; to: string; minutes: number; note: string };
 type Project = { id: string; name: string; client: string; active: boolean };
-type Day = {
+export type Day = {
   shifts: Shift[];
   workedMinutes: number;
   gaps: Gap[];
@@ -20,7 +20,11 @@ type Day = {
   update: { cadence: number; dueAt: string | null; postedThisWindow: boolean; overdueSince: string | null } | null;
   byProject: { id: string | null; name: string; minutes: number }[];
   lastProjectId: string | null;
+  /** A shift left open from an earlier day. */
+  forgotten?: Forgotten | null;
+  closedForYou?: { shiftId: string; action: string; startedAt: string; endedAt: string; by: string; at: string }[];
 };
+type Forgotten = { id: string; startedAt: string; projectId: string | null };
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const NEW = "__new";
@@ -56,7 +60,9 @@ function ProjectSelect(p: { id: string; projects: Project[]; recent: (string | n
 
 /** The clock (the home page): clock in to a project and out, a running timer, switch project, today's shifts with their
  * project fixable, and a note on any gap. Only time is recorded: no screenshots, no keystrokes, nothing from your computer. */
-export default function ClockView() {
+/** `first`: the day as the page read it, so the clock works without a second trip. It is applied after the page is up, because
+ *  its times are written in this browser's own time zone. */
+export default function ClockView({ first }: { first?: Day }) {
   const [dayData, setDay] = useState<Day | null>(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -69,15 +75,19 @@ export default function ClockView() {
   const [toast, setToast] = useState("");
   const load = useCallback(async () => setDay((await (await fetch("/api/clock", { cache: "no-store" })).json()) as Day), []);
   useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
+    const t = setTimeout(() => (first ? setDay(first) : void load()), 0);
     const tick = setInterval(() => setNow(Date.now()), 1000);
-    const refresh = setInterval(() => void load(), 60000);
+    // every two minutes while the tab is in view, and at once when it comes back (fewer trips)
+    const refresh = setInterval(() => document.visibilityState === "visible" && void load(), 120_000);
+    const back = () => document.visibilityState === "visible" && void load();
+    document.addEventListener("visibilitychange", back);
     return () => {
       clearTimeout(t);
       clearInterval(tick);
       clearInterval(refresh);
+      document.removeEventListener("visibilitychange", back);
     };
-  }, [load]);
+  }, [load, first]);
   const say = (text: string) => {
     setToast(text);
     setTimeout(() => setToast(""), 6000);
@@ -160,6 +170,12 @@ export default function ClockView() {
     <div className="max-w-xl">
       <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Clock</h1>
       <p className="mt-1 text-sm text-muted">Clock in to a project and out. Only the times, the project and your notes are recorded: no screenshots, no keystrokes.</p>
+      {/* a clock an owner or manager closed or corrected for this person */}
+      {(dayData?.closedForYou ?? []).map((e) => (
+        <p key={e.shiftId} data-closed-for-you className="mt-3 rounded-lg border border-line bg-panel p-3 text-sm">
+          Your clock from {new Date(e.startedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} was {e.action === "close" ? "closed" : "corrected"} to end at {new Date(e.endedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} by {e.by}. If that time is wrong, ask an owner or manager to correct it.
+        </p>
+      ))}
 
       <Busy busy={pending} className="mt-6 rounded-2xl border border-line bg-panel p-5">
         {!dayData ? (
@@ -260,6 +276,8 @@ export default function ClockView() {
             </div>
             {u ? <OverdueNotice overdue={!!overdueSince} /> : null}
           </>
+        ) : dayData.forgotten ? (
+          <ForgottenShift key={dayData.forgotten.id} f={dayData.forgotten} project={nameOf(dayData.forgotten.projectId)} now={now} pending={pending} post={post} done={say} />
         ) : (
           <>
             <p className="text-sm text-muted">Not clocked in · today {hhmm(closed)}</p>
@@ -424,7 +442,7 @@ function OverdueNotice({ overdue }: { overdue: boolean }) {
       return () => clearTimeout(t);
     }
     if (sent || perm !== "granted") return;
-    new Notification("ramen-agents: an update is due", { body: "Post what you are working on, for the client's log." });
+    new Notification("Productive Peek: an update is due", { body: "Post what you are working on, for the client's log." });
     const t = setTimeout(() => setSent(true), 0);
     return () => clearTimeout(t);
   }, [overdue, sent, perm]);
@@ -433,5 +451,57 @@ function OverdueNotice({ overdue }: { overdue: boolean }) {
     <button type="button" onClick={() => void Notification.requestPermission().then(setPerm)} className="mt-3 min-h-11 text-sm text-accent-ink hover:underline">
       Remind me with a browser notification when an update is due
     </button>
+  );
+}
+
+/** A shift left open from an earlier day (without it, a member who forgot to clock out could not
+ *  clock in the next day). The person says when they stopped; the shift closes then, and Clock in comes back. */
+function ForgottenShift(p: { f: Forgotten; project: string; now: number; pending: boolean; post: (b: object) => Promise<boolean>; done: (text: string) => void }) {
+  const start = new Date(p.f.startedAt);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const [date, setDate] = useState(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`);
+  const [stop, setStop] = useState("");
+  const [note, setNote] = useState("");
+  const end = date && stop ? new Date(`${date}T${stop}`) : null;
+  const minutes = end && !Number.isNaN(end.getTime()) ? Math.round((end.getTime() - start.getTime()) / 60000) : null;
+  const bad = minutes === null ? "" : minutes <= 0 ? "That is before the shift started." : end!.getTime() > p.now ? "That time has not come yet." : "";
+  const day = start.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+  const submit = async () => {
+    if (!end || bad || minutes === null) return;
+    if (await p.post({ action: "closeForgotten", shiftId: p.f.id, at: end.toISOString(), note }))
+      p.done(`Closed your ${day} shift at ${time(end.toISOString())} (${hhmm(minutes)}). You can clock in now.`);
+  };
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <p className="font-semibold">
+        You are still clocked in since {day}, {time(p.f.startedAt)}
+      </p>
+      <p className="text-sm text-muted">On {p.project}. When did you stop? The shift closes at that time, and then you can clock in.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <label className={`block ${labelText}`}>
+          Date
+          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className={`block ${labelText}`}>
+          Time you stopped
+          <input type="time" required value={stop} onChange={(e) => setStop(e.target.value)} className={`mt-1 ${field}`} />
+        </label>
+      </div>
+      <label className={`block ${labelText}`}>
+        What did you get done? (optional; your team sees it)
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} className="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-2 text-base" />
+      </label>
+      {minutes !== null ? <p className={`text-sm ${bad ? "text-bad" : "text-muted"}`}>{bad || `That shift: ${hhmm(minutes)}.`}</p> : null}
+      <button type="submit" disabled={p.pending || !stop || !!bad} className={primary}>
+        {p.pending ? <Spinner /> : null}
+        Close the shift
+      </button>
+    </form>
   );
 }

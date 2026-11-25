@@ -1,7 +1,7 @@
-// Daily send goals per person: more mail goes to spam when one address sends a
-// lot, so each person sends at most a set number of first emails and WhatsApp messages a day (5 and 3 unless the owner
-// changes them in Settings → Company). The pack fills only up to what is left today, and Mark sent beyond the goal is
-// refused (a hard cap). Checking numbers is not a send and is never capped. The day is the company's local day
+// Daily send goals per person: a number of first emails and WhatsApp messages
+// to aim for each day (5 and 3 unless the owner changes them in Settings → Company). A goal is a target, not a limit:
+// the pack fills to ten whatever was sent today, and
+// Mark sent is never refused for the count; the Clock shows how far each person is. The day is the company's local day
 // (settings.timezone; the server's clock when unset).
 //
 // A send counts for the person who marked it, on the day they marked it: the lead's History step that set Email Sent (or
@@ -87,9 +87,23 @@ export function workingDaysSoFar(from: Date, now: Date): number {
   return n;
 }
 
-/** The line shown when the day's goal is met; Mark sent beyond it is refused with it. */
+/** The plain line under the pack for everyone, from the live settings. */
+export function goalLine(g: Goals): string {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  return `Your daily goal: ${n(g.email, "email", "emails")} and ${n(g.whatsapp, "WhatsApp message", "WhatsApp messages")}, set by the owner. It is a target, not a limit.`;
+}
+
+/** The banner after the owner changes the goals: shown to each person until they dismiss it (view_prefs goals_seen). */
+export function goalsChanged(settings: TenantSettings | null | undefined, seen: string | null | undefined): { at: string; text: string } | null {
+  const at = settings?.sendGoals?.changedAt;
+  if (!at || at === seen) return null;
+  const g = goalsOf(settings);
+  return { at, text: `The owner changed the daily goals to ${g.email} email${g.email === 1 ? "" : "s"} and ${g.whatsapp} WhatsApp message${g.whatsapp === 1 ? "" : "s"}.` };
+}
+
+/** The line shown when the day's goal is met; the pack and Mark sent go on as before. */
 export function doneLine(goal: number): string {
-  return `Today's ${goal} ${goal === 1 ? "is" : "are"} done; more tomorrow.`;
+  return `Today's goal of ${goal} is met. Keep going!`;
 }
 
 export const budgetOf = (sent: number, goal: number): Budget => ({ sent, goal, left: Math.max(0, goal - sent) });

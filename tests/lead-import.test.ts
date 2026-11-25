@@ -84,7 +84,7 @@ describe("the dry run and the import", () => {
 describe("a Google Maps business export (the owner's file's header)", () => {
   it("maps out of the box: emails and categories as fallbacks, location from city and state, the address, the map link, the listing", async () => {
     const { readFileSync } = await import("node:fs");
-    const { leadFields, recentImports, isMapsExport, MAPS_RULES, foundByOf } = await import("@/lib/lead-import");
+    const { leadFields, isMapsExport, MAPS_RULES, foundByOf } = await import("@/lib/lead-import");
     const t = parseCsv(readFileSync(new URL("./fixtures/maps-export.csv", import.meta.url), "utf8"));
     const m = autoMap(t[0]);
     const at = (h: string) => m[t[0].indexOf(h)];
@@ -99,16 +99,16 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     const foundBy = foundByOf(true, new Date("2026-11-02T18:00:00Z"));
     expect(foundBy).toBe("import: google maps 2026-11-02");
     expect(leadFields(rows[0], { foundBy, maps: true, packageForWebsite: "SMB Website Care Retainer" })).toMatchObject({
-      business: "Sample Stitch Shop - Staten Island",
-      website: "http://www.samplestitch.example/",
+      business: "Skirt Story - Staten Island",
+      website: "http://www.skirtstory.example/",
       location: "Staten Island, NY, USA",
-      address: "1 Example Ave #1, Staten Island, NY 10307, United States",
+      address: "1171, 240 Page Ave #103, Staten Island, NY 10307, United States",
       industry: "Women's clothing store",
-      map_link: "https://www.google.com/maps/place/Sample+Stitch+Shop",
-      evidence: "http://www.samplestitch.example/",
+      map_link: "https://www.google.com/maps/place/Skirt+Story/data=!4m7!3m6!1s0x0:0x1",
+      evidence: "http://www.skirtstory.example/",
       package: "SMB Website Care Retainer",
       listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" },
-      notes: "Casual clothing.",
+      notes: "Casual, California-inspired clothing.",
       found_by: "import: google maps 2026-11-02",
     });
     // no website: evidence is the map link, no package; the listing-only note
@@ -119,20 +119,20 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     const { db, tenantId, who } = await board();
     const plan = await planImport(db, tenantId, rows, MAPS_RULES);
     expect(plan.map((l) => [l.business, l.outcome, l.batch ?? l.reason])).toEqual([
-      ["Sample Stitch Shop - Staten Island", "create", "email"],
+      ["Skirt Story - Staten Island", "create", "email"],
       ["Brooklyn Threads", "create", "email"],
       ["Bronx Kids Wear", "create", "listing"],
       ["Hoboken Linen", "create", "email"], // New Jersey is kept
       ["Philly Denim", "excluded", "outside NY and NJ"],
       ["Gone Boutique", "excluded", "closed"],
-      ["Prism Shops - Bronx", "excluded", "a chain (3 or more branches in the file)"],
-      ["Prism Shops - Queens", "excluded", "a chain (3 or more branches in the file)"],
-      ["Prism Shops - Harlem", "excluded", "a chain (3 or more branches in the file)"],
+      ["Rainbow Shops - Bronx", "excluded", "a chain (3 or more branches in the file)"],
+      ["Rainbow Shops - Queens", "excluded", "a chain (3 or more branches in the file)"],
+      ["Rainbow Shops - Harlem", "excluded", "a chain (3 or more branches in the file)"],
       ["Quiet Tailor", "excluded", "neither an email nor a phone"],
       ["Insta Thrift", "create", "listing"],
     ]);
     expect(plan[10].social).toBe(true);
-    // no rules: everything with a name is created, but for the second Prism branch (the same website as the first)
+    // no rules: everything with a name is created, but for the second Rainbow branch (the same website as the first)
     expect((await planImport(db, tenantId, rows)).filter((l) => l.outcome === "create")).toHaveLength(10);
 
     // two batches, one report; the borough is read from the location
@@ -144,14 +144,11 @@ describe("a Google Maps business export (the owner's file's header)", () => {
     expect(b.id).toBe(a.id);
     expect([a.created, b.created]).toEqual([3, 2]);
     const lead = (await listLeads(db, tenantId, { city: "Staten Island" })).leads[0];
-    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+17185550196", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
+    expect(lead).toMatchObject({ city: "Staten Island", state: "NY", phone: "+17185550178", found_by: "import: google maps 2026-11-02", package: "SMB Website Care Retainer", listing: { rating: 4.3, reviews: 14, place_id: "ChIJexample0001" } });
     const nj = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Hoboken Linen")!;
     expect(nj).toMatchObject({ state: "NJ", location: "Hoboken, NJ, USA" });
     const kids = (await listLeads(db, tenantId)).leads.find((l) => l.business === "Bronx Kids Wear")!;
     expect(kids.notes).toMatch(/^No email, listing only\./);
-    const [imp] = await recentImports(db, tenantId);
-    expect(imp).toMatchObject({ id: a.id, file: "maps.csv", created: 5, skipped: 6, rejected: 0 });
-    expect(imp.created_ids).toHaveLength(5);
     const report = await importReportCsv(db, tenantId, a.id);
     expect(report!.csv).toContain('4,"Bronx Kids Wear",created,"created (no email, listing only)"');
     expect(report!.csv).toContain('6,"Philly Denim",excluded,"outside NY and NJ"');
@@ -161,15 +158,15 @@ describe("a Google Maps business export (the owner's file's header)", () => {
 describe("a website from the email's domain", () => {
   it("takes a business's own domain, never a free or shared mailbox", async () => {
     const { websiteFromEmail } = await import("@/lib/lead-import");
-    expect(websiteFromEmail("hello@luna-salon.example")).toBe("https://luna-salon.example");
-    expect(websiteFromEmail(" Info@WWW.Bodega.example ")).toBe("https://bodega.example");
-    for (const free of ["not-a-person@gmail.com", "not-a-person@googlemail.com", "not-a-person@yahoo.com", "not-a-person@yahoo.co.uk", "not-a-person@yahoo.com.mx", "not-a-person@outlook.com", "not-a-person@outlook.fr", "not-a-person@hotmail.com", "not-a-person@hotmail.co.uk", "not-a-person@live.com", "not-a-person@icloud.com", "not-a-person@me.com", "not-a-person@proton.me", "not-a-person@protonmail.com", "not-a-person@aol.com", "not-a-person@verizon.net", "not-a-person@optonline.net", "not-a-person@cuny.edu", "not-a-person@nyc.gov", "not-a-person@school.edu.au"]) expect(websiteFromEmail(free), free).toBe("");
-    for (const bad of ["", null, undefined, "no-at-sign", "two@@x.com", "not-a-person@localhost"]) expect(websiteFromEmail(bad)).toBe("");
+    expect(websiteFromEmail("hello@luna-salon.com")).toBe("https://luna-salon.com");
+    expect(websiteFromEmail(" Info@WWW.Bodega.NYC ")).toBe("https://bodega.nyc");
+    for (const free of ["a@gmail.com", "a@googlemail.com", "a@yahoo.com", "a@yahoo.co.uk", "a@yahoo.com.mx", "a@outlook.com", "a@outlook.fr", "a@hotmail.com", "a@hotmail.co.uk", "a@live.com", "a@icloud.com", "a@me.com", "a@proton.me", "a@protonmail.com", "a@aol.com", "a@verizon.net", "a@optonline.net", "a@cuny.edu", "a@nyc.gov", "a@school.edu.au"]) expect(websiteFromEmail(free), free).toBe("");
+    for (const bad of ["", null, undefined, "no-at-sign", "two@@x.com", "a@localhost"]) expect(websiteFromEmail(bad)).toBe("");
   });
 
   it("fills an empty website on import, marked in History; a file's own website stays", async () => {
     const { db, tenantId, who } = await board();
-    const csv = `Business Name,Website,E-mail,Borough\nLuna Salon,,hello@luna-salon.example,Queens\nPark Deli,,not-a-person-parkdeli@gmail.com,Bronx\nRio Grill,riogrill.example,owner@rio-group.example,Bronx\n`;
+    const csv = `Business Name,Website,E-mail,Borough\nLuna Salon,,hello@luna-salon.example,Queens\nPark Deli,,parkdeli@gmail.com,Bronx\nRio Grill,riogrill.example,owner@rio-group.example,Bronx\n`;
     const t = parseCsv(csv);
     const r = await runImport(db, tenantId, who, mapRows(t.slice(1), autoMap(t[0])).map((x, i) => ({ ...x, row: i + 2 })), "maps.csv");
     expect(r.created).toBe(3);
@@ -183,5 +180,44 @@ describe("a website from the email's domain", () => {
     // a guess, not the person's: the Enricher may correct it
     const bot = await writeLead(db, tenantId, { id: by["Luna Salon"].id }, { website: "https://lunasalon.example" }, { kind: "bot", name: "Lead Enricher", via: "engine" });
     expect(bot.ok && bot.written).toEqual(["website"]);
+  });
+});
+
+describe("a batch that runs out of time (a long batch was once cut off at 60 s with no report)", () => {
+  it("stops after the deadline with the rows it handled and their report; the next request finishes; a re-run skips them all", async () => {
+    const db = await memoryDb();
+    const { tenant, owner } = await createTenant(db, "Acme", "acme", { email: "o@acme.example", name: "Olu" });
+    const who = { userId: owner.id, name: "Olu" };
+    const rows = ["Alpha Deli", "Beta Barbers", "Gamma Nails", "Delta Yoga", "Epsilon Cafe"].map((business, i) => ({ business, city: "Brooklyn", state: "NY", phone: `(718) 555-010${i}`, row: i + 2 }));
+    let t = 0;
+    const clock = () => (t += 10); // the clock is read before each row after the first: 10, 20 pass, 30 is past the deadline
+    const first = await runImport(db, tenant.id, who, rows, "maps.csv", { batch: "listing", deadline: 25, clock });
+    expect(first).toMatchObject({ done: 3, created: 3 });
+    const rest = await runImport(db, tenant.id, who, rows.slice(first.done), "maps.csv", { batch: "listing", importId: first.id });
+    expect(rest).toMatchObject({ id: first.id, done: 2, created: 2 });
+    // the import's report holds all five
+    expect((await importReportCsv(db, tenant.id, first.id))!.csv.trim().split("\n")).toHaveLength(6);
+    // the same file again: every row already on the board, none written twice
+    const plan = await planImport(db, tenant.id, rows, { states: null, skipClosed: false, skipChains: false, needContact: false });
+    expect(plan.map((l) => l.outcome)).toEqual(["skipped", "skipped", "skipped", "skipped", "skipped"]);
+    const again = await runImport(db, tenant.id, who, rows, "maps.csv", { batch: "listing" });
+    expect(again).toMatchObject({ created: 0, skipped: 5 });
+    // at least one row is handled even when the deadline has passed before the first
+    const late = await runImport(db, tenant.id, who, [{ business: "Zeta Florist", city: "Queens", state: "NY", row: 9 }], "x.csv", { deadline: 1, clock: () => 99 });
+    expect(late.done).toBe(1);
+  });
+});
+
+describe("Import all", () => {
+  it("one button for both groups in order, one overall bar, Resume from the row reached, Starting… before the first answer", async () => {
+    const { readFileSync } = await import("node:fs");
+    const v = readFileSync(`${process.cwd()}/app/leads/import/import-view.tsx`, "utf8");
+    expect(v).toMatch(/const ORDER: Batch\[\] = \["email", "listing"\]/);
+    expect(v).toMatch(/Import all \(\{n\(allRows\)\} rows\)/);
+    expect(v).toMatch(/Importing \$\{n\(overall\.done\)\} of \$\{n\(overall\.total\)\}/);
+    expect(v).toMatch(/let at = handledRef\.current\[batch\] \?\? 0;/);
+    expect(v).toMatch(/stopped\.all \? runAll\(\) : run\(stopped\.batch\)/);
+    expect(v).toMatch(/"Starting…"/);
+    expect(v).toMatch(/serverError\(r\.status, text\)/);
   });
 });

@@ -1,3 +1,4 @@
+import { agentName } from "@/lib/agent-names";
 import { pageMe } from "@/lib/page-me";
 import { can } from "@/lib/roles";
 import { cadenceFor, CADENCES, ROUNDINGS } from "@/lib/cadence";
@@ -89,9 +90,9 @@ export default async function Company(props: PageProps<"/settings/company">) {
           Daily send goals
         </h2>
         <p className={helper}>
-          How many first emails and WhatsApp messages each person sends a day. Many sends from one address in a day land in
-          spam more often, so the pack fills only up to what is left today and Mark sent past the goal is refused. Checking
-          numbers is not a send and has no limit. The day starts at midnight in the company&apos;s time zone.
+          How many first emails and WhatsApp messages each person aims to send a day. A goal is a target, not a limit: the
+          Clock shows each person how far they are, and nobody is stopped past it. The day starts at midnight in the
+          company&apos;s time zone.
         </p>
         <PendingForm action="/api/settings" method="post" className="mt-4 grid gap-4 sm:grid-cols-3">
           <input type="hidden" name="action" value="sendGoals" />
@@ -127,14 +128,14 @@ export default async function Company(props: PageProps<"/settings/company">) {
           Live world
         </h2>
         <p className={helper}>
-          The office, read-only, at the top of the Family page. It runs on the machine that runs the agents; paste the
-          address your tunnel printed (see the fleet&apos;s webapp/docs/world-public.md). Empty: no office on the Family page.
+          The agents&apos; world, read-only, at the top of the Team page. It runs on your own computer; paste the public
+          address your tunnel gives. Empty: no world on the Team page.
         </p>
         <PendingForm action="/api/settings" method="post" className="mt-4 grid gap-4 sm:grid-cols-3">
           <input type="hidden" name="action" value="worldUrl" />
           <label className={`${fieldLabel} sm:col-span-2`}>
             Live world address
-            <input name="world_url" type="url" inputMode="url" defaultValue={s.worldUrl ?? ""} placeholder="https://…" disabled={!owner} className={control} />
+            <input name="world_url" type="url" inputMode="url" defaultValue={s.worldUrl ?? ""} placeholder="https://…ts.net" disabled={!owner} className={control} />
           </label>
           {owner ? (
             <div className="sm:col-span-3">
@@ -145,19 +146,46 @@ export default async function Company(props: PageProps<"/settings/company">) {
         </PendingForm>
       </section>
 
+      <section aria-labelledby="samples">
+        <h2 id="samples" className={sectionTitle}>
+          Sample sites
+        </h2>
+        <p className={helper}>
+          The {agentName("Site Builder")}&apos;s free sample pages for businesses without a website. Off: a person approves each draft before it
+          is published. On: a draft whose text passes the checks is approved at once (a held sample still waits).
+        </p>
+        <PendingForm action="/api/settings" method="post" className="mt-4 grid gap-4 sm:grid-cols-3">
+          <input type="hidden" name="action" value="samples" />
+          <label className="flex items-center gap-2 text-sm text-ink sm:col-span-3">
+            <input type="checkbox" name="samples_auto_publish" defaultChecked={!!s.samplesAutoPublish} disabled={!owner} />
+            Approve a sample draft as soon as it passes the checks
+          </label>
+          {owner ? (
+            <>
+              <label className={`${fieldLabel} sm:col-span-3`}>
+                Places the team works from (one per line; never written on a sample page)
+                <textarea name="own_places" rows={3} defaultValue={(s.ownPlaces ?? []).join("\n")} className={control} />
+              </label>
+              <div className="sm:col-span-3">
+                <button className={btnOutline}>Save sample settings</button>
+              </div>
+            </>
+          ) : null}
+        </PendingForm>
+      </section>
+
       <section aria-labelledby="krs">
         <h2 id="krs" className={sectionTitle}>
           This week&apos;s key results
         </h2>
         <p className={helper}>The targets the home page and This week measure the team against.</p>
-        <PendingForm action="/api/settings" method="post" className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <PendingForm action="/api/settings" method="post" className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <input type="hidden" name="action" value="keyResults" />
           {(
             [
               ["sent", "Emails sent"],
               ["replies", "Replies"],
               ["meetings", "Meetings"],
-              ["tasksDone", "Tasks done"],
             ] as const
           ).map(([k, label]) => (
             <label key={k} className={fieldLabel}>
@@ -166,7 +194,7 @@ export default async function Company(props: PageProps<"/settings/company">) {
             </label>
           ))}
           {krs ? (
-            <div className="col-span-2 sm:col-span-4">
+            <div className="col-span-2 sm:col-span-3">
               <button className={btnOutline}>Save key results</button>
             </div>
           ) : null}
