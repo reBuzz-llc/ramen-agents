@@ -6,7 +6,7 @@ body_class: apis
 {%- assign rows = d.in_use_table | sort: "name" -%}
 {%- assign entries = d.entries | sort: "name" -%}
 {%- assign now_s = site.time | date: "%s" | plus: 0 -%}
-{%- capture no_card -%}{%- for r in rows -%}{%- if r.card.value contains "no card" -%}{{ r.name | split: " (" | first }}|{%- endif -%}{%- endfor -%}{%- endcapture -%}
+{%- capture no_card -%}{%- for r in rows -%}{%- if r.card.value == "no card" -%}{{ r.name | split: " (" | first }}|{%- endif -%}{%- endfor -%}{%- endcapture -%}
 {%- assign no_card = no_card | split: "|" -%}
 {%- capture faq1 -%}Of the providers we checked on {{ d.generated | date: "%-d %b %Y" }}: {{ no_card | join: ", " }}. The table and the cards say "no card", "card needed" or "not stated" for each.{%- endcapture -%}
 <div class="wrap apis-head">

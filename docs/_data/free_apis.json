@@ -19,10 +19,10 @@
     "kind": "stated"
    },
    "card": {
-    "value": "not stated for the Free plan",
+    "value": "not published",
     "kind": "not published"
    },
-   "note": "Token limits bind long before request limits.",
+   "note": "Token limits bind long before request limits. Groq prints no card statement for the Free plan.",
    "checked": "2026-11-25"
   },
   {
@@ -42,10 +42,10 @@
     "kind": "not published"
    },
    "card": {
-    "value": "no card required in AI Studio",
+    "value": "no card",
     "kind": "stated"
    },
-   "note": "On the free tier, Google says content is used to improve its products.",
+   "note": "On the free tier, Google says content is used to improve its products. AI Studio says no card is required.",
    "checked": "2026-11-25"
   },
   {
@@ -88,10 +88,10 @@
     "kind": "not published"
    },
    "card": {
-    "value": "no card for :free models",
+    "value": "no card",
     "kind": "stated"
    },
-   "note": "Counted in requests, not tokens.",
+   "note": "Counted in requests, not tokens. No card is needed for the :free models.",
    "checked": "2026-11-25"
   },
   {
@@ -111,7 +111,7 @@
     "kind": "not published"
    },
    "card": {
-    "value": "free registration, no card",
+    "value": "no card",
     "kind": "stated"
    },
    "note": "Free tier is called Tier 1. The page says use continues as paid if the account's charge switch is turned on, so keep it off if you want free only.",
@@ -157,7 +157,7 @@
     "kind": "not published"
    },
    "card": {
-    "value": "free plan, no card, but it must be activated",
+    "value": "no card, but see the note",
     "kind": "stated"
    },
    "note": "Mistral's docs, as we read them on 21 Nov, say Free mode has no API access, while our older account still answers, with 2 requests a minute (that figure has moved before: it was 30 on 6 Nov). Do not count on API access on Mistral's free mode as a new reader.",

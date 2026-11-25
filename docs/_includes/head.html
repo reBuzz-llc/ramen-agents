@@ -4,9 +4,8 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0e13">
   {%- seo -%}
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="preload" href="{{ "/assets/fonts/ibm-plex-sans-latin-600-normal.woff2" | relative_url }}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{{ "/assets/fonts/ibm-plex-sans-latin-400-normal.woff2" | relative_url }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ "/assets/site.css" | relative_url }}">
   {%- comment -%} The landing page's JSON-LD is built by scripts/build_docs.py; a page may add its own (the free AI API list). {%- endcomment -%}
   {%- if page.url == "/" -%}
