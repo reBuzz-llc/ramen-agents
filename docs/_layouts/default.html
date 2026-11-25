@@ -1,0 +1,17 @@
+---
+layout: base
+---
+<div class="wrap read-grid">
+  <aside class="rail" data-toc aria-label="On this page"></aside>
+  <article class="read">
+    <p class="eyebrow">{{ page.eyebrow | default: "Docs" }}</p>
+    <h1>{{ page.title }}</h1>
+    <div class="prose">
+{{ content }}
+    </div>
+    <aside class="next" aria-label="Two ways to start">
+      <a class="btn btn-main" href="{{ "/set-up-for-you.html" | relative_url }}">We set it up for you</a>
+      <a class="btn btn-line" href="{{ site.run_yourself_url }}">Run it yourself</a>
+    </aside>
+  </article>
+</div>

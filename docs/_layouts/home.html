@@ -1,0 +1,77 @@
+---
+layout: base
+body_class: home
+---
+{%- assign h = page.hero -%}
+<section class="hero" aria-labelledby="hero-line">
+  <div class="scene" aria-hidden="true">
+    <picture>
+      <source media="(max-width: 859px)" srcset="{{ "/assets/office/phone.webp" | relative_url }}" width="780" height="660">
+      <img src="{{ "/assets/office/desk.webp" | relative_url }}" width="1280" height="856" alt="" fetchpriority="high">
+    </picture>
+    <video muted loop playsinline preload="none" tabindex="-1"
+      data-desk="{{ "/assets/office/desk" | relative_url }}" data-phone="{{ "/assets/office/phone" | relative_url }}"></video>
+  </div>
+  <div class="wrap hero-copy">
+    <h1 id="hero-line" class="rise">{{ h.line }}</h1>
+    <p class="lede rise">{{ h.sentence }}</p>
+    <p class="cta rise">
+      <a class="btn btn-main" href="{{ "/set-up-for-you.html" | relative_url }}">{{ h.main_button }}</a>
+      <a class="btn btn-line" href="{{ site.run_yourself_url }}">{{ h.second_button }}</a>
+    </p>
+    <p class="small rise">{{ h.small }}</p>
+  </div>
+  <p class="wrap cap"><span class="live" aria-hidden="true"></span>{{ h.caption }}</p>
+</section>
+
+<section class="band" aria-label="In numbers">
+  <ul class="wrap band-in">
+    {%- for b in page.band %}
+    <li><strong>{{ b.value }}</strong><span>{{ b.label }}</span></li>
+    {%- endfor %}
+  </ul>
+</section>
+
+{%- for p in page.panels %}
+<section class="panel{% cycle '', ' flip', '' %}" aria-labelledby="panel-{{ forloop.index }}">
+  <div class="wrap panel-in">
+    <div class="panel-text" data-rv>
+      <p class="eyebrow">{{ p.eyebrow }}</p>
+      <h2 id="panel-{{ forloop.index }}">{{ p.heading }}</h2>
+      <p>{{ p.text }}</p>
+      {%- if p.dated %}<p class="dated">{{ p.dated }}</p>{% endif %}
+      {%- if p.link %}<p><a class="more" href="{{ p.link | relative_url }}">{{ p.link_text }}</a></p>{% endif %}
+    </div>
+    <figure class="panel-fig fig-{{ p.figure }}" data-rv>
+      {%- if p.figure == "office" %}
+      <img src="{{ "/assets/office/close.webp" | relative_url }}" width="750" height="810" loading="lazy"
+        alt="Close up: the Lead Gen agent at its desk, its card showing 23 leads today and the page it last opened. Example data.">
+      <figcaption>Lead Gen at its desk, close up. Example data.</figcaption>
+      {%- elsif p.figure == "fence" %}
+      <pre class="term" aria-label="A refused action from the quickstart demo"><span class="t-dim">$ bot demo</span>
+<span class="t-dim">…</span>
+step 6: open fake://login.html -&gt; <b>refused</b>
+<span class="t-dim">  (URL path segment 'login.html' is on the denylist)</span></pre>
+      <figcaption>From the quickstart demo: a login page is refused before it opens.</figcaption>
+      {%- elsif p.figure == "apis" %}
+      {%- assign rows = site.data.free_apis.in_use_table %}
+      <table class="mini">
+        <thead><tr><th scope="col">Provider</th><th scope="col">Card</th><th scope="col">Checked</th></tr></thead>
+        <tbody>
+        {%- for r in rows limit: 5 %}
+          <tr><td>{{ r.name | split: " (" | first }}</td><td>{{ r.card.value }}</td><td>{{ r.checked | date: "%-d %b" }}</td></tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+      <figcaption>{{ rows.size }} free AI APIs we run on, each checked against the provider's own page.</figcaption>
+      {%- endif %}
+    </figure>
+  </div>
+</section>
+{%- endfor %}
+
+<section class="rest">
+  <div class="wrap prose home-prose" data-rv>
+{{ content }}
+  </div>
+</section>

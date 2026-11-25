@@ -6,25 +6,34 @@ description: >-
 url: https://rebuzz-llc.github.io
 baseurl: /ramen-agents
 lang: en
-theme: minima
+# No theme: the site's own layouts (_layouts/) and one stylesheet (assets/site.css). Pages stay plain Markdown.
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
 image: /assets/og.png
-defaults:            # every page's og:image and twitter:image (jekyll-seo-tag reads it per page)
+defaults:            # every page's og:image and twitter:image (jekyll-seo-tag reads it per page), and the reading layout
   - scope:
       path: ""
     values:
       image: /assets/og.png
+      layout: default
 logo: /assets/og.png
 github_username: reBuzz-llc
 social:
   name: ramen-agents
   links:
     - https://github.com/reBuzz-llc/ramen-agents
-header_pages:          # the four a buyer needs; the other pages stay linked from the home page and the FAQ
-  - set-up-for-you.md
-  - try-without-a-key.md
-  - fence.md
-  - faq.md
+nav:                   # the header's links; the other pages stay linked from the home page, the FAQ and the footer
+  - title: Set it up for me
+    url: /set-up-for-you.html
+  - title: Try it
+    url: /try-without-a-key.html
+  - title: The fence
+    url: /fence.html
+  - title: Free AI APIs
+    url: /free-ai-apis.html
+  - title: FAQ
+    url: /faq.html
+repo_url: https://github.com/reBuzz-llc/ramen-agents
+run_yourself_url: https://github.com/reBuzz-llc/ramen-agents#try-it-in-10-minutes-no-key
 goatcounter_code: ramen

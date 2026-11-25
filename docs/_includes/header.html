@@ -1,0 +1,21 @@
+<a class="skip" href="#main">Skip to the content</a>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="mark" href="{{ "/" | relative_url }}"><span class="dot" aria-hidden="true"></span>ramen-agents</a>
+    <nav class="nav" aria-label="Pages">
+      {%- for item in site.nav %}
+      <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title }}</a>
+      {%- endfor %}
+      <a href="{{ site.repo_url }}">GitHub</a>
+    </nav>
+    <details class="menu">
+      <summary aria-label="Open the page menu"><span></span><span></span><span></span></summary>
+      <nav aria-label="Pages">
+        {%- for item in site.nav %}
+        <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title }}</a>
+        {%- endfor %}
+        <a href="{{ site.repo_url }}">The code on GitHub</a>
+      </nav>
+    </details>
+  </div>
+</header>

@@ -1,38 +1,24 @@
-<footer class="site-footer h-card">
-  <data class="u-url" href="{{ "/" | relative_url }}"></data>
-
-  <div class="wrapper">
-
-    <h2 class="footer-heading">{{ site.title | escape }}</h2>
-
-    <div class="footer-col-wrapper">
-      <div class="footer-col footer-col-1">
-        <ul class="contact-list">
-          <li class="p-name">
-            {%- if site.author -%}
-              {{ site.author | escape }}
-            {%- else -%}
-              {{ site.title | escape }}
-            {%- endif -%}
-            </li>
-            {%- if site.email -%}
-            <li><a class="u-email" href="mailto:{{ site.email }}">{{ site.email }}</a></li>
-            {%- endif -%}
-        </ul>
-      </div>
-
-      <div class="footer-col footer-col-2">
-        {%- include social.html -%}
-      </div>
-
-      <div class="footer-col footer-col-3">
-        <p>{{- site.description | escape -}}</p>
-        {%- if site.goatcounter_code -%}
-        <p>This website counts page visits with GoatCounter, without cookies and without storing personal data. The counter is on this website only, not in the ramen-agents software.</p>
-        {%- endif -%}
-      </div>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <p class="mark"><span class="dot" aria-hidden="true"></span>ramen-agents</p>
+      <p>Open source (Apache-2.0), built by ReBuzz LLC. The code is on <a href="{{ site.repo_url }}">GitHub</a>.</p>
     </div>
-
+    <nav aria-label="All pages">
+      <a href="{{ "/set-up-for-you.html" | relative_url }}">Set it up for me</a>
+      <a href="{{ "/try-without-a-key.html" | relative_url }}">Try it without a key</a>
+      <a href="{{ "/free-ai-apis.html" | relative_url }}">Free AI APIs</a>
+      <a href="{{ "/free-tiers.html" | relative_url }}">Free tiers it runs on</a>
+      <a href="{{ "/does-it-cost-anything.html" | relative_url }}">What it costs</a>
+      <a href="{{ "/fence.html" | relative_url }}">The fence</a>
+      <a href="{{ "/validator-rules.html" | relative_url }}">The Validator's rules</a>
+      <a href="{{ "/leads-board.html" | relative_url }}">Where leads go</a>
+      <a href="{{ "/how-it-compares.html" | relative_url }}">How it compares</a>
+      <a href="{{ "/claude-code-team.html" | relative_url }}">With Claude Code</a>
+      <a href="{{ "/faq.html" | relative_url }}">FAQ</a>
+    </nav>
+    {%- if site.goatcounter_code %}
+    <p class="fine">This website counts page visits with GoatCounter, without cookies and without storing personal data. The counter is on this website only, not in the ramen-agents software.</p>
+    {%- endif %}
   </div>
-
 </footer>

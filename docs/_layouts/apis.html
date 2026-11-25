@@ -1,0 +1,117 @@
+---
+layout: base
+body_class: apis
+---
+{%- assign d = site.data.free_apis -%}
+{%- assign rows = d.in_use_table | sort: "name" -%}
+{%- assign entries = d.entries | sort: "name" -%}
+{%- assign now_s = site.time | date: "%s" | plus: 0 -%}
+{%- capture no_card -%}{%- for r in rows -%}{%- if r.card.value contains "no card" -%}{{ r.name | split: " (" | first }}|{%- endif -%}{%- endfor -%}{%- endcapture -%}
+{%- assign no_card = no_card | split: "|" -%}
+{%- capture faq1 -%}Of the providers we checked on {{ d.generated | date: "%-d %b %Y" }}: {{ no_card | join: ", " }}. The table and the cards say "no card", "card needed" or "not stated" for each.{%- endcapture -%}
+<div class="wrap apis-head">
+  <p class="eyebrow">{{ page.eyebrow }}</p>
+  <h1>{{ page.h1 }}</h1>
+  <p class="stamp"><span class="live" aria-hidden="true"></span>Last full review: {{ d.generated | date: "%-d %b %Y" }}. Next: by {{ d.next_review_due | date: "%-d %b %Y" }}.</p>
+  <div class="prose intro">
+{{ content }}
+  </div>
+</div>
+
+<section class="wrap apis-sec" aria-labelledby="s-in-use">
+  <h2 id="s-in-use">{{ page.sections.in_use }}</h2>
+  <div class="tbl">
+  <table class="apis-table">
+    <thead><tr><th scope="col">Provider</th><th scope="col">Free allowance</th><th scope="col">Resets</th><th scope="col">Largest request</th><th scope="col">Card</th><th scope="col">Checked</th></tr></thead>
+    <tbody>
+    {%- for r in rows %}
+    {%- assign age = r.checked | date: "%s" | plus: 0 | minus: now_s | abs | divided_by: 86400 %}
+      <tr id="{{ r.slug }}">
+        <th scope="row" data-label="Provider"><a href="{{ r.link }}">{{ r.name }}</a>{% if r.note %}<span class="note">{{ r.note }}</span>{% endif %}</th>
+        <td data-label="Free allowance">{{ r.allowance.value }}<span class="kind">{{ r.allowance.kind }}</span></td>
+        <td data-label="Resets">{{ r.recycle.value }}<span class="kind">{{ r.recycle.kind }}</span></td>
+        <td data-label="Largest request">{{ r.request.value | default: "not published" }}<span class="kind">{{ r.request.kind | default: "not published" }}</span></td>
+        <td data-label="Card">{{ r.card.value }}<span class="kind">{{ r.card.kind }}</span></td>
+        <td data-label="Checked" class="when">{{ r.checked | date: "%-d %b %Y" }}{% if age > 28 %}<span class="due">check due</span>{% endif %}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="fine">{{ page.table_line }}</p>
+</section>
+
+{%- assign usable = "" | split: "" -%}{%- assign left = "" | split: "" -%}{%- assign tools = "" | split: "" -%}
+{%- for e in entries -%}
+  {%- if e.kind == "tool" -%}{%- assign tools = tools | push: e -%}
+  {%- elsif e.group == "unusable" -%}{%- assign left = left | push: e -%}
+  {%- else -%}{%- assign usable = usable | push: e -%}{%- endif -%}
+{%- endfor -%}
+
+{%- if usable.size > 0 %}
+<section class="wrap apis-sec" aria-labelledby="s-usable">
+  <h2 id="s-usable">{{ page.sections.usable }}</h2>
+  <div class="cards">
+  {%- for e in usable %}
+    <article class="api-card" id="{{ e.slug }}" data-rv>
+      <h3><a href="{{ e.link }}">{{ e.name }}</a></h3>
+      <dl>
+        <dt>Free allowance</dt><dd>{{ e.free_allowance }}<span class="kind">{{ e.allowance_kind }}</span></dd>
+        <dt>Resets</dt><dd>{{ e.recycle | default: "not published" }}</dd>
+        <dt>Largest request</dt><dd>{{ e.request_limit | default: "not published" }}</dd>
+        <dt>Card</dt><dd>{{ e.card }}</dd>
+      </dl>
+      <p>{{ e.public_note }}</p>
+    </article>
+  {%- endfor %}
+  </div>
+</section>
+{%- endif %}
+
+{%- if left.size > 0 %}
+<section class="wrap apis-sec" aria-labelledby="s-left">
+  <h2 id="s-left">{{ page.sections.left_off }}</h2>
+  <ul class="left-off">
+  {%- for e in left %}
+    <li id="{{ e.slug }}"><a href="{{ e.link }}">{{ e.name | split: " (" | first }}</a><span>{{ e.public_note }}</span></li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+
+{%- if tools.size > 0 %}
+<section class="wrap apis-sec small-sec" aria-labelledby="s-tools">
+  <h2 id="s-tools">{{ page.sections.tools }}</h2>
+  <ul class="tools">
+  {%- for e in tools %}
+    <li id="{{ e.slug }}"><a href="{{ e.link }}">{{ e.name }}</a><span>{{ e.public_note }}</span></li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+
+<section class="wrap apis-sec" aria-labelledby="s-faq">
+  <h2 id="s-faq">Questions</h2>
+  <div class="faq">
+  {%- for f in page.faq %}
+    <details>
+      <summary>{{ f.q }}</summary>
+      <p>{% if f.a == "NO_CARD_LIST" %}{{ faq1 }}{% else %}{{ f.a }}{% endif %}</p>
+    </details>
+  {%- endfor %}
+  </div>
+</section>
+
+<div class="wrap">
+  <aside class="next" aria-label="Two ways to start">
+    <a class="btn btn-main" href="{{ "/set-up-for-you.html" | relative_url }}">We set it up for you</a>
+    <a class="btn btn-line" href="{{ site.run_yourself_url }}">Run it yourself</a>
+  </aside>
+</div>
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"FAQPage","mainEntity":[{%- for f in page.faq -%}{% if f.a == "NO_CARD_LIST" %}{% assign ans = faq1 %}{% else %}{% assign ans = f.a %}{% endif %}{"@type":"Question","name":{{ f.q | jsonify }},"acceptedAnswer":{"@type":"Answer","text":{{ ans | jsonify }}}}{% unless forloop.last %},{% endunless %}{%- endfor -%}]},
+{"@type":"ItemList","name":{{ page.sections.in_use | jsonify }},"itemListElement":[{%- for r in rows -%}{"@type":"ListItem","position":{{ forloop.index }},"name":{{ r.name | jsonify }},"url":{{ r.link | jsonify }}}{% unless forloop.last %},{% endunless %}{%- endfor -%}]}
+]}
+</script>

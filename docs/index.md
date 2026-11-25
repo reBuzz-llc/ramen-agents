@@ -2,17 +2,40 @@
 layout: home
 title: "ramen-agents: a team of AI agents that looks for your next client"
 description: "A free, open-source team of five AI agents for a small business: it finds businesses with a gap you can fix, prices an offer and writes the email. $0 in model fees on the default free tiers, and we set it up for you."
+# The first screen, the band and the three panels. The page body below is the rest.
+hero:
+  line: "AI agents that find your next client."
+  sentence: "Five AI agents and a Validator that checks their work find local businesses with a gap you can fix, price an offer and write the email. You send it. Free and open source, on your Mac."
+  main_button: "We set it up for you"
+  second_button: "Run it yourself"
+  small: "$0 in model fees on the default free tiers. ramen-agents never asks for a card."
+  caption: "The office, with example data."
+band:   # each figure true and kept: the first only ever goes up (refreshed each fortnight)
+  - value: "1,200+"
+    label: "businesses found by the agents since late September"
+  - value: "$0"
+    label: "in model fees on the default free tiers"
+  - value: "5 agents"
+    label: "and a Validator that checks their work"
+panels:
+  - eyebrow: "The office"
+    heading: "They work. You decide."
+    text: "The agents find, price and draft. Every email waits for you to send it."
+    figure: office
+  - eyebrow: "The fence"
+    heading: "A fence in code."
+    text: "No agent can sign up, log in or spend, and a Validator checks every write. The fence is in the code, not in a prompt, and every refusal is written down where you can read it."
+    dated: "1,260 of 3,566 actions refused by our checks in one day (the log, 24 hours to 21 Nov 2026)."
+    link: /fence.html
+    link_text: "Can an AI agent spend money, sign up or collect personal data?"
+    figure: fence
+  - eyebrow: "Free AI APIs"
+    heading: "Free tiers, listed honestly."
+    text: "What each free AI API gives, when it resets and whether it asks for a card, checked against the provider's own page."
+    link: /free-ai-apis.html
+    link_text: "The free AI API list"
+    figure: apis
 ---
-
-**A team of five AI agents that looks for your next client.** It finds businesses with a gap you can fix, prices an
-offer and writes the email. You read it and send it. The team runs on your Mac and calls free cloud models, with $0 in model fees on the default
-free tiers.
-
-**[We set it up for you](set-up-for-you.html)** · [Try it in ten minutes](try-without-a-key.html) ·
-[The code on GitHub](https://github.com/reBuzz-llc/ramen-agents)
-
-![The dashboard with example data: a pixel office where each agent works at its own desk, its screen showing what it is doing right now]({{ "/assets/world.gif" | relative_url }})
-
 ## What you get every day
 
 - **New leads.** Small businesses with a gap you fix, each with a published business contact.
@@ -21,19 +44,6 @@ free tiers.
 - **One clear task for your team.** The CEO agent turns the day's work into one task.
 - **Answers with sources.** One research question at a time, with a source for every note.
 - **A dashboard you can watch.** A small pixel office where each agent sits at its desk and shows what it is doing.
-
-## Our own team's numbers
-
-**Running in production since late September 2026: 1,200+ leads found by the agents.**
-
-We built ramen-agents for our own small agency and run it every day.
-
-## What no agent can do
-
-No agent can create an account, spend money, or collect personal data beyond a business's public contact. That fence is in the code, not in a prompt,
-and every refusal is written down where you can read it.
-[Can an AI agent spend money, sign up or collect personal data?](fence.html) ·
-[What does the Validator check?](validator-rules.html)
 
 ## Two ways to start
 
@@ -56,5 +66,3 @@ first run with you. The software stays free; the setup is a paid service.
 The name comes from "ramen profitable": the stretch when a young company lives on ramen while it finds its first
 customers. This is the team for that stretch.
 
-ramen-agents is open source (Apache-2.0) and built by ReBuzz LLC. The code is on GitHub:
-[reBuzz-llc/ramen-agents](https://github.com/reBuzz-llc/ramen-agents).
