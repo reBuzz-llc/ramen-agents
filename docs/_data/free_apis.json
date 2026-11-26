@@ -76,7 +76,7 @@
    "name": "MegaNova AI",
    "link": "https://docs.meganova.ai/free-model-quota",
    "allowance": {
-    "value": "550 a day in total across its Tier 1 free models, 50 a day on each model; the unit is not named (the page says \"free quota\"). We saw one model's day limit reached after 42 of our calls",
+    "value": "550 a day in total across its Tier 1 free models, 50 a day on each model; the unit is not named (the page says \"free quota\"). One model's day limit was reached after 42 calls",
     "kind": "stated"
    },
    "recycle": {
@@ -114,7 +114,7 @@
     "value": "no card, but see the note",
     "kind": "stated"
    },
-   "note": "Mistral's docs, as we read them on 21 Nov, say Free mode has no API access, while our older account still answers, with 2 requests a minute (that figure has moved before: it was 30 on 6 Nov). Do not count on API access on Mistral's free mode as a new reader.",
+   "note": "Mistral's docs, read on 21 Nov, say Free mode has no API access, yet the API still answered on an older free account, at 2 requests a minute (earlier readings of that figure differed). Do not count on API access in Mistral's free mode for a new account.",
    "checked": "2026-11-25"
   },
   {
