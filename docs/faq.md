@@ -1,4 +1,5 @@
 ---
+eyebrow: "Questions"
 title: "ramen-agents: questions people ask"
 description: "Cost, models, safety, data, platforms and adding an agent: short answers about ramen-agents."
 permalink: /faq.html

@@ -1,4 +1,5 @@
 ---
+eyebrow: "Claude Code"
 title: "How do I run ramen-agents with a team of Claude Code sessions?"
 description: "One session plans and reviews, builder sessions build from its numbered specs, and a few rules keep them from stepping on each other or on the agents."
 permalink: /claude-code-team.html

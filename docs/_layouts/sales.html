@@ -1,0 +1,90 @@
+---
+layout: base
+body_class: sales
+---
+{%- assign h = page.hero -%}
+<section class="wrap s-hero" aria-labelledby="s-line">
+  <div class="s-copy">
+    <p class="eyebrow rise">{{ page.eyebrow }}</p>
+    <h1 id="s-line" class="rise">{{ h.line }}</h1>
+    <p class="lede rise">{{ h.sentence }}</p>
+    <p class="cta rise">
+      <a class="btn btn-main" href="{{ page.whatsapp }}">{{ h.button }}</a>
+      <a class="btn btn-line" href="{{ site.run_yourself_url }}">Run it yourself</a>
+    </p>
+    <p class="fine rise">{{ h.small }}</p>
+  </div>
+  {%- if page.do %}
+  <div class="sheet" data-rv>
+    <h2 class="sheet-top" id="s-do"><span class="live" aria-hidden="true"></span>{{ page.do.heading }}</h2>
+    <ol>
+      {%- for d in page.do.items %}
+      <li style="--i:{{ forloop.index0 }}"><span class="tick" aria-hidden="true"></span><span><b>{{ d.title }}</b><small>{{ d.text }}</small></span></li>
+      {%- endfor %}
+    </ol>
+  </div>
+  {%- endif %}
+</section>
+
+{%- if page.after %}
+<section class="s-sec s-after" aria-labelledby="s-after">
+  <div class="wrap panel-in">
+    <div data-rv>
+      <h2 id="s-after">{{ page.after.heading }}</h2>
+      <ul class="s-list">
+        {%- for a in page.after.items %}
+        <li><h3>{{ a.title }}</h3><p>{{ a.text | markdownify | remove: "<p>" | remove: "</p>" | strip }}</p></li>
+        {%- endfor %}
+      </ul>
+    </div>
+    <figure class="panel-fig fig-office" data-rv>
+      <img src="{{ "/assets/office/close.webp" | relative_url }}" width="750" height="810" loading="lazy"
+        alt="Close up: the Lead Gen agent at its desk, its card showing 23 leads today and the page it last opened. Example data.">
+      <figcaption>Lead Gen at its desk, close up. Example data.</figcaption>
+    </figure>
+  </div>
+</section>
+{%- endif %}
+
+{%- if page.who %}
+<section class="s-sec" aria-labelledby="s-who">
+  <div class="wrap s-narrow" data-rv>
+    <h2 id="s-who">{{ page.who.heading }}</h2>
+    <p class="s-big">{{ page.who.text }}</p>
+  </div>
+</section>
+{%- endif %}
+
+{%- if page.ask %}
+<section class="s-sec" aria-labelledby="s-ask">
+  <div class="wrap">
+    <h2 id="s-ask" data-rv>{{ page.ask.heading }}</h2>
+    <ol class="s-steps">
+      {%- for s in page.ask.steps %}
+      <li data-rv style="--i:{{ forloop.index0 }}"><span class="step">{{ forloop.index }}</span><h3>{{ s.title }}</h3><p>{{ s.text | markdownify | remove: "<p>" | remove: "</p>" | strip }}</p></li>
+      {%- endfor %}
+    </ol>
+  </div>
+</section>
+{%- endif %}
+
+{%- if page.good %}
+<section class="s-sec" aria-labelledby="s-good">
+  <div class="wrap s-narrow prose" data-rv>
+    <h2 id="s-good">{{ page.good.heading }}</h2>
+    <ul>
+      {%- for g in page.good.lines %}
+      <li>{{ g | markdownify | remove: "<p>" | remove: "</p>" | strip }}</li>
+      {%- endfor %}
+    </ul>
+  </div>
+</section>
+{%- endif %}
+
+<section class="s-close" aria-labelledby="s-close">
+  <div class="wrap s-close-in" data-rv>
+    <h2 id="s-close">{{ page.close.line }}</h2>
+    <a class="btn btn-main" href="{{ page.whatsapp }}">{{ page.close.button }}</a>
+  </div>
+</section>
+{{ content }}

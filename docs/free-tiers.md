@@ -1,4 +1,5 @@
 ---
+eyebrow: "Free tiers"
 title: "Which free AI models and search engines does ramen-agents use?"
 description: "Every model provider and search engine in the free chain, with its free limits, what we measured and where its key goes."
 permalink: /free-tiers.html

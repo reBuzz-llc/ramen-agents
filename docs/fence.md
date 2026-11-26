@@ -1,4 +1,5 @@
 ---
+eyebrow: "The rules"
 title: "Can an AI agent spend money, sign up or collect personal data?"
 description: "No. The fence: the rules no ramen-agents agent may break, and the file that enforces each one."
 permalink: /fence.html

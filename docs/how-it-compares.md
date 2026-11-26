@@ -1,4 +1,5 @@
 ---
+eyebrow: "Comparison"
 title: "How is ramen-agents different from agent frameworks and AI employee tools?"
 description: "ramen-agents next to agent frameworks such as CrewAI and paid AI SDRs such as Artisan: cost, setup, guardrails, data and email outreach."
 permalink: /how-it-compares.html

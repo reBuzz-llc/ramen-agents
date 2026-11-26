@@ -1,4 +1,5 @@
 ---
+eyebrow: "Cost"
 title: "Does ramen-agents cost anything?"
 description: "The software is free, the default free tiers cost $0 in model fees, search is keyless, and a paid provider joins only if you add it by hand."
 permalink: /does-it-cost-anything.html

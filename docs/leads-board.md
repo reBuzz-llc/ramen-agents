@@ -1,4 +1,5 @@
 ---
+eyebrow: "The board"
 title: "Where do my leads go? The Leads board"
 description: "The local board every lead lives in: one row per business on your own Mac, its columns, and who writes each one."
 permalink: /leads-board.html

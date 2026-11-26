@@ -1,4 +1,5 @@
 ---
+eyebrow: "The Validator"
 title: "What does the Validator check?"
 description: "Every rule the Validator holds the agents' writes to, and whether it refuses the write or flags it afterwards."
 permalink: /validator-rules.html

@@ -1,4 +1,5 @@
 ---
+eyebrow: "Try it first"
 title: "How do I try ramen-agents without a key?"
 description: "Install the engine and run one research session in fake mode: no account, no API key, about a second, and no network once installed."
 permalink: /try-without-a-key.html

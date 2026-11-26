@@ -249,6 +249,51 @@ a:hover { text-decoration-color: var(--text); }
 .foot .mark { margin-bottom: 12px; color: var(--text); }
 @media (max-width: 759px) { .foot-in { grid-template-columns: 1fr; } }
 
+/* set up for you: the sales page */
+.s-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(32px, 5vw, 72px); align-items: center; padding-top: clamp(48px, 8vw, 104px); padding-bottom: clamp(56px, 8vw, 104px); }
+.s-hero h1 { font: 600 clamp(36px, 5.2vw, 64px)/1.04 var(--sans); letter-spacing: -.025em; margin: 0 0 20px; text-wrap: balance; }
+.sheet { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px 10px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+.sheet-top { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.sheet ol { list-style: none; margin: 0; padding: 0; }
+.sheet li { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+.sheet li b { display: block; font-weight: 600; }
+.sheet li small { display: block; margin-top: 3px; font-size: 14px; line-height: 1.5; color: var(--soft); }
+.sheet .tick { margin-top: 1px; }
+.tick { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--go); background: var(--go) center / 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.3l2.6 2.5L10 3.4' fill='none' stroke='%230b0e13' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); transition: background-color .35s var(--ease), transform .35s var(--ease); transition-delay: calc(.35s + var(--i) * .3s); }
+.js .sheet[data-rv]:not(.in) .tick { background-color: transparent; background-size: 0; transform: scale(.85); }
+.js .sheet .tick { transition-property: background-color, background-size, transform; }
+.s-sec { padding: clamp(56px, 8vw, 96px) 0; border-top: 1px solid var(--line); }
+.s-sec h2, .s-close h2 { font: 600 clamp(28px, 3.4vw, 42px)/1.1 var(--sans); letter-spacing: -.015em; margin: 0 0 32px; }
+.s-sec h3 { font: 600 18px/1.3 var(--sans); margin: 0 0 8px; }
+.s-sec p { color: var(--soft); margin: 0; }
+.s-list { list-style: none; margin: 0; padding: 0; }
+.s-list li { padding: 18px 0 18px 22px; border-top: 1px solid var(--line); position: relative; }
+.s-list li::before { content: ""; position: absolute; left: 0; top: 25px; width: 8px; height: 8px; border-radius: 50%; background: var(--go); }
+.s-after .fig-office img { max-width: 420px; margin-left: auto; }
+.s-after .panel-fig figcaption { text-align: right; }
+.s-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; counter-reset: s; }
+.s-steps li { position: relative; padding-top: 64px; }
+.s-steps li::before { content: ""; position: absolute; left: 44px; right: -32px; top: 21px; height: 1px; background: var(--line-2); }
+.s-steps li:last-child::before { display: none; }
+.step { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line-2); border-radius: 50%; font: 500 15px/1 var(--mono); background: var(--bg); }
+.s-narrow > * { max-width: 760px; }
+.s-narrow.prose h2 { margin-top: 0; }
+.s-close { padding: clamp(56px, 8vw, 96px) 0; border-top: 1px solid var(--line); background: var(--bg-2); }
+.s-close-in { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+.s-close h2 { margin: 0; max-width: 20ch; }
+@media (max-width: 859px) {
+  .s-hero { grid-template-columns: minmax(0, 1fr); }
+  .s-after .fig-office img { margin: 0; max-width: 340px; }
+  .s-after .panel-fig figcaption { text-align: left; }
+}
+@media (max-width: 699px) {
+  .s-steps { grid-template-columns: minmax(0, 1fr); }
+  .s-steps { gap: 0; }
+  .s-steps li { padding: 0 0 28px 64px; min-height: 72px; }
+  .s-steps li::before { left: 21px; right: auto; top: 44px; bottom: 0; width: 1px; height: auto; }
+  .s-close-in .btn { flex: 1 1 100%; }
+}
+
 /* motion off: everything shown, nothing moves */
 .still *, .still *::before, .still *::after { transition: none !important; animation: none !important; }
 .still .rise, .still [data-rv] { opacity: 1 !important; transform: none !important; }
